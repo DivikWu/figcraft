@@ -1,0 +1,13 @@
+{
+  "name": "figcraft",
+  "id": "figcraft-plugin",
+  "api": "1.0.0",
+  "main": "dist/plugin/code.js",
+  "ui": "dist/plugin/ui.html",
+  "documentAccess": "dynamic-page",
+  "permissions": ["teamlibrary"],
+  "networkAccess": {
+    "allowedDomains": ["ws://localhost:3055", "wss://localhost:3055"],
+    "reasoning": "WebSocket connection to MCP bridge relay"
+  }
+}

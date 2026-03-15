@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 12px;
+      color: #333;
+      padding: 12px;
+      background: #fff;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .header h1 {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+    .status.connected { background: #e8f5e9; color: #2e7d32; }
+    .status.connected .status-dot { background: #4caf50; }
+    .status.disconnected { background: #fce4ec; color: #c62828; }
+    .status.disconnected .status-dot { background: #e53935; }
+    .status.connecting { background: #fff3e0; color: #e65100; }
+    .status.connecting .status-dot { background: #ff9800; }
+
+    .channel-section {
+      margin-bottom: 12px;
+    }
+    .channel-section label {
+      display: block;
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 4px;
+    }
+    .channel-id {
+      font-family: monospace;
+      font-size: 12px;
+      padding: 6px 8px;
+      background: #f5f5f5;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      word-break: break-all;
+      user-select: all;
+    }
+    .log {
+      margin-top: 12px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #666;
+      background: #fafafa;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      padding: 8px;
+    }
+    .log-entry { margin-bottom: 2px; }
+    .log-entry.error { color: #c62828; }
+    .log-entry.success { color: #2e7d32; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>figcraft</h1>
+    <span id="status" class="status connecting">
+      <span class="status-dot"></span>
+      <span id="status-text">Connecting...</span>
+    </span>
+  </div>
+
+  <div class="channel-section">
+    <label>Channel ID (use this in your MCP config)</label>
+    <div id="channel-id" class="channel-id"></div>
+  </div>
+
+  <div class="log" id="log"></div>
+
+  <script>
+    // ─── Channel ID (random per session) ───
+    const channelId = Math.random().toString(36).slice(2, 10);
+    document.getElementById('channel-id').textContent = channelId;
+
+    // ─── Logging ───
+    const logEl = document.getElementById('log');
+    function log(text, type) {
+      const entry = document.createElement('div');
+      entry.className = 'log-entry' + (type ? ' ' + type : '');
+      entry.textContent = new Date().toLocaleTimeString() + ' ' + text;
+      logEl.appendChild(entry);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    // ─── Status ───
+    function setStatus(state, text) {
+      const el = document.getElementById('status');
+      el.className = 'status ' + state;
+      document.getElementById('status-text').textContent = text;
+    }
+
+    // ─── WebSocket connection to relay ───
+    const RELAY_URL = 'ws://localhost:3055';
+    let ws = null;
+    let reconnectTimer = null;
+
+    function connect() {
+      setStatus('connecting', 'Connecting...');
+      log('Connecting to relay...');
+
+      ws = new WebSocket(RELAY_URL);
+
+      ws.onopen = () => {
+        // Join channel as plugin role
+        ws.send(JSON.stringify({ type: 'join', channel: channelId, role: 'plugin' }));
+        setStatus('connected', 'Connected');
+        log('Connected to relay', 'success');
+      };
+
+      ws.onmessage = (event) => {
+        let msg;
+        try {
+          msg = JSON.parse(event.data);
+        } catch {
+          return;
+        }
+
+        // Application-level ping → respond with pong
+        if (msg.type === 'ping') {
+          ws.send(JSON.stringify({ type: 'pong', channel: channelId }));
+          return;
+        }
+
+        // Request from MCP Server → forward to Plugin sandbox via postMessage
+        if (msg.type === 'request') {
+          log('← ' + msg.method);
+          parent.postMessage({ pluginMessage: msg }, '*');
+          return;
+        }
+      };
+
+      ws.onclose = () => {
+        setStatus('disconnected', 'Disconnected');
+        log('Disconnected from relay', 'error');
+        scheduleReconnect();
+      };
+
+      ws.onerror = () => {
+        log('Connection error', 'error');
+      };
+    }
+
+    function scheduleReconnect() {
+      if (reconnectTimer) return;
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connect();
+      }, 3000);
+    }
+
+    // ─── Receive responses from Plugin sandbox → forward to relay ───
+    window.onmessage = (event) => {
+      const msg = event.data.pluginMessage;
+      if (!msg) return;
+
+      // Attach channel and forward to relay
+      if (msg.type === 'response' || msg.type === 'error') {
+        log('→ ' + (msg.type === 'error' ? 'ERR: ' + msg.error.message : 'OK'));
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ ...msg, channel: channelId }));
+        }
+      }
+    };
+
+    // ─── Start ───
+    connect();
+  </script>
+</body>
+</html>
