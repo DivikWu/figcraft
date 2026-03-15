@@ -1,0 +1,78 @@
+/**
+ * Node read handlers — read node tree, selection, search.
+ */
+
+import { registerHandler } from '../code.js';
+import { simplifyNode, simplifyPage } from '../adapters/node-simplifier.js';
+
+registerHandler('get_node_info', async (params) => {
+  const nodeId = params.nodeId as string;
+  const node = figma.getNodeById(nodeId);
+  if (!node || !('type' in node) || node.type === 'PAGE' || node.type === 'DOCUMENT') {
+    return { error: `Node not found: ${nodeId}` };
+  }
+  return simplifyNode(node as SceneNode);
+});
+
+registerHandler('get_current_page', async (params) => {
+  const maxNodes = (params.maxNodes as number) ?? 200;
+  const page = figma.currentPage;
+  return {
+    id: page.id,
+    name: page.name,
+    childCount: page.children.length,
+    nodes: simplifyPage(page, maxNodes),
+  };
+});
+
+registerHandler('get_document_info', async () => {
+  return {
+    name: figma.root.name,
+    currentPage: figma.currentPage.name,
+    pages: figma.root.children.map((p) => ({
+      id: p.id,
+      name: p.name,
+      childCount: p.children.length,
+    })),
+  };
+});
+
+registerHandler('get_selection', async () => {
+  const selection = figma.currentPage.selection;
+  return {
+    count: selection.length,
+    nodes: selection.map((n) => simplifyNode(n)),
+  };
+});
+
+registerHandler('search_nodes', async (params) => {
+  const query = (params.query as string).toLowerCase();
+  const types = params.types as string[] | undefined;
+  const limit = (params.limit as number) ?? 50;
+
+  const results: ReturnType<typeof simplifyNode>[] = [];
+
+  function walk(node: SceneNode): boolean {
+    if (results.length >= limit) return true;
+
+    const matchesType = !types || types.includes(node.type);
+    const matchesName = node.name.toLowerCase().includes(query);
+
+    if (matchesType && matchesName) {
+      results.push(simplifyNode(node, 0));
+    }
+
+    if ('children' in node) {
+      for (const child of (node as ChildrenMixin).children) {
+        if (walk(child)) return true;
+      }
+    }
+    return false;
+  }
+
+  for (const child of figma.currentPage.children) {
+    if (walk(child)) break;
+  }
+
+  return { count: results.length, nodes: results };
+});

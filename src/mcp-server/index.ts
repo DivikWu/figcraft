@@ -9,6 +9,18 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { Bridge } from './bridge.js';
 import { registerPing } from './tools/ping.js';
+import { registerNodeTools } from './tools/nodes.js';
+import { registerVariableTools } from './tools/variables.js';
+import { registerStyleTools } from './tools/styles.js';
+import { registerLibraryTools } from './tools/library.js';
+import { registerExportTools } from './tools/export.js';
+import { registerWriteNodeTools } from './tools/write-nodes.js';
+import { registerTokenTools } from './tools/tokens.js';
+import { registerComponentTools } from './tools/components.js';
+import { registerStorageTools } from './tools/storage.js';
+import { registerLintTools } from './tools/lint.js';
+import { registerModeTools } from './tools/mode.js';
+import { registerPrompts } from './prompts/index.js';
 
 const RELAY_URL = process.env.FIGCRAFT_RELAY_URL ?? 'ws://localhost:3055';
 const CHANNEL = process.env.FIGCRAFT_CHANNEL ?? 'default';
@@ -24,10 +36,25 @@ const bridge = new Bridge(RELAY_URL, CHANNEL);
 
 registerPing(server, bridge);
 
-// P1: read tools will be registered here
-// P2: write tools will be registered here
-// P3: lint tools will be registered here
-// P4: generation tools will be registered here
+// P1: read tools
+registerNodeTools(server, bridge);
+registerVariableTools(server, bridge);
+registerStyleTools(server, bridge);
+registerLibraryTools(server, bridge);
+registerExportTools(server, bridge);
+
+// P2: write tools
+registerWriteNodeTools(server, bridge);
+registerTokenTools(server, bridge);
+registerComponentTools(server, bridge);
+registerStorageTools(server, bridge);
+
+// P3: lint tools
+registerLintTools(server, bridge);
+
+// P4: mode + prompts
+registerModeTools(server, bridge);
+registerPrompts(server);
 
 // ─── Start ───
 

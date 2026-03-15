@@ -29,25 +29,29 @@ registerHandler('ping', async () => {
   };
 });
 
-registerHandler('get_document_info', async () => {
-  return {
-    name: figma.root.name,
-    currentPage: figma.currentPage.name,
-    pages: figma.root.children.map((p) => ({ id: p.id, name: p.name })),
-  };
-});
+// ─── Import P1 handlers (side-effect registration) ───
 
-registerHandler('get_selection', async () => {
-  const selection = figma.currentPage.selection;
-  return {
-    count: selection.length,
-    nodes: selection.map((n) => ({
-      id: n.id,
-      name: n.name,
-      type: n.type,
-    })),
-  };
-});
+import './handlers/nodes.js';
+import './handlers/variables.js';
+import './handlers/styles.js';
+import './handlers/library.js';
+import './handlers/export.js';
+
+// ─── Import P2 handlers (side-effect registration) ───
+
+import './handlers/write-nodes.js';
+import './handlers/write-variables.js';
+import './handlers/write-styles.js';
+import './handlers/components.js';
+import './handlers/storage.js';
+
+// ─── Import P3 handlers (side-effect registration) ───
+
+import './handlers/lint.js';
+
+// ─── Import P4 handlers (side-effect registration) ───
+
+import './handlers/scan.js';
 
 // ─── Message routing ───
 
