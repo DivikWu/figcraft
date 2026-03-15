@@ -2,7 +2,7 @@ import { defineConfig } from 'tsup';
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 
 export default defineConfig({
-  entry: ['src/plugin/code.ts'],
+  entry: { code: 'src/plugin/code.ts' },
   outDir: 'dist/plugin',
   format: ['iife'],
   target: 'es2022',
@@ -13,6 +13,10 @@ export default defineConfig({
   onSuccess: async () => {
     mkdirSync('dist/plugin', { recursive: true });
     writeFileSync('dist/plugin/ui.html', readFileSync('src/plugin/ui.html'));
-    writeFileSync('dist/plugin/manifest.json', readFileSync('manifest.json'));
+    // Write manifest with paths relative to dist/plugin/
+    const manifest = JSON.parse(readFileSync('manifest.json', 'utf-8'));
+    manifest.main = 'code.global.js';
+    manifest.ui = 'ui.html';
+    writeFileSync('dist/plugin/manifest.json', JSON.stringify(manifest, null, 2));
   },
 });
