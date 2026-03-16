@@ -3,414 +3,996 @@
 <head>
   <meta charset="utf-8">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      font-size: 12px;
-      color: #333;
-      padding: 12px;
-      background: #fff;
+    /* ─── CSS Custom Properties ─── */
+    :root {
+      --bg: #ffffff;
+      --surface: #f5f5f5;
+      --surface-hover: #ebebeb;
+      --border: #e6e6e6;
+      --text-primary: #333333;
+      --text-secondary: #888888;
+      --text-tertiary: #aaaaaa;
+      --accent: #0d99ff;
+      --accent-hover: #0b85e0;
+      --accent-bg: #e8f4fd;
+      --success: #14ae5c;
+      --success-bg: #e8f5e9;
+      --error: #f24822;
+      --error-bg: #fef0ed;
+      --warning: #ffcd29;
+      --warning-bg: #fff8e1;
+      --code-bg: #f0f0f0;
     }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #2c2c2c;
+        --surface: #383838;
+        --surface-hover: #444444;
+        --border: #4a4a4a;
+        --text-primary: #e8e8e8;
+        --text-secondary: #999999;
+        --text-tertiary: #777777;
+        --accent: #0d99ff;
+        --accent-hover: #3dabff;
+        --accent-bg: #1a3a4f;
+        --success: #14ae5c;
+        --success-bg: #1a3a2a;
+        --error: #f24822;
+        --error-bg: #3f2020;
+        --warning: #ffcd29;
+        --warning-bg: #3a3520;
+        --code-bg: #3a3a3a;
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg: #2c2c2c;
+      --surface: #383838;
+      --surface-hover: #444444;
+      --border: #4a4a4a;
+      --text-primary: #e8e8e8;
+      --text-secondary: #999999;
+      --text-tertiary: #777777;
+      --accent: #0d99ff;
+      --accent-hover: #3dabff;
+      --accent-bg: #1a3a4f;
+      --success: #14ae5c;
+      --success-bg: #1a3a2a;
+      --error: #f24822;
+      --error-bg: #3f2020;
+      --warning: #ffcd29;
+      --warning-bg: #3a3520;
+      --code-bg: #3a3a3a;
+    }
+
+    /* ─── Reset & Base ─── */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      font-family: 'Noto Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 12px;
+      color: var(--text-primary);
+      background: var(--bg);
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ─── Header ─── */
     .header {
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin-bottom: 12px;
+      justify-content: space-between;
+      padding: 10px 12px 12px;
+      flex-shrink: 0;
     }
     .header h1 {
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
+      letter-spacing: -0.2px;
     }
-    .status {
-      display: inline-flex;
+    .channel-bar {
+      display: flex;
       align-items: center;
       gap: 4px;
-      padding: 2px 8px;
-      border-radius: 10px;
-      font-size: 11px;
-      font-weight: 500;
+      padding: 0 12px 6px;
+      flex-shrink: 0;
+    }
+    .channel-bar .input,
+    .channel-bar .btn {
+      height: 32px;
+      border-radius: 8px;
+    }
+    .channel-bar .input {
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* ─── Status Button ─── */
+    .status-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 8px;
+      font-weight: 600;
     }
     .status-dot {
       width: 6px;
       height: 6px;
       border-radius: 50%;
+      flex-shrink: 0;
     }
-    .status.connected { background: #e8f5e9; color: #2e7d32; }
-    .status.connected .status-dot { background: #4caf50; }
-    .status.disconnected { background: #fce4ec; color: #c62828; }
-    .status.disconnected .status-dot { background: #e53935; }
-    .status.connecting { background: #fff3e0; color: #e65100; }
-    .status.connecting .status-dot { background: #ff9800; }
+    .status-btn.connected { background: var(--bg); color: var(--success); border-color: var(--border); }
+    .status-btn.connected .status-dot { background: var(--success); }
+    .status-btn.connected:hover { background: var(--surface); }
+    .status-btn.disconnected { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .status-btn.disconnected .status-dot { display: none; }
+    .status-btn.disconnected:hover { background: var(--accent-hover); }
+    .status-btn.connecting { background: var(--bg); color: var(--text-secondary); border-color: var(--border); }
+    .status-btn.connecting .status-dot {
+      background: var(--warning);
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
 
-    .channel-section {
-      margin-bottom: 12px;
-    }
-    .channel-section label {
-      display: block;
-      font-size: 11px;
-      color: #666;
-      margin-bottom: 4px;
-    }
-    .channel-row {
+    /* ─── Tab Bar ─── */
+    .tab-bar {
       display: flex;
-      gap: 4px;
+      padding: 8px 12px 0;
+      gap: 16px;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--border);
     }
-    .channel-input {
-      flex: 1;
-      font-family: monospace;
+    .tab-btn {
+      padding: 8px 2px;
       font-size: 12px;
-      padding: 6px 8px;
-      background: #f5f5f5;
-      border: 1px solid #e0e0e0;
-      border-radius: 4px;
-      outline: none;
-    }
-    .channel-input:focus {
-      border-color: #1e88e5;
-      background: #fff;
-    }
-    .btn {
-      padding: 6px 12px;
-      font-size: 11px;
       font-weight: 500;
-      border: 1px solid #e0e0e0;
-      border-radius: 4px;
-      background: #f5f5f5;
+      color: var(--text-secondary);
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
       cursor: pointer;
-      white-space: nowrap;
+      transition: color 0.15s, border-color 0.15s;
+      margin-bottom: -1px;
     }
-    .btn:hover { background: #e0e0e0; }
-    .btn.primary { background: #1e88e5; color: #fff; border-color: #1e88e5; }
-    .btn.primary:hover { background: #1565c0; }
+    .tab-btn:hover { color: var(--text-primary); }
+    .tab-btn.active {
+      color: var(--text-primary);
+      border-bottom-color: var(--text-primary);
+      font-weight: 600;
+    }
 
-    .mode-section {
-      margin-bottom: 12px;
+    /* ─── Tab Content ─── */
+    .tab-pane {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      min-height: 0;
     }
-    .mode-section label {
-      display: block;
+    .tab-pane.active {
+      display: flex;
+    }
+
+    /* ─── Activity Tab ─── */
+    .activity-feed {
+      flex: 1;
+      overflow-y: auto;
+      font-family: 'SF Mono', 'Menlo', monospace;
       font-size: 11px;
-      color: #666;
-      margin-bottom: 4px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      padding: 8px 12px;
     }
+    .activity-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px 0;
+      flex-shrink: 0;
+    }
+    .activity-clear {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      border: none;
+      background: none;
+      padding: 2px 4px;
+      border-radius: 3px;
+      transition: color 0.1s, background 0.1s;
+    }
+    .activity-clear:hover { color: var(--text-primary); background: var(--surface); }
+    .activity-badge {
+      font-size: 10px;
+      color: var(--text-tertiary);
+    }
+    .log-entry {
+      margin-bottom: 1px;
+      padding: 1px 0;
+    }
+    .log-entry .time { color: var(--text-tertiary); }
+    .log-entry .arrow { font-weight: 600; }
+    .log-entry .arrow.in { color: var(--accent); }
+    .log-entry .arrow.out { color: var(--success); }
+    .log-entry.error .arrow { color: var(--error); }
+    .log-entry.error .msg { color: var(--error); }
+    .log-entry.success .msg { color: var(--success); }
+    .log-entry.info .msg { color: var(--text-secondary); }
+
+    /* ─── Empty State ─── */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      gap: 8px;
+      color: var(--text-tertiary);
+      font-family: 'Noto Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 11px;
+      padding: 40px 20px;
+    }
+    .empty-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-tertiary);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    /* ─── Settings Tab ─── */
+    .settings-content {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0;
+    }
+    .setting-group { display: flex; flex-direction: column; gap: 6px; }
+    .setting-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .setting-desc {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      line-height: 1.4;
+      margin-top: -2px;
+    }
+
+    /* ─── Mode Toggle ─── */
     .mode-toggle {
       display: flex;
-      border: 1px solid #e0e0e0;
-      border-radius: 4px;
-      overflow: hidden;
+      background: var(--surface);
+      border-radius: 8px;
+      padding: 3px;
+      gap: 2px;
     }
     .mode-toggle button {
       flex: 1;
       padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+    }
+    .mode-toggle button.active {
+      background: var(--bg);
+      color: var(--text-primary);
+      font-weight: 600;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .mode-toggle button:not(.active):hover { background: var(--surface-hover); }
+    .mode-desc {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      line-height: 1.4;
+      transition: opacity 0.2s;
+    }
+
+    /* ─── Shared Input Styles ─── */
+    .input {
+      width: 100%;
+      height: 32px;
+      font-family: 'SF Mono', 'Menlo', monospace;
+      font-size: 11px;
+      padding: 0 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      outline: none;
+      color: var(--text-primary);
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .input:focus { border-color: var(--accent); background: var(--bg); }
+    .input.error { border-color: var(--error); }
+
+    .input-row {
+      display: flex;
+      gap: 4px;
+    }
+    .input-row .input { flex: 1; min-width: 0; }
+
+    .btn {
+      height: 32px;
+      padding: 0 12px;
+      font-size: 11px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text-primary);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .btn:hover { background: var(--surface-hover); }
+    .btn:disabled { opacity: 0.4; cursor: default; }
+    .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn.primary:hover { background: var(--accent-hover); }
+    .btn.success { background: var(--success); color: #fff; border-color: var(--success); }
+
+    .select {
+      width: 100%;
+      height: 32px;
+      font-size: 11px;
+      padding: 0 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      outline: none;
+      color: var(--text-primary);
+      transition: border-color 0.15s;
+    }
+    .select:focus { border-color: var(--accent); }
+
+    .hint { font-size: 10px; color: var(--text-tertiary); margin-top: 2px; }
+    .hint.valid { color: var(--success); }
+    .hint.invalid { color: var(--error); }
+
+    /* ─── Library Picker ─── */
+    .library-trigger {
+      width: 100%;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 10px;
+      font-size: 11px;
+      font-weight: 500;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .library-trigger:hover { border-color: var(--text-tertiary); }
+    .library-trigger .chevron {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      transition: transform 0.15s;
+    }
+    .library-trigger.open .chevron { transform: rotate(180deg); }
+    .library-trigger .label-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .library-trigger .label-text.placeholder { color: var(--text-tertiary); }
+
+    .library-popup-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 99;
+    }
+    .library-popup-overlay.open { display: block; }
+    .library-popup {
+      display: none;
+      position: absolute;
+      top: 100%;
+      margin-top: 4px;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.08);
+      padding: 4px;
+      max-height: 240px;
+      overflow-y: auto;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .library-popup.open { display: flex; }
+
+    .library-popup-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
       font-size: 11px;
       font-weight: 500;
       border: none;
-      background: #f5f5f5;
+      border-radius: 7px;
+      background: transparent;
+      color: var(--text-secondary);
       cursor: pointer;
-      transition: background 0.15s, color 0.15s;
+      text-align: left;
+      transition: background 0.1s, color 0.1s;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
-    .mode-toggle button:not(:last-child) {
-      border-right: 1px solid #e0e0e0;
-    }
-    .mode-toggle button.active {
-      background: #1e88e5;
+    .library-popup-item:hover { background: var(--surface); color: var(--text-primary); }
+    .library-popup-item.active {
+      background: var(--accent);
       color: #fff;
+      font-weight: 600;
     }
-    .mode-toggle button:not(.active):hover {
-      background: #e0e0e0;
+    .library-popup-item.active:hover { background: var(--accent-hover); }
+    .library-popup-item .check {
+      width: 14px;
+      flex-shrink: 0;
+      font-size: 11px;
+      text-align: center;
     }
 
-    .library-section {
-      margin-bottom: 12px;
+    .library-popup-separator {
+      font-size: 9px;
+      font-weight: 600;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 8px 10px 3px;
+      pointer-events: none;
+    }
+    .library-popup-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 4px 6px;
+    }
+    .library-popup-add-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px;
+    }
+    .library-popup-add-row .input {
+      flex: 1;
+      min-width: 0;
+      height: 28px;
+      font-size: 10px;
+      border-radius: 6px;
+    }
+    .library-popup-add-btn {
+      height: 28px;
+      width: 28px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      border-radius: 6px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .library-popup-add-btn:hover { background: var(--accent-hover); }
+    .library-popup-add-btn:disabled { opacity: 0.4; cursor: default; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .library-popup-add-btn.loading {
+      pointer-events: none;
+      position: relative;
+      color: transparent;
+    }
+    .library-popup-add-btn.loading::after {
+      content: '';
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    .library-popup-item { position: relative; }
+    .library-popup-item .delete-btn {
       display: none;
-    }
-    .library-section label {
-      display: block;
-      font-size: 11px;
-      color: #666;
-      margin-bottom: 4px;
-    }
-    .library-select {
-      width: 100%;
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 20px;
+      height: 20px;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text-tertiary);
       font-size: 12px;
-      padding: 6px 8px;
-      background: #f5f5f5;
-      border: 1px solid #e0e0e0;
-      border-radius: 4px;
-      outline: none;
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
     }
-    .library-select:focus {
-      border-color: #1e88e5;
-      background: #fff;
-    }
-
-    .token-section {
-      margin-bottom: 12px;
-    }
-    .token-section label {
-      display: block;
-      font-size: 11px;
-      color: #666;
-      margin-bottom: 4px;
+    .library-popup-item:hover .delete-btn { display: flex; }
+    .library-popup-item .delete-btn:hover { background: var(--error); color: #fff; }
+    .library-popup-error {
+      font-size: 10px;
+      color: var(--error);
+      padding: 0 10px 4px;
     }
 
-    .guide {
-      display: none;
-      margin-top: 12px;
-      padding: 10px;
-      background: #f8f9fa;
-      border: 1px solid #e0e0e0;
-      border-radius: 4px;
+    /* ─── Help Tab ─── */
+    .help-content {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0;
       font-size: 11px;
       line-height: 1.6;
-      color: #555;
+      color: var(--text-secondary);
     }
-    .guide ol { padding-left: 18px; margin: 6px 0; }
-    .guide code {
-      background: #e8e8e8;
-      padding: 1px 4px;
-      border-radius: 2px;
-      font-family: monospace;
+    .help-section-title {
       font-size: 10px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
     }
-    .guide .channel-hint {
-      margin-top: 6px;
-      padding: 6px 8px;
-      background: #fff3e0;
-      border-radius: 3px;
-      color: #e65100;
+    .help-steps { list-style: none; counter-reset: step; }
+    .help-steps li {
+      counter-increment: step;
+      padding-left: 24px;
+      position: relative;
+      margin-bottom: 8px;
     }
-
-    .log {
-      margin-top: 12px;
-      max-height: 200px;
-      overflow-y: auto;
-      font-family: monospace;
-      font-size: 11px;
+    .help-steps li::before {
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      width: 16px;
+      height: 16px;
+      background: var(--text-primary);
+      color: #fff;
+      border-radius: 50%;
+      font-size: 9px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      top: 2px;
+    }
+    .code-block {
+      position: relative;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-family: 'SF Mono', 'Menlo', monospace;
+      font-size: 10px;
       line-height: 1.5;
-      color: #666;
-      background: #fafafa;
-      border: 1px solid #e0e0e0;
-      border-radius: 4px;
-      padding: 8px;
+      white-space: pre;
+      overflow-x: auto;
+      color: var(--text-primary);
     }
-    .log-entry { margin-bottom: 2px; }
-    .log-entry.error { color: #c62828; }
-    .log-entry.success { color: #2e7d32; }
+    .copy-btn {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      font-size: 10px;
+      padding: 3px 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      cursor: pointer;
+      color: var(--text-secondary);
+      transition: background 0.1s;
+    }
+    .copy-btn:hover { background: var(--surface-hover); }
+    .conn-info {
+      display: grid;
+      grid-template-columns: 80px 1fr;
+      gap: 4px 8px;
+      font-size: 11px;
+    }
+    .conn-info-label { color: var(--text-tertiary); }
+    .conn-info-value { color: var(--text-primary); font-family: 'SF Mono', 'Menlo', monospace; }
+
+
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
+  <!-- ─── Header ─── -->
   <div class="header">
-    <h1>FigCraft</h1>
-    <span id="status" class="status disconnected">
-      <span class="status-dot"></span>
-      <span id="status-text">Disconnected</span>
-    </span>
+    <h1>Channel</h1>
+  </div>
+  <div class="channel-bar">
+    <input id="channel-input" class="input" type="text" placeholder="figcraft" title="Channel ID">
+    <button id="connect-btn" class="btn status-btn disconnected"><span class="status-dot"></span><span id="status-text">Connect</span></button>
   </div>
 
-  <div class="channel-section">
-    <label>Channel ID (use this in your MCP config)</label>
-    <div class="channel-row">
-      <input id="channel-input" class="channel-input" type="text" placeholder="e.g. figcraft">
-      <button id="connect-btn" class="btn primary">Connect</button>
+  <!-- ─── Tab Bar ─── -->
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="activity">Activity</button>
+    <button class="tab-btn" data-tab="spec">Spec</button>
+    <button class="tab-btn" data-tab="guide">Guide</button>
+  </div>
+
+  <!-- ─── Activity Tab ─── -->
+  <div class="tab-pane active" data-tab-content="activity">
+    <div class="activity-header">
+      <span class="activity-badge" id="activity-count"></span>
+      <button class="activity-clear" id="log-clear" title="Clear activity">Clear</button>
     </div>
-  </div>
-
-  <div class="guide" id="guide">
-    <strong>连接步骤：</strong>
-    <ol>
-      <li>在终端运行 <code>npm run dev:relay</code> 启动中继服务</li>
-      <li>点击上方 <strong>Connect</strong> 按钮</li>
-      <li>在 IDE 中配置 MCP Server，将 <code>FIGCRAFT_CHANNEL</code> 设为上方的 Channel ID</li>
-    </ol>
-    <div class="channel-hint">
-      💡 确保 Relay 服务 (端口 3055) 正在运行
-    </div>
-  </div>
-
-  <div id="connected-content" style="display:none">
-    <div class="mode-section">
-      <label>规范来源</label>
-      <div class="mode-toggle">
-        <button id="mode-library" class="active">Figma 共享库</button>
-        <button id="mode-spec">设计规范文档</button>
+    <div class="activity-feed" id="log">
+      <div class="empty-state" id="empty-state">
+        <div class="empty-dot"></div>
+        <span>Waiting for MCP commands...</span>
       </div>
     </div>
+  </div>
 
-    <div class="library-section" id="library-section">
-      <label>共享库</label>
-      <select id="library-select" class="library-select">
-        <option value="">加载中...</option>
-      </select>
+  <!-- ─── Settings Tab ─── -->
+  <div class="tab-pane" data-tab-content="spec">
+    <div class="settings-content">
+      <!-- Mode -->
+      <div class="setting-group">
+        <div class="setting-label">Mode</div>
+        <div class="mode-toggle">
+          <button id="mode-library" class="active">Library</button>
+          <button id="mode-spec">Spec</button>
+        </div>
+        <div class="mode-desc" id="mode-desc">Check if designs use shared library tokens</div>
+      </div>
+
+      <!-- Library (shown in library mode) -->
+      <div class="setting-group" id="library-group">
+        <div class="setting-label">Library</div>
+        <div style="position:relative">
+          <button id="library-trigger" class="library-trigger">
+            <span class="label-text placeholder" id="library-trigger-label">None</span>
+            <span class="chevron">&#9662;</span>
+          </button>
+          <div id="library-popup-overlay" class="library-popup-overlay"></div>
+          <div id="library-popup" class="library-popup"></div>
+        </div>
+      </div>
+
+      <!-- API Token -->
+      <div class="setting-group">
+        <div class="setting-label">API Token</div>
+        <div class="input-row">
+          <input id="token-input" class="input" type="password" placeholder="figd_xxx">
+          <button id="token-save-btn" class="btn">Save</button>
+        </div>
+        <div class="hint">Figma Settings > Personal access tokens</div>
+      </div>
+
     </div>
+  </div>
 
-    <div class="token-section">
-      <label>Figma API Token <span style="color:#999">(可选，用于库样式读取)</span></label>
-      <div class="channel-row">
-        <input id="token-input" class="channel-input" type="password" placeholder="figd_xxx">
-        <button id="token-save-btn" class="btn">Save</button>
+  <!-- ─── Help Tab ─── -->
+  <div class="tab-pane" data-tab-content="guide">
+    <div class="help-content">
+      <div>
+        <div class="help-section-title">Quick Start</div>
+        <ol class="help-steps">
+          <li>Add FigCraft to your IDE's MCP config</li>
+          <li>Open this plugin in Figma</li>
+          <li>Both sides auto-connect via the relay</li>
+        </ol>
+      </div>
+
+      <div>
+        <div class="help-section-title">MCP Config</div>
+        <div style="position:relative">
+          <div class="code-block" id="mcp-config">{
+  "mcpServers": {
+    "figcraft": {
+      "command": "npx",
+      "args": ["figcraft"]
+    }
+  }
+}</div>
+          <button class="copy-btn" id="copy-config">Copy</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="help-section-title">Connection Info</div>
+        <div class="conn-info">
+          <span class="conn-info-label">Status</span>
+          <span class="conn-info-value" id="info-status">Disconnected</span>
+          <span class="conn-info-label">Port</span>
+          <span class="conn-info-value" id="info-port">--</span>
+          <span class="conn-info-label">Channel</span>
+          <span class="conn-info-value" id="info-channel">figcraft</span>
+        </div>
       </div>
     </div>
-
-    <div class="log" id="log"></div>
   </div>
+
 
   <script>
     // ─── State ───
-    const DEFAULT_CHANNEL = 'figcraft';
-    let channelId = DEFAULT_CHANNEL;
-    let ws = null;
-    let reconnectTimer = null;
-    let connected = false;
-    let currentMode = 'library';
-    let selectedLibrary = null;
-    let savedApiToken = '';
+    var DEFAULT_CHANNEL = 'figcraft';
+    var channelId = DEFAULT_CHANNEL;
+    var ws = null;
+    var reconnectTimer = null;
+    var connected = false;
+    var currentMode = 'library';
+    var selectedLibrary = null;
+    var savedApiToken = '';
+    var libraryEntries = {};  // { fileKey: { name, url } } — synced from plugin sandbox
+    var logCount = 0;
 
-    const channelInput = document.getElementById('channel-input');
-    const connectBtn = document.getElementById('connect-btn');
-    const modeLibraryBtn = document.getElementById('mode-library');
-    const modeSpecBtn = document.getElementById('mode-spec');
-    const librarySection = document.getElementById('library-section');
-    const librarySelect = document.getElementById('library-select');
-    const tokenInput = document.getElementById('token-input');
-    const tokenSaveBtn = document.getElementById('token-save-btn');
+    // ─── Elements ───
+    var channelInput = document.getElementById('channel-input');
+    var connectBtn = document.getElementById('connect-btn');
+    var statusTextEl = document.getElementById('status-text');
+    var modeLibraryBtn = document.getElementById('mode-library');
+    var modeSpecBtn = document.getElementById('mode-spec');
+    var modeDescEl = document.getElementById('mode-desc');
+    var libraryGroup = document.getElementById('library-group');
+    var libraryTrigger = document.getElementById('library-trigger');
+    var libraryTriggerLabel = document.getElementById('library-trigger-label');
+    var libraryPopup = document.getElementById('library-popup');
+    var libraryPopupOverlay = document.getElementById('library-popup-overlay');
+    var tokenInput = document.getElementById('token-input');
+    var tokenSaveBtn = document.getElementById('token-save-btn');
+    var logEl = document.getElementById('log');
+    var logClearBtn = document.getElementById('log-clear');
+    var emptyState = document.getElementById('empty-state');
+    var activityCount = document.getElementById('activity-count');
+
+
+    // ─── Tab Switching ───
+    document.querySelectorAll('.tab-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.tab-btn').forEach(function(t) { t.classList.remove('active'); });
+        document.querySelectorAll('.tab-pane').forEach(function(p) { p.classList.remove('active'); });
+        btn.classList.add('active');
+        document.querySelector('[data-tab-content="' + btn.dataset.tab + '"]').classList.add('active');
+      });
+    });
+
+    // ─── Connect ───
+    connectBtn.addEventListener('click', function() {
+      if (connected) { disconnect(); } else { connect(); }
+    });
+    channelInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') connect();
+    });
+
+    // ─── Copy Config ───
+    document.getElementById('copy-config').addEventListener('click', function() {
+      var text = document.getElementById('mcp-config').textContent.trim();
+      var btn = document.getElementById('copy-config');
+      // Try modern Clipboard API, fallback to execCommand
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function() {
+          btn.textContent = 'Copied!';
+          setTimeout(function() { btn.textContent = 'Copy'; }, 1200);
+        }, function() { fallbackCopy(text, btn); });
+      } else {
+        fallbackCopy(text, btn);
+      }
+    });
+    function fallbackCopy(text, btn) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;left:-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      btn.textContent = 'Copied!';
+      setTimeout(function() { btn.textContent = 'Copy'; }, 1200);
+    }
 
     // ─── Logging ───
-    const logEl = document.getElementById('log');
     function log(text, type) {
-      const entry = document.createElement('div');
+      if (emptyState && emptyState.parentNode) { emptyState.remove(); emptyState = null; }
+      var entry = document.createElement('div');
       entry.className = 'log-entry' + (type ? ' ' + type : '');
-      entry.textContent = new Date().toLocaleTimeString() + ' ' + text;
+
+      var time = document.createElement('span');
+      time.className = 'time';
+      time.textContent = new Date().toLocaleTimeString() + ' ';
+      entry.appendChild(time);
+
+      // Detect direction from text content
+      if (text.charAt(0) === '\u2190') {
+        // Incoming request
+        var arrow = document.createElement('span');
+        arrow.className = 'arrow in';
+        arrow.textContent = '\u2190 ';
+        entry.appendChild(arrow);
+        var msg = document.createElement('span');
+        msg.className = 'msg';
+        msg.textContent = text.substring(2);
+        entry.appendChild(msg);
+      } else if (text.charAt(0) === '\u2192') {
+        // Outgoing response
+        var arrow = document.createElement('span');
+        arrow.className = 'arrow out';
+        arrow.textContent = '\u2192 ';
+        entry.appendChild(arrow);
+        var msg = document.createElement('span');
+        msg.className = 'msg';
+        msg.textContent = text.substring(2);
+        entry.appendChild(msg);
+      } else {
+        var msg = document.createElement('span');
+        msg.className = 'msg';
+        msg.textContent = text;
+        entry.appendChild(msg);
+      }
+
       logEl.appendChild(entry);
       logEl.scrollTop = logEl.scrollHeight;
+      logCount++;
+      activityCount.textContent = logCount + ' events';
     }
+    logClearBtn.addEventListener('click', function() {
+      logEl.innerHTML = '';
+      logCount = 0;
+      activityCount.textContent = '';
+      // Re-add empty state
+      var es = document.createElement('div');
+      es.className = 'empty-state';
+      es.id = 'empty-state';
+      es.innerHTML = '<div class="empty-dot"></div><span>Waiting for MCP commands...</span>';
+      logEl.appendChild(es);
+      emptyState = es;
+    });
 
     // ─── Status ───
     function setStatus(state, text) {
-      const el = document.getElementById('status');
-      el.className = 'status ' + state;
-      document.getElementById('status-text').textContent = text;
-      var isConnected = state === 'connected';
-      document.getElementById('guide').style.display = isConnected ? 'none' : 'block';
-      document.getElementById('connected-content').style.display = isConnected ? 'block' : 'none';
+      connectBtn.className = 'btn status-btn ' + state;
+
+      if (state === 'connected') {
+        statusTextEl.textContent = 'Connected';
+        connectBtn.disabled = false;
+      } else if (state === 'connecting') {
+        statusTextEl.textContent = 'Connecting...';
+        connectBtn.disabled = true;
+      } else {
+        statusTextEl.textContent = 'Connect';
+        connectBtn.disabled = false;
+      }
+
+      // Update help tab connection info
+      document.getElementById('info-status').textContent =
+        state === 'connected' ? 'Connected' : state === 'connecting' ? 'Connecting...' : 'Disconnected';
+      document.getElementById('info-channel').textContent = channelId;
     }
 
-    // ─── WebSocket connection to relay ───
-    const RELAY_PORTS = [3055, 3056, 3057, 3058, 3059, 3060];
-    let currentRelayPort = null;
+
+    // ─── Save feedback helper ───
+    function flashSaved(btn) {
+      var orig = btn.textContent;
+      btn.textContent = 'Saved';
+      btn.classList.add('success');
+      setTimeout(function() { btn.textContent = orig; btn.classList.remove('success'); }, 1200);
+    }
+
+    // ─── WebSocket ───
+    var RELAY_PORTS = [3055, 3056, 3057, 3058, 3059, 3060];
+    var currentRelayPort = null;
 
     function connect(silent) {
-      // Update channel from input
       channelId = channelInput.value.trim() || DEFAULT_CHANNEL;
       channelInput.value = channelId;
-
-      // Save to clientStorage
       parent.postMessage({ pluginMessage: { type: 'save-channel', channelId: channelId } }, '*');
 
-      if (ws) {
-        ws.onclose = null;
-        ws.close();
-      }
+      if (ws) { ws.onclose = null; ws.close(); }
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
 
       setStatus('connecting', 'Connecting...');
-      if (!silent) log('Connecting to relay (channel: ' + channelId + ')...');
+      if (!silent) log('Connecting (channel: ' + channelId + ')...', 'info');
 
-      // If we know the port from a previous connection, try it first
-      if (currentRelayPort) {
-        tryConnectPort(RELAY_PORTS.indexOf(currentRelayPort), silent);
-      } else {
-        tryConnectPort(0, silent);
-      }
+      tryConnectPort(currentRelayPort ? RELAY_PORTS.indexOf(currentRelayPort) : 0, silent);
     }
 
     function tryConnectPort(index, silent) {
       if (index < 0) index = 0;
       if (index >= RELAY_PORTS.length) {
         setStatus('disconnected', 'Disconnected');
-        if (!silent) log('All relay ports (3055-3060) unavailable', 'error');
-        connectBtn.textContent = 'Connect';
+        if (!silent) log('All relay ports unavailable', 'error');
         scheduleReconnect();
         return;
       }
 
       var port = RELAY_PORTS[index];
-      var url = 'ws://localhost:' + port;
-      ws = new WebSocket(url);
+      ws = new WebSocket('ws://localhost:' + port);
 
-      var connectTimeout = setTimeout(function() {
-        ws.onopen = null;
-        ws.onerror = null;
-        ws.close();
+      var timeout = setTimeout(function() {
+        ws.onopen = null; ws.onerror = null; ws.close();
         tryConnectPort(index + 1, silent);
       }, 1000);
 
       ws.onopen = function() {
-        clearTimeout(connectTimeout);
+        clearTimeout(timeout);
         currentRelayPort = port;
         ws.send(JSON.stringify({ type: 'join', channel: channelId, role: 'plugin' }));
-        // Send saved API token to MCP Server
         if (savedApiToken) {
           ws.send(JSON.stringify({ type: 'set-api-token', channel: channelId, token: savedApiToken }));
         }
-        setStatus('connected', 'Connected');
-        log('Connected to relay on port ' + port, 'success');
+        // Sync all stored library fileKeys to MCP server
+        Object.keys(libraryEntries).forEach(function(fk) {
+          var entry = libraryEntries[fk];
+          if (entry && entry.name) {
+            ws.send(JSON.stringify({ type: 'set-library-file-key', channel: channelId, library: entry.name, fileKey: fk }));
+          }
+        });
+        setStatus('connected', 'Online');
+        log('Connected on port ' + port, 'success');
         connected = true;
-        connectBtn.textContent = 'Reconnect';
+        document.getElementById('info-port').textContent = String(port);
 
         ws.onmessage = function(event) {
           var msg;
-          try {
-            msg = JSON.parse(event.data);
-          } catch {
-            return;
-          }
-
-          if (msg.type === 'ping') {
-            ws.send(JSON.stringify({ type: 'pong', channel: channelId }));
-            return;
-          }
-
-          if (msg.type === 'request') {
-            log('\u2190 ' + msg.method);
-            parent.postMessage({ pluginMessage: msg }, '*');
-            return;
-          }
+          try { msg = JSON.parse(event.data); } catch(e) { return; }
+          if (msg.type === 'ping') { ws.send(JSON.stringify({ type: 'pong', channel: channelId })); return; }
+          if (msg.type === 'file-name-resolved') { handleFileNameResolved(msg); return; }
+          if (msg.type === 'request') { log('\u2190 ' + msg.method); parent.postMessage({ pluginMessage: msg }, '*'); return; }
         };
 
         ws.onclose = function() {
           connected = false;
           setStatus('disconnected', 'Disconnected');
-          log('Disconnected from relay', 'error');
-          connectBtn.textContent = 'Connect';
+          log('Disconnected', 'error');
           scheduleReconnect();
         };
 
-        ws.onerror = function() {
-          log('Connection error', 'error');
-        };
+        ws.onerror = function() { log('Connection error', 'error'); };
       };
 
-      ws.onerror = function() {
-        clearTimeout(connectTimeout);
-        tryConnectPort(index + 1, silent);
-      };
+      ws.onerror = function() { clearTimeout(timeout); tryConnectPort(index + 1, silent); };
+    }
+
+    function disconnect() {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+      if (ws) { ws.onclose = null; ws.close(); ws = null; }
+      connected = false;
+      setStatus('disconnected', 'Disconnected');
+      log('Disconnected by user', 'info');
     }
 
     function scheduleReconnect() {
       if (reconnectTimer) return;
-      reconnectTimer = setTimeout(() => {
-        reconnectTimer = null;
-        connect(true);
-      }, 3000);
+      reconnectTimer = setTimeout(function() { reconnectTimer = null; connect(true); }, 3000);
     }
 
-    // ─── Receive responses from Plugin sandbox → forward to relay ───
-    window.onmessage = (event) => {
-      const msg = event.data.pluginMessage;
+    // ─── Plugin sandbox messages ───
+    window.onmessage = function(event) {
+      var msg = event.data.pluginMessage;
       if (!msg) return;
 
-      // Restore saved channel from clientStorage
       if (msg.type === 'restore-channel') {
         channelId = msg.channelId || DEFAULT_CHANNEL;
         channelInput.value = channelId;
@@ -418,168 +1000,325 @@
         return;
       }
 
-      // Restore saved mode from clientStorage
-      if (msg.type === 'restore-mode') {
-        updateModeUI(msg.mode || 'library');
-        return;
-      }
+      if (msg.type === 'restore-mode') { updateModeUI(msg.mode || 'library'); return; }
 
-      // Mode changed by MCP set_mode tool
       if (msg.type === 'mode-changed') {
         updateModeUI(msg.mode || 'library');
-        log('Mode → ' + (msg.mode === 'spec' ? '设计规范文档' : 'Figma 共享库') + ' (via MCP)');
+        log('Mode \u2192 ' + (msg.mode === 'spec' ? 'Spec' : 'Library') + ' (via MCP)', 'info');
         return;
       }
 
-      // Library list from code.js
       if (msg.type === 'library-list') {
-        populateLibraryDropdown(msg.libraries || [], msg.savedLibrary, msg.hasLocal || false);
+        // libraries is now [{name, fileKey}]
+        // Build libraryEntries map for ws.onopen sync
+        libraryEntries = {};
+        (msg.libraries || []).forEach(function(lib) {
+          libraryEntries[lib.fileKey] = { name: lib.name, url: '' };
+        });
+        populateLibraryDropdown(msg.libraries || [], msg.inUseLibraries || [], msg.savedLibrary, msg.hasLocal || false);
         return;
       }
 
-      // Restore saved library from clientStorage
       if (msg.type === 'restore-library') {
         selectedLibrary = msg.library || null;
         return;
       }
 
-      // Restore saved API token from clientStorage
       if (msg.type === 'restore-token') {
         savedApiToken = msg.token || '';
         tokenInput.value = savedApiToken;
-        // If already connected, send token to MCP Server
         if (savedApiToken && ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'set-api-token', channel: channelId, token: savedApiToken }));
         }
         return;
       }
 
-      // Library changed by MCP set_mode tool
       if (msg.type === 'library-changed') {
         selectedLibrary = msg.library || null;
         updateLibrarySelectUI(selectedLibrary);
-        log('Library → ' + (selectedLibrary || 'none') + ' (via MCP)');
+        log('Library \u2192 ' + (selectedLibrary || 'none') + ' (via MCP)', 'info');
         return;
       }
 
-      // Forward responses to relay
       if (msg.type === 'response' || msg.type === 'error') {
-        log('\u2192 ' + (msg.type === 'error' ? 'ERR: ' + msg.error.message : 'OK'));
+        log('\u2192 ' + (msg.type === 'error' ? 'ERR: ' + msg.error.message : 'OK'), msg.type === 'error' ? 'error' : 'success');
         if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ ...msg, channel: channelId }));
+          ws.send(JSON.stringify(Object.assign({}, msg, { channel: channelId })));
         }
       }
     };
 
-    // ─── Mode toggle ───
+    // ─── Mode ───
+    var MODE_DESCS = {
+      library: 'Check if designs use shared library tokens',
+      spec: 'Validate design values against DTCG token specs'
+    };
+
     function updateModeUI(mode) {
       currentMode = mode;
       modeLibraryBtn.className = mode === 'library' ? 'active' : '';
       modeSpecBtn.className = mode === 'spec' ? 'active' : '';
-      updateLibrarySectionVisibility(mode);
+      modeDescEl.textContent = MODE_DESCS[mode] || '';
+      libraryGroup.style.display = mode === 'library' ? '' : 'none';
+      if (mode === 'library') {
+        parent.postMessage({ pluginMessage: { type: 'get-libraries' } }, '*');
+      }
     }
 
     function setMode(mode) {
       if (mode === currentMode) return;
       updateModeUI(mode);
       parent.postMessage({ pluginMessage: { type: 'save-mode', mode: mode } }, '*');
-      log('Mode → ' + (mode === 'library' ? 'Figma 共享库' : '设计规范文档'));
+      log('Mode \u2192 ' + (mode === 'library' ? 'Library' : 'Spec'), 'info');
     }
 
-    // ─── Library selector ───
-    function updateLibrarySectionVisibility(mode) {
-      if (mode === 'library') {
-        librarySection.style.display = 'block';
-        parent.postMessage({ pluginMessage: { type: 'get-libraries' } }, '*');
+    modeLibraryBtn.addEventListener('click', function() { setMode('library'); });
+    modeSpecBtn.addEventListener('click', function() { setMode('spec'); });
+
+    // ─── Library Popup ───
+    var cachedLibraryData = null;
+
+    function openLibraryPopup() {
+      libraryPopup.classList.add('open');
+      libraryPopupOverlay.classList.add('open');
+      libraryTrigger.classList.add('open');
+    }
+
+    function closeLibraryPopup() {
+      libraryPopup.classList.remove('open');
+      libraryPopupOverlay.classList.remove('open');
+      libraryTrigger.classList.remove('open');
+    }
+
+    libraryTrigger.addEventListener('click', function() {
+      if (libraryPopup.classList.contains('open')) { closeLibraryPopup(); } else { openLibraryPopup(); }
+    });
+    libraryPopupOverlay.addEventListener('click', closeLibraryPopup);
+
+    function updateTriggerLabel(value) {
+      if (!value) {
+        libraryTriggerLabel.textContent = 'None';
+        libraryTriggerLabel.className = 'label-text placeholder';
+      } else if (value === '__local__') {
+        libraryTriggerLabel.textContent = 'Local file styles';
+        libraryTriggerLabel.className = 'label-text';
       } else {
-        librarySection.style.display = 'none';
+        libraryTriggerLabel.textContent = value;
+        libraryTriggerLabel.className = 'label-text';
       }
     }
 
-    function populateLibraryDropdown(libraries, savedLibrary, hasLocal) {
-      librarySelect.innerHTML = '';
-      if (libraries.length === 0 && !hasLocal) {
-        var opt = document.createElement('option');
-        opt.value = '';
-        opt.textContent = '无可用共享库';
-        opt.disabled = true;
-        librarySelect.appendChild(opt);
-        librarySelect.disabled = true;
-        return;
-      }
-      librarySelect.disabled = false;
-      var noneOpt = document.createElement('option');
-      noneOpt.value = '';
-      noneOpt.textContent = '未选择';
-      if (!savedLibrary) noneOpt.selected = true;
-      librarySelect.appendChild(noneOpt);
+    var URL_RE = /figma\.com\/(?:file|design)\/([a-zA-Z0-9]+)/;
 
-      // Local file styles option
+    function populateLibraryDropdown(libraries, inUseLibraries, savedLibrary, hasLocal) {
+      libraryPopup.innerHTML = '';
+
+      addPopupItem('', 'None', !savedLibrary);
+
       if (hasLocal) {
-        var localOpt = document.createElement('option');
-        localOpt.value = '__local__';
-        localOpt.textContent = '当前文件样式';
-        if (savedLibrary === '__local__') localOpt.selected = true;
-        librarySelect.appendChild(localOpt);
-        if (libraries.length > 0) {
-          var sep = document.createElement('option');
-          sep.disabled = true;
-          sep.textContent = '──────────';
-          librarySelect.appendChild(sep);
-        }
+        addPopupItem('__local__', 'Local file styles', savedLibrary === '__local__');
       } else if (savedLibrary === '__local__') {
-        // Local content removed — reset selection
         selectedLibrary = null;
         parent.postMessage({ pluginMessage: { type: 'save-library', library: null } }, '*');
       }
 
-      libraries.forEach(function(lib) {
-        var opt = document.createElement('option');
-        opt.value = lib;
-        opt.textContent = lib;
-        if (lib === savedLibrary) opt.selected = true;
-        librarySelect.appendChild(opt);
-      });
+      // libraries is [{name, fileKey}]
+      if (libraries.length > 0) {
+        var inUseSet = {};
+        (inUseLibraries || []).forEach(function(l) { inUseSet[l] = true; });
+        var inUse = libraries.filter(function(l) { return inUseSet[l.name]; });
+        var available = libraries.filter(function(l) { return !inUseSet[l.name]; });
+
+        if (inUse.length > 0 && available.length > 0) {
+          addPopupSeparator('In Use');
+          inUse.forEach(function(lib) { addPopupItem(lib.name, lib.name, lib.name === savedLibrary, lib.fileKey); });
+          addPopupSeparator('Available');
+          available.forEach(function(lib) { addPopupItem(lib.name, lib.name, lib.name === savedLibrary, lib.fileKey); });
+        } else {
+          libraries.forEach(function(lib) { addPopupItem(lib.name, lib.name, lib.name === savedLibrary, lib.fileKey); });
+        }
+      }
+
+      // Add URL input row
+      var divider = document.createElement('div');
+      divider.className = 'library-popup-divider';
+      libraryPopup.appendChild(divider);
+
+      var addRow = document.createElement('div');
+      addRow.className = 'library-popup-add-row';
+      var urlInput = document.createElement('input');
+      urlInput.className = 'input';
+      urlInput.type = 'text';
+      urlInput.placeholder = 'Paste library URL...';
+      addRow.appendChild(urlInput);
+      var addBtn = document.createElement('button');
+      addBtn.className = 'library-popup-add-btn';
+      addBtn.textContent = '+';
+      addBtn.addEventListener('click', function() { addLibraryByUrl(urlInput); });
+      addRow.appendChild(addBtn);
+      libraryPopup.appendChild(addRow);
+
       selectedLibrary = savedLibrary || null;
+      updateTriggerLabel(selectedLibrary);
     }
 
-    function updateLibrarySelectUI(library) {
-      for (var i = 0; i < librarySelect.options.length; i++) {
-        librarySelect.options[i].selected = librarySelect.options[i].value === (library || '');
+    function addPopupItem(value, label, isActive, fileKey) {
+      var el = document.createElement('button');
+      el.className = 'library-popup-item' + (isActive ? ' active' : '');
+      el.dataset.value = value;
+      var check = document.createElement('span');
+      check.className = 'check';
+      check.textContent = isActive ? '\u2713' : '';
+      el.appendChild(check);
+      var text = document.createTextNode(label);
+      el.appendChild(text);
+      if (fileKey) {
+        var delBtn = document.createElement('button');
+        delBtn.className = 'delete-btn';
+        delBtn.textContent = '\u00d7';
+        delBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          parent.postMessage({ pluginMessage: { type: 'remove-library-entry', fileKey: fileKey } }, '*');
+        });
+        el.appendChild(delBtn);
+      }
+      el.addEventListener('click', function() { selectLibrary(value); });
+      libraryPopup.appendChild(el);
+    }
+
+    function addPopupSeparator(label) {
+      var el = document.createElement('div');
+      el.className = 'library-popup-separator';
+      el.textContent = label;
+      libraryPopup.appendChild(el);
+    }
+
+    function selectLibrary(value) {
+      selectedLibrary = value || null;
+      closeLibraryPopup();
+      updateTriggerLabel(selectedLibrary);
+
+      // Update check marks
+      libraryPopup.querySelectorAll('.library-popup-item').forEach(function(el) {
+        var match = el.dataset.value === (value || '');
+        el.classList.toggle('active', match);
+        el.querySelector('.check').textContent = match ? '\u2713' : '';
+      });
+
+      parent.postMessage({ pluginMessage: { type: 'save-library', library: selectedLibrary } }, '*');
+      if (selectedLibrary) log('Library \u2192 ' + selectedLibrary, 'info');
+
+      // Sync fileKey to MCP server
+      if (selectedLibrary && selectedLibrary !== '__local__' && ws && ws.readyState === WebSocket.OPEN) {
+        Object.keys(libraryEntries).forEach(function(fk) {
+          if (libraryEntries[fk].name === selectedLibrary) {
+            ws.send(JSON.stringify({ type: 'set-library-file-key', channel: channelId, library: selectedLibrary, fileKey: fk }));
+          }
+        });
       }
     }
 
-    // ─── UI Events ───
-    connectBtn.addEventListener('click', connect);
-    channelInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') connect();
-    });
-    modeLibraryBtn.addEventListener('click', () => setMode('library'));
-    modeSpecBtn.addEventListener('click', () => setMode('spec'));
-    librarySelect.addEventListener('change', () => {
-      selectedLibrary = librarySelect.value || null;
-      parent.postMessage({ pluginMessage: { type: 'save-library', library: selectedLibrary } }, '*');
-      if (selectedLibrary) log('Library → ' + selectedLibrary);
-    });
-    tokenSaveBtn.addEventListener('click', () => {
+    function updateLibrarySelectUI(library) {
+      updateTriggerLabel(library);
+      libraryPopup.querySelectorAll('.library-popup-item').forEach(function(el) {
+        var match = el.dataset.value === (library || '');
+        el.classList.toggle('active', match);
+        el.querySelector('.check').textContent = match ? '\u2713' : '';
+      });
+    }
+
+    // ─── Add Library by URL ───
+    function addLibraryByUrl(input) {
+      var val = input.value.trim();
+      var m = val.match(URL_RE);
+      if (!m) {
+        showPopupError('Invalid URL \u2014 expected figma.com/design/...');
+        input.classList.add('error');
+        return;
+      }
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        showPopupError('Not connected to relay');
+        return;
+      }
+      input.classList.remove('error');
+      clearPopupError();
+      input.disabled = true;
+      var btn = input.parentElement.querySelector('.library-popup-add-btn');
+      if (btn) btn.classList.add('loading');
+      ws.send(JSON.stringify({ type: 'resolve-file-name', channel: channelId, fileKey: m[1], url: val }));
+      log('Resolving library name for ' + m[1] + '...', 'info');
+    }
+
+    function handleFileNameResolved(msg) {
+      var input = libraryPopup.querySelector('.library-popup-add-row .input');
+      var btn = libraryPopup.querySelector('.library-popup-add-btn');
+      if (input) { input.disabled = false; input.value = ''; }
+      if (btn) btn.classList.remove('loading');
+      clearPopupError();
+
+      if (msg.name) {
+        parent.postMessage({ pluginMessage: {
+          type: 'save-library-entry',
+          fileKey: msg.fileKey,
+          name: msg.name,
+          url: msg.url,
+        } }, '*');
+        log('Library added: ' + msg.name, 'success');
+      } else {
+        showPopupError(msg.error || 'Failed to resolve library name');
+        log('Failed to resolve library: ' + (msg.error || 'unknown error'), 'error');
+      }
+    }
+
+    function showPopupError(text) {
+      clearPopupError();
+      var el = document.createElement('div');
+      el.className = 'library-popup-error';
+      el.textContent = text;
+      libraryPopup.appendChild(el);
+    }
+
+    function clearPopupError() {
+      var existing = libraryPopup.querySelector('.library-popup-error');
+      if (existing) existing.remove();
+    }
+
+    // ─── API Token ───
+    tokenSaveBtn.addEventListener('click', function() {
       savedApiToken = tokenInput.value.trim();
       parent.postMessage({ pluginMessage: { type: 'save-token', token: savedApiToken } }, '*');
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'set-api-token', channel: channelId, token: savedApiToken }));
       }
-      log('API Token ' + (savedApiToken ? 'saved' : 'cleared'));
+      flashSaved(tokenSaveBtn);
+      log('API Token ' + (savedApiToken ? 'saved' : 'cleared'), 'info');
     });
 
-    // ─── Init: ask code.js for saved channel + mode + token ───
+    // ─── Figma theme detection ───
+    function detectTheme() {
+      // Figma injects a dark background when dark theme is active
+      var bg = window.getComputedStyle(document.documentElement).backgroundColor;
+      var match = bg.match(/\d+/g);
+      if (match) {
+        var r = parseInt(match[0], 10);
+        var g = parseInt(match[1], 10);
+        var b = parseInt(match[2], 10);
+        var luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        document.documentElement.setAttribute('data-theme', luminance < 0.5 ? 'dark' : 'light');
+      }
+    }
+    // Detect on load and observe for changes
+    detectTheme();
+    new MutationObserver(detectTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'class'] });
+
+    // ─── Init ───
     parent.postMessage({ pluginMessage: { type: 'get-channel' } }, '*');
     parent.postMessage({ pluginMessage: { type: 'get-mode' } }, '*');
     parent.postMessage({ pluginMessage: { type: 'get-library' } }, '*');
     parent.postMessage({ pluginMessage: { type: 'get-token' } }, '*');
 
-    // Fallback: if no response in 500ms, connect with default
-    var fallbackTimer = setTimeout(() => {
+    setTimeout(function() {
       if (!connected) {
-        channelInput.value = DEFAULT_CHANNEL;
         connect();
       }
     }, 500);

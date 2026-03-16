@@ -147,6 +147,44 @@ export async function fetchStyleNodeDetails(
   return results;
 }
 
+/**
+ * Fetch published component metadata from a Figma file.
+ * GET /v1/files/:fileKey/components
+ */
+export interface FigmaComponentMeta {
+  key: string;
+  name: string;
+  description: string;
+  containing_frame: { name: string } | null;
+}
+
+export async function fetchLibraryComponents(
+  fileKey: string,
+  token: string,
+): Promise<FigmaComponentMeta[]> {
+  const data = (await figmaFetch(`/v1/files/${fileKey}/components`, token)) as {
+    meta: { components: FigmaComponentMeta[] };
+  };
+  return data.meta.components ?? [];
+}
+
+/**
+ * Fetch file name (= library name) from a Figma file.
+ * GET /v1/files/:fileKey?depth=1
+ */
+export async function fetchFileName(fileKey: string, token: string): Promise<string> {
+  const data = (await figmaFetch(`/v1/files/${fileKey}?depth=1`, token)) as { name: string };
+  return data.name;
+}
+
+// ─── Utility ───
+
+/** Extract fileKey from a Figma URL. Supports /file/ and /design/ formats. */
+export function extractFileKeyFromUrl(url: string): string | null {
+  const match = url.match(/figma\.com\/(?:file|design)\/([a-zA-Z0-9]+)/);
+  return match ? match[1] : null;
+}
+
 // ─── Property extraction ───
 
 function extractStyleProperties(

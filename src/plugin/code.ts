@@ -48,15 +48,78 @@ registerLintHandlers();
 registerScanHandlers();
 
 // Show the UI (establishes WebSocket connection to relay)
-figma.showUI(__html__, { visible: true, width: 320, height: 400 });
+figma.showUI(__html__, { visible: true, width: 320, height: 480 });
 
 // ─── Channel, mode & library persistence via clientStorage ───
 const CHANNEL_STORAGE_KEY = 'figcraft_channel';
 const MODE_STORAGE_KEY = 'figcraft_mode';
 const LIBRARY_STORAGE_KEY = 'figcraft_library';
 const API_TOKEN_STORAGE_KEY = 'figcraft_api_token';
+const LIBRARY_URLS_STORAGE_KEY = 'figcraft_library_urls';
 
-figma.ui.on('message', async (msg: { type: string; channelId?: string; mode?: string; library?: string; token?: string }) => {
+// Library entries storage: { fileKey: { name, url } }
+interface LibraryEntry { name: string; url: string; }
+
+async function getLibraryEntries(): Promise<Record<string, LibraryEntry>> {
+  const raw = await figma.clientStorage.getAsync(LIBRARY_URLS_STORAGE_KEY);
+  if (!raw || typeof raw !== 'object') return {};
+  // Migrate old format { libraryName: url } to new { fileKey: { name, url } }
+  const entries = raw as Record<string, unknown>;
+  const first = Object.values(entries)[0];
+  if (typeof first === 'string') {
+    // Old format: { libraryName: url }
+    const migrated: Record<string, LibraryEntry> = {};
+    const urlRe = /figma\.com\/(?:file|design)\/([a-zA-Z0-9]+)/;
+    for (const [name, url] of Object.entries(entries)) {
+      if (typeof url !== 'string') continue;
+      const m = url.match(urlRe);
+      if (m) migrated[m[1]] = { name, url };
+    }
+    await figma.clientStorage.setAsync(LIBRARY_URLS_STORAGE_KEY, migrated);
+    return migrated;
+  }
+  return raw as Record<string, LibraryEntry>;
+}
+
+async function sendLibraryList() {
+  const entries = await getLibraryEntries();
+  const libraries = Object.entries(entries).map(([fileKey, entry]) => ({
+    name: entry.name,
+    fileKey,
+  }));
+  const savedLibrary = await figma.clientStorage.getAsync(LIBRARY_STORAGE_KEY);
+
+  // Detect local styles/variables
+  const localCollections = await figma.variables.getLocalVariableCollectionsAsync();
+  const localPaintStyles = await figma.getLocalPaintStylesAsync();
+  const localTextStyles = await figma.getLocalTextStylesAsync();
+  const localEffectStyles = await figma.getLocalEffectStylesAsync();
+  const hasLocal = localCollections.length > 0
+    || localPaintStyles.length > 0
+    || localTextStyles.length > 0
+    || localEffectStyles.length > 0;
+
+  // Detect which libraries have variables imported into the current file
+  const availableCollections = await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync();
+  const remoteCollectionKeys = new Set(
+    localCollections.filter((c) => c.remote).map((c) => c.key),
+  );
+  const inUseLibraries = [...new Set(
+    availableCollections
+      .filter((c) => remoteCollectionKeys.has(c.key))
+      .map((c) => c.libraryName),
+  )];
+
+  figma.ui.postMessage({
+    type: 'library-list',
+    libraries,
+    inUseLibraries,
+    savedLibrary: savedLibrary || null,
+    hasLocal,
+  });
+}
+
+figma.ui.on('message', async (msg: { type: string; channelId?: string; mode?: string; library?: string; token?: string; fileKey?: string; name?: string; url?: string; libraryName?: string }) => {
   if (msg.type === 'get-channel') {
     const saved = await figma.clientStorage.getAsync(CHANNEL_STORAGE_KEY);
     if (saved) {
@@ -81,27 +144,26 @@ figma.ui.on('message', async (msg: { type: string; channelId?: string; mode?: st
     figma.ui.postMessage({ type: 'restore-token', token: saved || '' });
   } else if (msg.type === 'save-token') {
     await figma.clientStorage.setAsync(API_TOKEN_STORAGE_KEY, msg.token || '');
+  } else if (msg.type === 'save-library-entry') {
+    const fk = (msg.fileKey || '').trim();
+    const name = (msg.name || '').trim();
+    const url = (msg.url || '').trim();
+    if (fk && name) {
+      const entries = await getLibraryEntries();
+      entries[fk] = { name, url };
+      await figma.clientStorage.setAsync(LIBRARY_URLS_STORAGE_KEY, entries);
+    }
+    await sendLibraryList();
+  } else if (msg.type === 'remove-library-entry') {
+    const fk = (msg.fileKey || '').trim();
+    if (fk) {
+      const entries = await getLibraryEntries();
+      delete entries[fk];
+      await figma.clientStorage.setAsync(LIBRARY_URLS_STORAGE_KEY, entries);
+    }
+    await sendLibraryList();
   } else if (msg.type === 'get-libraries') {
-    const collections = await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync();
-    const uniqueLibraries = [...new Set(collections.map((c) => c.libraryName))];
-    const savedLibrary = await figma.clientStorage.getAsync(LIBRARY_STORAGE_KEY);
-
-    // Detect local styles/variables
-    const localCollections = await figma.variables.getLocalVariableCollectionsAsync();
-    const localPaintStyles = await figma.getLocalPaintStylesAsync();
-    const localTextStyles = await figma.getLocalTextStylesAsync();
-    const localEffectStyles = await figma.getLocalEffectStylesAsync();
-    const hasLocal = localCollections.length > 0
-      || localPaintStyles.length > 0
-      || localTextStyles.length > 0
-      || localEffectStyles.length > 0;
-
-    figma.ui.postMessage({
-      type: 'library-list',
-      libraries: uniqueLibraries,
-      savedLibrary: savedLibrary || null,
-      hasLocal,
-    });
+    await sendLibraryList();
   }
 });
 

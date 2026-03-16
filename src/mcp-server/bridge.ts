@@ -15,7 +15,10 @@ import {
   isErrorMessage,
   isPongMessage,
   isSetApiTokenMessage,
+  isSetLibraryFileKeyMessage,
+  isResolveFileNameMessage,
 } from '../shared/protocol.js';
+import { fetchFileName } from './figma-api.js';
 
 interface PendingRequest {
   resolve: (result: unknown) => void;
@@ -30,6 +33,7 @@ export class Bridge {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private connected = false;
   private apiToken: string | null = null;
+  private libraryFileKeys = new Map<string, string>();
 
   constructor(
     private relayUrl: string,
@@ -87,6 +91,35 @@ export class Bridge {
         if (isSetApiTokenMessage(msg)) {
           this.apiToken = msg.token || null;
           console.error('[FigCraft bridge] API token received from plugin');
+          return;
+        }
+
+        if (isSetLibraryFileKeyMessage(msg)) {
+          if (msg.fileKey) {
+            this.libraryFileKeys.set(msg.library, msg.fileKey);
+          } else {
+            this.libraryFileKeys.delete(msg.library);
+          }
+          console.error(`[FigCraft bridge] Library file key ${msg.fileKey ? 'set' : 'cleared'} for "${msg.library}"`);
+          return;
+        }
+
+        if (isResolveFileNameMessage(msg)) {
+          const token = this.apiToken;
+          const ws = this.ws;
+          if (!token || !ws) {
+            ws?.send(JSON.stringify({ type: 'file-name-resolved', channel: this.channel, fileKey: msg.fileKey, url: msg.url, name: null, error: 'No API token configured' }));
+            return;
+          }
+          fetchFileName(msg.fileKey, token)
+            .then((name) => {
+              ws.send(JSON.stringify({ type: 'file-name-resolved', channel: this.channel, fileKey: msg.fileKey, url: msg.url, name }));
+              this.libraryFileKeys.set(name, msg.fileKey);
+              console.error(`[FigCraft bridge] Resolved file name: "${name}" for key ${msg.fileKey}`);
+            })
+            .catch((err: Error) => {
+              ws.send(JSON.stringify({ type: 'file-name-resolved', channel: this.channel, fileKey: msg.fileKey, url: msg.url, name: null, error: err.message }));
+            });
           return;
         }
       });
@@ -167,6 +200,11 @@ export class Bridge {
   /** Get the API token received from Plugin UI (or null). */
   getApiToken(): string | null {
     return this.apiToken;
+  }
+
+  /** Get the file key for a library (set from Plugin UI). */
+  getLibraryFileKey(library: string): string | null {
+    return this.libraryFileKeys.get(library) ?? null;
   }
 
   /** Switch to a different channel. Re-joins the relay with the new channel. */

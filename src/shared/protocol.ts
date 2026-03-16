@@ -58,6 +58,29 @@ export interface SetApiTokenMessage {
   token: string;
 }
 
+export interface SetLibraryFileKeyMessage {
+  type: 'set-library-file-key';
+  channel: ChannelId;
+  library: string;
+  fileKey: string;
+}
+
+export interface ResolveFileNameMessage {
+  type: 'resolve-file-name';
+  channel: ChannelId;
+  fileKey: string;
+  url: string;
+}
+
+export interface FileNameResolvedMessage {
+  type: 'file-name-resolved';
+  channel: ChannelId;
+  fileKey: string;
+  url: string;
+  name: string | null;
+  error?: string;
+}
+
 export type WireMessage =
   | RequestMessage
   | ResponseMessage
@@ -65,7 +88,10 @@ export type WireMessage =
   | JoinMessage
   | PingMessage
   | PongMessage
-  | SetApiTokenMessage;
+  | SetApiTokenMessage
+  | SetLibraryFileKeyMessage
+  | ResolveFileNameMessage
+  | FileNameResolvedMessage;
 
 // ─── Helpers ───
 
@@ -95,6 +121,14 @@ export function isPongMessage(msg: unknown): msg is PongMessage {
 
 export function isSetApiTokenMessage(msg: unknown): msg is SetApiTokenMessage {
   return isObject(msg) && msg.type === 'set-api-token';
+}
+
+export function isSetLibraryFileKeyMessage(msg: unknown): msg is SetLibraryFileKeyMessage {
+  return isObject(msg) && msg.type === 'set-library-file-key';
+}
+
+export function isResolveFileNameMessage(msg: unknown): msg is ResolveFileNameMessage {
+  return isObject(msg) && msg.type === 'resolve-file-name';
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {

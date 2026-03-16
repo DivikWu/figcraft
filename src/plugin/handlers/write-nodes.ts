@@ -19,7 +19,8 @@ function autoPositionOnPage(node: SceneNode, params: Record<string, unknown>): v
   let maxRight = 0;
   for (const child of children) {
     if (child.id === node.id) continue;
-    const right = child.x + child.width;
+    const box = child.absoluteBoundingBox;
+    const right = box ? box.x + box.width : child.x + child.width;
     if (right > maxRight) maxRight = right;
   }
   node.x = maxRight + 64;

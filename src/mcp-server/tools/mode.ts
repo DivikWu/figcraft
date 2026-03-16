@@ -8,18 +8,43 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Bridge } from '../bridge.js';
+import { fetchLibraryComponents } from '../figma-api.js';
+import { getToken } from '../auth.js';
 
 export function registerModeTools(server: McpServer, bridge: Bridge): void {
   server.tool(
     'get_mode',
-    'Get current mode, selected library, and design context. ' +
-      'IMPORTANT: Call this before creating elements to get available design tokens. ' +
-      'Returns { mode, selectedLibrary, designContext }. ' +
+    'Get current mode, selected library, design context, and library components. ' +
+      'IMPORTANT: Call this before creating elements to get available design tokens and components. ' +
+      'Returns { mode, selectedLibrary, designContext, libraryComponents? }. ' +
       'designContext contains grouped tokens (text/surface/fill/border) and defaults mapping. ' +
-      'Use import_library_variable + set_variable_binding to apply non-default tokens.',
+      'libraryComponents (when library file URL is configured) lists available components with keys for create_instance.',
     {},
     async () => {
-      const result = await bridge.request('get_mode', {}) as { mode: string };
+      const result = await bridge.request('get_mode', {}) as {
+        mode: string;
+        selectedLibrary?: string;
+        designContext?: unknown;
+      };
+
+      // Enrich with library components if fileKey is configured
+      if (result.selectedLibrary) {
+        const fileKey = bridge.getLibraryFileKey(result.selectedLibrary);
+        if (fileKey) {
+          try {
+            const token = await getToken();
+            const components = await fetchLibraryComponents(fileKey, token);
+            (result as Record<string, unknown>).libraryComponents = components.map((c) => ({
+              key: c.key,
+              name: c.name,
+              description: c.description,
+            }));
+          } catch (err) {
+            console.warn('[FigCraft] Failed to fetch library components:', err);
+          }
+        }
+      }
+
       return {
         content: [{
           type: 'text' as const,
