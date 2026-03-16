@@ -2,7 +2,23 @@
  * MCP Prompts — guided workflows for common tasks.
  */
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+function loadRules(filename: string): string {
+  try {
+    return readFileSync(join(__dirname, filename), 'utf-8');
+  } catch {
+    return '';
+  }
+}
+
+const DESIGN_GUARDIAN_RULES = loadRules('design-guardian.md');
+const DESIGN_CREATOR_RULES = loadRules('design-creator.md');
 
 export function registerPrompts(server: McpServer): void {
   server.prompt(
@@ -88,19 +104,88 @@ If there are composite tokens (typography, shadow), explain that they become Fig
 
   server.prompt(
     'generate-element',
-    'Guide: Generate a design element using tokens from the spec.',
+    'Guide: Generate a design element with high design quality. Applies Design Guardian rules (with library) or Design Creator rules (without library).',
     () => ({
       messages: [{
         role: 'user' as const,
         content: {
           type: 'text' as const,
-          text: `Help me create a design element that follows the design spec. Follow these steps:
-1. Ask what element to create (button, card, input, badge, avatar)
-2. Check get_mode — if library mode, try to find a library component first
-3. If library component exists, use create_instance
-4. If not, create from tokens: use create_frame with auto layout, apply token colors and typography
-5. Ensure all values use variables/styles, not hardcoded values
-6. Run lint_check on the created element to verify compliance`,
+          text: `Help me create a design element with high design quality. Follow these steps:
+
+1. Ask what element to create (button, card, input, badge, avatar, page section, etc.)
+2. Call get_mode to check mode and get designContext
+
+--- IF selectedLibrary is set (Design Guardian mode) ---
+
+Apply these design rules:
+${DESIGN_GUARDIAN_RULES}
+
+3. If a matching component exists in the library, use create_instance
+4. Otherwise, create from tokens:
+   - create_frame and create_text will auto-bind library tokens when fill is not specified
+   - For non-default tokens, use designContext to find the right variable
+   - Workflow: import_library_variable(key) → set_variable_binding(nodeId, field, variableId)
+5. Create the element
+6. Self-Review: check the created element against every MUST/NEVER rule above. For each violation, fix it immediately (patch_nodes or recreate). Output a brief review summary.
+7. Run lint_check to verify compliance
+
+--- IF no selectedLibrary (Design Creator mode) ---
+
+Apply these design rules:
+${DESIGN_CREATOR_RULES}
+
+3. Complete the Design Thinking exercise BEFORE creating anything. Share your Purpose, Tone, and key design decisions with the user.
+4. Based on your Tone choice, decide: color palette (dominant + accent), font pairing (heading + body), spacing base unit, and corner radius scale.
+5. Create the element using your design decisions
+6. Self-Review: check the created element against every MUST/NEVER rule above. For each violation, fix it immediately. Output a brief review summary.
+7. Run lint_check to verify accessibility (contrast, touch targets)`,
+        },
+      }],
+    }),
+  );
+
+  server.prompt(
+    'review-design',
+    'Guide: Review existing Figma designs against design quality rules. Outputs structured violation report with fixes.',
+    () => ({
+      messages: [{
+        role: 'user' as const,
+        content: {
+          type: 'text' as const,
+          text: `Help me review the design quality of existing Figma elements. Follow these steps:
+
+1. Call get_mode to determine the current mode and selected library
+2. Use get_selection to get selected nodes, or fall back to get_current_page children
+3. Use get_node_info on each target node to read properties (fills, fontSize, fontName, spacing, dimensions, cornerRadius, etc.)
+
+4. Apply the appropriate design rules based on mode:
+
+--- IF selectedLibrary is set (Design Guardian rules) ---
+${DESIGN_GUARDIAN_RULES}
+
+Review focus:
+- Are colors/fonts bound to library tokens? Flag hardcoded values when tokens exist.
+- Are gradients/shadows refined or cheap-looking?
+- Is there a clear visual hierarchy?
+- Are accessibility standards met?
+
+--- IF no selectedLibrary (Design Creator rules) ---
+${DESIGN_CREATOR_RULES}
+
+Review focus:
+- Is there a clear design intent (not just AI defaults)?
+- Do color choices serve a purpose?
+- Are fonts chosen with intention (not just Inter)?
+- Is spacing rhythmic and consistent?
+- Are accessibility standards met?
+
+5. Output a structured report for each violation:
+   - violation: quote the specific node, property, and value
+   - why: one sentence explaining why this is a problem
+   - fix: concrete fix suggestion with MCP tool call example
+
+6. Summarize: X passed / Y violations / Z auto-fixable
+7. Ask if the user wants to auto-fix the fixable items (using patch_nodes or lint_fix)`,
         },
       }],
     }),
