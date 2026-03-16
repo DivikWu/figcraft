@@ -14,6 +14,7 @@ import {
   isResponseMessage,
   isErrorMessage,
   isPongMessage,
+  isSetApiTokenMessage,
 } from '../shared/protocol.js';
 
 interface PendingRequest {
@@ -28,6 +29,7 @@ export class Bridge {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private connected = false;
+  private apiToken: string | null = null;
 
   constructor(
     private relayUrl: string,
@@ -81,6 +83,12 @@ export class Bridge {
           // heartbeat acknowledged
           return;
         }
+
+        if (isSetApiTokenMessage(msg)) {
+          this.apiToken = msg.token || null;
+          console.error('[FigCraft bridge] API token received from plugin');
+          return;
+        }
       });
 
       this.ws.on('close', () => {
@@ -94,24 +102,25 @@ export class Bridge {
         if (!this.connected) {
           reject(err);
         }
-        console.error('[figcraft bridge] ws error:', err.message);
+        console.error('[FigCraft bridge] ws error:', err.message);
       });
     });
   }
 
   /** Send a request to the Plugin and await its response. */
-  async request(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
+  async request(method: string, params: Record<string, unknown> = {}, timeoutMs?: number): Promise<unknown> {
     if (!this.ws || !this.connected) {
       throw new Error('Bridge not connected');
     }
 
     const id = generateId();
+    const timeout = timeoutMs ?? REQUEST_TIMEOUT_MS;
 
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(new Error(`Request ${method} timed out after ${REQUEST_TIMEOUT_MS}ms`));
-      }, REQUEST_TIMEOUT_MS);
+        reject(new Error(`Request ${method} timed out after ${timeout}ms`));
+      }, timeout);
 
       this.pending.set(id, { resolve, reject, timer });
 
@@ -146,6 +155,29 @@ export class Bridge {
     return this.connected;
   }
 
+  get currentChannel(): ChannelId {
+    return this.channel;
+  }
+
+  /** Update the relay URL (must be called before connect). */
+  setRelayUrl(url: string): void {
+    this.relayUrl = url;
+  }
+
+  /** Get the API token received from Plugin UI (or null). */
+  getApiToken(): string | null {
+    return this.apiToken;
+  }
+
+  /** Switch to a different channel. Re-joins the relay with the new channel. */
+  joinChannel(channel: ChannelId): void {
+    if (!this.ws || !this.connected) {
+      throw new Error('Bridge not connected');
+    }
+    this.channel = channel;
+    this.ws.send(JSON.stringify({ type: 'join', channel: this.channel, role: 'mcp' }));
+  }
+
   // ─── Private ───
 
   private startHeartbeat(): void {
@@ -175,10 +207,10 @@ export class Bridge {
     if (this.reconnectTimer) return;
     this.reconnectTimer = setTimeout(async () => {
       this.reconnectTimer = null;
-      console.log('[figcraft bridge] attempting reconnect...');
+      console.log('[FigCraft bridge] attempting reconnect...');
       try {
         await this.connect();
-        console.log('[figcraft bridge] reconnected');
+        console.log('[FigCraft bridge] reconnected');
       } catch {
         this.scheduleReconnect();
       }

@@ -55,4 +55,51 @@ export function registerVariableTools(server: McpServer, bridge: Bridge): void {
       };
     },
   );
+
+  server.tool(
+    'get_node_variables',
+    'Get all variable bindings on a node — shows which variables are bound to which properties.',
+    {
+      nodeId: z.string().describe('Node ID to inspect for variable bindings'),
+    },
+    async ({ nodeId }) => {
+      const result = await bridge.request('get_node_variables', { nodeId });
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+      };
+    },
+  );
+
+  server.tool(
+    'set_variable_binding',
+    'Bind a variable to a specific property on a node (e.g. fills, cornerRadius, itemSpacing).',
+    {
+      nodeId: z.string().describe('Target node ID'),
+      field: z.string().describe('Property field to bind (e.g. "fills", "cornerRadius", "itemSpacing")'),
+      variableId: z.string().describe('Variable ID to bind'),
+    },
+    async ({ nodeId, field, variableId }) => {
+      const result = await bridge.request('set_variable_binding', { nodeId, field, variableId });
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+      };
+    },
+  );
+
+  server.tool(
+    'set_explicit_variable_mode',
+    'Set an explicit variable mode on a node for a specific collection. ' +
+      'This overrides the inherited mode.',
+    {
+      nodeId: z.string().describe('Node ID'),
+      collectionId: z.string().describe('Variable collection ID'),
+      modeId: z.string().describe('Mode ID to set (get available modes from list_collections)'),
+    },
+    async ({ nodeId, collectionId, modeId }) => {
+      const result = await bridge.request('set_explicit_variable_mode', { nodeId, collectionId, modeId });
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+      };
+    },
+  );
 }

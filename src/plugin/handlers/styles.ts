@@ -2,7 +2,15 @@
  * Styles read handlers — list local paint, text, effect, and grid styles.
  */
 
-import { registerHandler } from '../code.js';
+import { registerHandler } from '../registry.js';
+import {
+  registerStyles,
+  registerStylesIncremental,
+  getRegisteredStylesSummary,
+  type RegisteredStyles,
+} from '../utils/style-registry.js';
+
+export function registerStyleHandlers(): void {
 
 registerHandler('list_styles', async (params) => {
   const styleType = params.type as string | undefined;
@@ -63,6 +71,30 @@ registerHandler('get_style', async (params) => {
       return { id: style.id, name: style.name, type: style.type };
   }
 });
+
+registerHandler('register_library_styles', async (params) => {
+  const library = params.library as string;
+  const styles = params.styles as RegisteredStyles;
+  const counts = await registerStyles(library, styles);
+  return { ok: true, registered: counts };
+});
+
+registerHandler('get_registered_styles', async (params) => {
+  const library = params.library as string;
+  const styles = await getRegisteredStylesSummary(library);
+  return styles ?? { textStyles: [], paintStyles: [], effectStyles: [] };
+});
+
+registerHandler('register_library_styles_incremental', async (params) => {
+  const library = params.library as string;
+  const fullStyles = params.fullStyles as RegisteredStyles;
+  const changedStyles = params.changedStyles as RegisteredStyles;
+  const removedKeys = (params.removedKeys as string[]) ?? [];
+  const counts = await registerStylesIncremental(library, fullStyles, changedStyles, removedKeys);
+  return { ok: true, registered: counts };
+});
+
+} // registerStyleHandlers
 
 // ─── Helpers ───
 

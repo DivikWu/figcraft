@@ -30,6 +30,21 @@ export function registerComponentTools(server: McpServer, bridge: Bridge): void 
   );
 
   server.tool(
+    'create_component',
+    'Create a new component with specified dimensions.',
+    {
+      name: z.string().optional().describe('Component name (default: "Component")'),
+      width: z.number().optional().describe('Width in px (default: 100)'),
+      height: z.number().optional().describe('Height in px (default: 100)'),
+      description: z.string().optional().describe('Component description'),
+    },
+    async (params) => {
+      const result = await bridge.request('create_component', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
     'create_instance',
     'Create an instance of a component. ' +
       'Can use either a local component ID or a library component key.',

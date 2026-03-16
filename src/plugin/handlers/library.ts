@@ -5,7 +5,9 @@
  * Note: Library Styles cannot be enumerated via Plugin API (REST API needed).
  */
 
-import { registerHandler } from '../code.js';
+import { registerHandler } from '../registry.js';
+
+export function registerLibraryHandlers(): void {
 
 registerHandler('list_library_collections', async () => {
   const collections =
@@ -47,3 +49,17 @@ registerHandler('import_library_variable', async (params) => {
     key: imported.key,
   };
 });
+
+registerHandler('import_library_style', async (params) => {
+  const styleKey = params.styleKey as string;
+  const imported = await figma.importStyleByKeyAsync(styleKey);
+  return {
+    id: imported.id,
+    name: imported.name,
+    type: imported.type,
+    key: imported.key,
+    description: imported.description,
+  };
+});
+
+} // registerLibraryHandlers

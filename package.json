@@ -1,14 +1,15 @@
 {
   "name": "figcraft",
   "version": "0.1.0",
-  "private": true,
   "description": "AI-powered Figma plugin for design system compliance — Token sync, Lint, Auto-fix, Element generation via MCP",
+  "bin": { "figcraft": "./dist/mcp-server/index.js" },
+  "files": ["dist/mcp-server/", "dist/relay/"],
   "type": "module",
   "scripts": {
     "dev:relay": "tsx src/relay/index.ts",
     "dev:mcp": "tsx src/mcp-server/index.ts",
     "build": "tsup",
-    "build:plugin": "tsup --config tsup.plugin.config.ts",
+    "build:plugin": "node build.plugin.mjs",
     "build:server": "tsup --config tsup.server.config.ts",
     "typecheck": "tsc --noEmit"
   },
@@ -20,6 +21,7 @@
   "devDependencies": {
     "@figma/plugin-typings": "^1",
     "@types/ws": "^8",
+    "esbuild": "^0.27.4",
     "tsup": "^8",
     "tsx": "^4",
     "typescript": "^5.9"

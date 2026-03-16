@@ -2,8 +2,10 @@
  * Scan handlers — scan styles usage, export tokens, diff styles.
  */
 
-import { registerHandler } from '../code.js';
+import { registerHandler } from '../registry.js';
 import { figmaRgbaToHex } from '../utils/color.js';
+
+export function registerScanHandlers(): void {
 
 registerHandler('scan_styles', async () => {
   const paintStyles = await figma.getLocalPaintStylesAsync();
@@ -111,6 +113,8 @@ registerHandler('diff_styles', async (params) => {
 
   return { diff, total: diff.length };
 });
+
+} // registerScanHandlers
 
 function figmaTypeToTokenType(type: string): string {
   switch (type) {

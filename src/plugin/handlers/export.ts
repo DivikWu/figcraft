@@ -2,7 +2,9 @@
  * Export handler — export node as PNG/SVG/PDF/JPG image.
  */
 
-import { registerHandler } from '../code.js';
+import { registerHandler } from '../registry.js';
+
+export function registerExportHandlers(): void {
 
 registerHandler('export_image', async (params) => {
   const nodeId = params.nodeId as string;
@@ -13,7 +15,7 @@ registerHandler('export_image', async (params) => {
     | 'JPG';
   const scale = (params.scale as number) ?? 2;
 
-  const node = figma.getNodeById(nodeId);
+  const node = await figma.getNodeByIdAsync(nodeId);
   if (!node || !('exportAsync' in node)) {
     return { error: `Node not found or not exportable: ${nodeId}` };
   }
@@ -38,3 +40,5 @@ registerHandler('export_image', async (params) => {
     base64,
   };
 });
+
+} // registerExportHandlers

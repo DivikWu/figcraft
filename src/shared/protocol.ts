@@ -52,13 +52,20 @@ export interface PongMessage {
   channel: ChannelId;
 }
 
+export interface SetApiTokenMessage {
+  type: 'set-api-token';
+  channel: ChannelId;
+  token: string;
+}
+
 export type WireMessage =
   | RequestMessage
   | ResponseMessage
   | ErrorMessage
   | JoinMessage
   | PingMessage
-  | PongMessage;
+  | PongMessage
+  | SetApiTokenMessage;
 
 // ─── Helpers ───
 
@@ -84,6 +91,10 @@ export function isPingMessage(msg: unknown): msg is PingMessage {
 
 export function isPongMessage(msg: unknown): msg is PongMessage {
   return isObject(msg) && msg.type === 'pong';
+}
+
+export function isSetApiTokenMessage(msg: unknown): msg is SetApiTokenMessage {
+  return isObject(msg) && msg.type === 'set-api-token';
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {

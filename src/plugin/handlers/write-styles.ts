@@ -2,11 +2,13 @@
  * Styles write handlers — sync typography/shadow tokens to Figma Styles.
  */
 
-import { registerHandler } from '../code.js';
+import { registerHandler } from '../registry.js';
 import type { DesignToken } from '../../shared/types.js';
 import { syncTypographyToStyle, syncShadowToStyle } from '../adapters/style-mapper.js';
 import { hexToFigmaRgba } from '../utils/color.js';
 import { processBatch } from '../utils/batch.js';
+
+export function registerWriteStyleHandlers(): void {
 
 registerHandler('sync_styles', async (params) => {
   const tokens = params.tokens as DesignToken[];
@@ -94,3 +96,5 @@ registerHandler('delete_style', async (params) => {
   style.remove();
   return { ok: true };
 });
+
+} // registerWriteStyleHandlers

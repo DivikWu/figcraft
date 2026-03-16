@@ -2,12 +2,14 @@
  * Node read handlers — read node tree, selection, search.
  */
 
-import { registerHandler } from '../code.js';
+import { registerHandler } from '../registry.js';
 import { simplifyNode, simplifyPage } from '../adapters/node-simplifier.js';
+
+export function registerNodeHandlers(): void {
 
 registerHandler('get_node_info', async (params) => {
   const nodeId = params.nodeId as string;
-  const node = figma.getNodeById(nodeId);
+  const node = await figma.getNodeByIdAsync(nodeId);
   if (!node || !('type' in node) || node.type === 'PAGE' || node.type === 'DOCUMENT') {
     return { error: `Node not found: ${nodeId}` };
   }
@@ -76,3 +78,5 @@ registerHandler('search_nodes', async (params) => {
 
   return { count: results.length, nodes: results };
 });
+
+} // registerNodeHandlers

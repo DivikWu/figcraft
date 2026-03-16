@@ -51,16 +51,135 @@
       color: #666;
       margin-bottom: 4px;
     }
-    .channel-id {
+    .channel-row {
+      display: flex;
+      gap: 4px;
+    }
+    .channel-input {
+      flex: 1;
       font-family: monospace;
       font-size: 12px;
       padding: 6px 8px;
       background: #f5f5f5;
       border: 1px solid #e0e0e0;
       border-radius: 4px;
-      word-break: break-all;
-      user-select: all;
+      outline: none;
     }
+    .channel-input:focus {
+      border-color: #1e88e5;
+      background: #fff;
+    }
+    .btn {
+      padding: 6px 12px;
+      font-size: 11px;
+      font-weight: 500;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      background: #f5f5f5;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn:hover { background: #e0e0e0; }
+    .btn.primary { background: #1e88e5; color: #fff; border-color: #1e88e5; }
+    .btn.primary:hover { background: #1565c0; }
+
+    .mode-section {
+      margin-bottom: 12px;
+    }
+    .mode-section label {
+      display: block;
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 4px;
+    }
+    .mode-toggle {
+      display: flex;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .mode-toggle button {
+      flex: 1;
+      padding: 6px 12px;
+      font-size: 11px;
+      font-weight: 500;
+      border: none;
+      background: #f5f5f5;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .mode-toggle button:not(:last-child) {
+      border-right: 1px solid #e0e0e0;
+    }
+    .mode-toggle button.active {
+      background: #1e88e5;
+      color: #fff;
+    }
+    .mode-toggle button:not(.active):hover {
+      background: #e0e0e0;
+    }
+
+    .library-section {
+      margin-bottom: 12px;
+      display: none;
+    }
+    .library-section label {
+      display: block;
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 4px;
+    }
+    .library-select {
+      width: 100%;
+      font-size: 12px;
+      padding: 6px 8px;
+      background: #f5f5f5;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      outline: none;
+    }
+    .library-select:focus {
+      border-color: #1e88e5;
+      background: #fff;
+    }
+
+    .token-section {
+      margin-bottom: 12px;
+    }
+    .token-section label {
+      display: block;
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 4px;
+    }
+
+    .guide {
+      display: none;
+      margin-top: 12px;
+      padding: 10px;
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      font-size: 11px;
+      line-height: 1.6;
+      color: #555;
+    }
+    .guide ol { padding-left: 18px; margin: 6px 0; }
+    .guide code {
+      background: #e8e8e8;
+      padding: 1px 4px;
+      border-radius: 2px;
+      font-family: monospace;
+      font-size: 10px;
+    }
+    .guide .channel-hint {
+      margin-top: 6px;
+      padding: 6px 8px;
+      background: #fff3e0;
+      border-radius: 3px;
+      color: #e65100;
+    }
+
     .log {
       margin-top: 12px;
       max-height: 200px;
@@ -81,24 +200,79 @@
 </head>
 <body>
   <div class="header">
-    <h1>figcraft</h1>
-    <span id="status" class="status connecting">
+    <h1>FigCraft</h1>
+    <span id="status" class="status disconnected">
       <span class="status-dot"></span>
-      <span id="status-text">Connecting...</span>
+      <span id="status-text">Disconnected</span>
     </span>
   </div>
 
   <div class="channel-section">
     <label>Channel ID (use this in your MCP config)</label>
-    <div id="channel-id" class="channel-id"></div>
+    <div class="channel-row">
+      <input id="channel-input" class="channel-input" type="text" placeholder="e.g. figcraft">
+      <button id="connect-btn" class="btn primary">Connect</button>
+    </div>
   </div>
 
-  <div class="log" id="log"></div>
+  <div class="guide" id="guide">
+    <strong>连接步骤：</strong>
+    <ol>
+      <li>在终端运行 <code>npm run dev:relay</code> 启动中继服务</li>
+      <li>点击上方 <strong>Connect</strong> 按钮</li>
+      <li>在 IDE 中配置 MCP Server，将 <code>FIGCRAFT_CHANNEL</code> 设为上方的 Channel ID</li>
+    </ol>
+    <div class="channel-hint">
+      💡 确保 Relay 服务 (端口 3055) 正在运行
+    </div>
+  </div>
+
+  <div id="connected-content" style="display:none">
+    <div class="mode-section">
+      <label>规范来源</label>
+      <div class="mode-toggle">
+        <button id="mode-library" class="active">Figma 共享库</button>
+        <button id="mode-spec">设计规范文档</button>
+      </div>
+    </div>
+
+    <div class="library-section" id="library-section">
+      <label>共享库</label>
+      <select id="library-select" class="library-select">
+        <option value="">加载中...</option>
+      </select>
+    </div>
+
+    <div class="token-section">
+      <label>Figma API Token <span style="color:#999">(可选，用于库样式读取)</span></label>
+      <div class="channel-row">
+        <input id="token-input" class="channel-input" type="password" placeholder="figd_xxx">
+        <button id="token-save-btn" class="btn">Save</button>
+      </div>
+    </div>
+
+    <div class="log" id="log"></div>
+  </div>
 
   <script>
-    // ─── Channel ID (random per session) ───
-    const channelId = Math.random().toString(36).slice(2, 10);
-    document.getElementById('channel-id').textContent = channelId;
+    // ─── State ───
+    const DEFAULT_CHANNEL = 'figcraft';
+    let channelId = DEFAULT_CHANNEL;
+    let ws = null;
+    let reconnectTimer = null;
+    let connected = false;
+    let currentMode = 'library';
+    let selectedLibrary = null;
+    let savedApiToken = '';
+
+    const channelInput = document.getElementById('channel-input');
+    const connectBtn = document.getElementById('connect-btn');
+    const modeLibraryBtn = document.getElementById('mode-library');
+    const modeSpecBtn = document.getElementById('mode-spec');
+    const librarySection = document.getElementById('library-section');
+    const librarySelect = document.getElementById('library-select');
+    const tokenInput = document.getElementById('token-input');
+    const tokenSaveBtn = document.getElementById('token-save-btn');
 
     // ─── Logging ───
     const logEl = document.getElementById('log');
@@ -115,56 +289,111 @@
       const el = document.getElementById('status');
       el.className = 'status ' + state;
       document.getElementById('status-text').textContent = text;
+      var isConnected = state === 'connected';
+      document.getElementById('guide').style.display = isConnected ? 'none' : 'block';
+      document.getElementById('connected-content').style.display = isConnected ? 'block' : 'none';
     }
 
     // ─── WebSocket connection to relay ───
-    const RELAY_URL = 'ws://localhost:3055';
-    let ws = null;
-    let reconnectTimer = null;
+    const RELAY_PORTS = [3055, 3056, 3057, 3058, 3059, 3060];
+    let currentRelayPort = null;
 
-    function connect() {
+    function connect(silent) {
+      // Update channel from input
+      channelId = channelInput.value.trim() || DEFAULT_CHANNEL;
+      channelInput.value = channelId;
+
+      // Save to clientStorage
+      parent.postMessage({ pluginMessage: { type: 'save-channel', channelId: channelId } }, '*');
+
+      if (ws) {
+        ws.onclose = null;
+        ws.close();
+      }
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+
       setStatus('connecting', 'Connecting...');
-      log('Connecting to relay...');
+      if (!silent) log('Connecting to relay (channel: ' + channelId + ')...');
 
-      ws = new WebSocket(RELAY_URL);
+      // If we know the port from a previous connection, try it first
+      if (currentRelayPort) {
+        tryConnectPort(RELAY_PORTS.indexOf(currentRelayPort), silent);
+      } else {
+        tryConnectPort(0, silent);
+      }
+    }
 
-      ws.onopen = () => {
-        // Join channel as plugin role
-        ws.send(JSON.stringify({ type: 'join', channel: channelId, role: 'plugin' }));
-        setStatus('connected', 'Connected');
-        log('Connected to relay', 'success');
-      };
-
-      ws.onmessage = (event) => {
-        let msg;
-        try {
-          msg = JSON.parse(event.data);
-        } catch {
-          return;
-        }
-
-        // Application-level ping → respond with pong
-        if (msg.type === 'ping') {
-          ws.send(JSON.stringify({ type: 'pong', channel: channelId }));
-          return;
-        }
-
-        // Request from MCP Server → forward to Plugin sandbox via postMessage
-        if (msg.type === 'request') {
-          log('← ' + msg.method);
-          parent.postMessage({ pluginMessage: msg }, '*');
-          return;
-        }
-      };
-
-      ws.onclose = () => {
+    function tryConnectPort(index, silent) {
+      if (index < 0) index = 0;
+      if (index >= RELAY_PORTS.length) {
         setStatus('disconnected', 'Disconnected');
-        log('Disconnected from relay', 'error');
+        if (!silent) log('All relay ports (3055-3060) unavailable', 'error');
+        connectBtn.textContent = 'Connect';
         scheduleReconnect();
+        return;
+      }
+
+      var port = RELAY_PORTS[index];
+      var url = 'ws://localhost:' + port;
+      ws = new WebSocket(url);
+
+      var connectTimeout = setTimeout(function() {
+        ws.onopen = null;
+        ws.onerror = null;
+        ws.close();
+        tryConnectPort(index + 1, silent);
+      }, 1000);
+
+      ws.onopen = function() {
+        clearTimeout(connectTimeout);
+        currentRelayPort = port;
+        ws.send(JSON.stringify({ type: 'join', channel: channelId, role: 'plugin' }));
+        // Send saved API token to MCP Server
+        if (savedApiToken) {
+          ws.send(JSON.stringify({ type: 'set-api-token', channel: channelId, token: savedApiToken }));
+        }
+        setStatus('connected', 'Connected');
+        log('Connected to relay on port ' + port, 'success');
+        connected = true;
+        connectBtn.textContent = 'Reconnect';
+
+        ws.onmessage = function(event) {
+          var msg;
+          try {
+            msg = JSON.parse(event.data);
+          } catch {
+            return;
+          }
+
+          if (msg.type === 'ping') {
+            ws.send(JSON.stringify({ type: 'pong', channel: channelId }));
+            return;
+          }
+
+          if (msg.type === 'request') {
+            log('\u2190 ' + msg.method);
+            parent.postMessage({ pluginMessage: msg }, '*');
+            return;
+          }
+        };
+
+        ws.onclose = function() {
+          connected = false;
+          setStatus('disconnected', 'Disconnected');
+          log('Disconnected from relay', 'error');
+          connectBtn.textContent = 'Connect';
+          scheduleReconnect();
+        };
+
+        ws.onerror = function() {
+          log('Connection error', 'error');
+        };
       };
 
-      ws.onerror = () => {
-        log('Connection error', 'error');
+      ws.onerror = function() {
+        clearTimeout(connectTimeout);
+        tryConnectPort(index + 1, silent);
       };
     }
 
@@ -172,7 +401,7 @@
       if (reconnectTimer) return;
       reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
-        connect();
+        connect(true);
       }, 3000);
     }
 
@@ -181,17 +410,179 @@
       const msg = event.data.pluginMessage;
       if (!msg) return;
 
-      // Attach channel and forward to relay
+      // Restore saved channel from clientStorage
+      if (msg.type === 'restore-channel') {
+        channelId = msg.channelId || DEFAULT_CHANNEL;
+        channelInput.value = channelId;
+        connect();
+        return;
+      }
+
+      // Restore saved mode from clientStorage
+      if (msg.type === 'restore-mode') {
+        updateModeUI(msg.mode || 'library');
+        return;
+      }
+
+      // Mode changed by MCP set_mode tool
+      if (msg.type === 'mode-changed') {
+        updateModeUI(msg.mode || 'library');
+        log('Mode → ' + (msg.mode === 'spec' ? '设计规范文档' : 'Figma 共享库') + ' (via MCP)');
+        return;
+      }
+
+      // Library list from code.js
+      if (msg.type === 'library-list') {
+        populateLibraryDropdown(msg.libraries || [], msg.savedLibrary, msg.hasLocal || false);
+        return;
+      }
+
+      // Restore saved library from clientStorage
+      if (msg.type === 'restore-library') {
+        selectedLibrary = msg.library || null;
+        return;
+      }
+
+      // Restore saved API token from clientStorage
+      if (msg.type === 'restore-token') {
+        savedApiToken = msg.token || '';
+        tokenInput.value = savedApiToken;
+        // If already connected, send token to MCP Server
+        if (savedApiToken && ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'set-api-token', channel: channelId, token: savedApiToken }));
+        }
+        return;
+      }
+
+      // Library changed by MCP set_mode tool
+      if (msg.type === 'library-changed') {
+        selectedLibrary = msg.library || null;
+        updateLibrarySelectUI(selectedLibrary);
+        log('Library → ' + (selectedLibrary || 'none') + ' (via MCP)');
+        return;
+      }
+
+      // Forward responses to relay
       if (msg.type === 'response' || msg.type === 'error') {
-        log('→ ' + (msg.type === 'error' ? 'ERR: ' + msg.error.message : 'OK'));
+        log('\u2192 ' + (msg.type === 'error' ? 'ERR: ' + msg.error.message : 'OK'));
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ ...msg, channel: channelId }));
         }
       }
     };
 
-    // ─── Start ───
-    connect();
+    // ─── Mode toggle ───
+    function updateModeUI(mode) {
+      currentMode = mode;
+      modeLibraryBtn.className = mode === 'library' ? 'active' : '';
+      modeSpecBtn.className = mode === 'spec' ? 'active' : '';
+      updateLibrarySectionVisibility(mode);
+    }
+
+    function setMode(mode) {
+      if (mode === currentMode) return;
+      updateModeUI(mode);
+      parent.postMessage({ pluginMessage: { type: 'save-mode', mode: mode } }, '*');
+      log('Mode → ' + (mode === 'library' ? 'Figma 共享库' : '设计规范文档'));
+    }
+
+    // ─── Library selector ───
+    function updateLibrarySectionVisibility(mode) {
+      if (mode === 'library') {
+        librarySection.style.display = 'block';
+        parent.postMessage({ pluginMessage: { type: 'get-libraries' } }, '*');
+      } else {
+        librarySection.style.display = 'none';
+      }
+    }
+
+    function populateLibraryDropdown(libraries, savedLibrary, hasLocal) {
+      librarySelect.innerHTML = '';
+      if (libraries.length === 0 && !hasLocal) {
+        var opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '无可用共享库';
+        opt.disabled = true;
+        librarySelect.appendChild(opt);
+        librarySelect.disabled = true;
+        return;
+      }
+      librarySelect.disabled = false;
+      var noneOpt = document.createElement('option');
+      noneOpt.value = '';
+      noneOpt.textContent = '未选择';
+      if (!savedLibrary) noneOpt.selected = true;
+      librarySelect.appendChild(noneOpt);
+
+      // Local file styles option
+      if (hasLocal) {
+        var localOpt = document.createElement('option');
+        localOpt.value = '__local__';
+        localOpt.textContent = '当前文件样式';
+        if (savedLibrary === '__local__') localOpt.selected = true;
+        librarySelect.appendChild(localOpt);
+        if (libraries.length > 0) {
+          var sep = document.createElement('option');
+          sep.disabled = true;
+          sep.textContent = '──────────';
+          librarySelect.appendChild(sep);
+        }
+      } else if (savedLibrary === '__local__') {
+        // Local content removed — reset selection
+        selectedLibrary = null;
+        parent.postMessage({ pluginMessage: { type: 'save-library', library: null } }, '*');
+      }
+
+      libraries.forEach(function(lib) {
+        var opt = document.createElement('option');
+        opt.value = lib;
+        opt.textContent = lib;
+        if (lib === savedLibrary) opt.selected = true;
+        librarySelect.appendChild(opt);
+      });
+      selectedLibrary = savedLibrary || null;
+    }
+
+    function updateLibrarySelectUI(library) {
+      for (var i = 0; i < librarySelect.options.length; i++) {
+        librarySelect.options[i].selected = librarySelect.options[i].value === (library || '');
+      }
+    }
+
+    // ─── UI Events ───
+    connectBtn.addEventListener('click', connect);
+    channelInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') connect();
+    });
+    modeLibraryBtn.addEventListener('click', () => setMode('library'));
+    modeSpecBtn.addEventListener('click', () => setMode('spec'));
+    librarySelect.addEventListener('change', () => {
+      selectedLibrary = librarySelect.value || null;
+      parent.postMessage({ pluginMessage: { type: 'save-library', library: selectedLibrary } }, '*');
+      if (selectedLibrary) log('Library → ' + selectedLibrary);
+    });
+    tokenSaveBtn.addEventListener('click', () => {
+      savedApiToken = tokenInput.value.trim();
+      parent.postMessage({ pluginMessage: { type: 'save-token', token: savedApiToken } }, '*');
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'set-api-token', channel: channelId, token: savedApiToken }));
+      }
+      log('API Token ' + (savedApiToken ? 'saved' : 'cleared'));
+    });
+
+    // ─── Init: ask code.js for saved channel + mode + token ───
+    parent.postMessage({ pluginMessage: { type: 'get-channel' } }, '*');
+    parent.postMessage({ pluginMessage: { type: 'get-mode' } }, '*');
+    parent.postMessage({ pluginMessage: { type: 'get-library' } }, '*');
+    parent.postMessage({ pluginMessage: { type: 'get-token' } }, '*');
+
+    // Fallback: if no response in 500ms, connect with default
+    var fallbackTimer = setTimeout(() => {
+      if (!connected) {
+        channelInput.value = DEFAULT_CHANNEL;
+        connect();
+      }
+    }, 500);
   </script>
 </body>
 </html>

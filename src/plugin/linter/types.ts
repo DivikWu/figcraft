@@ -44,6 +44,10 @@ export interface LintContext {
   typographyTokens: Map<string, { fontSize?: number; fontFamily?: string; fontWeight?: string }>;
   /** Variable ID map for auto-fix (token name → variable ID). */
   variableIds: Map<string, string>;
+  /** Current operation mode. */
+  mode?: 'library' | 'spec';
+  /** Selected library name (only relevant in library mode). */
+  selectedLibrary?: string | null;
 }
 
 export interface LintViolation {

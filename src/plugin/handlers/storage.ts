@@ -2,9 +2,11 @@
  * ClientStorage handlers — cache token specs locally in the Figma file.
  */
 
-import { registerHandler } from '../code.js';
+import { registerHandler } from '../registry.js';
 
 const STORAGE_PREFIX = 'figcraft:tokens:';
+
+export function registerStorageHandlers(): void {
 
 registerHandler('save_spec_tokens', async (params) => {
   const name = params.name as string;
@@ -33,3 +35,5 @@ registerHandler('delete_spec_tokens', async (params) => {
   await figma.clientStorage.deleteAsync(STORAGE_PREFIX + name);
   return { ok: true };
 });
+
+} // registerStorageHandlers

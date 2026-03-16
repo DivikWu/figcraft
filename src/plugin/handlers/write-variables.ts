@@ -2,13 +2,15 @@
  * Variables write handlers — create, update, delete variables and collections.
  */
 
-import { registerHandler } from '../code.js';
+import { registerHandler } from '../registry.js';
 import type { DesignToken } from '../../shared/types.js';
 import {
   syncTokenToVariable,
   tokenPathToVariableName,
 } from '../adapters/variable-mapper.js';
 import { processBatch } from '../utils/batch.js';
+
+export function registerWriteVariableHandlers(): void {
 
 registerHandler('sync_tokens', async (params) => {
   const tokens = params.tokens as DesignToken[];
@@ -139,3 +141,57 @@ registerHandler('delete_collection', async (params) => {
   collection.remove();
   return { ok: true };
 });
+
+registerHandler('set_variable_binding', async (params) => {
+  const nodeId = params.nodeId as string;
+  const field = params.field as string;
+  const variableId = params.variableId as string;
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node || !('setBoundVariable' in node)) {
+    return { error: `Node not found or does not support variable binding: ${nodeId}` };
+  }
+
+  const variable = await figma.variables.getVariableByIdAsync(variableId);
+  if (!variable) return { error: `Variable not found: ${variableId}` };
+
+  try {
+    if ((field === 'fills' || field === 'strokes') && 'fills' in node) {
+      const paintIndex = (params.paintIndex as number) ?? 0;
+      const paints = [...(node as GeometryMixin)[field] as Paint[]];
+      if (paints[paintIndex]) {
+        paints[paintIndex] = figma.variables.setBoundVariableForPaint(
+          paints[paintIndex] as SolidPaint, 'color', variable,
+        );
+        (node as GeometryMixin)[field] = paints;
+      }
+    } else {
+      (node as SceneNode).setBoundVariable(field as VariableBindableNodeField, variable);
+    }
+  } catch (err) {
+    return { error: `Cannot bind field "${field}": ${err instanceof Error ? err.message : String(err)}` };
+  }
+
+  return { ok: true };
+});
+
+registerHandler('set_explicit_variable_mode', async (params) => {
+  const nodeId = params.nodeId as string;
+  const collectionId = params.collectionId as string;
+  const modeId = params.modeId as string;
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node || !('setExplicitVariableModeForCollection' in node)) {
+    return { error: `Node not found or does not support variable modes: ${nodeId}` };
+  }
+
+  try {
+    (node as SceneNode).setExplicitVariableModeForCollection(collectionId, modeId);
+  } catch (err) {
+    return { error: `Cannot set mode: ${err instanceof Error ? err.message : String(err)}` };
+  }
+
+  return { ok: true };
+});
+
+} // registerWriteVariableHandlers

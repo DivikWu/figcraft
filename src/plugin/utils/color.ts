@@ -12,6 +12,15 @@ export function hexToFigmaRgba(hex: string): RGBA {
   return { r, g, b, a };
 }
 
+/** Parse hex color string to Figma RGB (0–1 range, no alpha). For use in fills[].color. */
+export function hexToFigmaRgb(hex: string): RGB {
+  const clean = hex.replace('#', '');
+  const r = parseInt(clean.slice(0, 2), 16) / 255;
+  const g = parseInt(clean.slice(2, 4), 16) / 255;
+  const b = parseInt(clean.slice(4, 6), 16) / 255;
+  return { r, g, b };
+}
+
 /** Convert Figma RGBA to hex string. */
 export function figmaRgbaToHex(color: RGBA): string {
   const r = Math.round(color.r * 255).toString(16).padStart(2, '0');

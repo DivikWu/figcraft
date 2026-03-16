@@ -2,7 +2,9 @@
  * Variables read handlers — list local variables and collections.
  */
 
-import { registerHandler } from '../code.js';
+import { registerHandler } from '../registry.js';
+
+export function registerVariableHandlers(): void {
 
 registerHandler('list_variables', async (params) => {
   const collectionId = params.collectionId as string | undefined;
@@ -68,6 +70,40 @@ registerHandler('list_collections', async () => {
     variableCount: c.variableIds.length,
   }));
 });
+
+registerHandler('get_node_variables', async (params) => {
+  const nodeId = params.nodeId as string;
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) return { error: `Node not found: ${nodeId}` };
+
+  const sceneNode = node as SceneNode;
+  if (!('boundVariables' in sceneNode) || !sceneNode.boundVariables) {
+    return { nodeId, bindings: {} };
+  }
+
+  const bindings: Record<string, unknown[]> = {};
+
+  for (const [field, value] of Object.entries(sceneNode.boundVariables)) {
+    const aliases: Array<{ id: string }> = Array.isArray(value) ? value : [value];
+    const resolved: unknown[] = [];
+    for (const alias of aliases) {
+      if (!alias || !alias.id) continue;
+      const variable = await figma.variables.getVariableByIdAsync(alias.id);
+      resolved.push({
+        variableId: alias.id,
+        variableName: variable?.name ?? null,
+        collectionId: variable?.variableCollectionId ?? null,
+      });
+    }
+    if (resolved.length > 0) {
+      bindings[field] = resolved;
+    }
+  }
+
+  return { nodeId, bindings };
+});
+
+} // registerVariableHandlers
 
 // ─── Helpers ───
 

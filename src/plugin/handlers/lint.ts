@@ -4,12 +4,14 @@
  * Linter runs entirely in Plugin side (review correction #2).
  */
 
-import { registerHandler } from '../code.js';
+import { registerHandler } from '../registry.js';
 import { simplifyNode } from '../adapters/node-simplifier.js';
 import { runLint, getAvailableRules } from '../linter/engine.js';
 import type { AbstractNode, LintContext, LintViolation } from '../linter/types.js';
 import type { CompressedNode } from '../../shared/types.js';
 import type { LintReport } from '../linter/engine.js';
+
+export function registerLintHandlers(): void {
 
 registerHandler('lint_check', async (params) => {
   const nodeIds = params.nodeIds as string[] | undefined;
@@ -27,6 +29,10 @@ registerHandler('lint_check', async (params) => {
     variableIds?: Record<string, string>;
   } | undefined;
 
+  // Read current mode and selected library from storage
+  const currentMode = ((await figma.clientStorage.getAsync('figcraft_mode')) || 'library') as 'library' | 'spec';
+  const currentLibrary = (await figma.clientStorage.getAsync('figcraft_library')) as string | undefined;
+
   // Build lint context
   const ctx: LintContext = {
     colorTokens: new Map(Object.entries(tokenContext?.colorTokens ?? {})),
@@ -34,13 +40,15 @@ registerHandler('lint_check', async (params) => {
     radiusTokens: new Map(Object.entries(tokenContext?.radiusTokens ?? {})),
     typographyTokens: new Map(Object.entries(tokenContext?.typographyTokens ?? {})),
     variableIds: new Map(Object.entries(tokenContext?.variableIds ?? {})),
+    mode: currentMode,
+    selectedLibrary: currentLibrary || null,
   };
 
   // Collect nodes to lint
   let targetNodes: SceneNode[];
   if (nodeIds && nodeIds.length > 0) {
-    targetNodes = nodeIds
-      .map((id) => figma.getNodeById(id))
+    const resolved = await Promise.all(nodeIds.map((id) => figma.getNodeByIdAsync(id)));
+    targetNodes = resolved
       .filter((n): n is SceneNode => n !== null && 'type' in n && n.type !== 'PAGE' && n.type !== 'DOCUMENT');
   } else {
     // Use selection, or fall back to current page children
@@ -73,7 +81,7 @@ registerHandler('lint_fix', async (params) => {
     if (!v.autoFixable || !v.fixData) continue;
 
     try {
-      const node = figma.getNodeById(v.nodeId);
+      const node = await figma.getNodeByIdAsync(v.nodeId);
       if (!node) { failed++; errors.push({ nodeId: v.nodeId, error: 'Node not found' }); continue; }
 
       switch (v.rule) {
@@ -136,7 +144,7 @@ registerHandler('lint_rules', async () => {
 registerHandler('clear_annotations', async (params) => {
   const nodeIds = params.nodeIds as string[] | undefined;
   const targets = nodeIds
-    ? nodeIds.map((id) => figma.getNodeById(id)).filter(Boolean) as SceneNode[]
+    ? (await Promise.all(nodeIds.map((id) => figma.getNodeByIdAsync(id)))).filter(Boolean) as SceneNode[]
     : [...figma.currentPage.children];
 
   let cleared = 0;
@@ -158,6 +166,8 @@ registerHandler('clear_annotations', async (params) => {
 
   return { cleared };
 });
+
+} // registerLintHandlers
 
 // ─── Helpers ───
 
@@ -190,7 +200,7 @@ function compressedToAbstract(node: CompressedNode): AbstractNode {
 async function annotateViolations(report: LintReport): Promise<void> {
   for (const category of report.categories) {
     for (const violation of category.nodes) {
-      const node = figma.getNodeById(violation.nodeId);
+      const node = await figma.getNodeByIdAsync(violation.nodeId);
       if (!node || !('annotations' in node)) continue;
       const annotated = node as SceneNode & {
         annotations: Array<{ label: string; properties: Array<{ type: string }> }>;
