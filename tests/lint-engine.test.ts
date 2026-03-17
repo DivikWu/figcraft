@@ -83,9 +83,9 @@ describe('runLint', () => {
 });
 
 describe('getAvailableRules', () => {
-  it('returns 23 rules', () => {
+  it('returns 15 rules', () => {
     const rules = getAvailableRules();
-    expect(rules.length).toBe(23);
+    expect(rules.length).toBe(15);
   });
 
   it('each rule has name, description, category, severity', () => {

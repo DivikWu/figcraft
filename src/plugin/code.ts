@@ -133,7 +133,8 @@ figma.ui.on('message', async (msg: { type: string; channelId?: string; mode?: st
     try {
       const handler = handlers.get('lint_check');
       if (handler) {
-        const result = await handler({});
+        const maxV = (msg as { maxViolations?: number }).maxViolations;
+        const result = await handler({ maxViolations: maxV ?? 500 });
         figma.ui.postMessage({ type: 'lint-result', report: result });
       }
     } catch (err) {

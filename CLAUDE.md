@@ -141,25 +141,17 @@ figcraft/
 │       │       ├── spec-spacing.ts       # padding/gap vs Spacing Token
 │       │       ├── spec-border-radius.ts # cornerRadius vs Radius Token
 │       │       ├── wcag-contrast.ts      # WCAG AA 对比度 (4.5:1 / 3:1)
-│       │       ├── wcag-contrast-enhanced.ts # WCAG AAA 增强对比度 (7:1 / 4.5:1)
 │       │       ├── wcag-target-size.ts   # 交互元素 ≥ 44×44px
 │       │       ├── wcag-text-size.ts     # 最小文字尺寸 ≥ 12px
-│       │       ├── wcag-line-height.ts   # 行高 ≥ 1.5 倍字号 (WCAG 1.4.12)
-│       │       ├── wcag-non-text-contrast.ts # 非文本元素对比度 ≥ 3:1 (WCAG 1.4.11)
+│       │       ├── wcag-line-height.ts   # 行高 ≥ 1.0 倍字号（防重叠）
 │       │       ├── wcag-helpers.ts       # WCAG 规则共享工具函数
 │       │       ├── default-name.ts       # 检测未重命名的默认节点名（Frame 1 等）
 │       │       ├── empty-container.ts    # 检测空的 Frame/Group
 │       │       ├── no-text-style.ts      # 文本节点未绑定 Text Style
-│       │       ├── stale-text-name.ts    # 文本节点名称与内容不匹配
-│       │       ├── no-autolayout.ts      # 检测应使用 Auto Layout 的线性排列
 │       │       ├── fixed-in-autolayout.ts # Auto Layout 中的绝对定位子节点
-│       │       ├── overlapping-children.ts # 非 Auto Layout 中的重叠子节点
 │       │       ├── hardcoded-token.ts    # 未绑定变量的硬编码值（library 模式）
 │       │       ├── component-bindings.ts # 组件属性未被子节点引用
-│       │       ├── no-text-property.ts   # 组件内文本未暴露为 TEXT 属性
-│       │       ├── max-nesting-depth.ts  # 嵌套层级过深（>6 层）
-│       │       ├── consistent-icon-size.ts # 图标尺寸一致性（标准尺寸 + 正方形）
-│       │       └── missing-responsive.ts # 大 Frame 缺少 Auto Layout
+│       │       └── max-nesting-depth.ts  # 嵌套层级过深（>6 层）
 │       └── utils/
 │           ├── batch.ts            # 批量操作（items[] + per-item error handling）
 │           └── color.ts            # 颜色转换（hex ↔ Figma RGBA, 对比度计算）

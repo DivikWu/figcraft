@@ -16,6 +16,8 @@ export const noTextStyleRule: LintRule = {
 
   check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     if (node.type !== 'TEXT') return [];
+    // Only meaningful when a library is selected or spec tokens are loaded
+    if (ctx.mode === 'library' && !ctx.selectedLibrary) return [];
     // In spec mode, spec-typography already covers this
     if (ctx.mode === 'spec' && ctx.typographyTokens.size > 0) return [];
     if (node.textStyleId) return [];

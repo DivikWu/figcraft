@@ -750,6 +750,12 @@
       border-radius: 2px;
       transition: width 0.3s ease;
     }
+    .lint-scope {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      text-align: center;
+      padding: 2px 0;
+    }
   </style>
 </head>
 <body>
@@ -793,6 +799,7 @@
         <button class="btn" id="lint-fix-btn" disabled data-i18n="lint.fix">Auto Fix</button>
       </div>
       <div id="lint-result" style="display:none">
+        <div class="lint-scope" id="lint-scope"></div>
         <div class="lint-score" id="lint-score-area"></div>
         <div class="lint-progress"><div class="lint-progress-bar" id="lint-progress-bar"></div></div>
         <div class="lint-summary" id="lint-summary"></div>
@@ -1571,14 +1578,15 @@
     var lintCategories = document.getElementById('lint-categories');
     var lintScoreArea = document.getElementById('lint-score-area');
     var lintProgressBar = document.getElementById('lint-progress-bar');
+    var lintScope = document.getElementById('lint-scope');
     var lastLintViolations = [];
 
     lintRunBtn.addEventListener('click', function() {
       if (!connected) { log('Not connected', 'error'); return; }
       lintRunBtn.disabled = true;
       lintRunBtn.textContent = t('lint.running');
-      // Send lint_check request through the plugin sandbox
-      parent.postMessage({ pluginMessage: { type: 'ui-lint-check' } }, '*');
+      // Send lint_check request through the plugin sandbox (cap at 500 violations for UI responsiveness)
+      parent.postMessage({ pluginMessage: { type: 'ui-lint-check', maxViolations: 500 } }, '*');
     });
 
     lintFixBtn.addEventListener('click', function() {
@@ -1593,6 +1601,27 @@
       lintResult.style.display = '';
       lintRunBtn.disabled = false;
       lintRunBtn.textContent = t('lint.run');
+
+      // Scope info
+      var s = report.scope;
+      if (s) {
+        var scopeText = '';
+        if (s.type === 'selection') {
+          var names = (s.names || []).join(', ');
+          if (s.count > 5) names += ' …';
+          scopeText = (currentLang === 'zh' ? '检查范围：选中的 ' : 'Scope: ') + s.count +
+            (currentLang === 'zh' ? ' 个节点' : ' node' + (s.count > 1 ? 's' : '')) +
+            (names ? ' (' + names + ')' : '');
+        } else {
+          scopeText = (currentLang === 'zh' ? '检查范围：' : 'Scope: ') +
+            (s.pageName || 'Page') +
+            (currentLang === 'zh' ? '（' + s.count + ' 个顶层节点）' : ' (' + s.count + ' top-level nodes)');
+        }
+        if (s.truncated) scopeText += currentLang === 'zh' ? ' ⚠️ 已截断' : ' ⚠️ truncated';
+        lintScope.textContent = scopeText;
+      } else {
+        lintScope.textContent = '';
+      }
 
       var total = report.summary.total;
       var pass = report.summary.pass;

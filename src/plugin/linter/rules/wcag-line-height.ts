@@ -4,13 +4,13 @@
 
 import type { AbstractNode, LintContext, LintViolation, LintRule } from '../types.js';
 
-const MIN_LINE_HEIGHT_RATIO = 1.5;
+const MIN_LINE_HEIGHT_RATIO = 1.0;
 
 export const wcagLineHeightRule: LintRule = {
   name: 'wcag-line-height',
-  description: 'Check that text line height is at least 1.5x the font size (WCAG 1.4.12).',
+  description: 'Check that text line height is at least 1.0x the font size (text overlap prevention).',
   category: 'wcag',
-  severity: 'warning',
+  severity: 'error',
 
   check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
     if (node.type !== 'TEXT') return [];
@@ -38,10 +38,10 @@ export const wcagLineHeightRule: LintRule = {
       nodeId: node.id,
       nodeName: node.name,
       rule: 'wcag-line-height',
-      severity: 'warning',
+      severity: 'error',
       currentValue: `${effectiveLineHeight.toFixed(1)}px (${ratio.toFixed(2)}x)`,
-      expectedValue: `>= ${(node.fontSize * MIN_LINE_HEIGHT_RATIO).toFixed(1)}px (${MIN_LINE_HEIGHT_RATIO}x)`,
-      suggestion: `Line height is ${ratio.toFixed(2)}x font size — WCAG 1.4.12 recommends at least ${MIN_LINE_HEIGHT_RATIO}x`,
+      expectedValue: `>= ${node.fontSize.toFixed(1)}px (${MIN_LINE_HEIGHT_RATIO}x)`,
+      suggestion: `Line height is ${ratio.toFixed(2)}x font size — text lines will overlap`,
       autoFixable: false,
     }];
   },

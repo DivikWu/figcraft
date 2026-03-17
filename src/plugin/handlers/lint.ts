@@ -61,14 +61,30 @@ registerHandler('lint_check', async (params) => {
 
   // Collect nodes to lint
   let targetNodes: SceneNode[];
+  let scope: { type: 'selection' | 'page'; count: number; names?: string[] };
   if (nodeIds && nodeIds.length > 0) {
     const resolved = await Promise.all(nodeIds.map((id) => figma.getNodeByIdAsync(id)));
     targetNodes = resolved
       .filter((n): n is SceneNode => n !== null && 'type' in n && n.type !== 'PAGE' && n.type !== 'DOCUMENT');
+    scope = { type: 'selection', count: targetNodes.length, names: targetNodes.slice(0, 5).map((n) => n.name) };
   } else {
     // Use selection, or fall back to current page children
     const selection = figma.currentPage.selection;
-    targetNodes = selection.length > 0 ? [...selection] : [...figma.currentPage.children];
+    if (selection.length > 0) {
+      targetNodes = [...selection];
+      scope = { type: 'selection', count: targetNodes.length, names: targetNodes.slice(0, 5).map((n) => n.name) };
+    } else {
+      targetNodes = [...figma.currentPage.children];
+      scope = { type: 'page', count: targetNodes.length };
+    }
+  }
+
+  // Cap top-level nodes to prevent oversized payloads on huge pages
+  const MAX_TOP_NODES = 200;
+  let truncatedNodes = false;
+  if (targetNodes.length > MAX_TOP_NODES) {
+    targetNodes = targetNodes.slice(0, MAX_TOP_NODES);
+    truncatedNodes = true;
   }
 
   // Convert to abstract nodes
@@ -82,7 +98,7 @@ registerHandler('lint_check', async (params) => {
     await annotateViolations(report);
   }
 
-  return report;
+  return { ...report, scope: { ...scope, pageName: figma.currentPage.name, truncated: truncatedNodes } };
 });
 
 registerHandler('lint_fix', async (params) => {

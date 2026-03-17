@@ -7,10 +7,8 @@ import type { AbstractNode, LintContext } from '../src/plugin/linter/types.js';
 import { defaultNameRule } from '../src/plugin/linter/rules/default-name.js';
 import { emptyContainerRule } from '../src/plugin/linter/rules/empty-container.js';
 import { wcagTextSizeRule } from '../src/plugin/linter/rules/wcag-text-size.js';
-import { staleTextNameRule } from '../src/plugin/linter/rules/stale-text-name.js';
 import { noTextStyleRule } from '../src/plugin/linter/rules/no-text-style.js';
 import { componentBindingsRule } from '../src/plugin/linter/rules/component-bindings.js';
-import { noTextPropertyRule } from '../src/plugin/linter/rules/no-text-property.js';
 
 const emptyCtx: LintContext = {
   colorTokens: new Map(),
@@ -95,32 +93,6 @@ describe('wcag-text-size', () => {
   });
 });
 
-// ─── stale-text-name ───
-
-describe('stale-text-name', () => {
-  it('flags text whose name differs from content', () => {
-    const v = staleTextNameRule.check(
-      makeNode({ type: 'TEXT', name: 'Old Label', characters: 'New Label' }),
-      emptyCtx,
-    );
-    expect(v).toHaveLength(1);
-    expect(v[0].rule).toBe('stale-text-name');
-  });
-
-  it('passes when name matches content', () => {
-    const v = staleTextNameRule.check(
-      makeNode({ type: 'TEXT', name: 'Hello', characters: 'Hello' }),
-      emptyCtx,
-    );
-    expect(v).toHaveLength(0);
-  });
-
-  it('ignores non-text nodes', () => {
-    const v = staleTextNameRule.check(makeNode({ type: 'FRAME' }), emptyCtx);
-    expect(v).toHaveLength(0);
-  });
-});
-
 // ─── no-text-style ───
 
 describe('no-text-style', () => {
@@ -190,48 +162,6 @@ describe('component-bindings', () => {
 
   it('ignores non-COMPONENT nodes', () => {
     const v = componentBindingsRule.check(makeNode({ type: 'FRAME' }), emptyCtx);
-    expect(v).toHaveLength(0);
-  });
-});
-
-// ─── no-text-property ───
-
-describe('no-text-property', () => {
-  it('flags unexposed text when component has other TEXT props', () => {
-    const node = makeNode({
-      type: 'COMPONENT',
-      componentPropertyDefinitions: {
-        title: { type: 'TEXT', defaultValue: 'Title' },
-      },
-      children: [
-        makeNode({
-          id: '2:1', type: 'TEXT', name: 'Title', characters: 'Title',
-          componentPropertyReferences: { characters: 'title' },
-        }),
-        makeNode({
-          id: '2:2', type: 'TEXT', name: 'Subtitle', characters: 'Sub',
-        }),
-      ],
-    });
-    const v = noTextPropertyRule.check(node, emptyCtx);
-    expect(v).toHaveLength(1);
-    expect(v[0].nodeName).toBe('Subtitle');
-  });
-
-  it('skips single-text component with no TEXT props', () => {
-    const node = makeNode({
-      type: 'COMPONENT',
-      componentPropertyDefinitions: {},
-      children: [
-        makeNode({ id: '2:1', type: 'TEXT', name: 'Label', characters: 'OK' }),
-      ],
-    });
-    const v = noTextPropertyRule.check(node, emptyCtx);
-    expect(v).toHaveLength(0);
-  });
-
-  it('ignores non-COMPONENT nodes', () => {
-    const v = noTextPropertyRule.check(makeNode({ type: 'FRAME' }), emptyCtx);
     expect(v).toHaveLength(0);
   });
 });
