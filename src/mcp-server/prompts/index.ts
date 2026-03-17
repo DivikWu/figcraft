@@ -145,6 +145,63 @@ ${DESIGN_CREATOR_RULES}
   );
 
   server.prompt(
+    'prototype-flow',
+    'Guide: Analyze prototype interactions and generate flow documentation.',
+    () => ({
+      messages: [{
+        role: 'user' as const,
+        content: {
+          type: 'text' as const,
+          text: `Help me analyze the prototype flow in this Figma file. Follow these steps:
+1. Use analyze_prototype_flow to scan the current page (format: "all")
+2. Present the summary: total screens, interactions, entry points, dead ends, loops
+3. Show the Mermaid flow diagram
+4. Highlight any issues:
+   - Dead ends (screens with no way out)
+   - Missing back navigation
+   - Loops that might trap users
+   - Screens with only one trigger type (consider adding hover/keyboard alternatives)
+5. If requested, output the full Markdown documentation
+6. Suggest improvements to the prototype flow`,
+        },
+      }],
+    }),
+  );
+
+  server.prompt(
+    'document-components',
+    'Guide: Generate documentation for all components on the current page.',
+    () => ({
+      messages: [{
+        role: 'user' as const,
+        content: {
+          type: 'text' as const,
+          text: `Help me generate documentation for the components in this Figma file. Follow these steps:
+
+1. Use audit_components to scan all components on the current page
+2. For each component, use get_component and list_component_properties to get full details
+3. Generate a structured documentation entry for each component:
+
+   ## ComponentName
+   **Description:** (from component description, or "No description")
+   **Dimensions:** W × H
+   **Properties:**
+   | Name | Type | Default | Options |
+   |------|------|---------|---------|
+   | ... | BOOLEAN/TEXT/VARIANT/INSTANCE_SWAP | ... | (variant options if applicable) |
+
+   **Usage:** Brief guidance on when/how to use this component
+   **Variants:** List variant combinations if it's a component set
+
+4. Flag any issues found during audit (missing descriptions, unexposed text, etc.)
+5. Output the complete documentation in Markdown format
+6. Suggest improvements to component structure based on audit findings`,
+        },
+      }],
+    }),
+  );
+
+  server.prompt(
     'review-design',
     'Guide: Review existing Figma designs against design quality rules. Outputs structured violation report with fixes.',
     () => ({

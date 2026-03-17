@@ -11,3 +11,6 @@ export const STORAGE_KEYS = {
   LIBRARY_URLS: 'figcraft_library_urls',
   LANG: 'figcraft_lang',
 } as const;
+
+/** Plugin version — must match package.json version. */
+export const PLUGIN_VERSION = '0.1.0';

@@ -27,6 +27,7 @@ import { registerWriteVariableTools } from './tools/write-variables.js';
 import { registerWriteStyleTools } from './tools/write-styles.js';
 import { registerScanTools } from './tools/scan.js';
 import { registerPageTools } from './tools/pages.js';
+import { registerPrototypeTools } from './tools/prototype.js';
 import { registerSelectionTools } from './tools/selection.js';
 import { registerPrompts } from './prompts/index.js';
 import { registerAuthTools } from './tools/auth.js';
@@ -75,6 +76,7 @@ registerAnnotationTools(server, bridge);
 registerModeTools(server, bridge);
 registerChannelTools(server, bridge);
 registerScanTools(server, bridge);
+registerPrototypeTools(server, bridge);
 registerPrompts(server);
 
 // ─── Start ───

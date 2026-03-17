@@ -8,7 +8,7 @@
 import { handlers, registerHandler } from './registry.js';
 import { getLibraryDesignContext, getLocalDesignContext, clearDesignContextCache } from './utils/design-context.js';
 import { getRegisteredStylesSummary, clearStyleRegistry } from './utils/style-registry.js';
-import { STORAGE_KEYS } from './constants.js';
+import { STORAGE_KEYS, PLUGIN_VERSION } from './constants.js';
 
 // ─── P1 handlers (read) ───
 import { registerNodeHandlers } from './handlers/nodes.js';
@@ -181,6 +181,7 @@ figma.ui.on('message', async (msg: { type: string; channelId?: string; mode?: st
 registerHandler('ping', async () => {
   return {
     status: 'ok',
+    pluginVersion: PLUGIN_VERSION,
     documentName: figma.root.name,
     currentPage: figma.currentPage.name,
     timestamp: Date.now(),
