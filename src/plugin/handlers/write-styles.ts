@@ -97,4 +97,65 @@ registerHandler('delete_style', async (params) => {
   return { ok: true };
 });
 
+registerHandler('update_paint_style', async (params) => {
+  const styleId = params.styleId as string;
+  const style = figma.getStyleById(styleId);
+  if (!style || style.type !== 'PAINT') return { error: `Paint style not found: ${styleId}` };
+  const ps = style as PaintStyle;
+  if (params.name) ps.name = params.name as string;
+  if (params.description !== undefined) ps.description = params.description as string;
+  if (params.color && typeof params.color === 'string') {
+    ps.paints = [{ type: 'SOLID', color: hexToFigmaRgba(params.color as string) }];
+  }
+  return { id: ps.id, name: ps.name };
+});
+
+registerHandler('update_text_style', async (params) => {
+  const styleId = params.styleId as string;
+  const style = figma.getStyleById(styleId);
+  if (!style || style.type !== 'TEXT') return { error: `Text style not found: ${styleId}` };
+  const ts = style as TextStyle;
+  if (params.name) ts.name = params.name as string;
+  if (params.description !== undefined) ts.description = params.description as string;
+  if (params.fontFamily || params.fontStyle) {
+    const family = (params.fontFamily as string) ?? ts.fontName.family;
+    const fStyle = (params.fontStyle as string) ?? ts.fontName.style;
+    await figma.loadFontAsync({ family, style: fStyle });
+    ts.fontName = { family, style: fStyle };
+  }
+  if (params.fontSize != null) ts.fontSize = params.fontSize as number;
+  if (params.lineHeight != null) {
+    const lh = params.lineHeight;
+    if (typeof lh === 'number') {
+      ts.lineHeight = { value: lh, unit: 'PIXELS' };
+    } else if (typeof lh === 'string' && lh === 'AUTO') {
+      ts.lineHeight = { unit: 'AUTO' };
+    } else {
+      ts.lineHeight = lh as LineHeight;
+    }
+  }
+  if (params.letterSpacing != null) {
+    const ls = params.letterSpacing;
+    if (typeof ls === 'number') {
+      ts.letterSpacing = { value: ls, unit: 'PIXELS' };
+    } else {
+      ts.letterSpacing = ls as LetterSpacing;
+    }
+  }
+  return { id: ts.id, name: ts.name, fontSize: ts.fontSize };
+});
+
+registerHandler('update_effect_style', async (params) => {
+  const styleId = params.styleId as string;
+  const style = figma.getStyleById(styleId);
+  if (!style || style.type !== 'EFFECT') return { error: `Effect style not found: ${styleId}` };
+  const es = style as EffectStyle;
+  if (params.name) es.name = params.name as string;
+  if (params.description !== undefined) es.description = params.description as string;
+  if (params.effects) {
+    es.effects = params.effects as Effect[];
+  }
+  return { id: es.id, name: es.name };
+});
+
 } // registerWriteStyleHandlers

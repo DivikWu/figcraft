@@ -58,7 +58,10 @@ export function registerWriteNodeTools(server: McpServer, bridge: Bridge): void 
   server.tool(
     'patch_nodes',
     'Update properties on one or more existing nodes. ' +
-      'Supports: x, y, name, visible, opacity, cornerRadius, resize, fills, itemSpacing.',
+      'Supports: x, y, name, visible, opacity, cornerRadius, resize, fills (hex string), strokes (hex string), strokeWeight, ' +
+      'effects (raw Figma effect array), layoutMode (NONE/HORIZONTAL/VERTICAL), layoutAlign, layoutGrow, ' +
+      'primaryAxisAlignItems, counterAxisAlignItems, itemSpacing, paddingLeft/Right/Top/Bottom, ' +
+      'fontSize, fontName ({family,style}), rotation, constraints ({horizontal,vertical}).',
     {
       patches: z.array(z.object({
         nodeId: z.string().describe('Node ID'),
@@ -112,10 +115,13 @@ export function registerWriteNodeTools(server: McpServer, bridge: Bridge): void 
   // with zod-to-json-schema. Plugin handler supports arbitrary depth natively.
   const propsDesc =
     'frame: width, height, x, y, fill, cornerRadius, autoLayout, layoutDirection, itemSpacing, padding. ' +
-    'text: content, fontSize, fontFamily, fontStyle, fill.';
+    'text: content, fontSize, fontFamily, fontStyle, fill. ' +
+    'rectangle: width, height, x, y, fill, cornerRadius, stroke, strokeWeight. ' +
+    'ellipse: width, height, x, y, fill, stroke, strokeWeight. ' +
+    'line: length, x, y, rotation, stroke, strokeWeight.';
 
   const leafNode = z.object({
-    type: z.enum(['frame', 'text']),
+    type: z.enum(['frame', 'text', 'rectangle', 'ellipse', 'line']),
     name: z.string().optional(),
     props: z.record(z.unknown()).optional().describe(propsDesc),
   });
@@ -184,6 +190,66 @@ export function registerWriteNodeTools(server: McpServer, bridge: Bridge): void 
     },
     async (params) => {
       const result = await bridge.request('boolean_operation', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'create_rectangle',
+    'Create a rectangle node. Supports fill, corner radius, and stroke.',
+    {
+      name: z.string().optional().describe('Node name'),
+      x: z.number().optional().describe('X position'),
+      y: z.number().optional().describe('Y position'),
+      width: z.number().optional().describe('Width in px (default: 100)'),
+      height: z.number().optional().describe('Height in px (default: 100)'),
+      parentId: z.string().optional().describe('Parent node ID'),
+      fill: z.string().optional().describe('Fill color as hex'),
+      cornerRadius: z.number().optional().describe('Corner radius'),
+      stroke: z.string().optional().describe('Stroke color as hex'),
+      strokeWeight: z.number().optional().describe('Stroke weight (default: 1)'),
+    },
+    async (params) => {
+      const result = await bridge.request('create_rectangle', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'create_ellipse',
+    'Create an ellipse (circle) node. Supports fill and stroke.',
+    {
+      name: z.string().optional().describe('Node name'),
+      x: z.number().optional().describe('X position'),
+      y: z.number().optional().describe('Y position'),
+      width: z.number().optional().describe('Width in px (default: 100)'),
+      height: z.number().optional().describe('Height in px (default: 100, same as width for circle)'),
+      parentId: z.string().optional().describe('Parent node ID'),
+      fill: z.string().optional().describe('Fill color as hex'),
+      stroke: z.string().optional().describe('Stroke color as hex'),
+      strokeWeight: z.number().optional().describe('Stroke weight (default: 1)'),
+    },
+    async (params) => {
+      const result = await bridge.request('create_ellipse', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'create_line',
+    'Create a line node. Specify length and optional rotation.',
+    {
+      name: z.string().optional().describe('Node name'),
+      x: z.number().optional().describe('X position'),
+      y: z.number().optional().describe('Y position'),
+      length: z.number().optional().describe('Line length in px (default: 100)'),
+      rotation: z.number().optional().describe('Rotation in degrees (0 = horizontal)'),
+      parentId: z.string().optional().describe('Parent node ID'),
+      stroke: z.string().optional().describe('Stroke color as hex (default: #000000)'),
+      strokeWeight: z.number().optional().describe('Stroke weight (default: 1)'),
+    },
+    async (params) => {
+      const result = await bridge.request('create_line', params);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );

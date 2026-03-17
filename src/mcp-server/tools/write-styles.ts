@@ -56,6 +56,57 @@ export function registerWriteStyleTools(server: McpServer, bridge: Bridge): void
   );
 
   server.tool(
+    'update_paint_style',
+    'Update an existing paint style. Can change name, description, and/or color.',
+    {
+      styleId: z.string().describe('Paint style ID'),
+      name: z.string().optional().describe('New name'),
+      description: z.string().optional().describe('New description'),
+      color: z.string().optional().describe('New hex color (e.g. "#FF0000")'),
+    },
+    async (params) => {
+      const result = await bridge.request('update_paint_style', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'update_text_style',
+    'Update an existing text style. Can change name, description, font, size, line height, letter spacing.',
+    {
+      styleId: z.string().describe('Text style ID'),
+      name: z.string().optional().describe('New name'),
+      description: z.string().optional().describe('New description'),
+      fontFamily: z.string().optional().describe('Font family'),
+      fontStyle: z.string().optional().describe('Font style (e.g. "Bold")'),
+      fontSize: z.number().optional().describe('Font size in px'),
+      lineHeight: z.union([z.number(), z.string(), z.object({ value: z.number(), unit: z.enum(['PIXELS', 'PERCENT']) })]).optional()
+        .describe('Line height: number (px), "AUTO", or {value, unit}'),
+      letterSpacing: z.union([z.number(), z.object({ value: z.number(), unit: z.enum(['PIXELS', 'PERCENT']) })]).optional()
+        .describe('Letter spacing: number (px) or {value, unit}'),
+    },
+    async (params) => {
+      const result = await bridge.request('update_text_style', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'update_effect_style',
+    'Update an existing effect style. Can change name, description, and effects array.',
+    {
+      styleId: z.string().describe('Effect style ID'),
+      name: z.string().optional().describe('New name'),
+      description: z.string().optional().describe('New description'),
+      effects: z.array(z.record(z.unknown())).optional().describe('New effects array (raw Figma effect objects)'),
+    },
+    async (params) => {
+      const result = await bridge.request('update_effect_style', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
     'register_library_styles',
     'Register Text/Paint/Effect styles from a library for auto-application to new elements. ' +
       'Get style data from the official Figma MCP get_design_context on the library file, then pass here. ' +

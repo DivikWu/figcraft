@@ -257,6 +257,47 @@ registerHandler('patch_nodes', async (params) => {
           }
         } else if (key === 'itemSpacing' && 'itemSpacing' in node) {
           (node as FrameNode).itemSpacing = value as number;
+        } else if (key === 'strokes' && 'strokes' in node) {
+          if (typeof value === 'string') {
+            (node as GeometryMixin).strokes = [{ type: 'SOLID', color: hexToFigmaRgb(value) }];
+          }
+        } else if (key === 'strokeWeight' && 'strokeWeight' in node) {
+          (node as GeometryMixin).strokeWeight = value as number;
+        } else if (key === 'effects' && 'effects' in node) {
+          // Accept raw Figma effect array
+          (node as BlendMixin).effects = value as Effect[];
+        } else if (key === 'layoutMode' && 'layoutMode' in node) {
+          (node as FrameNode).layoutMode = value as 'NONE' | 'HORIZONTAL' | 'VERTICAL';
+        } else if (key === 'layoutAlign' && 'layoutAlign' in node) {
+          (node as SceneNode & { layoutAlign: string }).layoutAlign = value as string;
+        } else if (key === 'layoutGrow' && 'layoutGrow' in node) {
+          (node as SceneNode & { layoutGrow: number }).layoutGrow = value as number;
+        } else if (key === 'primaryAxisAlignItems' && 'primaryAxisAlignItems' in node) {
+          (node as FrameNode).primaryAxisAlignItems = value as 'MIN' | 'CENTER' | 'MAX' | 'SPACE_BETWEEN';
+        } else if (key === 'counterAxisAlignItems' && 'counterAxisAlignItems' in node) {
+          (node as FrameNode).counterAxisAlignItems = value as 'MIN' | 'CENTER' | 'MAX';
+        } else if (key === 'paddingLeft' && 'paddingLeft' in node) {
+          (node as FrameNode).paddingLeft = value as number;
+        } else if (key === 'paddingRight' && 'paddingRight' in node) {
+          (node as FrameNode).paddingRight = value as number;
+        } else if (key === 'paddingTop' && 'paddingTop' in node) {
+          (node as FrameNode).paddingTop = value as number;
+        } else if (key === 'paddingBottom' && 'paddingBottom' in node) {
+          (node as FrameNode).paddingBottom = value as number;
+        } else if (key === 'fontSize' && node.type === 'TEXT') {
+          const textNode = node as TextNode;
+          if (textNode.fontName !== figma.mixed) {
+            await figma.loadFontAsync(textNode.fontName);
+          }
+          textNode.fontSize = value as number;
+        } else if (key === 'fontName' && node.type === 'TEXT') {
+          const fn = value as { family: string; style: string };
+          await figma.loadFontAsync(fn);
+          (node as TextNode).fontName = fn;
+        } else if (key === 'rotation' && 'rotation' in node) {
+          (node as SceneNode).rotation = value as number;
+        } else if (key === 'constraints' && 'constraints' in node) {
+          (node as ConstraintMixin).constraints = value as Constraints;
         }
       }
 
@@ -318,7 +359,7 @@ registerHandler('insert_child', async (params) => {
 // ─── Batch create: recursive node tree in one call ───
 
 interface NodeSpec {
-  type: 'frame' | 'text';
+  type: 'frame' | 'text' | 'rectangle' | 'ellipse' | 'line';
   name?: string;
   props?: Record<string, unknown>;
   children?: NodeSpec[];
@@ -370,7 +411,7 @@ async function createNodeFromSpec(spec: NodeSpec, parentNode: BaseNode | undefin
       }
     }
     return frame;
-  } else {
+  } else if (spec.type === 'text') {
     // text
     const p = spec.props ?? {};
     const fontFamily = (p.fontFamily as string) ?? 'Inter';
@@ -404,6 +445,59 @@ async function createNodeFromSpec(spec: NodeSpec, parentNode: BaseNode | undefin
       (parentNode as FrameNode).appendChild(text);
     }
     return text;
+  } else if (spec.type === 'rectangle') {
+    const p = spec.props ?? {};
+    const rect = figma.createRectangle();
+    rect.name = spec.name ?? 'Rectangle';
+    rect.resize((p.width as number) ?? 100, (p.height as number) ?? 100);
+    if (p.x != null) rect.x = p.x as number;
+    if (p.y != null) rect.y = p.y as number;
+    if (p.cornerRadius != null) rect.cornerRadius = p.cornerRadius as number;
+    if (p.fill && typeof p.fill === 'string') {
+      rect.fills = [{ type: 'SOLID', color: hexToFigmaRgb(p.fill as string) }];
+    }
+    if (p.stroke && typeof p.stroke === 'string') {
+      rect.strokes = [{ type: 'SOLID', color: hexToFigmaRgb(p.stroke as string) }];
+      rect.strokeWeight = (p.strokeWeight as number) ?? 1;
+    }
+    if (parentNode && 'appendChild' in parentNode) {
+      (parentNode as FrameNode).appendChild(rect);
+    }
+    return rect;
+  } else if (spec.type === 'ellipse') {
+    const p = spec.props ?? {};
+    const ellipse = figma.createEllipse();
+    ellipse.name = spec.name ?? 'Ellipse';
+    ellipse.resize((p.width as number) ?? 100, (p.height as number) ?? 100);
+    if (p.x != null) ellipse.x = p.x as number;
+    if (p.y != null) ellipse.y = p.y as number;
+    if (p.fill && typeof p.fill === 'string') {
+      ellipse.fills = [{ type: 'SOLID', color: hexToFigmaRgb(p.fill as string) }];
+    }
+    if (p.stroke && typeof p.stroke === 'string') {
+      ellipse.strokes = [{ type: 'SOLID', color: hexToFigmaRgb(p.stroke as string) }];
+      ellipse.strokeWeight = (p.strokeWeight as number) ?? 1;
+    }
+    if (parentNode && 'appendChild' in parentNode) {
+      (parentNode as FrameNode).appendChild(ellipse);
+    }
+    return ellipse;
+  } else {
+    // line
+    const p = spec.props ?? {};
+    const line = figma.createLine();
+    line.name = spec.name ?? 'Line';
+    line.resize((p.length as number) ?? 100, 0);
+    if (p.x != null) line.x = p.x as number;
+    if (p.y != null) line.y = p.y as number;
+    if (p.rotation != null) line.rotation = p.rotation as number;
+    const strokeColor = (p.stroke as string) ?? '#000000';
+    line.strokes = [{ type: 'SOLID', color: hexToFigmaRgb(strokeColor) }];
+    line.strokeWeight = (p.strokeWeight as number) ?? 1;
+    if (parentNode && 'appendChild' in parentNode) {
+      (parentNode as FrameNode).appendChild(line);
+    }
+    return line;
   }
 }
 
@@ -435,6 +529,114 @@ registerHandler('create_document', async (params) => {
   }
 
   return { ok: true, created };
+});
+
+// ─── Shape creation: rectangle, ellipse, line ───
+
+registerHandler('create_rectangle', async (params) => {
+  const rect = figma.createRectangle();
+  rect.name = (params.name as string) ?? 'Rectangle';
+  rect.resize((params.width as number) ?? 100, (params.height as number) ?? 100);
+  if (params.x != null) rect.x = params.x as number;
+  if (params.y != null) rect.y = params.y as number;
+  if (params.cornerRadius != null) rect.cornerRadius = params.cornerRadius as number;
+
+  const mode = (await figma.clientStorage.getAsync(MODE_STORAGE_KEY)) || 'library';
+  const library = await figma.clientStorage.getAsync(LIBRARY_STORAGE_KEY) as string | undefined;
+  let autoBound: string | null = null;
+
+  if (params.fill && typeof params.fill === 'string') {
+    rect.fills = [{ type: 'SOLID', color: hexToFigmaRgb(params.fill) }];
+    if (mode === 'library' && library) {
+      await ensureLoaded(library);
+      const paintMatch = getPaintStyleId(params.fill as string);
+      if (paintMatch) {
+        try { await (rect as any).setFillStyleIdAsync(paintMatch.id); autoBound = `fill:${paintMatch.name}`; } catch { /* skip */ }
+      }
+    }
+  } else if (mode === 'library' && library) {
+    autoBound = await autoBindDefault(rect, 'background', library);
+  }
+
+  if (params.stroke && typeof params.stroke === 'string') {
+    rect.strokes = [{ type: 'SOLID', color: hexToFigmaRgb(params.stroke) }];
+    rect.strokeWeight = (params.strokeWeight as number) ?? 1;
+  }
+
+  if (params.parentId) {
+    const parent = await figma.getNodeByIdAsync(params.parentId as string);
+    if (parent && 'appendChild' in parent) (parent as FrameNode).appendChild(rect);
+  } else {
+    autoPositionOnPage(rect, params as Record<string, unknown>);
+  }
+
+  const result = simplifyNode(rect);
+  if (autoBound) (result as Record<string, unknown>).autoBound = autoBound;
+  return result;
+});
+
+registerHandler('create_ellipse', async (params) => {
+  const ellipse = figma.createEllipse();
+  ellipse.name = (params.name as string) ?? 'Ellipse';
+  ellipse.resize((params.width as number) ?? 100, (params.height as number) ?? 100);
+  if (params.x != null) ellipse.x = params.x as number;
+  if (params.y != null) ellipse.y = params.y as number;
+
+  const mode = (await figma.clientStorage.getAsync(MODE_STORAGE_KEY)) || 'library';
+  const library = await figma.clientStorage.getAsync(LIBRARY_STORAGE_KEY) as string | undefined;
+  let autoBound: string | null = null;
+
+  if (params.fill && typeof params.fill === 'string') {
+    ellipse.fills = [{ type: 'SOLID', color: hexToFigmaRgb(params.fill) }];
+    if (mode === 'library' && library) {
+      await ensureLoaded(library);
+      const paintMatch = getPaintStyleId(params.fill as string);
+      if (paintMatch) {
+        try { await (ellipse as any).setFillStyleIdAsync(paintMatch.id); autoBound = `fill:${paintMatch.name}`; } catch { /* skip */ }
+      }
+    }
+  } else if (mode === 'library' && library) {
+    autoBound = await autoBindDefault(ellipse, 'background', library);
+  }
+
+  if (params.stroke && typeof params.stroke === 'string') {
+    ellipse.strokes = [{ type: 'SOLID', color: hexToFigmaRgb(params.stroke) }];
+    ellipse.strokeWeight = (params.strokeWeight as number) ?? 1;
+  }
+
+  if (params.parentId) {
+    const parent = await figma.getNodeByIdAsync(params.parentId as string);
+    if (parent && 'appendChild' in parent) (parent as FrameNode).appendChild(ellipse);
+  } else {
+    autoPositionOnPage(ellipse, params as Record<string, unknown>);
+  }
+
+  const result = simplifyNode(ellipse);
+  if (autoBound) (result as Record<string, unknown>).autoBound = autoBound;
+  return result;
+});
+
+registerHandler('create_line', async (params) => {
+  const line = figma.createLine();
+  line.name = (params.name as string) ?? 'Line';
+  const length = (params.length as number) ?? 100;
+  line.resize(length, 0);
+  if (params.x != null) line.x = params.x as number;
+  if (params.y != null) line.y = params.y as number;
+  if (params.rotation != null) line.rotation = params.rotation as number;
+
+  const strokeColor = (params.stroke as string) ?? '#000000';
+  line.strokes = [{ type: 'SOLID', color: hexToFigmaRgb(strokeColor) }];
+  line.strokeWeight = (params.strokeWeight as number) ?? 1;
+
+  if (params.parentId) {
+    const parent = await figma.getNodeByIdAsync(params.parentId as string);
+    if (parent && 'appendChild' in parent) (parent as FrameNode).appendChild(line);
+  } else {
+    autoPositionOnPage(line, params as Record<string, unknown>);
+  }
+
+  return simplifyNode(line);
 });
 
 registerHandler('save_version_history', async (params) => {
