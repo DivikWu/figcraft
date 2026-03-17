@@ -468,4 +468,35 @@ registerHandler('create_section', async (params) => {
   return { id: section.id, name: section.name, x: section.x, y: section.y };
 });
 
+registerHandler('boolean_operation', async (params) => {
+  const nodeIds = params.nodeIds as string[];
+  const operation = params.operation as 'UNION' | 'SUBTRACT' | 'INTERSECT' | 'EXCLUDE';
+
+  const resolved = await Promise.all(nodeIds.map((id) => figma.getNodeByIdAsync(id)));
+  const nodes = resolved.filter((n): n is SceneNode =>
+    n !== null && 'type' in n && n.type !== 'PAGE' && n.type !== 'DOCUMENT',
+  );
+
+  if (nodes.length < 2) {
+    throw new Error('boolean_operation requires at least 2 valid nodes');
+  }
+
+  // All nodes must share the same parent; use the first node's parent
+  const parent = nodes[0].parent as (BaseNode & ChildrenMixin) | null;
+  if (!parent) throw new Error('Nodes have no parent');
+
+  let result: BooleanOperationNode;
+  switch (operation) {
+    case 'UNION':      result = figma.union(nodes, parent); break;
+    case 'SUBTRACT':   result = figma.subtract(nodes, parent); break;
+    case 'INTERSECT':  result = figma.intersect(nodes, parent); break;
+    case 'EXCLUDE':    result = figma.exclude(nodes, parent); break;
+    default: throw new Error(`Unknown operation: ${operation}`);
+  }
+
+  if (params.name) result.name = params.name as string;
+
+  return simplifyNode(result);
+});
+
 } // registerWriteNodeHandlers

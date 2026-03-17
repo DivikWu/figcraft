@@ -172,6 +172,23 @@ export function registerWriteNodeTools(server: McpServer, bridge: Bridge): void 
   );
 
   server.tool(
+    'boolean_operation',
+    'Apply a boolean operation to two or more vector/shape nodes. ' +
+      'UNION merges shapes, SUBTRACT removes overlap from the first shape, ' +
+      'INTERSECT keeps only the overlapping area, EXCLUDE keeps non-overlapping areas. ' +
+      'All nodes must share the same parent. Returns the resulting BooleanOperation node.',
+    {
+      nodeIds: z.array(z.string()).min(2).describe('Node IDs to combine (at least 2, order matters for SUBTRACT)'),
+      operation: z.enum(['UNION', 'SUBTRACT', 'INTERSECT', 'EXCLUDE']).describe('Boolean operation type'),
+      name: z.string().optional().describe('Name for the resulting node'),
+    },
+    async (params) => {
+      const result = await bridge.request('boolean_operation', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
     'create_section',
     'Create a Figma Section node for organizing canvas content. ' +
       'Sections group frames without clipping and can be collapsed in Figma. ' +
