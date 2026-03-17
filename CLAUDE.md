@@ -25,6 +25,8 @@ npm run build          # 构建所有 (tsup)
 npm run build:plugin   # 构建 Figma Plugin (IIFE bundle)
 npm run build:server   # 构建 MCP Server + Relay (ESM)
 npm run typecheck      # TypeScript 类型检查
+npm run test           # 运行单元测试 (vitest)
+npm run test:watch     # 测试 watch 模式
 ```
 
 ## Architecture
@@ -91,7 +93,7 @@ figcraft/
 │   │   ├── tools/                  # MCP 工具（每个文件注册一组相关工具）
 │   │   │   ├── ping.ts             # 连通性测试
 │   │   │   ├── nodes.ts            # 节点读取（压缩、搜索）
-│   │   │   ├── write-nodes.ts      # 节点写入（Frame、Text、批量更新、删除）
+│   │   │   ├── write-nodes.ts      # 节点写入（Frame、Text、Rectangle、Ellipse、Line、批量更新、删除）
 │   │   │   ├── variables.ts        # Variables 读取
 │   │   │   ├── styles.ts           # Styles 读取
 │   │   │   ├── library.ts          # Team Library Variables 读取 + 导入
@@ -101,9 +103,11 @@ figcraft/
 │   │   │   ├── components.ts       # Component/Instance CRUD
 │   │   │   ├── storage.ts          # clientStorage Token 缓存
 │   │   │   ├── lint.ts             # Lint 检查/修复/规则/注解
-│   │   │   └── mode.ts             # Library/Spec 模式切换
+│   │   │   ├── lint.ts             # Lint 检查/修复/规则/注解
+│   │   │   ├── mode.ts             # Library/Spec 模式切换
+│   │   │   └── prototype.ts        # 原型流分析（流程图 + 交互文档）
 │   │   └── prompts/
-│   │       └── index.ts            # 5 个 MCP Prompts（sync-tokens, lint-page, compare-spec, auto-fix, generate-element）
+│   │       └── index.ts            # 7 个 MCP Prompts（sync-tokens, lint-page, compare-spec, auto-fix, generate-element, review-design, prototype-flow）
 │   │
 │   └── plugin/
 │       ├── code.ts                 # Plugin sandbox 入口 — Handler 注册表 + 消息路由
@@ -135,7 +139,25 @@ figcraft/
 │       │       ├── spec-spacing.ts       # padding/gap vs Spacing Token
 │       │       ├── spec-border-radius.ts # cornerRadius vs Radius Token
 │       │       ├── wcag-contrast.ts      # WCAG AA 对比度 (4.5:1 / 3:1)
-│       │       └── wcag-target-size.ts   # 交互元素 ≥ 44×44px
+│       │       ├── wcag-contrast-enhanced.ts # WCAG AAA 增强对比度 (7:1 / 4.5:1)
+│       │       ├── wcag-target-size.ts   # 交互元素 ≥ 44×44px
+│       │       ├── wcag-text-size.ts     # 最小文字尺寸 ≥ 12px
+│       │       ├── wcag-line-height.ts   # 行高 ≥ 1.5 倍字号 (WCAG 1.4.12)
+│       │       ├── wcag-non-text-contrast.ts # 非文本元素对比度 ≥ 3:1 (WCAG 1.4.11)
+│       │       ├── wcag-helpers.ts       # WCAG 规则共享工具函数
+│       │       ├── default-name.ts       # 检测未重命名的默认节点名（Frame 1 等）
+│       │       ├── empty-container.ts    # 检测空的 Frame/Group
+│       │       ├── no-text-style.ts      # 文本节点未绑定 Text Style
+│       │       ├── stale-text-name.ts    # 文本节点名称与内容不匹配
+│       │       ├── no-autolayout.ts      # 检测应使用 Auto Layout 的线性排列
+│       │       ├── fixed-in-autolayout.ts # Auto Layout 中的绝对定位子节点
+│       │       ├── overlapping-children.ts # 非 Auto Layout 中的重叠子节点
+│       │       ├── hardcoded-token.ts    # 未绑定变量的硬编码值（library 模式）
+│       │       ├── component-bindings.ts # 组件属性未被子节点引用
+│       │       ├── no-text-property.ts   # 组件内文本未暴露为 TEXT 属性
+│       │       ├── max-nesting-depth.ts  # 嵌套层级过深（>6 层）
+│       │       ├── consistent-icon-size.ts # 图标尺寸一致性（标准尺寸 + 正方形）
+│       │       └── missing-responsive.ts # 大 Frame 缺少 Auto Layout
 │       └── utils/
 │           ├── batch.ts            # 批量操作（items[] + per-item error handling）
 │           └── color.ts            # 颜色转换（hex ↔ Figma RGBA, 对比度计算）
@@ -152,7 +174,7 @@ figcraft/
 | **library** | Figma 共享库 Variables/Styles | 检查节点是否绑定了 Library Variable/Style | 设计师日常设计，使用团队共享库 |
 | **spec** | DTCG JSON 文件 | 检查节点值是否匹配 DTCG Token 值 | 从设计规范文档同步，验证合规性 |
 
-## MCP 工具清单 (40+)
+## MCP 工具清单 (60+)
 
 ### 基础
 - `ping` — 测试连通性
@@ -167,14 +189,24 @@ figcraft/
 - `export_image` — 图片导出
 
 ### 写入 (P2)
-- `create_frame` / `create_text` / `patch_nodes` / `delete_node` / `clone_node` — 节点 CRUD
+- `create_frame` / `create_text` / `create_rectangle` / `create_ellipse` / `create_line` / `create_section` / `create_document` / `patch_nodes` / `delete_node` / `clone_node` / `insert_child` / `boolean_operation` — 节点 CRUD
 - `save_version_history` — 创建命名版本历史快照（AI 迭代设计前的 checkpoint）
-- `list_tokens` / `sync_tokens` / `diff_tokens` — DTCG Token 同步
+- `create_variable` / `update_variable` / `delete_variable` — Variable CRUD
+- `create_collection` / `delete_collection` / `rename_collection` — Collection 管理
+- `add_collection_mode` / `rename_collection_mode` / `remove_collection_mode` — Mode 管理
+- `list_tokens` / `sync_tokens` / `sync_tokens_multi_mode` / `diff_tokens` / `reverse_sync_tokens` — DTCG Token 同步（含多模式）
 - `list_components` / `get_component` / `create_component` / `update_component` / `delete_component` — Component CRUD
 - `list_component_properties` — 枚举组件暴露的属性和变体选项
 - `create_component_set` — 将多个 Component 合并为 Variant Set
 - `create_instance` / `swap_instance` / `detach_instance` / `reset_instance_overrides` — Instance 管理
 - `get_instance_overrides` / `set_instance_overrides` — Override 读取与批量传播
+- `add_component_property` / `update_component_property` / `delete_component_property` — 组件属性管理
+- `audit_components` — 组件结构审计（缺失描述、未暴露文本、空组件等）
+- `create_variable_alias` — 变量别名（语义 Token 引用原始 Token）
+- `export_variables` — 导出 Figma 变量为 DTCG 兼容格式
+- `batch_create_variables` — 批量创建变量（内存数组 → Figma Variables）
+- `reverse_sync_tokens` — 反向同步（Figma Variables → DTCG JSON 文件）
+- `update_paint_style` / `update_text_style` / `update_effect_style` — Style 更新
 - `cache_tokens` / `list_cached_tokens` / `delete_cached_tokens` — Token 缓存
 
 ### 注解 (P2)
@@ -183,16 +215,21 @@ figcraft/
 - `set_multiple_annotations` — 批量注解多个节点
 
 ### Lint (P3)
-- `lint_check` — 运行 Lint 规则（支持分页、注解）
+- `lint_check` — 运行 Lint 规则（支持分页、注解、按类别过滤）
 - `lint_fix` — 自动修复可修复的违规
-- `lint_rules` — 列出可用规则
+- `lint_fix_all` — 一键扫描 + 自动修复所有可修复项
+- `lint_rules` — 列出可用规则（含类别和严重级别）
 - `clear_annotations` — 清除 Lint 注解
+- `compliance_report` — 综合合规报告（Lint + 组件审计 + 评分）
+
+### 原型流分析 (P4)
+- `analyze_prototype_flow` — 分析原型交互，生成流程图（Mermaid）+ 交互文档（Markdown）+ 结构化有向图
 
 ### 模式 (P4)
 - `get_mode` / `set_mode` — 切换 library/spec 模式
 
-### MCP Prompts (5)
-- `sync-tokens` / `lint-page` / `compare-spec` / `auto-fix` / `generate-element`
+### MCP Prompts (8)
+- `sync-tokens` / `lint-page` / `compare-spec` / `auto-fix` / `generate-element` / `review-design` / `prototype-flow` / `document-components`
 
 ## DTCG → Figma 类型映射
 
