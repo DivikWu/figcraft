@@ -170,4 +170,21 @@ export function registerWriteNodeTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+
+  server.tool(
+    'create_section',
+    'Create a Figma Section node for organizing canvas content. ' +
+      'Sections group frames without clipping and can be collapsed in Figma. ' +
+      'Optionally move existing nodes inside by providing childIds.',
+    {
+      name: z.string().optional().describe('Section name (default: "Section")'),
+      x: z.number().optional().describe('X position'),
+      y: z.number().optional().describe('Y position'),
+      childIds: z.array(z.string()).optional().describe('Node IDs to move inside the section'),
+    },
+    async (params) => {
+      const result = await bridge.request('create_section', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
 }

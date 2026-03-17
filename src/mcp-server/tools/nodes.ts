@@ -102,4 +102,20 @@ export function registerNodeTools(server: McpServer, bridge: Bridge): void {
       };
     },
   );
+
+  server.tool(
+    'get_reactions',
+    'Get prototype reactions (interactions) on a specific node or all nodes on the current page. ' +
+      'Returns trigger types (ON_CLICK, ON_HOVER, AFTER_TIMEOUT, etc.) and action types ' +
+      '(NAVIGATE, OVERLAY, SCROLL_TO, etc.). Useful for analyzing prototype flows or generating interaction docs.',
+    {
+      nodeId: z.string().optional().describe('Node ID to inspect; omit to scan the entire current page'),
+    },
+    async ({ nodeId }) => {
+      const result = await bridge.request('get_reactions', { nodeId });
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+      };
+    },
+  );
 }

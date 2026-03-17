@@ -92,4 +92,33 @@ registerHandler('list_fonts', async (params) => {
   return { families, total: families.length };
 });
 
+registerHandler('get_reactions', async (params) => {
+  const results: Array<{ nodeId: string; nodeName: string; reactions: unknown[] }> = [];
+
+  function walk(node: SceneNode): void {
+    if ('reactions' in node && (node as unknown as { reactions: unknown[] }).reactions.length > 0) {
+      results.push({
+        nodeId: node.id,
+        nodeName: node.name,
+        reactions: (node as unknown as { reactions: unknown[] }).reactions,
+      });
+    }
+    if ('children' in node) {
+      for (const child of (node as ChildrenMixin).children) {
+        walk(child);
+      }
+    }
+  }
+
+  if (params.nodeId) {
+    const node = await figma.getNodeByIdAsync(params.nodeId as string);
+    if (!node) return { nodes: [], count: 0 };
+    walk(node as SceneNode);
+  } else {
+    figma.currentPage.children.forEach(walk);
+  }
+
+  return { nodes: results, count: results.length };
+});
+
 } // registerNodeHandlers

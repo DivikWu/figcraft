@@ -444,4 +444,28 @@ registerHandler('save_version_history', async (params) => {
   return { ok: true, title, description };
 });
 
+registerHandler('create_section', async (params) => {
+  const section = figma.createSection();
+  section.name = (params.name as string) ?? 'Section';
+
+  if (params.x != null) section.x = params.x as number;
+  if (params.y != null) section.y = params.y as number;
+
+  if (params.childIds) {
+    const ids = params.childIds as string[];
+    for (const id of ids) {
+      const child = await figma.getNodeByIdAsync(id);
+      if (child && 'parent' in child) {
+        section.appendChild(child as SceneNode);
+      }
+    }
+  }
+
+  if (params.x == null && params.y == null && !params.childIds) {
+    autoPositionOnPage(section, params as Record<string, unknown>);
+  }
+
+  return { id: section.id, name: section.name, x: section.x, y: section.y };
+});
+
 } // registerWriteNodeHandlers
