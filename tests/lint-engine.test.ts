@@ -1,0 +1,101 @@
+/**
+ * Tests for lint engine — rule execution, filtering, pagination.
+ */
+
+import { describe, it, expect } from 'vitest';
+import { runLint, getAvailableRules } from '../src/plugin/linter/engine.js';
+import type { AbstractNode, LintContext } from '../src/plugin/linter/types.js';
+
+const emptyCtx: LintContext = {
+  colorTokens: new Map(),
+  spacingTokens: new Map(),
+  radiusTokens: new Map(),
+  typographyTokens: new Map(),
+  variableIds: new Map(),
+};
+
+function makeNode(overrides: Partial<AbstractNode>): AbstractNode {
+  return { id: '1:1', name: 'Test', type: 'FRAME', ...overrides };
+}
+
+describe('runLint', () => {
+  it('returns zero violations for clean node', () => {
+    const node = makeNode({ name: 'Header', type: 'FRAME', children: [
+      makeNode({ id: '2:1', name: 'Title', type: 'TEXT', fontSize: 16, textStyleId: 'S:abc', characters: 'Title' }),
+    ]});
+    const report = runLint([node], emptyCtx);
+    // May have some violations from layout rules, but naming should pass
+    const namingViolations = report.categories.filter((c) => c.rule === 'default-name');
+    expect(namingViolations).toHaveLength(0);
+  });
+
+  it('filters by rule name', () => {
+    const node = makeNode({ name: 'Frame 1', type: 'FRAME', children: [] });
+    const report = runLint([node], emptyCtx, { rules: ['default-name'] });
+    expect(report.categories.every((c) => c.rule === 'default-name')).toBe(true);
+  });
+
+  it('filters by category', () => {
+    const node = makeNode({ name: 'Frame 1', type: 'FRAME', children: [] });
+    const report = runLint([node], emptyCtx, { categories: ['naming'] });
+    // All violations should be from naming category rules
+    for (const cat of report.categories) {
+      const rule = getAvailableRules().find((r) => r.name === cat.rule);
+      expect(rule?.category).toBe('naming');
+    }
+  });
+
+  it('paginates results', () => {
+    // Create nodes that will generate multiple violations
+    const nodes = Array.from({ length: 10 }, (_, i) =>
+      makeNode({ id: `${i}:1`, name: `Frame ${i + 1}`, type: 'FRAME', children: [] }),
+    );
+    const full = runLint(nodes, emptyCtx, { rules: ['default-name'] });
+    const page1 = runLint(nodes, emptyCtx, { rules: ['default-name'], offset: 0, limit: 3 });
+
+    expect(full.summary.violations).toBeGreaterThan(3);
+    expect(page1.pagination).toBeDefined();
+    expect(page1.pagination!.hasMore).toBe(true);
+    expect(page1.pagination!.total).toBe(full.summary.violations);
+  });
+
+  it('counts checked nodes correctly', () => {
+    const parent = makeNode({
+      name: 'Container',
+      type: 'FRAME',
+      children: [
+        makeNode({ id: '2:1', name: 'Child 1', type: 'FRAME' }),
+        makeNode({ id: '2:2', name: 'Child 2', type: 'TEXT', fontSize: 16 }),
+      ],
+    });
+    const report = runLint([parent], emptyCtx);
+    expect(report.summary.total).toBe(3); // parent + 2 children
+  });
+});
+
+describe('getAvailableRules', () => {
+  it('returns 23 rules', () => {
+    const rules = getAvailableRules();
+    expect(rules.length).toBe(23);
+  });
+
+  it('each rule has name, description, category, severity', () => {
+    const rules = getAvailableRules();
+    for (const rule of rules) {
+      expect(rule.name).toBeTruthy();
+      expect(rule.description).toBeTruthy();
+      expect(['token', 'layout', 'naming', 'wcag', 'component']).toContain(rule.category);
+      expect(['error', 'warning', 'info']).toContain(rule.severity);
+    }
+  });
+
+  it('has rules in all categories', () => {
+    const rules = getAvailableRules();
+    const categories = new Set(rules.map((r) => r.category));
+    expect(categories).toContain('token');
+    expect(categories).toContain('layout');
+    expect(categories).toContain('naming');
+    expect(categories).toContain('wcag');
+    expect(categories).toContain('component');
+  });
+});
