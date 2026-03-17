@@ -9,6 +9,7 @@ import {
   tokenPathToVariableName,
 } from '../adapters/variable-mapper.js';
 import { processBatch } from '../utils/batch.js';
+import { hexToFigmaRgba } from '../utils/color.js';
 
 export function registerWriteVariableHandlers(): void {
 
@@ -142,6 +143,44 @@ registerHandler('delete_collection', async (params) => {
   return { ok: true };
 });
 
+registerHandler('rename_collection', async (params) => {
+  const collectionId = params.collectionId as string;
+  const name = params.name as string;
+  const collection = await figma.variables.getVariableCollectionByIdAsync(collectionId);
+  if (!collection) return { error: `Collection not found: ${collectionId}` };
+  collection.name = name;
+  return { ok: true, id: collection.id, name: collection.name };
+});
+
+registerHandler('add_collection_mode', async (params) => {
+  const collectionId = params.collectionId as string;
+  const name = params.name as string;
+  const collection = await figma.variables.getVariableCollectionByIdAsync(collectionId);
+  if (!collection) return { error: `Collection not found: ${collectionId}` };
+  const modeId = collection.addMode(name);
+  return { ok: true, modeId, name };
+});
+
+registerHandler('rename_collection_mode', async (params) => {
+  const collectionId = params.collectionId as string;
+  const modeId = params.modeId as string;
+  const name = params.name as string;
+  const collection = await figma.variables.getVariableCollectionByIdAsync(collectionId);
+  if (!collection) return { error: `Collection not found: ${collectionId}` };
+  collection.renameMode(modeId, name);
+  return { ok: true };
+});
+
+registerHandler('remove_collection_mode', async (params) => {
+  const collectionId = params.collectionId as string;
+  const modeId = params.modeId as string;
+  const collection = await figma.variables.getVariableCollectionByIdAsync(collectionId);
+  if (!collection) return { error: `Collection not found: ${collectionId}` };
+  if (collection.modes.length <= 1) return { error: 'Cannot remove the last mode' };
+  collection.removeMode(modeId);
+  return { ok: true };
+});
+
 registerHandler('set_variable_binding', async (params) => {
   const nodeId = params.nodeId as string;
   const field = params.field as string;
@@ -194,4 +233,204 @@ registerHandler('set_explicit_variable_mode', async (params) => {
   return { ok: true };
 });
 
+// ─── Variable Alias ───
+
+// ─── Batch Create Variables ───
+
+registerHandler('ensure_collection_modes', async (params) => {
+  const collectionName = params.collectionName as string;
+  const modeNames = params.modeNames as string[];
+
+  const collections = await figma.variables.getLocalVariableCollectionsAsync();
+  let collection = collections.find((c) => c.name === collectionName);
+
+  if (!collection) {
+    collection = figma.variables.createVariableCollection(collectionName);
+    // Rename default mode to first requested mode
+    collection.renameMode(collection.modes[0].modeId, modeNames[0]);
+  }
+
+  // Ensure all modes exist
+  for (const modeName of modeNames) {
+    const existing = collection.modes.find((m) => m.name === modeName);
+    if (!existing) {
+      collection.addMode(modeName);
+    }
+  }
+
+  return {
+    collectionId: collection.id,
+    modes: collection.modes.map((m) => ({ modeId: m.modeId, name: m.name })),
+  };
+});
+
+registerHandler('batch_create_variables', async (params) => {
+  const collectionName = params.collectionName as string;
+  const modeName = (params.modeName as string) ?? 'Default';
+  const variables = params.variables as Array<{
+    name: string;
+    type: 'COLOR' | 'FLOAT' | 'STRING' | 'BOOLEAN';
+    value: unknown;
+    description?: string;
+    scopes?: string[];
+  }>;
+
+  // Find or create collection
+  const collections = await figma.variables.getLocalVariableCollectionsAsync();
+  let collection = collections.find((c) => c.name === collectionName);
+  if (!collection) {
+    collection = figma.variables.createVariableCollection(collectionName);
+    collection.renameMode(collection.modes[0].modeId, modeName);
+  }
+
+  const modeId = collection.modes.find((m) => m.name === modeName)?.modeId
+    ?? collection.modes[0].modeId;
+
+  // Build existing variable map to skip duplicates
+  const existing = new Map<string, Variable>();
+  for (const varId of collection.variableIds) {
+    const v = await figma.variables.getVariableByIdAsync(varId);
+    if (v) existing.set(v.name, v);
+  }
+
+  let created = 0;
+  let skipped = 0;
+  let failed = 0;
+  const errors: Array<{ name: string; error: string }> = [];
+
+  for (const spec of variables) {
+    try {
+      if (existing.has(spec.name)) {
+        skipped++;
+        continue;
+      }
+      const variable = figma.variables.createVariable(spec.name, collection!, spec.type);
+      if (spec.value !== undefined) {
+        let val = spec.value;
+        // Convert hex color strings to Figma RGBA
+        if (spec.type === 'COLOR' && typeof val === 'string') {
+          val = hexToFigmaRgba(val);
+        }
+        variable.setValueForMode(modeId, val as VariableValue);
+      }
+      if (spec.description) variable.description = spec.description;
+      if (spec.scopes) variable.scopes = spec.scopes as VariableScope[];
+      existing.set(spec.name, variable);
+      created++;
+    } catch (err) {
+      failed++;
+      errors.push({ name: spec.name, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  return { created, skipped, failed, errors, collectionId: collection!.id };
+});
+
+// ─── Variable Alias ───
+
+registerHandler('create_variable_alias', async (params) => {
+  const variableId = params.variableId as string;
+  const targetVariableId = params.targetVariableId as string;
+  const modeId = params.modeId as string | undefined;
+
+  const variable = await figma.variables.getVariableByIdAsync(variableId);
+  if (!variable) return { error: `Variable not found: ${variableId}` };
+
+  const target = await figma.variables.getVariableByIdAsync(targetVariableId);
+  if (!target) return { error: `Target variable not found: ${targetVariableId}` };
+
+  // Type compatibility check
+  if (variable.resolvedType !== target.resolvedType) {
+    return { error: `Type mismatch: ${variable.resolvedType} cannot alias ${target.resolvedType}` };
+  }
+
+  const collection = await figma.variables.getVariableCollectionByIdAsync(variable.variableCollectionId);
+  if (!collection) return { error: 'Variable collection not found' };
+
+  const targetModeId = modeId ?? collection.modes[0].modeId;
+  const alias: VariableAlias = {
+    type: 'VARIABLE_ALIAS',
+    id: targetVariableId,
+  };
+  variable.setValueForMode(targetModeId, alias);
+
+  return { ok: true, variableId: variable.id, aliasTo: target.name };
+});
+
+registerHandler('export_variables', async (params) => {
+  const collectionId = params.collectionId as string | undefined;
+
+  const collections = await figma.variables.getLocalVariableCollectionsAsync();
+  const targetCollections = collectionId
+    ? collections.filter((c) => c.id === collectionId)
+    : collections;
+
+  const result: Array<{
+    path: string;
+    type: string;
+    valuesByMode: Record<string, unknown>;
+    description?: string;
+    scopes?: string[];
+    aliasOf?: Record<string, string>;
+  }> = [];
+
+  for (const collection of targetCollections) {
+    for (const varId of collection.variableIds) {
+      const variable = await figma.variables.getVariableByIdAsync(varId);
+      if (!variable) continue;
+
+      const valuesByMode: Record<string, unknown> = {};
+      const aliasOf: Record<string, string> = {};
+
+      for (const mode of collection.modes) {
+        const raw = variable.valuesByMode[mode.modeId];
+        if (raw && typeof raw === 'object' && 'type' in (raw as Record<string, unknown>)) {
+          const alias = raw as { type: string; id: string };
+          if (alias.type === 'VARIABLE_ALIAS') {
+            const ref = await figma.variables.getVariableByIdAsync(alias.id);
+            aliasOf[mode.name] = ref ? ref.name.replace(/\//g, '.') : alias.id;
+            valuesByMode[mode.name] = `{${ref ? ref.name.replace(/\//g, '.') : alias.id}}`;
+            continue;
+          }
+        }
+        // Color → hex
+        if (raw && typeof raw === 'object' && 'r' in (raw as Record<string, unknown>)) {
+          const c = raw as RGBA;
+          const r = Math.round(c.r * 255);
+          const g = Math.round(c.g * 255);
+          const b = Math.round(c.b * 255);
+          valuesByMode[mode.name] = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+        } else {
+          valuesByMode[mode.name] = raw;
+        }
+      }
+
+      const entry: typeof result[0] = {
+        path: variable.name.replace(/\//g, '.'),
+        type: figmaTypeToDtcg(variable.resolvedType),
+        valuesByMode,
+      };
+      if (variable.description) entry.description = variable.description;
+      if (variable.scopes.length > 0) entry.scopes = variable.scopes;
+      if (Object.keys(aliasOf).length > 0) entry.aliasOf = aliasOf;
+
+      result.push(entry);
+    }
+  }
+
+  return { count: result.length, variables: result };
+});
+
 } // registerWriteVariableHandlers
+
+// ─── Helpers ───
+
+function figmaTypeToDtcg(resolvedType: string): string {
+  switch (resolvedType) {
+    case 'COLOR': return 'color';
+    case 'FLOAT': return 'number';
+    case 'STRING': return 'string';
+    case 'BOOLEAN': return 'boolean';
+    default: return 'string';
+  }
+}

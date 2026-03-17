@@ -85,4 +85,108 @@ export function registerWriteVariableTools(server: McpServer, bridge: Bridge): v
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+
+  server.tool(
+    'rename_collection',
+    'Rename a variable collection.',
+    {
+      collectionId: z.string().describe('Collection ID'),
+      name: z.string().describe('New collection name'),
+    },
+    async (params) => {
+      const result = await bridge.request('rename_collection', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'add_collection_mode',
+    'Add a new mode to a variable collection. Returns the new mode ID.',
+    {
+      collectionId: z.string().describe('Collection ID'),
+      name: z.string().describe('Mode name (e.g. "Dark", "Compact")'),
+    },
+    async (params) => {
+      const result = await bridge.request('add_collection_mode', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'rename_collection_mode',
+    'Rename an existing mode in a variable collection.',
+    {
+      collectionId: z.string().describe('Collection ID'),
+      modeId: z.string().describe('Mode ID to rename'),
+      name: z.string().describe('New mode name'),
+    },
+    async (params) => {
+      const result = await bridge.request('rename_collection_mode', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'remove_collection_mode',
+    'Remove a mode from a variable collection. Cannot remove the last remaining mode.',
+    {
+      collectionId: z.string().describe('Collection ID'),
+      modeId: z.string().describe('Mode ID to remove'),
+    },
+    async (params) => {
+      const result = await bridge.request('remove_collection_mode', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'create_variable_alias',
+    'Set a variable\'s value to reference another variable (alias). ' +
+      'Both variables must have the same resolved type. ' +
+      'This is how Figma implements semantic tokens (e.g. "text/primary" → "gray/900").',
+    {
+      variableId: z.string().describe('Variable ID to set as alias'),
+      targetVariableId: z.string().describe('Target variable ID to reference'),
+      modeId: z.string().optional().describe('Mode ID (defaults to first mode)'),
+    },
+    async (params) => {
+      const result = await bridge.request('create_variable_alias', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'export_variables',
+    'Export all Figma variables as DTCG-compatible flat list. ' +
+      'Resolves aliases to {path} references. Use this for reverse sync (Figma → DTCG file).',
+    {
+      collectionId: z.string().optional().describe('Filter by collection ID. Omit to export all.'),
+    },
+    async (params) => {
+      const result = await bridge.request('export_variables', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'batch_create_variables',
+    'Create multiple variables at once from an in-memory array. ' +
+      'Faster than calling create_variable repeatedly. ' +
+      'Automatically creates the collection if it doesn\'t exist.',
+    {
+      collectionName: z.string().describe('Collection name (created if not exists)'),
+      modeName: z.string().optional().describe('Mode name (default: "Default")'),
+      variables: z.array(z.object({
+        name: z.string().describe('Variable name (slash-separated path, e.g. "color/brand/primary")'),
+        type: z.enum(['COLOR', 'FLOAT', 'STRING', 'BOOLEAN']).describe('Variable type'),
+        value: z.unknown().describe('Variable value'),
+        description: z.string().optional(),
+        scopes: z.array(z.string()).optional(),
+      })).describe('Array of variables to create'),
+    },
+    async (params) => {
+      const result = await bridge.request('batch_create_variables', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
 }

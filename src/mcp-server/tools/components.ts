@@ -216,4 +216,64 @@ export function registerComponentTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+
+  // ─── Component Property Management ───
+
+  server.tool(
+    'audit_components',
+    'Audit all components on the current page for structural health. ' +
+      'Reports: missing descriptions, unexposed text nodes, empty components, ' +
+      'single-variant sets, and property counts. Use for design system maintenance.',
+    {
+      nodeIds: z.array(z.string()).optional().describe('Specific node IDs to audit (default: entire page)'),
+    },
+    async (params) => {
+      const result = await bridge.request('audit_components', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'add_component_property',
+    'Add a new property to a component or component set. ' +
+      'Supported types: BOOLEAN, TEXT, INSTANCE_SWAP, VARIANT.',
+    {
+      nodeId: z.string().describe('Component or ComponentSet node ID'),
+      propertyName: z.string().describe('Property name'),
+      type: z.enum(['BOOLEAN', 'TEXT', 'INSTANCE_SWAP', 'VARIANT']).describe('Property type'),
+      defaultValue: z.union([z.string(), z.boolean()]).describe('Default value'),
+    },
+    async (params) => {
+      const result = await bridge.request('add_component_property', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'update_component_property',
+    'Update an existing component property (rename or change default value).',
+    {
+      nodeId: z.string().describe('Component or ComponentSet node ID'),
+      propertyName: z.string().describe('Current property name'),
+      newName: z.string().optional().describe('New property name'),
+      defaultValue: z.union([z.string(), z.boolean()]).optional().describe('New default value'),
+    },
+    async (params) => {
+      const result = await bridge.request('update_component_property', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'delete_component_property',
+    'Remove a property from a component or component set.',
+    {
+      nodeId: z.string().describe('Component or ComponentSet node ID'),
+      propertyName: z.string().describe('Property name to delete'),
+    },
+    async (params) => {
+      const result = await bridge.request('delete_component_property', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
 }

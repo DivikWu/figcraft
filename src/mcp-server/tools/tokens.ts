@@ -8,6 +8,28 @@ import type { Bridge } from '../bridge.js';
 import { parseDtcgFile } from '../dtcg.js';
 import type { DesignToken } from '../../shared/types.js';
 
+/** Build a nested DTCG object from flat token entries. */
+function buildDtcgTree(
+  entries: Array<{ path: string; type: string; value: unknown; description?: string }>,
+): Record<string, unknown> {
+  const root: Record<string, unknown> = {};
+  for (const entry of entries) {
+    const parts = entry.path.split('.');
+    let current = root;
+    for (let i = 0; i < parts.length - 1; i++) {
+      if (!(parts[i] in current)) current[parts[i]] = {};
+      current = current[parts[i]] as Record<string, unknown>;
+    }
+    const leaf: Record<string, unknown> = {
+      $value: entry.value,
+      $type: entry.type,
+    };
+    if (entry.description) leaf.$description = entry.description;
+    current[parts[parts.length - 1]] = leaf;
+  }
+  return root;
+}
+
 export function registerTokenTools(server: McpServer, bridge: Bridge): void {
   server.tool(
     'list_tokens',
@@ -70,6 +92,72 @@ export function registerTokenTools(server: McpServer, bridge: Bridge): void {
             variables: varResult,
             styles: styleResult,
             totalTokens: allTokens.length,
+          }, null, 2),
+        }],
+      };
+    },
+  );
+
+  server.tool(
+    'sync_tokens_multi_mode',
+    'Sync DTCG tokens from multiple files into different modes of the same collection. ' +
+      'Each entry maps a mode name to a DTCG file path. ' +
+      'Modes are created automatically if they don\'t exist. ' +
+      'Example: { "Light": "tokens-light.json", "Dark": "tokens-dark.json" }',
+    {
+      modes: z.record(z.string()).describe('Map of mode name → DTCG file path'),
+      collectionName: z.string().optional().describe('Collection name (default: "Design Tokens")'),
+    },
+    async ({ modes, collectionName }) => {
+      const colName = collectionName ?? 'Design Tokens';
+      const modeEntries = Object.entries(modes);
+
+      // Parse all files first
+      const parsed = new Map<string, Awaited<ReturnType<typeof parseDtcgFile>>>();
+      for (const [modeName, filePath] of modeEntries) {
+        parsed.set(modeName, await parseDtcgFile(filePath));
+      }
+
+      // Ensure collection and modes exist
+      const setupResult = await bridge.request('ensure_collection_modes', {
+        collectionName: colName,
+        modeNames: modeEntries.map(([name]) => name),
+      }) as { collectionId: string; modes: Array<{ modeId: string; name: string }> };
+
+      const results: Record<string, { variables: unknown; styles: unknown; totalTokens: number }> = {};
+
+      for (const [modeName, tokens] of parsed) {
+        const modeInfo = setupResult.modes.find((m) => m.name === modeName);
+        if (!modeInfo) continue;
+
+        const atomicTokens = tokens.filter((t) => t.type !== 'typography' && t.type !== 'shadow');
+        const compositeTokens = tokens.filter((t) => t.type === 'typography' || t.type === 'shadow');
+
+        const varResult = await bridge.request('sync_tokens', {
+          tokens: atomicTokens,
+          collectionName: colName,
+          modeName,
+        });
+
+        let styleResult = { created: 0, updated: 0, skipped: 0, failed: 0, failures: [] };
+        if (compositeTokens.length > 0) {
+          styleResult = await bridge.request('sync_styles', { tokens: compositeTokens }) as typeof styleResult;
+        }
+
+        results[modeName] = {
+          variables: varResult,
+          styles: styleResult,
+          totalTokens: tokens.length,
+        };
+      }
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            collectionId: setupResult.collectionId,
+            modes: setupResult.modes,
+            results,
           }, null, 2),
         }],
       };
@@ -146,6 +234,64 @@ export function registerTokenTools(server: McpServer, bridge: Bridge): void {
         content: [{
           type: 'text' as const,
           text: JSON.stringify({ summary, diff }, null, 2),
+        }],
+      };
+    },
+  );
+
+  server.tool(
+    'reverse_sync_tokens',
+    'Export Figma variables to a DTCG JSON file (reverse sync). ' +
+      'Reads all variables from Figma, converts to W3C DTCG format with nested groups, ' +
+      'and writes to the specified file path. Aliases are preserved as {path} references.',
+    {
+      filePath: z.string().describe('Output file path for DTCG JSON'),
+      collectionId: z.string().optional().describe('Export only this collection. Omit for all.'),
+      modeName: z.string().optional().describe('Mode to export values from (default: first mode)'),
+    },
+    async ({ filePath, collectionId, modeName }) => {
+      // Get variables from Figma
+      const exported = await bridge.request('export_variables', { collectionId }) as {
+        count: number;
+        variables: Array<{
+          path: string;
+          type: string;
+          valuesByMode: Record<string, unknown>;
+          description?: string;
+          scopes?: string[];
+          aliasOf?: Record<string, string>;
+        }>;
+      };
+
+      // Pick the right mode's value for each variable
+      const entries: Array<{ path: string; type: string; value: unknown; description?: string }> = [];
+      for (const v of exported.variables) {
+        const modeNames = Object.keys(v.valuesByMode);
+        const targetMode = modeName ?? modeNames[0];
+        const value = v.valuesByMode[targetMode] ?? v.valuesByMode[modeNames[0]];
+        entries.push({
+          path: v.path,
+          type: v.type,
+          value,
+          description: v.description,
+        });
+      }
+
+      // Build nested DTCG tree and write
+      const tree = buildDtcgTree(entries);
+      const { writeFile, mkdir } = await import('fs/promises');
+      const { dirname } = await import('path');
+      await mkdir(dirname(filePath), { recursive: true });
+      await writeFile(filePath, JSON.stringify(tree, null, 2), 'utf-8');
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            ok: true,
+            filePath,
+            tokenCount: entries.length,
+          }, null, 2),
         }],
       };
     },

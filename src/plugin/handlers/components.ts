@@ -226,4 +226,196 @@ registerHandler('set_instance_overrides', async (params) => {
   };
 });
 
+// ─── Component Property Management ───
+
+// ─── Component Audit ───
+
+registerHandler('audit_components', async (params) => {
+  const nodeIds = params.nodeIds as string[] | undefined;
+
+  let targets: SceneNode[];
+  if (nodeIds && nodeIds.length > 0) {
+    const resolved = await Promise.all(nodeIds.map((id) => figma.getNodeByIdAsync(id)));
+    targets = resolved.filter((n): n is SceneNode => n !== null && 'type' in n);
+  } else {
+    targets = [...figma.currentPage.children];
+  }
+
+  const components: Array<Record<string, unknown>> = [];
+  const issues: Array<{ nodeId: string; name: string; issue: string }> = [];
+
+  function walk(node: SceneNode) {
+    if (node.type === 'COMPONENT') {
+      const comp = node as ComponentNode;
+      const propDefs = comp.componentPropertyDefinitions;
+      const propCount = Object.keys(propDefs).length;
+      const childCount = countDescendants(comp);
+      const textChildren = countTextNodes(comp);
+      const textProps = Object.values(propDefs).filter((d) => d.type === 'TEXT').length;
+      const boolProps = Object.values(propDefs).filter((d) => d.type === 'BOOLEAN').length;
+      const instanceSwapProps = Object.values(propDefs).filter((d) => d.type === 'INSTANCE_SWAP').length;
+
+      const entry: Record<string, unknown> = {
+        id: comp.id,
+        name: comp.name,
+        key: comp.key,
+        description: comp.description || null,
+        propertyCount: propCount,
+        textProperties: textProps,
+        booleanProperties: boolProps,
+        instanceSwapProperties: instanceSwapProps,
+        childCount,
+        textChildCount: textChildren,
+        hasAutoLayout: 'layoutMode' in comp && comp.layoutMode !== 'NONE',
+        width: comp.width,
+        height: comp.height,
+      };
+      components.push(entry);
+
+      // Issue detection
+      if (!comp.description) {
+        issues.push({ nodeId: comp.id, name: comp.name, issue: 'Missing description' });
+      }
+      if (textChildren > 0 && textProps === 0) {
+        issues.push({ nodeId: comp.id, name: comp.name, issue: `${textChildren} text node(s) but no TEXT properties exposed` });
+      }
+      if (propCount === 0 && childCount > 1) {
+        issues.push({ nodeId: comp.id, name: comp.name, issue: 'No properties defined despite having children' });
+      }
+      if (childCount === 0) {
+        issues.push({ nodeId: comp.id, name: comp.name, issue: 'Empty component (no children)' });
+      }
+    }
+    if (node.type === 'COMPONENT_SET') {
+      const set = node as ComponentSetNode;
+      const variants = set.children.filter((c) => c.type === 'COMPONENT');
+      components.push({
+        id: set.id,
+        name: set.name,
+        isComponentSet: true,
+        variantCount: variants.length,
+        propertyCount: Object.keys(set.componentPropertyDefinitions).length,
+        description: set.description || null,
+      });
+      if (!set.description) {
+        issues.push({ nodeId: set.id, name: set.name, issue: 'Missing description on component set' });
+      }
+      if (variants.length === 1) {
+        issues.push({ nodeId: set.id, name: set.name, issue: 'Component set with only 1 variant' });
+      }
+      // Walk variants
+      for (const v of variants) walk(v);
+      return; // don't walk children again
+    }
+    if ('children' in node) {
+      for (const child of (node as ChildrenMixin).children) walk(child);
+    }
+  }
+
+  for (const t of targets) walk(t);
+
+  return {
+    summary: {
+      totalComponents: components.length,
+      totalIssues: issues.length,
+    },
+    components,
+    issues,
+  };
+});
+
+// ─── Component Property Management ───
+
+registerHandler('add_component_property', async (params) => {
+  const nodeId = params.nodeId as string;
+  const propertyName = params.propertyName as string;
+  const propertyType = params.type as 'BOOLEAN' | 'TEXT' | 'INSTANCE_SWAP' | 'VARIANT';
+  const defaultValue = params.defaultValue as string | boolean;
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node || (node.type !== 'COMPONENT' && node.type !== 'COMPONENT_SET')) {
+    return { error: `Component not found: ${nodeId}` };
+  }
+  const comp = node as ComponentNode | ComponentSetNode;
+
+  const options: { type: string; defaultValue: string | boolean; preferredValues?: Array<{ type: string; key: string }> } = {
+    type: propertyType,
+    defaultValue,
+  };
+  if (params.preferredValues) {
+    options.preferredValues = params.preferredValues as Array<{ type: string; key: string }>;
+  }
+
+  comp.addComponentProperty(propertyName, options.type as ComponentPropertyType, options.defaultValue);
+
+  return { ok: true, properties: Object.keys(comp.componentPropertyDefinitions) };
+});
+
+registerHandler('update_component_property', async (params) => {
+  const nodeId = params.nodeId as string;
+  const propertyName = params.propertyName as string;
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node || (node.type !== 'COMPONENT' && node.type !== 'COMPONENT_SET')) {
+    return { error: `Component not found: ${nodeId}` };
+  }
+  const comp = node as ComponentNode | ComponentSetNode;
+
+  if (!(propertyName in comp.componentPropertyDefinitions)) {
+    return { error: `Property "${propertyName}" not found on component` };
+  }
+
+  if (params.newName != null) {
+    comp.editComponentProperty(propertyName, { name: params.newName as string });
+  }
+  if (params.defaultValue != null) {
+    const targetName = (params.newName as string) ?? propertyName;
+    comp.editComponentProperty(targetName, { defaultValue: params.defaultValue as string | boolean });
+  }
+
+  return { ok: true, properties: Object.keys(comp.componentPropertyDefinitions) };
+});
+
+registerHandler('delete_component_property', async (params) => {
+  const nodeId = params.nodeId as string;
+  const propertyName = params.propertyName as string;
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node || (node.type !== 'COMPONENT' && node.type !== 'COMPONENT_SET')) {
+    return { error: `Component not found: ${nodeId}` };
+  }
+  const comp = node as ComponentNode | ComponentSetNode;
+
+  if (!(propertyName in comp.componentPropertyDefinitions)) {
+    return { error: `Property "${propertyName}" not found on component` };
+  }
+
+  comp.deleteComponentProperty(propertyName);
+  return { ok: true, properties: Object.keys(comp.componentPropertyDefinitions) };
+});
+
 } // registerComponentHandlers
+
+// ─── Helpers ───
+
+function countDescendants(node: SceneNode): number {
+  let count = 0;
+  if ('children' in node) {
+    for (const child of (node as ChildrenMixin).children) {
+      count++;
+      count += countDescendants(child);
+    }
+  }
+  return count;
+}
+
+function countTextNodes(node: SceneNode): number {
+  let count = 0;
+  if (node.type === 'TEXT') return 1;
+  if ('children' in node) {
+    for (const child of (node as ChildrenMixin).children) {
+      count += countTextNodes(child);
+    }
+  }
+  return count;
+}
