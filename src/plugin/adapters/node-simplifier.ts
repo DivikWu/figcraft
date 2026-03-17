@@ -10,8 +10,14 @@ import { figmaRgbaToHex } from '../utils/color.js';
 /** Maximum tree depth to prevent excessive payloads. */
 const MAX_DEPTH = 10;
 
+/** Maximum total nodes in a single simplifyNode call. */
+const MAX_NODES = 2000;
+
 /** Simplify a Figma node tree into compressed JSON. */
-export function simplifyNode(node: SceneNode, depth = 0): CompressedNode {
+export function simplifyNode(node: SceneNode, depth = 0, counter?: { count: number }): CompressedNode {
+  const c = counter ?? { count: 0 };
+  c.count++;
+
   const base: CompressedNode = {
     id: node.id,
     name: node.name,
@@ -151,11 +157,18 @@ export function simplifyNode(node: SceneNode, depth = 0): CompressedNode {
     }
   }
 
-  // Children (respect depth limit)
-  if ('children' in node && depth < MAX_DEPTH) {
+  // Children (respect depth limit and node count limit)
+  if ('children' in node && depth < MAX_DEPTH && c.count < MAX_NODES) {
     const children = (node as ChildrenMixin).children;
     if (children.length > 0) {
-      base.children = children.map((c) => simplifyNode(c, depth + 1));
+      base.children = [];
+      for (const child of children) {
+        if (c.count >= MAX_NODES) {
+          (base as Record<string, unknown>).truncated = true;
+          break;
+        }
+        base.children.push(simplifyNode(child, depth + 1, c));
+      }
     }
   }
 

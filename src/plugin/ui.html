@@ -208,6 +208,16 @@
       font-size: 10px;
       color: var(--text-tertiary);
     }
+    .mode-indicator {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--accent);
+      background: var(--accent-bg);
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
     .log-entry {
       margin-bottom: 1px;
       padding: 1px 0;
@@ -644,6 +654,7 @@
   <div class="tab-pane active" data-tab-content="activity">
     <div class="activity-header">
       <span class="activity-badge" id="activity-count"></span>
+      <span class="mode-indicator" id="mode-indicator" title="Current mode">Library</span>
       <button class="activity-clear" id="log-clear" title="Clear activity">Clear</button>
     </div>
     <div class="activity-feed" id="log">
@@ -1139,6 +1150,13 @@
       modeSpecBtn.className = mode === 'spec' ? 'active' : '';
       modeDescEl.textContent = (currentLang === 'zh' ? MODE_DESCS_ZH : MODE_DESCS)[mode] || '';
       libraryGroup.style.display = mode === 'library' ? '' : 'none';
+      // Update mode indicator in Activity tab
+      var indicator = document.getElementById('mode-indicator');
+      if (indicator) {
+        indicator.textContent = mode === 'library'
+          ? (currentLang === 'zh' ? '共享库' : 'Library')
+          : (currentLang === 'zh' ? '规范' : 'Spec');
+      }
       if (mode === 'library') {
         parent.postMessage({ pluginMessage: { type: 'get-libraries' } }, '*');
       }

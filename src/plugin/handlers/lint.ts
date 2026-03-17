@@ -25,6 +25,7 @@ registerHandler('lint_check', async (params) => {
   const categories = params.categories as string[] | undefined;
   const offset = params.offset as number | undefined;
   const limit = params.limit as number | undefined;
+  const maxViolations = params.maxViolations as number | undefined;
   const annotate = params.annotate as boolean | undefined;
 
   // Token context (passed from MCP Server or loaded from cache)
@@ -74,7 +75,7 @@ registerHandler('lint_check', async (params) => {
   const abstractNodes = targetNodes.map((n) => compressedToAbstract(simplifyNode(n)));
 
   // Run lint
-  const report = runLint(abstractNodes, ctx, { rules, categories, offset, limit });
+  const report = runLint(abstractNodes, ctx, { rules, categories, offset, limit, maxViolations });
 
   // Annotate if requested
   if (annotate) {

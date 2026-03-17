@@ -144,6 +144,10 @@ export class Bridge {
 
   /** Send a request to the Plugin and await its response. */
   async request(method: string, params: Record<string, unknown> = {}, timeoutMs?: number): Promise<unknown> {
+    // If disconnected, wait for reconnection (up to 10s)
+    if (!this.ws || !this.connected) {
+      await this.waitForConnection(10_000);
+    }
     if (!this.ws || !this.connected) {
       throw new Error('Bridge not connected');
     }
@@ -168,6 +172,20 @@ export class Bridge {
           params,
         }),
       );
+    });
+  }
+
+  /** Wait for the bridge to reconnect, up to maxWaitMs. */
+  private waitForConnection(maxWaitMs: number): Promise<void> {
+    if (this.connected) return Promise.resolve();
+    return new Promise((resolve) => {
+      const start = Date.now();
+      const interval = setInterval(() => {
+        if (this.connected || Date.now() - start > maxWaitMs) {
+          clearInterval(interval);
+          resolve();
+        }
+      }, 200);
     });
   }
 

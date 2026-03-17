@@ -71,6 +71,15 @@ describe('runLint', () => {
     const report = runLint([parent], emptyCtx);
     expect(report.summary.total).toBe(3); // parent + 2 children
   });
+
+  it('early-exits when maxViolations reached', () => {
+    const nodes = Array.from({ length: 20 }, (_, i) =>
+      makeNode({ id: `${i}:1`, name: `Frame ${i + 1}`, type: 'FRAME', children: [] }),
+    );
+    const report = runLint(nodes, emptyCtx, { rules: ['default-name'], maxViolations: 5 });
+    expect(report.summary.violations).toBeLessThanOrEqual(5);
+    expect(report.summary.truncated).toBe(true);
+  });
 });
 
 describe('getAvailableRules', () => {

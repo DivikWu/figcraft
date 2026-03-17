@@ -64,10 +64,12 @@ export interface LintOptions {
   categories?: LintRuleCategory[];
   offset?: number;
   limit?: number;
+  /** Maximum violations to collect before stopping (early-exit for large pages). */
+  maxViolations?: number;
 }
 
 export interface LintReport {
-  summary: { total: number; pass: number; violations: number };
+  summary: { total: number; pass: number; violations: number; truncated?: boolean };
   categories: Array<{
     rule: string;
     description: string;
@@ -92,14 +94,22 @@ export function runLint(
   }
 
   const allViolations: LintViolation[] = [];
+  const maxV = options.maxViolations ?? Infinity;
+  let earlyExit = false;
 
   function walk(node: AbstractNode) {
+    if (earlyExit) return;
     for (const rule of activeRules) {
       const violations = rule.check(node, ctx);
       allViolations.push(...violations);
+      if (allViolations.length >= maxV) {
+        earlyExit = true;
+        return;
+      }
     }
     if (node.children) {
       for (const child of node.children) {
+        if (earlyExit) return;
         walk(child);
       }
     }
@@ -172,6 +182,7 @@ export function runLint(
       total: checkedNodeIds.size,
       pass: checkedNodeIds.size - new Set(allViolations.map((v) => v.nodeId)).size,
       violations: totalViolations,
+      ...(earlyExit ? { truncated: true } : {}),
     },
     categories: paginatedCategories,
     pagination,

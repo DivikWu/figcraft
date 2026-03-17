@@ -18,10 +18,11 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
       categories: z.array(z.string()).optional().describe('Rule categories to run: token, layout, naming, wcag, component'),
       offset: z.number().optional().describe('Pagination offset'),
       limit: z.number().optional().describe('Pagination limit'),
+      maxViolations: z.number().optional().describe('Stop after collecting this many violations (performance optimization for large pages)'),
       annotate: z.boolean().optional().describe('Add annotations to violated nodes in Figma'),
       useStoredTokens: z.string().optional().describe('Name of cached token set to use'),
     },
-    async ({ nodeIds, rules, categories, offset, limit, annotate, useStoredTokens }) => {
+    async ({ nodeIds, rules, categories, offset, limit, maxViolations, annotate, useStoredTokens }) => {
       // Load cached tokens if requested
       let tokenContext: Record<string, unknown> | undefined;
       if (useStoredTokens) {
@@ -40,6 +41,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         categories,
         offset,
         limit,
+        maxViolations,
         annotate,
         tokenContext,
       });

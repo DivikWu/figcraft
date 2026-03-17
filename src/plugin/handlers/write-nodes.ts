@@ -128,8 +128,20 @@ registerHandler('create_text', async (params) => {
   const text = figma.createText();
   if (params.x != null) text.x = params.x as number;
   if (params.y != null) text.y = params.y as number;
-  await figma.loadFontAsync({ family: fontFamily, style: fontStyle });
-  text.fontName = { family: fontFamily, style: fontStyle };
+  let loadedFont = { family: fontFamily, style: fontStyle };
+  try {
+    await figma.loadFontAsync(loadedFont);
+  } catch {
+    // Requested style unavailable — try Regular, then fall back to Inter
+    try {
+      loadedFont = { family: fontFamily, style: 'Regular' };
+      await figma.loadFontAsync(loadedFont);
+    } catch {
+      loadedFont = { family: 'Inter', style: 'Regular' };
+      await figma.loadFontAsync(loadedFont);
+    }
+  }
+  text.fontName = loadedFont;
   text.fontSize = fontSize;
   text.characters = content;
 
@@ -292,8 +304,19 @@ registerHandler('patch_nodes', async (params) => {
           textNode.fontSize = value as number;
         } else if (key === 'fontName' && node.type === 'TEXT') {
           const fn = value as { family: string; style: string };
-          await figma.loadFontAsync(fn);
-          (node as TextNode).fontName = fn;
+          try {
+            await figma.loadFontAsync(fn);
+            (node as TextNode).fontName = fn;
+          } catch {
+            // Font unavailable — try loading just the family with Regular style
+            try {
+              await figma.loadFontAsync({ family: fn.family, style: 'Regular' });
+              (node as TextNode).fontName = { family: fn.family, style: 'Regular' };
+            } catch {
+              // Skip — font family not available at all
+              console.warn(`[figcraft] Font not available: ${fn.family} ${fn.style}`);
+            }
+          }
         } else if (key === 'rotation' && 'rotation' in node) {
           (node as SceneNode).rotation = value as number;
         } else if (key === 'constraints' && 'constraints' in node) {
@@ -418,8 +441,19 @@ async function createNodeFromSpec(spec: NodeSpec, parentNode: BaseNode | undefin
     const fontStyle = (p.fontStyle as string) ?? 'Regular';
     const fontSize = (p.fontSize as number) ?? 16;
     const text = figma.createText();
-    await figma.loadFontAsync({ family: fontFamily, style: fontStyle });
-    text.fontName = { family: fontFamily, style: fontStyle };
+    let loadedFont = { family: fontFamily, style: fontStyle };
+    try {
+      await figma.loadFontAsync(loadedFont);
+    } catch {
+      try {
+        loadedFont = { family: fontFamily, style: 'Regular' };
+        await figma.loadFontAsync(loadedFont);
+      } catch {
+        loadedFont = { family: 'Inter', style: 'Regular' };
+        await figma.loadFontAsync(loadedFont);
+      }
+    }
+    text.fontName = loadedFont;
     text.fontSize = fontSize;
     text.characters = (p.content as string) ?? '';
     if (spec.name) text.name = spec.name;
