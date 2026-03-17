@@ -120,6 +120,7 @@ figcraft/
 │       │   ├── export.ts           # 图片导出
 │       │   ├── storage.ts          # clientStorage 缓存
 │       │   ├── lint.ts             # Lint 执行 + 自动修复 + 注解
+│       │   ├── annotations.ts      # 通用注解读写（get/set/set_multiple_annotations）
 │       │   └── scan.ts             # 样式扫描/Token 导出/对比
 │       ├── adapters/               # 数据适配层
 │       │   ├── node-simplifier.ts  # Figma 节点 → 压缩 JSON（~90% 压缩）
@@ -151,13 +152,14 @@ figcraft/
 | **library** | Figma 共享库 Variables/Styles | 检查节点是否绑定了 Library Variable/Style | 设计师日常设计，使用团队共享库 |
 | **spec** | DTCG JSON 文件 | 检查节点值是否匹配 DTCG Token 值 | 从设计规范文档同步，验证合规性 |
 
-## MCP 工具清单 (30+)
+## MCP 工具清单 (40+)
 
 ### 基础
 - `ping` — 测试连通性
 
 ### 读取 (P1)
 - `get_node_info` / `get_current_page` / `get_document_info` / `get_selection` / `search_nodes` — 节点读取
+- `list_fonts` — 枚举可用字体族及字重（创建文字前查询）
 - `list_variables` / `get_variable` / `list_collections` — Variables
 - `list_styles` / `get_style` — Styles
 - `list_library_collections` / `list_library_variables` / `import_library_variable` — Team Library Variables
@@ -166,9 +168,19 @@ figcraft/
 
 ### 写入 (P2)
 - `create_frame` / `create_text` / `patch_nodes` / `delete_node` / `clone_node` — 节点 CRUD
+- `save_version_history` — 创建命名版本历史快照（AI 迭代设计前的 checkpoint）
 - `list_tokens` / `sync_tokens` / `diff_tokens` — DTCG Token 同步
-- `list_components` / `get_component` / `create_instance` / `swap_instance` / `detach_instance` / `reset_instance_overrides` — Component/Instance
+- `list_components` / `get_component` / `create_component` / `update_component` / `delete_component` — Component CRUD
+- `list_component_properties` — 枚举组件暴露的属性和变体选项
+- `create_component_set` — 将多个 Component 合并为 Variant Set
+- `create_instance` / `swap_instance` / `detach_instance` / `reset_instance_overrides` — Instance 管理
+- `get_instance_overrides` / `set_instance_overrides` — Override 读取与批量传播
 - `cache_tokens` / `list_cached_tokens` / `delete_cached_tokens` — Token 缓存
+
+### 注解 (P2)
+- `get_annotations` — 读取当前页面或指定节点的所有注解
+- `set_annotation` — 在节点上添加/覆盖注解（支持 Markdown）
+- `set_multiple_annotations` — 批量注解多个节点
 
 ### Lint (P3)
 - `lint_check` — 运行 Lint 规则（支持分页、注解）
