@@ -83,7 +83,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 10px 12px 12px;
+      padding: 12px 12px 12px;
       flex-shrink: 0;
     }
     .header h1 {
@@ -95,7 +95,7 @@
       display: flex;
       align-items: center;
       gap: 4px;
-      padding: 0 12px 6px;
+      padding: 0 12px 8px;
       flex-shrink: 0;
     }
     .channel-bar .input,
@@ -112,13 +112,13 @@
     .status-btn {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
       border-radius: 8px;
       font-weight: 600;
     }
     .status-dot {
-      width: 6px;
-      height: 6px;
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
       flex-shrink: 0;
     }
@@ -199,8 +199,8 @@
       cursor: pointer;
       border: none;
       background: none;
-      padding: 2px 4px;
-      border-radius: 3px;
+      padding: 4px 4px;
+      border-radius: 4px;
       transition: color 0.1s, background 0.1s;
     }
     .activity-clear:hover { color: var(--text-primary); background: var(--surface); }
@@ -242,7 +242,7 @@
       color: var(--text-tertiary);
       font-family: 'Noto Sans', -apple-system, BlinkMacSystemFont, sans-serif;
       font-size: 11px;
-      padding: 40px 20px;
+      padding: 40px 24px;
     }
     .empty-dot {
       width: 8px;
@@ -262,7 +262,7 @@
       flex: 1;
       min-height: 0;
     }
-    .setting-group { display: flex; flex-direction: column; gap: 6px; }
+    .setting-group { display: flex; flex-direction: column; gap: 8px; }
     .setting-label {
       font-size: 10px;
       font-weight: 600;
@@ -282,16 +282,16 @@
       display: flex;
       background: var(--surface);
       border-radius: 8px;
-      padding: 3px;
-      gap: 2px;
+      padding: 4px;
+      gap: 4px;
     }
     .mode-toggle button {
       flex: 1;
-      padding: 6px 12px;
+      padding: 8px 12px;
       font-size: 12px;
       font-weight: 500;
       border: none;
-      border-radius: 6px;
+      border-radius: 8px;
       background: transparent;
       color: var(--text-secondary);
       cursor: pointer;
@@ -317,7 +317,7 @@
       height: 32px;
       font-family: 'SF Mono', 'Menlo', monospace;
       font-size: 11px;
-      padding: 0 10px;
+      padding: 0 12px;
       background: var(--bg);
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -378,7 +378,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 10px;
+      padding: 0 12px;
       font-size: 11px;
       font-weight: 500;
       background: var(--bg);
@@ -433,11 +433,11 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 7px 10px;
+      padding: 8px 12px;
       font-size: 11px;
       font-weight: 500;
       border: none;
-      border-radius: 7px;
+      border-radius: 8px;
       background: transparent;
       color: var(--text-secondary);
       cursor: pointer;
@@ -455,7 +455,7 @@
     }
     .library-popup-item.active:hover { background: var(--border); }
     .library-popup-item .check {
-      width: 14px;
+      width: 16px;
       flex-shrink: 0;
       font-size: 11px;
       text-align: center;
@@ -467,13 +467,13 @@
       color: var(--text-tertiary);
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      padding: 8px 10px 3px;
+      padding: 8px 12px 4px;
       pointer-events: none;
     }
     .library-popup-divider {
       height: 1px;
       background: var(--border);
-      margin: 4px 6px;
+      margin: 4px 8px;
     }
     .library-popup-add-row {
       display: flex;
@@ -486,7 +486,7 @@
       min-width: 0;
       height: 28px;
       font-size: 10px;
-      border-radius: 6px;
+      border-radius: 8px;
     }
     .library-popup-add-btn {
       height: 28px;
@@ -496,7 +496,7 @@
       align-items: center;
       justify-content: center;
       border: none;
-      border-radius: 6px;
+      border-radius: 8px;
       background: var(--accent);
       color: #fff;
       font-size: 14px;
@@ -526,7 +526,7 @@
     .library-popup-item .delete-btn {
       display: none;
       position: absolute;
-      right: 6px;
+      right: 8px;
       top: 50%;
       transform: translateY(-50%);
       width: 20px;
@@ -545,7 +545,7 @@
     .library-popup-error {
       font-size: 10px;
       color: var(--error);
-      padding: 0 10px 4px;
+      padding: 0 12px 4px;
     }
 
     /* ─── Help Tab ─── */
@@ -597,8 +597,8 @@
       position: relative;
       background: var(--code-bg);
       border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 10px 12px;
+      border-radius: 8px;
+      padding: 12px;
       font-family: 'SF Mono', 'Menlo', monospace;
       font-size: 10px;
       line-height: 1.5;
@@ -608,10 +608,10 @@
     }
     .copy-btn {
       position: absolute;
-      top: 6px;
-      right: 6px;
+      top: 8px;
+      right: 8px;
       font-size: 10px;
-      padding: 3px 8px;
+      padding: 4px 8px;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 4px;
@@ -637,46 +637,102 @@
       padding: 12px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 16px;
       overflow-y: auto;
       flex: 1;
       min-height: 0;
     }
     .lint-actions {
       display: flex;
-      gap: 6px;
-    }
-    .lint-actions .btn { flex: 1; }
-    .lint-summary {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
       gap: 8px;
     }
-    .lint-stat {
+    .lint-actions .btn { flex: 1; }
+
+    /* Score card — combines circle + stats in one surface */
+    .lint-score-card {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 16px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 10px 6px;
-      background: var(--surface);
-      border-radius: 8px;
-      gap: 2px;
+      gap: 12px;
+    }
+    .lint-score-top {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      width: 100%;
+    }
+    .lint-score-circle {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .lint-score-circle.good { background: var(--success); }
+    .lint-score-circle.warn { background: var(--warning); color: var(--text-primary); }
+    .lint-score-circle.bad { background: var(--error); }
+    .lint-score-detail {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .lint-score-stats {
+      display: flex;
+      gap: 12px;
+    }
+    .lint-stat {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
     }
     .lint-stat-value {
-      font-size: 20px;
+      font-size: 16px;
       font-weight: 700;
-      color: var(--text-primary);
       line-height: 1;
     }
     .lint-stat-value.pass { color: var(--success); }
     .lint-stat-value.fail { color: var(--error); }
     .lint-stat-value.fix { color: var(--accent); }
     .lint-stat-label {
-      font-size: 9px;
-      font-weight: 600;
+      font-size: 10px;
       color: var(--text-tertiary);
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
     }
+    .lint-progress {
+      height: 4px;
+      background: var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      width: 100%;
+    }
+    .lint-progress-bar {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+    .lint-scope {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      text-align: center;
+      padding: 4px 0;
+    }
+    .lint-all-pass {
+      text-align: center;
+      padding: 12px 0;
+      color: var(--success);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    /* Category list */
     .lint-categories {
       display: flex;
       flex-direction: column;
@@ -686,11 +742,10 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 6px 10px;
+      padding: 8px 12px;
       background: var(--surface);
-      border-radius: 6px;
+      border-radius: 8px;
       font-size: 11px;
-      cursor: pointer;
       transition: background 0.1s;
     }
     .lint-cat-row:hover { background: var(--surface-hover); }
@@ -698,8 +753,10 @@
     .lint-cat-count {
       font-size: 10px;
       font-weight: 600;
-      padding: 1px 8px;
-      border-radius: 10px;
+      min-width: 24px;
+      text-align: center;
+      padding: 2px 8px;
+      border-radius: 12px;
       background: var(--error-bg);
       color: var(--error);
     }
@@ -713,48 +770,10 @@
       align-items: center;
       justify-content: center;
       flex: 1;
-      gap: 6px;
+      gap: 8px;
       color: var(--text-tertiary);
       font-size: 11px;
-      padding: 30px 20px;
-    }
-    .lint-score {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 8px;
-    }
-    .lint-score-circle {
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 16px;
-      font-weight: 700;
-      color: #fff;
-    }
-    .lint-score-circle.good { background: var(--success); }
-    .lint-score-circle.warn { background: var(--warning); color: var(--text-primary); }
-    .lint-score-circle.bad { background: var(--error); }
-    .lint-progress {
-      height: 3px;
-      background: var(--surface);
-      border-radius: 2px;
-      overflow: hidden;
-    }
-    .lint-progress-bar {
-      height: 100%;
-      border-radius: 2px;
-      transition: width 0.3s ease;
-    }
-    .lint-scope {
-      font-size: 10px;
-      color: var(--text-tertiary);
-      text-align: center;
-      padding: 2px 0;
+      padding: 32px 24px;
     }
   </style>
 </head>
@@ -800,9 +819,7 @@
       </div>
       <div id="lint-result" style="display:none">
         <div class="lint-scope" id="lint-scope"></div>
-        <div class="lint-score" id="lint-score-area"></div>
-        <div class="lint-progress"><div class="lint-progress-bar" id="lint-progress-bar"></div></div>
-        <div class="lint-summary" id="lint-summary"></div>
+        <div id="lint-score-card-area"></div>
         <div class="lint-categories" id="lint-categories"></div>
       </div>
       <div class="lint-empty" id="lint-empty">
@@ -1574,10 +1591,8 @@
     var lintFixBtn = document.getElementById('lint-fix-btn');
     var lintResult = document.getElementById('lint-result');
     var lintEmpty = document.getElementById('lint-empty');
-    var lintSummary = document.getElementById('lint-summary');
     var lintCategories = document.getElementById('lint-categories');
-    var lintScoreArea = document.getElementById('lint-score-area');
-    var lintProgressBar = document.getElementById('lint-progress-bar');
+    var lintScoreCardArea = document.getElementById('lint-score-card-area');
     var lintScope = document.getElementById('lint-scope');
     var lastLintViolations = [];
 
@@ -1639,19 +1654,22 @@
       lintFixBtn.disabled = lastLintViolations.length === 0;
       lintFixBtn.textContent = t('lint.fix') + (lastLintViolations.length > 0 ? ' (' + lastLintViolations.length + ')' : '');
 
-      // Score circle
+      // Score card
       var scoreClass = score >= 80 ? 'good' : score >= 50 ? 'warn' : 'bad';
-      lintScoreArea.innerHTML = '<div class="lint-score-circle ' + scoreClass + '">' + score + '</div>';
-
-      // Progress bar
-      lintProgressBar.style.width = score + '%';
-      lintProgressBar.style.background = score >= 80 ? 'var(--success)' : score >= 50 ? 'var(--warning)' : 'var(--error)';
-
-      // Summary stats
-      lintSummary.innerHTML =
-        '<div class="lint-stat"><span class="lint-stat-value pass">' + pass + '</span><span class="lint-stat-label">' + t('lint.passed') + '</span></div>' +
-        '<div class="lint-stat"><span class="lint-stat-value fail">' + violations + '</span><span class="lint-stat-label">' + t('lint.violations') + '</span></div>' +
-        '<div class="lint-stat"><span class="lint-stat-value fix">' + lastLintViolations.length + '</span><span class="lint-stat-label">' + t('lint.fixable') + '</span></div>';
+      lintScoreCardArea.innerHTML =
+        '<div class="lint-score-card">' +
+          '<div class="lint-score-top">' +
+            '<div class="lint-score-circle ' + scoreClass + '">' + score + '</div>' +
+            '<div class="lint-score-detail">' +
+              '<div class="lint-score-stats">' +
+                '<div class="lint-stat"><span class="lint-stat-value pass">' + pass + '</span><span class="lint-stat-label"> ' + t('lint.passed') + '</span></div>' +
+                '<div class="lint-stat"><span class="lint-stat-value fail">' + violations + '</span><span class="lint-stat-label"> ' + t('lint.violations') + '</span></div>' +
+                '<div class="lint-stat"><span class="lint-stat-value fix">' + lastLintViolations.length + '</span><span class="lint-stat-label"> ' + t('lint.fixable') + '</span></div>' +
+              '</div>' +
+              '<div class="lint-progress"><div class="lint-progress-bar" style="width:' + score + '%;background:' + (score >= 80 ? 'var(--success)' : score >= 50 ? 'var(--warning)' : 'var(--error)') + '"></div></div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
 
       // Category breakdown
       lintCategories.innerHTML = '';
@@ -1667,7 +1685,7 @@
 
       if (cats.length === 0) {
         var allGood = document.createElement('div');
-        allGood.style.cssText = 'text-align:center;padding:16px;color:var(--success);font-size:12px;font-weight:600';
+        allGood.className = 'lint-all-pass';
         allGood.textContent = '\u2713 ' + (currentLang === 'zh' ? '全部通过' : 'All checks passed');
         lintCategories.appendChild(allGood);
       }
