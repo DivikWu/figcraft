@@ -8,6 +8,7 @@
 import { handlers, registerHandler } from './registry.js';
 import { getLibraryDesignContext, getLocalDesignContext, clearDesignContextCache } from './utils/design-context.js';
 import { getRegisteredStylesSummary, clearStyleRegistry } from './utils/style-registry.js';
+import { STORAGE_KEYS } from './constants.js';
 
 // ─── P1 handlers (read) ───
 import { registerNodeHandlers } from './handlers/nodes.js';
@@ -27,6 +28,7 @@ import { registerSelectionHandlers } from './handlers/selection.js';
 
 // ─── P3 handlers (lint) ───
 import { registerLintHandlers } from './handlers/lint.js';
+import { registerAnnotationHandlers } from './handlers/annotations.js';
 
 // ─── P4 handlers (scan) ───
 import { registerScanHandlers } from './handlers/scan.js';
@@ -45,17 +47,19 @@ registerStorageHandlers();
 registerPageHandlers();
 registerSelectionHandlers();
 registerLintHandlers();
+registerAnnotationHandlers();
 registerScanHandlers();
 
 // Show the UI (establishes WebSocket connection to relay)
 figma.showUI(__html__, { visible: true, width: 320, height: 480 });
 
 // ─── Channel, mode & library persistence via clientStorage ───
-const CHANNEL_STORAGE_KEY = 'figcraft_channel';
-const MODE_STORAGE_KEY = 'figcraft_mode';
-const LIBRARY_STORAGE_KEY = 'figcraft_library';
-const API_TOKEN_STORAGE_KEY = 'figcraft_api_token';
-const LIBRARY_URLS_STORAGE_KEY = 'figcraft_library_urls';
+const CHANNEL_STORAGE_KEY = STORAGE_KEYS.CHANNEL;
+const MODE_STORAGE_KEY = STORAGE_KEYS.MODE;
+const LIBRARY_STORAGE_KEY = STORAGE_KEYS.LIBRARY;
+const API_TOKEN_STORAGE_KEY = STORAGE_KEYS.API_TOKEN;
+const LIBRARY_URLS_STORAGE_KEY = STORAGE_KEYS.LIBRARY_URLS;
+const LANG_STORAGE_KEY = STORAGE_KEYS.LANG;
 
 // Library entries storage: { fileKey: { name, url } }
 interface LibraryEntry { name: string; url: string; }
@@ -120,7 +124,12 @@ async function sendLibraryList() {
 }
 
 figma.ui.on('message', async (msg: { type: string; channelId?: string; mode?: string; library?: string; token?: string; fileKey?: string; name?: string; url?: string; libraryName?: string }) => {
-  if (msg.type === 'get-channel') {
+  if (msg.type === 'get-lang') {
+    const lang = await figma.clientStorage.getAsync(LANG_STORAGE_KEY);
+    figma.ui.postMessage({ type: 'restore-lang', lang: lang || 'en' });
+  } else if (msg.type === 'save-lang') {
+    await figma.clientStorage.setAsync(LANG_STORAGE_KEY, (msg as { lang?: string }).lang || 'en');
+  } else if (msg.type === 'get-channel') {
     const saved = await figma.clientStorage.getAsync(CHANNEL_STORAGE_KEY);
     if (saved) {
       figma.ui.postMessage({ type: 'restore-channel', channelId: saved });

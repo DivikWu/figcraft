@@ -10,6 +10,12 @@ import { runLint, getAvailableRules } from '../linter/engine.js';
 import type { AbstractNode, LintContext, LintViolation } from '../linter/types.js';
 import type { CompressedNode } from '../../shared/types.js';
 import type { LintReport } from '../linter/engine.js';
+import { STORAGE_KEYS } from '../constants.js';
+
+// Cache last-built LintContext Maps to avoid redundant Map construction on repeated calls
+// with the same tokenContext (common in iterative lint workflows).
+let _cachedTokenContextKey: string | null = null;
+let _cachedTokenMaps: Pick<LintContext, 'colorTokens' | 'spacingTokens' | 'radiusTokens' | 'typographyTokens' | 'variableIds'> | null = null;
 
 export function registerLintHandlers(): void {
 
@@ -30,16 +36,23 @@ registerHandler('lint_check', async (params) => {
   } | undefined;
 
   // Read current mode and selected library from storage
-  const currentMode = ((await figma.clientStorage.getAsync('figcraft_mode')) || 'library') as 'library' | 'spec';
-  const currentLibrary = (await figma.clientStorage.getAsync('figcraft_library')) as string | undefined;
+  const currentMode = ((await figma.clientStorage.getAsync(STORAGE_KEYS.MODE)) || 'library') as 'library' | 'spec';
+  const currentLibrary = (await figma.clientStorage.getAsync(STORAGE_KEYS.LIBRARY)) as string | undefined;
 
-  // Build lint context
+  // Build lint context — cache Maps when tokenContext is unchanged (common in iterative workflows)
+  const tokenContextKey = tokenContext ? JSON.stringify(tokenContext) : null;
+  if (tokenContextKey !== _cachedTokenContextKey || _cachedTokenMaps === null) {
+    _cachedTokenContextKey = tokenContextKey;
+    _cachedTokenMaps = {
+      colorTokens: new Map(Object.entries(tokenContext?.colorTokens ?? {})),
+      spacingTokens: new Map(Object.entries(tokenContext?.spacingTokens ?? {})),
+      radiusTokens: new Map(Object.entries(tokenContext?.radiusTokens ?? {})),
+      typographyTokens: new Map(Object.entries(tokenContext?.typographyTokens ?? {})),
+      variableIds: new Map(Object.entries(tokenContext?.variableIds ?? {})),
+    };
+  }
   const ctx: LintContext = {
-    colorTokens: new Map(Object.entries(tokenContext?.colorTokens ?? {})),
-    spacingTokens: new Map(Object.entries(tokenContext?.spacingTokens ?? {})),
-    radiusTokens: new Map(Object.entries(tokenContext?.radiusTokens ?? {})),
-    typographyTokens: new Map(Object.entries(tokenContext?.typographyTokens ?? {})),
-    variableIds: new Map(Object.entries(tokenContext?.variableIds ?? {})),
+    ..._cachedTokenMaps,
     mode: currentMode,
     selectedLibrary: currentLibrary || null,
   };
@@ -91,10 +104,27 @@ registerHandler('lint_fix', async (params) => {
             const variable = await figma.variables.getVariableByIdAsync(variableId);
             if (variable && 'fills' in node) {
               const prop = v.fixData.property as string;
+              const geom = node as GeometryMixin;
               if (prop === 'fills') {
-                (node as GeometryMixin).setBoundVariable('fills', 0, variable);
+                const fills = [...geom.fills] as Paint[];
+                if (fills.length > 0 && fills[0].type === 'SOLID') {
+                  fills[0] = figma.variables.setBoundVariableForPaint(
+                    fills[0] as SolidPaint,
+                    'color',
+                    variable,
+                  );
+                  geom.fills = fills;
+                }
               } else if (prop === 'strokes') {
-                (node as GeometryMixin).setBoundVariable('strokes', 0, variable);
+                const strokes = [...geom.strokes] as Paint[];
+                if (strokes.length > 0 && strokes[0].type === 'SOLID') {
+                  strokes[0] = figma.variables.setBoundVariableForPaint(
+                    strokes[0] as SolidPaint,
+                    'color',
+                    variable,
+                  );
+                  geom.strokes = strokes;
+                }
               }
               fixed++;
             } else {
@@ -147,8 +177,10 @@ registerHandler('clear_annotations', async (params) => {
     ? (await Promise.all(nodeIds.map((id) => figma.getNodeByIdAsync(id)))).filter(Boolean) as SceneNode[]
     : [...figma.currentPage.children];
 
+  const MAX_DEPTH = 10;
   let cleared = 0;
-  function walk(node: SceneNode) {
+  function walk(node: SceneNode, depth = 0) {
+    if (depth > MAX_DEPTH) return;
     if ('annotations' in node) {
       const annotated = node as SceneNode & { annotations: unknown[] };
       if (annotated.annotations.length > 0) {
@@ -158,11 +190,11 @@ registerHandler('clear_annotations', async (params) => {
     }
     if ('children' in node) {
       for (const child of (node as ChildrenMixin).children) {
-        walk(child);
+        walk(child, depth + 1);
       }
     }
   }
-  targets.forEach(walk);
+  targets.forEach((n) => walk(n));
 
   return { cleared };
 });

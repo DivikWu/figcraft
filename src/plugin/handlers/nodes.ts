@@ -79,4 +79,17 @@ registerHandler('search_nodes', async (params) => {
   return { count: results.length, nodes: results };
 });
 
+registerHandler('list_fonts', async (params) => {
+  const fonts = await figma.listAvailableFontsAsync();
+  const family = params.family as string | undefined;
+  if (family) {
+    const styles = fonts
+      .filter((f) => f.fontName.family === family)
+      .map((f) => f.fontName.style);
+    return { family, styles, count: styles.length };
+  }
+  const families = [...new Set(fonts.map((f) => f.fontName.family))].sort();
+  return { families, total: families.length };
+});
+
 } // registerNodeHandlers

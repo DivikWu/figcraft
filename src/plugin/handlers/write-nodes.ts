@@ -7,15 +7,23 @@ import { simplifyNode } from '../adapters/node-simplifier.js';
 import { hexToFigmaRgb } from '../utils/color.js';
 import { autoBindDefault, autoBindTypography, type TypographyBindResult } from '../utils/design-context.js';
 import { ensureLoaded, getTextStyleId, getPaintStyleId } from '../utils/style-registry.js';
+import { STORAGE_KEYS } from '../constants.js';
 
-const MODE_STORAGE_KEY = 'figcraft_mode';
-const LIBRARY_STORAGE_KEY = 'figcraft_library';
+const MODE_STORAGE_KEY = STORAGE_KEYS.MODE;
+const LIBRARY_STORAGE_KEY = STORAGE_KEYS.LIBRARY;
+
+/**
+ * Track the furthest right edge reserved by in-flight auto-positioned nodes.
+ * This prevents concurrent create_frame / create_text calls from stacking at the same x.
+ * Reset whenever the page changes or all children are cleared.
+ */
+let _reservedRightEdge: number | null = null;
 
 /** Place node to the right of all existing page content when x/y not specified and no parent. */
 function autoPositionOnPage(node: SceneNode, params: Record<string, unknown>): void {
   if (params.x != null || params.y != null || params.parentId) return;
   const children = figma.currentPage.children;
-  if (children.length <= 1) return; // only the new node itself
+  if (children.length <= 1) { _reservedRightEdge = null; return; } // only the new node itself
   let maxRight = 0;
   for (const child of children) {
     if (child.id === node.id) continue;
@@ -23,7 +31,12 @@ function autoPositionOnPage(node: SceneNode, params: Record<string, unknown>): v
     const right = box ? box.x + box.width : child.x + child.width;
     if (right > maxRight) maxRight = right;
   }
+  // Account for other nodes being positioned concurrently in the same tick
+  if (_reservedRightEdge !== null && _reservedRightEdge > maxRight) {
+    maxRight = _reservedRightEdge;
+  }
   node.x = maxRight + 64;
+  _reservedRightEdge = node.x + node.width;
 }
 
 export function registerWriteNodeHandlers(): void {
@@ -422,6 +435,13 @@ registerHandler('create_document', async (params) => {
   }
 
   return { ok: true, created };
+});
+
+registerHandler('save_version_history', async (params) => {
+  const title = (params.title as string) ?? 'FigCraft checkpoint';
+  const description = (params.description as string) ?? '';
+  await figma.saveVersionHistoryAsync(title, description);
+  return { ok: true, title, description };
 });
 
 } // registerWriteNodeHandlers

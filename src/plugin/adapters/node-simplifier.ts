@@ -5,6 +5,7 @@
  */
 
 import type { CompressedNode } from '../../shared/types.js';
+import { figmaRgbaToHex } from '../utils/color.js';
 
 /** Maximum tree depth to prevent excessive payloads. */
 const MAX_DEPTH = 10;
@@ -142,7 +143,7 @@ function simplifyPaint(paint: Paint): unknown {
   };
   if (paint.type === 'SOLID') {
     const s = paint as SolidPaint;
-    base.color = rgbToHex(s.color);
+    base.color = figmaRgbaToHex(s.color);
   }
   return base;
 }
@@ -157,7 +158,7 @@ function simplifyEffect(effect: Effect): unknown {
   }
   if ('color' in effect) {
     const e = effect as DropShadowEffect;
-    base.color = rgbToHex(e.color);
+    base.color = figmaRgbaToHex(e.color);
     base.opacity = e.color.a;
   }
   if ('offset' in effect) {
@@ -183,14 +184,3 @@ function simplifyBoundVariables(bv: Record<string, unknown>): Record<string, unk
   return result;
 }
 
-function rgbToHex(color: RGB | RGBA): string {
-  const r = Math.round(color.r * 255);
-  const g = Math.round(color.g * 255);
-  const b = Math.round(color.b * 255);
-  const hex = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-  if ('a' in color && color.a !== 1) {
-    const a = Math.round(color.a * 255);
-    return hex + a.toString(16).padStart(2, '0');
-  }
-  return hex;
-}

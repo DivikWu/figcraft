@@ -20,6 +20,7 @@ import { registerTokenTools } from './tools/tokens.js';
 import { registerComponentTools } from './tools/components.js';
 import { registerStorageTools } from './tools/storage.js';
 import { registerLintTools } from './tools/lint.js';
+import { registerAnnotationTools } from './tools/annotations.js';
 import { registerModeTools } from './tools/mode.js';
 import { registerChannelTools } from './tools/channel.js';
 import { registerWriteVariableTools } from './tools/write-variables.js';
@@ -68,6 +69,7 @@ registerSelectionTools(server, bridge);
 
 // P3: lint tools
 registerLintTools(server, bridge);
+registerAnnotationTools(server, bridge);
 
 // P4: mode + channel + scan + prompts
 registerModeTools(server, bridge);

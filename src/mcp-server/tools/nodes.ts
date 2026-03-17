@@ -86,4 +86,20 @@ export function registerNodeTools(server: McpServer, bridge: Bridge): void {
       };
     },
   );
+
+  server.tool(
+    'list_fonts',
+    'List available font families in the Figma environment. ' +
+      'Pass family to get all available styles for that family. ' +
+      'Use before create_text to ensure the chosen font is available.',
+    {
+      family: z.string().optional().describe('Font family name to get available styles for'),
+    },
+    async ({ family }) => {
+      const result = await bridge.request('list_fonts', { family });
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+      };
+    },
+  );
 }

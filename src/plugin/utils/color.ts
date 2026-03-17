@@ -21,13 +21,13 @@ export function hexToFigmaRgb(hex: string): RGB {
   return { r, g, b };
 }
 
-/** Convert Figma RGBA to hex string. */
-export function figmaRgbaToHex(color: RGBA): string {
+/** Convert Figma RGB or RGBA to hex string. Alpha channel omitted when opaque. */
+export function figmaRgbaToHex(color: RGB | RGBA): string {
   const r = Math.round(color.r * 255).toString(16).padStart(2, '0');
   const g = Math.round(color.g * 255).toString(16).padStart(2, '0');
   const b = Math.round(color.b * 255).toString(16).padStart(2, '0');
   const hex = `#${r}${g}${b}`;
-  if (color.a !== 1) {
+  if ('a' in color && color.a !== 1) {
     const a = Math.round(color.a * 255).toString(16).padStart(2, '0');
     return hex + a;
   }

@@ -142,4 +142,88 @@ registerHandler('reset_instance_overrides', async (params) => {
   return { ok: true };
 });
 
+registerHandler('update_component', async (params) => {
+  const node = await figma.getNodeByIdAsync(params.nodeId as string);
+  if (!node || node.type !== 'COMPONENT') throw new Error(`Component not found: ${params.nodeId}`);
+  const comp = node as ComponentNode;
+  if (params.name != null) comp.name = params.name as string;
+  if (params.description != null) comp.description = params.description as string;
+  if (params.width != null || params.height != null) {
+    comp.resize(
+      (params.width as number) ?? comp.width,
+      (params.height as number) ?? comp.height,
+    );
+  }
+  return simplifyNode(comp);
+});
+
+registerHandler('delete_component', async (params) => {
+  const node = await figma.getNodeByIdAsync(params.nodeId as string);
+  if (!node || node.type !== 'COMPONENT') throw new Error(`Component not found: ${params.nodeId}`);
+  node.remove();
+  return { ok: true };
+});
+
+registerHandler('list_component_properties', async (params) => {
+  const node = await figma.getNodeByIdAsync(params.nodeId as string);
+  if (!node || (node.type !== 'COMPONENT' && node.type !== 'COMPONENT_SET'))
+    throw new Error(`Component not found: ${params.nodeId}`);
+  const comp = node as ComponentNode | ComponentSetNode;
+  return {
+    properties: Object.entries(comp.componentPropertyDefinitions).map(([key, def]) => ({
+      key,
+      type: def.type,
+      defaultValue: def.defaultValue,
+      variantOptions: 'variantOptions' in def ? (def as ComponentPropertyDefinitions[string] & { variantOptions?: string[] }).variantOptions : undefined,
+    })),
+  };
+});
+
+registerHandler('create_component_set', async (params) => {
+  const ids = params.componentIds as string[];
+  const nodes = await Promise.all(ids.map((id) => figma.getNodeByIdAsync(id)));
+  const components = nodes.filter((n): n is ComponentNode => n?.type === 'COMPONENT');
+  if (components.length === 0) throw new Error('No valid components found');
+  const set = figma.combineAsVariants(components, figma.currentPage);
+  if (params.name != null) set.name = params.name as string;
+  return simplifyNode(set);
+});
+
+registerHandler('get_instance_overrides', async (params) => {
+  const node = await figma.getNodeByIdAsync(params.nodeId as string);
+  if (!node || node.type !== 'INSTANCE') throw new Error(`Instance not found: ${params.nodeId}`);
+  const instance = node as InstanceNode;
+  const props = instance.componentProperties;
+  return {
+    nodeId: instance.id,
+    nodeName: instance.name,
+    properties: Object.entries(props).map(([key, val]) => ({
+      key,
+      type: val.type,
+      value: val.value,
+    })),
+  };
+});
+
+registerHandler('set_instance_overrides', async (params) => {
+  const source = await figma.getNodeByIdAsync(params.sourceId as string);
+  if (!source || source.type !== 'INSTANCE') throw new Error(`Source instance not found: ${params.sourceId}`);
+  const sourceProps = (source as InstanceNode).componentProperties;
+  const propValues = Object.fromEntries(Object.entries(sourceProps).map(([k, v]) => [k, v.value]));
+
+  const targetIds = params.targetIds as string[];
+  const results = await Promise.allSettled(
+    targetIds.map(async (id) => {
+      const target = await figma.getNodeByIdAsync(id);
+      if (!target || target.type !== 'INSTANCE') throw new Error(`Instance ${id} not found`);
+      (target as InstanceNode).setProperties(propValues as Record<string, string | boolean>);
+      return { nodeId: id, ok: true };
+    }),
+  );
+  return {
+    succeeded: results.filter((r) => r.status === 'fulfilled').length,
+    failed: results.filter((r) => r.status === 'rejected').length,
+  };
+});
+
 } // registerComponentHandlers

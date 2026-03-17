@@ -156,4 +156,18 @@ export function registerWriteNodeTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+
+  server.tool(
+    'save_version_history',
+    'Save a named version history snapshot of the current Figma file. ' +
+      'Use before making significant changes so you can restore if needed.',
+    {
+      title: z.string().describe('Snapshot title (e.g. "Before refactor")'),
+      description: z.string().optional().describe('Optional description of what was done'),
+    },
+    async (params) => {
+      const result = await bridge.request('save_version_history', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
 }

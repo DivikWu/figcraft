@@ -136,4 +136,84 @@ export function registerComponentTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+
+  server.tool(
+    'update_component',
+    'Update a component\'s name, description, or size.',
+    {
+      nodeId: z.string().describe('Component node ID'),
+      name: z.string().optional().describe('New component name'),
+      description: z.string().optional().describe('New component description'),
+      width: z.number().optional().describe('New width in px'),
+      height: z.number().optional().describe('New height in px'),
+    },
+    async (params) => {
+      const result = await bridge.request('update_component', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'delete_component',
+    'Delete a component node.',
+    {
+      nodeId: z.string().describe('Component node ID to delete'),
+    },
+    async ({ nodeId }) => {
+      const result = await bridge.request('delete_component', { nodeId });
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'list_component_properties',
+    'List all properties and variant options exposed by a component or component set. ' +
+      'Use this to discover available variant values before calling create_instance with properties.',
+    {
+      nodeId: z.string().describe('Component or ComponentSet node ID'),
+    },
+    async ({ nodeId }) => {
+      const result = await bridge.request('list_component_properties', { nodeId });
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'create_component_set',
+    'Combine multiple existing components into a variant set (ComponentSet).',
+    {
+      componentIds: z.array(z.string()).describe('Component node IDs to combine into a variant set'),
+      name: z.string().optional().describe('Name for the variant set'),
+    },
+    async (params) => {
+      const result = await bridge.request('create_component_set', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'get_instance_overrides',
+    'Get the current override properties of a component instance (values that differ from component defaults).',
+    {
+      nodeId: z.string().describe('Instance node ID'),
+    },
+    async ({ nodeId }) => {
+      const result = await bridge.request('get_instance_overrides', { nodeId });
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'set_instance_overrides',
+    'Copy override properties from a source instance to one or more target instances. ' +
+      'Use get_instance_overrides first to inspect the source, then propagate to targets.',
+    {
+      sourceId: z.string().describe('Source instance node ID to copy overrides from'),
+      targetIds: z.array(z.string()).describe('Target instance node IDs to apply overrides to'),
+    },
+    async (params) => {
+      const result = await bridge.request('set_instance_overrides', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
 }
