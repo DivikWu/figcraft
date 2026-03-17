@@ -3,6 +3,7 @@
  */
 
 import { registerHandler } from '../registry.js';
+import { figmaRgbaToHex } from '../utils/color.js';
 import {
   registerStyles,
   registerStylesIncremental,
@@ -107,11 +108,7 @@ function simplifyPaintStyle(s: PaintStyle): unknown {
     paints: s.paints.map((p) => {
       const base: Record<string, unknown> = { type: p.type, visible: p.visible, opacity: p.opacity };
       if (p.type === 'SOLID') {
-        const c = (p as SolidPaint).color;
-        const r = Math.round(c.r * 255);
-        const g = Math.round(c.g * 255);
-        const b = Math.round(c.b * 255);
-        base.color = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+        base.color = figmaRgbaToHex({ ...(p as SolidPaint).color, a: 1 });
       }
       return base;
     }),

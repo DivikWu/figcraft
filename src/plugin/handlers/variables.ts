@@ -3,6 +3,7 @@
  */
 
 import { registerHandler } from '../registry.js';
+import { figmaRgbaToHex } from '../utils/color.js';
 
 export function registerVariableHandlers(): void {
 
@@ -133,14 +134,7 @@ function simplifyValue(value: unknown): unknown {
   // RGB/RGBA color
   if (typeof value === 'object' && 'r' in (value as Record<string, unknown>)) {
     const c = value as RGBA;
-    const r = Math.round(c.r * 255);
-    const g = Math.round(c.g * 255);
-    const b = Math.round(c.b * 255);
-    let hex = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-    if ('a' in c && c.a !== 1) {
-      hex += Math.round(c.a * 255).toString(16).padStart(2, '0');
-    }
-    return hex;
+    return figmaRgbaToHex(c);
   }
 
   return value;

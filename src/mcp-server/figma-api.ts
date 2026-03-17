@@ -54,15 +54,34 @@ export interface FigmaStyleDetail extends FigmaStyleMeta {
 
 // ─── Helpers ───
 
-async function figmaFetch(path: string, token: string): Promise<unknown> {
+async function figmaFetch(path: string, token: string, attempt = 0): Promise<unknown> {
   // PAT tokens start with "figd_", use X-Figma-Token header; OAuth uses Bearer
   const headers: Record<string, string> = token.startsWith('figd_')
     ? { 'X-Figma-Token': token }
     : { Authorization: `Bearer ${token}` };
-  const res = await fetch(`${BASE_URL}${path}`, { headers });
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30_000);
+
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, { headers, signal: controller.signal });
+  } catch (err) {
+    if ((err as Error).name === 'AbortError') {
+      throw new Error(`Figma API request timed out after 30s: ${path}`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!res.ok) {
     const body = await res.text().catch(() => '');
+    if (res.status === 429 && attempt < 3) {
+      const retryAfter = Math.max(parseInt(res.headers.get('retry-after') ?? '5', 10), 1);
+      await new Promise((r) => setTimeout(r, retryAfter * 1000));
+      return figmaFetch(path, token, attempt + 1);
+    }
     if (res.status === 429) {
       const retryAfter = res.headers.get('retry-after');
       throw new Error(

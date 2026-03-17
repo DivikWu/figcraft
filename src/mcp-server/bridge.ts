@@ -34,6 +34,7 @@ export class Bridge {
   private connected = false;
   private apiToken: string | null = null;
   private libraryFileKeys = new Map<string, string>();
+  private reconnectAttempts = 0;
 
   constructor(
     private relayUrl: string,
@@ -49,6 +50,7 @@ export class Bridge {
 
       this.ws.on('open', () => {
         this.connected = true;
+        this.reconnectAttempts = 0;
         // Join channel as MCP role
         this.ws!.send(JSON.stringify({ type: 'join', channel: this.channel, role: 'mcp' }));
         this.startHeartbeat();
@@ -243,15 +245,20 @@ export class Bridge {
 
   private scheduleReconnect(): void {
     if (this.reconnectTimer) return;
+    // Exponential backoff: 1s, 2s, 4s, 8s … capped at 60s, with ±20% jitter
+    const base = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 60_000);
+    const jitter = base * 0.2 * (Math.random() * 2 - 1);
+    const delay = Math.round(base + jitter);
+    this.reconnectAttempts++;
     this.reconnectTimer = setTimeout(async () => {
       this.reconnectTimer = null;
-      console.log('[FigCraft bridge] attempting reconnect...');
+      console.log(`[FigCraft bridge] reconnect attempt ${this.reconnectAttempts} (delay was ${delay}ms)...`);
       try {
         await this.connect();
         console.log('[FigCraft bridge] reconnected');
       } catch {
         this.scheduleReconnect();
       }
-    }, 3000);
+    }, delay);
   }
 }

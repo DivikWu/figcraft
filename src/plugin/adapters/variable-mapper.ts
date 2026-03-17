@@ -85,7 +85,7 @@ export function inferScopes(path: string, dtcgType: string): VariableScope[] {
       return ['GAP'];
     }
     if (lower.includes('padding')) {
-      return ['ALL_FILLS']; // padding not directly a scope, use generic
+      return ['ALL_SCOPES']; // no padding-specific scope; ALL_SCOPES allows binding to padding fields
     }
     if (lower.includes('size') || lower.includes('width') || lower.includes('height')) {
       return ['WIDTH_HEIGHT'];

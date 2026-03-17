@@ -315,7 +315,7 @@
       color: var(--text-primary);
       transition: border-color 0.15s, background 0.15s;
     }
-    .input:focus { border-color: var(--accent); background: var(--bg); }
+    .input:focus { border-color: #111; background: var(--bg); }
     .input.error { border-color: var(--error); }
 
     .input-row {
@@ -355,7 +355,7 @@
       color: var(--text-primary);
       transition: border-color 0.15s;
     }
-    .select:focus { border-color: var(--accent); }
+    .select:focus { border-color: #111; }
 
     .hint { font-size: 10px; color: var(--text-tertiary); margin-top: 2px; }
     .hint.valid { color: var(--success); }
@@ -439,11 +439,11 @@
     }
     .library-popup-item:hover { background: var(--surface); color: var(--text-primary); }
     .library-popup-item.active {
-      background: var(--accent);
-      color: #fff;
+      background: var(--surface);
+      color: var(--text-primary);
       font-weight: 600;
     }
-    .library-popup-item.active:hover { background: var(--accent-hover); }
+    .library-popup-item.active:hover { background: var(--border); }
     .library-popup-item .check {
       width: 14px;
       flex-shrink: 0;
@@ -522,10 +522,10 @@
       width: 20px;
       height: 20px;
       border: none;
-      border-radius: 4px;
+      border-radius: 50%;
       background: transparent;
       color: var(--text-tertiary);
-      font-size: 12px;
+      font-size: 16px;
       cursor: pointer;
       align-items: center;
       justify-content: center;
@@ -580,7 +580,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      top: 2px;
+      top: 50%;
+      transform: translateY(-50%);
     }
     .code-block {
       position: relative;
@@ -625,7 +626,7 @@
 <body>
   <!-- ─── Header ─── -->
   <div class="header">
-    <h1>Channel</h1>
+    <h1 data-i18n="header.channel">Channel</h1>
   </div>
   <div class="channel-bar">
     <input id="channel-input" class="input" type="text" placeholder="figcraft" title="Channel ID">
@@ -634,9 +635,9 @@
 
   <!-- ─── Tab Bar ─── -->
   <div class="tab-bar">
-    <button class="tab-btn active" data-tab="activity">Activity</button>
-    <button class="tab-btn" data-tab="spec">Spec</button>
-    <button class="tab-btn" data-tab="guide">Guide</button>
+    <button class="tab-btn active" data-tab="activity" data-i18n="tab.activity">Activity</button>
+    <button class="tab-btn" data-tab="spec" data-i18n="tab.spec">Spec Setup</button>
+    <button class="tab-btn" data-tab="guide" data-i18n="tab.settings">Settings</button>
   </div>
 
   <!-- ─── Activity Tab ─── -->
@@ -648,7 +649,7 @@
     <div class="activity-feed" id="log">
       <div class="empty-state" id="empty-state">
         <div class="empty-dot"></div>
-        <span>Waiting for MCP commands...</span>
+        <span data-i18n="activity.empty">Waiting for MCP commands...</span>
       </div>
     </div>
   </div>
@@ -658,17 +659,17 @@
     <div class="settings-content">
       <!-- Mode -->
       <div class="setting-group">
-        <div class="setting-label">Mode</div>
+        <div class="setting-label" data-i18n="spec.mode">Mode</div>
         <div class="mode-toggle">
-          <button id="mode-library" class="active">Library</button>
-          <button id="mode-spec">Spec</button>
+          <button id="mode-library" class="active" data-i18n="spec.mode.library">Library</button>
+          <button id="mode-spec" data-i18n="spec.mode.spec">Spec</button>
         </div>
         <div class="mode-desc" id="mode-desc">Check if designs use shared library tokens</div>
       </div>
 
       <!-- Library (shown in library mode) -->
       <div class="setting-group" id="library-group">
-        <div class="setting-label">Library</div>
+        <div class="setting-label" data-i18n="spec.library">Library</div>
         <div style="position:relative">
           <button id="library-trigger" class="library-trigger">
             <span class="label-text placeholder" id="library-trigger-label">None</span>
@@ -681,31 +682,42 @@
 
       <!-- API Token -->
       <div class="setting-group">
-        <div class="setting-label">API Token</div>
+        <div class="setting-label" data-i18n="spec.apitoken">API Token</div>
         <div class="input-row">
           <input id="token-input" class="input" type="password" placeholder="figd_xxx">
-          <button id="token-save-btn" class="btn">Save</button>
+          <button id="token-save-btn" class="btn" data-i18n="spec.save">Save</button>
         </div>
-        <div class="hint">Figma Settings > Personal access tokens</div>
+        <div class="hint" data-i18n="spec.token.hint">Figma Settings > Personal access tokens</div>
       </div>
 
     </div>
   </div>
 
-  <!-- ─── Help Tab ─── -->
+  <!-- ─── Settings Tab ─── -->
   <div class="tab-pane" data-tab-content="guide">
     <div class="help-content">
+      <!-- Language -->
+      <div class="setting-group">
+        <div class="setting-label" data-i18n="settings.language">Language</div>
+        <div class="mode-toggle">
+          <button id="lang-en" class="active">EN</button>
+          <button id="lang-zh">中文</button>
+        </div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid var(--border);margin:4px 0">
+
       <div>
-        <div class="help-section-title">Quick Start</div>
+        <div class="help-section-title" data-i18n="settings.quickstart">QUICK START</div>
         <ol class="help-steps">
-          <li>Add FigCraft to your IDE's MCP config</li>
-          <li>Open this plugin in Figma</li>
-          <li>Both sides auto-connect via the relay</li>
+          <li data-i18n="settings.step1">Add FigCraft to your IDE's MCP config</li>
+          <li data-i18n="settings.step2">Open this plugin in Figma</li>
+          <li data-i18n="settings.step3">Both sides auto-connect via the relay</li>
         </ol>
       </div>
 
       <div>
-        <div class="help-section-title">MCP Config</div>
+        <div class="help-section-title" data-i18n="settings.mcpconfig">MCP CONFIG</div>
         <div style="position:relative">
           <div class="code-block" id="mcp-config">{
   "mcpServers": {
@@ -715,18 +727,18 @@
     }
   }
 }</div>
-          <button class="copy-btn" id="copy-config">Copy</button>
+          <button class="copy-btn" id="copy-config" data-i18n="settings.copy">Copy</button>
         </div>
       </div>
 
       <div>
-        <div class="help-section-title">Connection Info</div>
+        <div class="help-section-title" data-i18n="settings.conninfo">CONNECTION INFO</div>
         <div class="conn-info">
-          <span class="conn-info-label">Status</span>
+          <span class="conn-info-label" data-i18n="settings.status">Status</span>
           <span class="conn-info-value" id="info-status">Disconnected</span>
-          <span class="conn-info-label">Port</span>
+          <span class="conn-info-label" data-i18n="settings.port">Port</span>
           <span class="conn-info-value" id="info-port">--</span>
-          <span class="conn-info-label">Channel</span>
+          <span class="conn-info-label" data-i18n="settings.channel">Channel</span>
           <span class="conn-info-value" id="info-channel">figcraft</span>
         </div>
       </div>
@@ -746,6 +758,63 @@
     var savedApiToken = '';
     var libraryEntries = {};  // { fileKey: { name, url } } — synced from plugin sandbox
     var logCount = 0;
+
+    // ─── i18n ───
+    var currentLang = 'en';
+    var TRANSLATIONS = {
+      en: {
+        'tab.activity': 'Activity', 'tab.spec': 'Spec Setup', 'tab.settings': 'Settings',
+        'header.channel': 'Channel',
+        'btn.connect': 'Connect', 'btn.connected': 'Connected', 'btn.connecting': 'Connecting...',
+        'activity.empty': 'Waiting for MCP commands...',
+        'spec.mode': 'Mode', 'spec.mode.library': 'Library', 'spec.mode.spec': 'Spec',
+        'spec.library': 'Library', 'spec.apitoken': 'API Token', 'spec.save': 'Save',
+        'spec.token.hint': 'Figma Settings > Personal access tokens',
+        'spec.library.placeholder': 'Paste library URL...',
+        'settings.language': 'Language',
+        'settings.quickstart': 'QUICK START',
+        'settings.step1': "Add FigCraft to your IDE's MCP config",
+        'settings.step2': 'Open this plugin in Figma',
+        'settings.step3': 'Both sides auto-connect via the relay',
+        'settings.mcpconfig': 'MCP CONFIG', 'settings.copy': 'Copy',
+        'settings.conninfo': 'CONNECTION INFO',
+        'settings.status': 'Status', 'settings.port': 'Port', 'settings.channel': 'Channel',
+      },
+      zh: {
+        'tab.activity': '日志', 'tab.spec': '规范配置', 'tab.settings': '设置',
+        'header.channel': '频道',
+        'btn.connect': '连接', 'btn.connected': '已连接', 'btn.connecting': '连接中...',
+        'activity.empty': '等待 MCP 命令...',
+        'spec.mode': '模式', 'spec.mode.library': '共享库', 'spec.mode.spec': '规范文件',
+        'spec.library': '组件库', 'spec.apitoken': 'API Token', 'spec.save': '保存',
+        'spec.token.hint': 'Figma 设置 > 个人访问令牌',
+        'spec.library.placeholder': '粘贴组件库 URL...',
+        'settings.language': '语言',
+        'settings.quickstart': '快速开始',
+        'settings.step1': '在 IDE 的 MCP 配置中添加 FigCraft',
+        'settings.step2': '在 Figma 中打开此插件',
+        'settings.step3': '两端通过中继自动连接',
+        'settings.mcpconfig': 'MCP 配置', 'settings.copy': '复制',
+        'settings.conninfo': '连接信息',
+        'settings.status': '状态', 'settings.port': '端口', 'settings.channel': '频道',
+      }
+    };
+    function t(key) { return (TRANSLATIONS[currentLang] || TRANSLATIONS.en)[key] || key; }
+    function applyLocale() {
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        el.textContent = t(el.dataset.i18n);
+      });
+    }
+    function setLocale(lang) {
+      currentLang = lang;
+      document.getElementById('lang-en').classList.toggle('active', lang === 'en');
+      document.getElementById('lang-zh').classList.toggle('active', lang === 'zh');
+      applyLocale();
+      // Re-apply dynamic texts that depend on current state
+      setStatus(connected ? 'connected' : 'disconnected', '');
+      updateModeUI(currentMode);
+      parent.postMessage({ pluginMessage: { type: 'save-lang', lang: lang } }, '*');
+    }
 
     // ─── Elements ───
     var channelInput = document.getElementById('channel-input');
@@ -777,6 +846,10 @@
       });
     });
 
+    // ─── Language ───
+    document.getElementById('lang-en').addEventListener('click', function() { setLocale('en'); });
+    document.getElementById('lang-zh').addEventListener('click', function() { setLocale('zh'); });
+
     // ─── Connect ───
     connectBtn.addEventListener('click', function() {
       if (connected) { disconnect(); } else { connect(); }
@@ -792,8 +865,8 @@
       // Try modern Clipboard API, fallback to execCommand
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(function() {
-          btn.textContent = 'Copied!';
-          setTimeout(function() { btn.textContent = 'Copy'; }, 1200);
+          btn.textContent = currentLang === 'zh' ? '已复制!' : 'Copied!';
+          setTimeout(function() { btn.textContent = t('settings.copy'); }, 1200);
         }, function() { fallbackCopy(text, btn); });
       } else {
         fallbackCopy(text, btn);
@@ -807,8 +880,8 @@
       ta.select();
       document.execCommand('copy');
       document.body.removeChild(ta);
-      btn.textContent = 'Copied!';
-      setTimeout(function() { btn.textContent = 'Copy'; }, 1200);
+      btn.textContent = currentLang === 'zh' ? '已复制!' : 'Copied!';
+      setTimeout(function() { btn.textContent = t('settings.copy'); }, 1200);
     }
 
     // ─── Logging ───
@@ -863,7 +936,7 @@
       var es = document.createElement('div');
       es.className = 'empty-state';
       es.id = 'empty-state';
-      es.innerHTML = '<div class="empty-dot"></div><span>Waiting for MCP commands...</span>';
+      es.innerHTML = '<div class="empty-dot"></div><span data-i18n="activity.empty">' + t('activity.empty') + '</span>';
       logEl.appendChild(es);
       emptyState = es;
     });
@@ -873,19 +946,19 @@
       connectBtn.className = 'btn status-btn ' + state;
 
       if (state === 'connected') {
-        statusTextEl.textContent = 'Connected';
+        statusTextEl.textContent = t('btn.connected');
         connectBtn.disabled = false;
       } else if (state === 'connecting') {
-        statusTextEl.textContent = 'Connecting...';
+        statusTextEl.textContent = t('btn.connecting');
         connectBtn.disabled = true;
       } else {
-        statusTextEl.textContent = 'Connect';
+        statusTextEl.textContent = t('btn.connect');
         connectBtn.disabled = false;
       }
 
-      // Update help tab connection info
+      // Update settings tab connection info
       document.getElementById('info-status').textContent =
-        state === 'connected' ? 'Connected' : state === 'connecting' ? 'Connecting...' : 'Disconnected';
+        state === 'connected' ? t('btn.connected') : state === 'connecting' ? t('btn.connecting') : 'Disconnected';
       document.getElementById('info-channel').textContent = channelId;
     }
 
@@ -993,6 +1066,8 @@
       var msg = event.data.pluginMessage;
       if (!msg) return;
 
+      if (msg.type === 'restore-lang') { setLocale(msg.lang || 'en'); return; }
+
       if (msg.type === 'restore-channel') {
         channelId = msg.channelId || DEFAULT_CHANNEL;
         channelInput.value = channelId;
@@ -1053,12 +1128,16 @@
       library: 'Check if designs use shared library tokens',
       spec: 'Validate design values against DTCG token specs'
     };
+    var MODE_DESCS_ZH = {
+      library: '检查设计是否使用了共享库 Token',
+      spec: '对照 DTCG Token 规范校验设计值'
+    };
 
     function updateModeUI(mode) {
       currentMode = mode;
       modeLibraryBtn.className = mode === 'library' ? 'active' : '';
       modeSpecBtn.className = mode === 'spec' ? 'active' : '';
-      modeDescEl.textContent = MODE_DESCS[mode] || '';
+      modeDescEl.textContent = (currentLang === 'zh' ? MODE_DESCS_ZH : MODE_DESCS)[mode] || '';
       libraryGroup.style.display = mode === 'library' ? '' : 'none';
       if (mode === 'library') {
         parent.postMessage({ pluginMessage: { type: 'get-libraries' } }, '*');
@@ -1149,7 +1228,7 @@
       var urlInput = document.createElement('input');
       urlInput.className = 'input';
       urlInput.type = 'text';
-      urlInput.placeholder = 'Paste library URL...';
+      urlInput.placeholder = t('spec.library.placeholder');
       addRow.appendChild(urlInput);
       var addBtn = document.createElement('button');
       addBtn.className = 'library-popup-add-btn';
@@ -1312,6 +1391,7 @@
     new MutationObserver(detectTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'class'] });
 
     // ─── Init ───
+    parent.postMessage({ pluginMessage: { type: 'get-lang' } }, '*');
     parent.postMessage({ pluginMessage: { type: 'get-channel' } }, '*');
     parent.postMessage({ pluginMessage: { type: 'get-mode' } }, '*');
     parent.postMessage({ pluginMessage: { type: 'get-library' } }, '*');

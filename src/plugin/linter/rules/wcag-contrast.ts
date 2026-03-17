@@ -21,25 +21,31 @@ export const wcagContrastRule: LintRule = {
     const fgRgb = hexToRgbNorm(fgFill.color);
     if (!fgRgb) return violations;
 
-    // Assume white background if we can't determine it
-    const bgRgb: [number, number, number] = [1, 1, 1];
-
-    const ratio = contrastRatio(fgRgb, bgRgb);
     const isLargeText = (node.fontSize ?? 16) >= 18 || ((node.fontSize ?? 16) >= 14 && node.fontName?.style?.includes('Bold'));
-
     const threshold = isLargeText ? 3 : 4.5;
 
-    if (ratio < threshold) {
-      violations.push({
-        nodeId: node.id,
-        nodeName: node.name,
-        rule: 'wcag-contrast',
-        currentValue: `${ratio.toFixed(2)}:1`,
-        expectedValue: `>= ${threshold}:1`,
-        suggestion: `Text contrast ratio ${ratio.toFixed(2)}:1 is below WCAG AA threshold of ${threshold}:1`,
-        autoFixable: false,
-      });
+    // Check against both white and black backgrounds.
+    // Only report a violation if the color fails BOTH extremes — this avoids false
+    // positives for text that sits on a dark background (which we cannot observe here
+    // since AbstractNode carries no parent-fill context).
+    const ratioOnWhite = contrastRatio(fgRgb, [1, 1, 1]);
+    const ratioOnBlack = contrastRatio(fgRgb, [0, 0, 0]);
+
+    if (ratioOnWhite >= threshold || ratioOnBlack >= threshold) {
+      // Color is accessible on at least one likely background — skip
+      return violations;
     }
+
+    const worstRatio = Math.max(ratioOnWhite, ratioOnBlack);
+    violations.push({
+      nodeId: node.id,
+      nodeName: node.name,
+      rule: 'wcag-contrast',
+      currentValue: `${worstRatio.toFixed(2)}:1`,
+      expectedValue: `>= ${threshold}:1`,
+      suggestion: `Text color has insufficient contrast (${worstRatio.toFixed(2)}:1 best-case) against both white and black backgrounds`,
+      autoFixable: false,
+    });
 
     return violations;
   },
