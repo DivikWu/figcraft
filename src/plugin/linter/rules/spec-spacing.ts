@@ -7,6 +7,8 @@ import type { AbstractNode, LintContext, LintViolation, LintRule } from '../type
 export const specSpacingRule: LintRule = {
   name: 'spec-spacing',
   description: 'Detect spacing values (padding, gap) not matching any spacing token.',
+  category: 'token',
+  severity: 'error',
 
   check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     if (ctx.spacingTokens.size === 0) return [];
@@ -33,6 +35,7 @@ export const specSpacingRule: LintRule = {
           nodeId: node.id,
           nodeName: node.name,
           rule: 'spec-spacing',
+          severity: 'error',
           currentValue: `${key}: ${value}`,
           expectedValue: `${match.tokenName}: ${match.tokenValue}`,
           suggestion: `Use spacing token "${match.tokenName}" (${match.tokenValue}) instead of ${value}`,

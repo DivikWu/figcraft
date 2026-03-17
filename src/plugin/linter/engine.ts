@@ -2,25 +2,66 @@
  * Lint engine — runs rules against abstract nodes, collects violations.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule } from './types.js';
+import type { AbstractNode, LintContext, LintViolation, LintRule, LintCategory as LintRuleCategory } from './types.js';
 import { specColorRule } from './rules/spec-color.js';
 import { specTypographyRule } from './rules/spec-typography.js';
 import { specSpacingRule } from './rules/spec-spacing.js';
 import { specBorderRadiusRule } from './rules/spec-border-radius.js';
 import { wcagContrastRule } from './rules/wcag-contrast.js';
 import { wcagTargetSizeRule } from './rules/wcag-target-size.js';
+import { defaultNameRule } from './rules/default-name.js';
+import { emptyContainerRule } from './rules/empty-container.js';
+import { noTextStyleRule } from './rules/no-text-style.js';
+import { staleTextNameRule } from './rules/stale-text-name.js';
+import { wcagContrastEnhancedRule } from './rules/wcag-contrast-enhanced.js';
+import { wcagTextSizeRule } from './rules/wcag-text-size.js';
+import { wcagLineHeightRule } from './rules/wcag-line-height.js';
+import { wcagNonTextContrastRule } from './rules/wcag-non-text-contrast.js';
+import { noAutolayoutRule } from './rules/no-autolayout.js';
+import { fixedInAutolayoutRule } from './rules/fixed-in-autolayout.js';
+import { overlappingChildrenRule } from './rules/overlapping-children.js';
+import { hardcodedTokenRule } from './rules/hardcoded-token.js';
+import { componentBindingsRule } from './rules/component-bindings.js';
+import { noTextPropertyRule } from './rules/no-text-property.js';
+import { maxNestingDepthRule } from './rules/max-nesting-depth.js';
+import { consistentIconSizeRule } from './rules/consistent-icon-size.js';
+import { missingResponsiveRule } from './rules/missing-responsive.js';
 
 const ALL_RULES: LintRule[] = [
+  // Token compliance
   specColorRule,
   specTypographyRule,
   specSpacingRule,
   specBorderRadiusRule,
+  hardcodedTokenRule,
+  noTextStyleRule,
+  // WCAG accessibility
   wcagContrastRule,
+  wcagContrastEnhancedRule,
   wcagTargetSizeRule,
+  wcagTextSizeRule,
+  wcagLineHeightRule,
+  wcagNonTextContrastRule,
+  // Layout structure
+  noAutolayoutRule,
+  fixedInAutolayoutRule,
+  emptyContainerRule,
+  overlappingChildrenRule,
+  // Naming
+  defaultNameRule,
+  staleTextNameRule,
+  // Component
+  componentBindingsRule,
+  noTextPropertyRule,
+  consistentIconSizeRule,
+  // Layout (additional)
+  maxNestingDepthRule,
+  missingResponsiveRule,
 ];
 
 export interface LintOptions {
   rules?: string[];
+  categories?: LintRuleCategory[];
   offset?: number;
   limit?: number;
 }
@@ -42,9 +83,13 @@ export function runLint(
   ctx: LintContext,
   options: LintOptions = {},
 ): LintReport {
-  const activeRules = options.rules
-    ? ALL_RULES.filter((r) => options.rules!.includes(r.name))
-    : ALL_RULES;
+  let activeRules = ALL_RULES;
+  if (options.categories) {
+    activeRules = activeRules.filter((r) => options.categories!.includes(r.category));
+  }
+  if (options.rules) {
+    activeRules = activeRules.filter((r) => options.rules!.includes(r.name));
+  }
 
   const allViolations: LintViolation[] = [];
 
@@ -134,6 +179,6 @@ export function runLint(
 }
 
 /** Get all available rule names. */
-export function getAvailableRules(): Array<{ name: string; description: string }> {
-  return ALL_RULES.map((r) => ({ name: r.name, description: r.description }));
+export function getAvailableRules(): Array<{ name: string; description: string; category: string; severity: string }> {
+  return ALL_RULES.map((r) => ({ name: r.name, description: r.description, category: r.category, severity: r.severity }));
 }

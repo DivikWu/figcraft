@@ -78,6 +78,14 @@ export function simplifyNode(node: SceneNode, depth = 0): CompressedNode {
     }
   }
 
+  // Layout positioning (for children of auto-layout frames)
+  if ('layoutPositioning' in node) {
+    const positioned = node as SceneNode & { layoutPositioning: string };
+    if (positioned.layoutPositioning === 'ABSOLUTE') {
+      base.layoutPositioning = 'ABSOLUTE';
+    }
+  }
+
   // Text
   if (node.type === 'TEXT') {
     const text = node as TextNode;
@@ -87,6 +95,12 @@ export function simplifyNode(node: SceneNode, depth = 0): CompressedNode {
     }
     if (text.fontName !== figma.mixed) {
       base.fontName = text.fontName;
+    }
+    if (text.lineHeight !== figma.mixed) {
+      base.lineHeight = text.lineHeight;
+    }
+    if (text.letterSpacing !== figma.mixed) {
+      base.letterSpacing = text.letterSpacing;
     }
   }
 
@@ -110,6 +124,31 @@ export function simplifyNode(node: SceneNode, depth = 0): CompressedNode {
   if ('effectStyleId' in node) {
     const eid = (node as BlendMixin).effectStyleId;
     if (typeof eid === 'string' && eid) base.effectStyleId = eid;
+  }
+
+  // Component property definitions (COMPONENT / COMPONENT_SET nodes)
+  if (node.type === 'COMPONENT' || node.type === 'COMPONENT_SET') {
+    const comp = node as ComponentNode | ComponentSetNode;
+    if (comp.componentPropertyDefinitions && Object.keys(comp.componentPropertyDefinitions).length > 0) {
+      const defs: Record<string, { type: string; defaultValue?: unknown; variantOptions?: string[] }> = {};
+      for (const [key, def] of Object.entries(comp.componentPropertyDefinitions)) {
+        const entry: { type: string; defaultValue?: unknown; variantOptions?: string[] } = { type: def.type };
+        if (def.defaultValue !== undefined) entry.defaultValue = def.defaultValue;
+        if (def.type === 'VARIANT' && 'variantOptions' in def) {
+          entry.variantOptions = (def as ComponentPropertyDefinitions[string] & { variantOptions?: string[] }).variantOptions;
+        }
+        defs[key] = entry;
+      }
+      base.componentPropertyDefinitions = defs;
+    }
+  }
+
+  // Component property references (instances and children that reference component props)
+  if ('componentPropertyReferences' in node) {
+    const refs = (node as SceneNode & { componentPropertyReferences: Record<string, string> | null }).componentPropertyReferences;
+    if (refs && Object.keys(refs).length > 0) {
+      base.componentPropertyReferences = { ...refs };
+    }
   }
 
   // Children (respect depth limit)

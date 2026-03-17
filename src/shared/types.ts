@@ -111,6 +111,7 @@ export interface CompressedNode {
   opacity?: number;
   // Layout
   layoutMode?: 'HORIZONTAL' | 'VERTICAL' | 'NONE';
+  layoutPositioning?: 'ABSOLUTE';
   itemSpacing?: number;
   paddingLeft?: number;
   paddingRight?: number;
@@ -120,11 +121,16 @@ export interface CompressedNode {
   characters?: string;
   fontSize?: number;
   fontName?: unknown;
+  lineHeight?: unknown;
+  letterSpacing?: unknown;
   // Variable/Style bindings
   boundVariables?: Record<string, unknown>;
   fillStyleId?: string;
   textStyleId?: string;
   effectStyleId?: string;
+  // Component properties
+  componentPropertyDefinitions?: Record<string, { type: string; defaultValue?: unknown; variantOptions?: string[] }>;
+  componentPropertyReferences?: Record<string, string>;
 }
 
 // ─── Operation Mode ───

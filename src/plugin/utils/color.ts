@@ -55,3 +55,19 @@ export function contrastRatio(fg: RGB, bg: RGB): number {
 export function colorsEqual(a: string, b: string): boolean {
   return a.toLowerCase().replace('#', '') === b.toLowerCase().replace('#', '');
 }
+
+/** Calculate contrast ratio between two hex colors. Returns ratio like 4.5. */
+export function hexContrastRatio(fgHex: string, bgHex: string): number {
+  return contrastRatio(hexToFigmaRgb(fgHex), hexToFigmaRgb(bgHex));
+}
+
+/** Parse hex to normalized [r, g, b] tuple (0–1 range). Returns null for invalid hex. */
+export function hexToRgbTuple(hex: string): [number, number, number] | null {
+  const clean = hex.replace('#', '');
+  if (clean.length < 6) return null;
+  return [
+    parseInt(clean.slice(0, 2), 16) / 255,
+    parseInt(clean.slice(2, 4), 16) / 255,
+    parseInt(clean.slice(4, 6), 16) / 255,
+  ];
+}

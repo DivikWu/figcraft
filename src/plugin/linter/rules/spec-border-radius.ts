@@ -7,6 +7,8 @@ import type { AbstractNode, LintContext, LintViolation, LintRule } from '../type
 export const specBorderRadiusRule: LintRule = {
   name: 'spec-border-radius',
   description: 'Detect corner radius values not matching any radius token.',
+  category: 'token',
+  severity: 'error',
 
   check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     if (ctx.radiusTokens.size === 0) return [];
@@ -35,6 +37,7 @@ export const specBorderRadiusRule: LintRule = {
             nodeId: node.id,
             nodeName: node.name,
             rule: 'spec-border-radius',
+            severity: 'error',
             currentValue: radius,
             expectedValue: `${closest.tokenName}: ${closest.tokenValue}`,
             suggestion: `Use radius token "${closest.tokenName}" (${closest.tokenValue}) instead of ${radius}`,

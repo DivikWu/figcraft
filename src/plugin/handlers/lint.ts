@@ -22,6 +22,7 @@ export function registerLintHandlers(): void {
 registerHandler('lint_check', async (params) => {
   const nodeIds = params.nodeIds as string[] | undefined;
   const rules = params.rules as string[] | undefined;
+  const categories = params.categories as string[] | undefined;
   const offset = params.offset as number | undefined;
   const limit = params.limit as number | undefined;
   const annotate = params.annotate as boolean | undefined;
@@ -73,7 +74,7 @@ registerHandler('lint_check', async (params) => {
   const abstractNodes = targetNodes.map((n) => compressedToAbstract(simplifyNode(n)));
 
   // Run lint
-  const report = runLint(abstractNodes, ctx, { rules, offset, limit });
+  const report = runLint(abstractNodes, ctx, { rules, categories, offset, limit });
 
   // Annotate if requested
   if (annotate) {
@@ -151,6 +152,14 @@ registerHandler('lint_fix', async (params) => {
           }
           break;
         }
+        case 'wcag-text-size': {
+          const fontSize = v.fixData.fontSize as number;
+          if ('fontSize' in node) {
+            (node as TextNode).fontSize = fontSize;
+            fixed++;
+          }
+          break;
+        }
         default:
           failed++;
           errors.push({ nodeId: v.nodeId, error: `No fix for rule ${v.rule}` });
@@ -213,18 +222,27 @@ function compressedToAbstract(node: CompressedNode): AbstractNode {
     cornerRadius: node.cornerRadius,
     fontSize: node.fontSize,
     fontName: node.fontName as AbstractNode['fontName'],
+    lineHeight: node.lineHeight,
+    letterSpacing: node.letterSpacing,
     opacity: node.opacity,
     width: node.width,
     height: node.height,
+    layoutMode: node.layoutMode,
+    layoutPositioning: node.layoutPositioning,
     itemSpacing: node.itemSpacing,
     paddingLeft: node.paddingLeft,
     paddingRight: node.paddingRight,
     paddingTop: node.paddingTop,
     paddingBottom: node.paddingBottom,
+    x: node.x,
+    y: node.y,
+    characters: node.characters,
     boundVariables: node.boundVariables,
     fillStyleId: node.fillStyleId,
     textStyleId: node.textStyleId,
     effectStyleId: node.effectStyleId,
+    componentPropertyDefinitions: node.componentPropertyDefinitions,
+    componentPropertyReferences: node.componentPropertyReferences,
     children: node.children?.map(compressedToAbstract),
   };
 }

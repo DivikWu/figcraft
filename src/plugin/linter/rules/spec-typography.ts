@@ -7,6 +7,8 @@ import type { AbstractNode, LintContext, LintViolation, LintRule } from '../type
 export const specTypographyRule: LintRule = {
   name: 'spec-typography',
   description: 'Detect text nodes with hardcoded font properties that should use a typography token.',
+  category: 'token',
+  severity: 'error',
 
   check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     if (node.type !== 'TEXT') return [];
@@ -21,6 +23,7 @@ export const specTypographyRule: LintRule = {
           nodeId: node.id,
           nodeName: node.name,
           rule: 'spec-typography',
+          severity: 'error',
           currentValue: {
             fontSize: node.fontSize,
             fontFamily: node.fontName?.family,

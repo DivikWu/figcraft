@@ -19,16 +19,26 @@ export interface AbstractNode {
   width?: number;
   height?: number;
   // Layout
+  layoutMode?: string;
+  layoutPositioning?: string;
   itemSpacing?: number;
   paddingLeft?: number;
   paddingRight?: number;
   paddingTop?: number;
   paddingBottom?: number;
+  // Position
+  x?: number;
+  y?: number;
+  // Text content
+  characters?: string;
   // Bindings
   boundVariables?: Record<string, unknown>;
   fillStyleId?: string;
   textStyleId?: string;
   effectStyleId?: string;
+  // Component
+  componentPropertyDefinitions?: Record<string, { type: string; defaultValue?: unknown; variantOptions?: string[] }>;
+  componentPropertyReferences?: Record<string, string>;
   // Children
   children?: AbstractNode[];
 }
@@ -50,10 +60,14 @@ export interface LintContext {
   selectedLibrary?: string | null;
 }
 
+export type LintSeverity = 'error' | 'warning' | 'info';
+export type LintCategory = 'token' | 'layout' | 'naming' | 'wcag' | 'component';
+
 export interface LintViolation {
   nodeId: string;
   nodeName: string;
   rule: string;
+  severity: LintSeverity;
   currentValue: unknown;
   expectedValue?: unknown;
   suggestion: string;
@@ -65,5 +79,7 @@ export interface LintViolation {
 export interface LintRule {
   name: string;
   description: string;
+  category: LintCategory;
+  severity: LintSeverity;
   check(node: AbstractNode, ctx: LintContext): LintViolation[];
 }
