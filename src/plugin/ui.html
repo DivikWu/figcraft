@@ -631,6 +631,125 @@
 
 
     .hidden { display: none !important; }
+
+    /* ─── Lint Panel ─── */
+    .lint-content {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0;
+    }
+    .lint-actions {
+      display: flex;
+      gap: 6px;
+    }
+    .lint-actions .btn { flex: 1; }
+    .lint-summary {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+    .lint-stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 10px 6px;
+      background: var(--surface);
+      border-radius: 8px;
+      gap: 2px;
+    }
+    .lint-stat-value {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1;
+    }
+    .lint-stat-value.pass { color: var(--success); }
+    .lint-stat-value.fail { color: var(--error); }
+    .lint-stat-value.fix { color: var(--accent); }
+    .lint-stat-label {
+      font-size: 9px;
+      font-weight: 600;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .lint-categories {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .lint-cat-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
+      background: var(--surface);
+      border-radius: 6px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .lint-cat-row:hover { background: var(--surface-hover); }
+    .lint-cat-name { color: var(--text-primary); font-weight: 500; }
+    .lint-cat-count {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 8px;
+      border-radius: 10px;
+      background: var(--error-bg);
+      color: var(--error);
+    }
+    .lint-cat-count.zero {
+      background: var(--success-bg);
+      color: var(--success);
+    }
+    .lint-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      gap: 6px;
+      color: var(--text-tertiary);
+      font-size: 11px;
+      padding: 30px 20px;
+    }
+    .lint-score {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 8px;
+    }
+    .lint-score-circle {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .lint-score-circle.good { background: var(--success); }
+    .lint-score-circle.warn { background: var(--warning); color: var(--text-primary); }
+    .lint-score-circle.bad { background: var(--error); }
+    .lint-progress {
+      height: 3px;
+      background: var(--surface);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .lint-progress-bar {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
   </style>
 </head>
 <body>
@@ -646,6 +765,7 @@
   <!-- ─── Tab Bar ─── -->
   <div class="tab-bar">
     <button class="tab-btn active" data-tab="activity" data-i18n="tab.activity">Activity</button>
+    <button class="tab-btn" data-tab="lint" data-i18n="tab.lint">Lint</button>
     <button class="tab-btn" data-tab="spec" data-i18n="tab.spec">Spec Setup</button>
     <button class="tab-btn" data-tab="guide" data-i18n="tab.settings">Settings</button>
   </div>
@@ -661,6 +781,25 @@
       <div class="empty-state" id="empty-state">
         <div class="empty-dot"></div>
         <span data-i18n="activity.empty">Waiting for MCP commands...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Lint Tab ─── -->
+  <div class="tab-pane" data-tab-content="lint">
+    <div class="lint-content">
+      <div class="lint-actions">
+        <button class="btn primary" id="lint-run-btn" data-i18n="lint.run">Run Lint</button>
+        <button class="btn" id="lint-fix-btn" disabled data-i18n="lint.fix">Auto Fix</button>
+      </div>
+      <div id="lint-result" style="display:none">
+        <div class="lint-score" id="lint-score-area"></div>
+        <div class="lint-progress"><div class="lint-progress-bar" id="lint-progress-bar"></div></div>
+        <div class="lint-summary" id="lint-summary"></div>
+        <div class="lint-categories" id="lint-categories"></div>
+      </div>
+      <div class="lint-empty" id="lint-empty">
+        <span data-i18n="lint.empty">Click "Run Lint" to check the current page</span>
       </div>
     </div>
   </div>
@@ -774,7 +913,7 @@
     var currentLang = 'en';
     var TRANSLATIONS = {
       en: {
-        'tab.activity': 'Activity', 'tab.spec': 'Spec Setup', 'tab.settings': 'Settings',
+        'tab.activity': 'Activity', 'tab.lint': 'Lint', 'tab.spec': 'Spec Setup', 'tab.settings': 'Settings',
         'header.channel': 'Channel',
         'btn.connect': 'Connect', 'btn.connected': 'Connected', 'btn.connecting': 'Connecting...',
         'activity.empty': 'Waiting for MCP commands...',
@@ -782,6 +921,10 @@
         'spec.library': 'Library', 'spec.apitoken': 'API Token', 'spec.save': 'Save',
         'spec.token.hint': 'Figma Settings > Personal access tokens',
         'spec.library.placeholder': 'Paste library URL...',
+        'lint.run': 'Run Lint', 'lint.fix': 'Auto Fix', 'lint.empty': 'Click "Run Lint" to check the current page',
+        'lint.passed': 'Passed', 'lint.violations': 'Violations', 'lint.fixable': 'Fixable',
+        'lint.running': 'Checking...', 'lint.fixing': 'Fixing...',
+        'lint.score': 'Score',
         'settings.language': 'Language',
         'settings.quickstart': 'QUICK START',
         'settings.step1': "Add FigCraft to your IDE's MCP config",
@@ -792,7 +935,7 @@
         'settings.status': 'Status', 'settings.port': 'Port', 'settings.channel': 'Channel',
       },
       zh: {
-        'tab.activity': '日志', 'tab.spec': '规范配置', 'tab.settings': '设置',
+        'tab.activity': '日志', 'tab.lint': '检查', 'tab.spec': '规范配置', 'tab.settings': '设置',
         'header.channel': '频道',
         'btn.connect': '连接', 'btn.connected': '已连接', 'btn.connecting': '连接中...',
         'activity.empty': '等待 MCP 命令...',
@@ -800,6 +943,10 @@
         'spec.library': '组件库', 'spec.apitoken': 'API Token', 'spec.save': '保存',
         'spec.token.hint': 'Figma 设置 > 个人访问令牌',
         'spec.library.placeholder': '粘贴组件库 URL...',
+        'lint.run': '运行检查', 'lint.fix': '自动修复', 'lint.empty': '点击"运行检查"检查当前页面',
+        'lint.passed': '通过', 'lint.violations': '违规', 'lint.fixable': '可修复',
+        'lint.running': '检查中...', 'lint.fixing': '修复中...',
+        'lint.score': '评分',
         'settings.language': '语言',
         'settings.quickstart': '快速开始',
         'settings.step1': '在 IDE 的 MCP 配置中添加 FigCraft',
@@ -1132,6 +1279,13 @@
           ws.send(JSON.stringify(Object.assign({}, msg, { channel: channelId })));
         }
       }
+
+      if (msg.type === 'lint-result' && msg.report) {
+        renderLintResult(msg.report);
+      }
+      if (msg.type === 'lint-fix-result' && msg.result) {
+        renderLintFixResult(msg.result);
+      }
     };
 
     // ─── Mode ───
@@ -1407,6 +1561,97 @@
     // Detect on load and observe for changes
     detectTheme();
     new MutationObserver(detectTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'class'] });
+
+    // ─── Lint Panel ───
+    var lintRunBtn = document.getElementById('lint-run-btn');
+    var lintFixBtn = document.getElementById('lint-fix-btn');
+    var lintResult = document.getElementById('lint-result');
+    var lintEmpty = document.getElementById('lint-empty');
+    var lintSummary = document.getElementById('lint-summary');
+    var lintCategories = document.getElementById('lint-categories');
+    var lintScoreArea = document.getElementById('lint-score-area');
+    var lintProgressBar = document.getElementById('lint-progress-bar');
+    var lastLintViolations = [];
+
+    lintRunBtn.addEventListener('click', function() {
+      if (!connected) { log('Not connected', 'error'); return; }
+      lintRunBtn.disabled = true;
+      lintRunBtn.textContent = t('lint.running');
+      // Send lint_check request through the plugin sandbox
+      parent.postMessage({ pluginMessage: { type: 'ui-lint-check' } }, '*');
+    });
+
+    lintFixBtn.addEventListener('click', function() {
+      if (!connected || lastLintViolations.length === 0) return;
+      lintFixBtn.disabled = true;
+      lintFixBtn.textContent = t('lint.fixing');
+      parent.postMessage({ pluginMessage: { type: 'ui-lint-fix', violations: lastLintViolations } }, '*');
+    });
+
+    function renderLintResult(report) {
+      lintEmpty.style.display = 'none';
+      lintResult.style.display = '';
+      lintRunBtn.disabled = false;
+      lintRunBtn.textContent = t('lint.run');
+
+      var total = report.summary.total;
+      var pass = report.summary.pass;
+      var violations = report.summary.violations;
+      var score = total > 0 ? Math.round((pass / total) * 100) : 100;
+
+      // Collect fixable violations
+      lastLintViolations = [];
+      (report.categories || []).forEach(function(cat) {
+        (cat.nodes || []).forEach(function(v) {
+          if (v.autoFixable) lastLintViolations.push(v);
+        });
+      });
+
+      lintFixBtn.disabled = lastLintViolations.length === 0;
+      lintFixBtn.textContent = t('lint.fix') + (lastLintViolations.length > 0 ? ' (' + lastLintViolations.length + ')' : '');
+
+      // Score circle
+      var scoreClass = score >= 80 ? 'good' : score >= 50 ? 'warn' : 'bad';
+      lintScoreArea.innerHTML = '<div class="lint-score-circle ' + scoreClass + '">' + score + '</div>';
+
+      // Progress bar
+      lintProgressBar.style.width = score + '%';
+      lintProgressBar.style.background = score >= 80 ? 'var(--success)' : score >= 50 ? 'var(--warning)' : 'var(--error)';
+
+      // Summary stats
+      lintSummary.innerHTML =
+        '<div class="lint-stat"><span class="lint-stat-value pass">' + pass + '</span><span class="lint-stat-label">' + t('lint.passed') + '</span></div>' +
+        '<div class="lint-stat"><span class="lint-stat-value fail">' + violations + '</span><span class="lint-stat-label">' + t('lint.violations') + '</span></div>' +
+        '<div class="lint-stat"><span class="lint-stat-value fix">' + lastLintViolations.length + '</span><span class="lint-stat-label">' + t('lint.fixable') + '</span></div>';
+
+      // Category breakdown
+      lintCategories.innerHTML = '';
+      var cats = report.categories || [];
+      cats.sort(function(a, b) { return b.count - a.count; });
+      cats.forEach(function(cat) {
+        var row = document.createElement('div');
+        row.className = 'lint-cat-row';
+        row.innerHTML = '<span class="lint-cat-name">' + cat.rule + '</span>' +
+          '<span class="lint-cat-count' + (cat.count === 0 ? ' zero' : '') + '">' + cat.count + '</span>';
+        lintCategories.appendChild(row);
+      });
+
+      if (cats.length === 0) {
+        var allGood = document.createElement('div');
+        allGood.style.cssText = 'text-align:center;padding:16px;color:var(--success);font-size:12px;font-weight:600';
+        allGood.textContent = '\u2713 ' + (currentLang === 'zh' ? '全部通过' : 'All checks passed');
+        lintCategories.appendChild(allGood);
+      }
+    }
+
+    function renderLintFixResult(result) {
+      lintFixBtn.disabled = true;
+      lintFixBtn.textContent = t('lint.fix');
+      lastLintViolations = [];
+      log('\u2192 Fixed ' + (result.fixed || 0) + ' violations', 'success');
+      // Re-run lint to refresh
+      lintRunBtn.click();
+    }
 
     // ─── Init ───
     parent.postMessage({ pluginMessage: { type: 'get-lang' } }, '*');

@@ -321,6 +321,12 @@ registerHandler('patch_nodes', async (params) => {
           (node as SceneNode).rotation = value as number;
         } else if (key === 'constraints' && 'constraints' in node) {
           (node as ConstraintMixin).constraints = value as Constraints;
+        } else if (key === 'blendMode' && 'blendMode' in node) {
+          (node as BlendMixin).blendMode = value as BlendMode;
+        } else if (key === 'isMask' && 'isMask' in node) {
+          (node as SceneNode & { isMask: boolean }).isMask = value as boolean;
+        } else if (key === 'clipsContent' && 'clipsContent' in node) {
+          (node as FrameNode).clipsContent = value as boolean;
         }
       }
 

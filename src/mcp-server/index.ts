@@ -28,6 +28,7 @@ import { registerWriteStyleTools } from './tools/write-styles.js';
 import { registerScanTools } from './tools/scan.js';
 import { registerPageTools } from './tools/pages.js';
 import { registerPrototypeTools } from './tools/prototype.js';
+import { registerImageVectorTools } from './tools/image-vector.js';
 import { registerSelectionTools } from './tools/selection.js';
 import { registerPrompts } from './prompts/index.js';
 import { registerAuthTools } from './tools/auth.js';
@@ -77,6 +78,7 @@ registerModeTools(server, bridge);
 registerChannelTools(server, bridge);
 registerScanTools(server, bridge);
 registerPrototypeTools(server, bridge);
+registerImageVectorTools(server, bridge);
 registerPrompts(server);
 
 // ─── Start ───

@@ -4,7 +4,7 @@ AI-powered Figma plugin for design system compliance. Token sync, lint, auto-fix
 
 ## Features
 
-- **60+ MCP tools** — read/write nodes, variables, styles, components, tokens
+- **65+ MCP tools** — read/write nodes, variables, styles, components, tokens, images, vectors
 - **23 lint rules** — token compliance, WCAG accessibility, layout structure, naming, component health
 - **DTCG token sync** — W3C Design Token Community Group format, multi-mode support
 - **Auto-fix** — one-click fix for token binding, spacing, radius, text size violations

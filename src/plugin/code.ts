@@ -33,6 +33,9 @@ import { registerAnnotationHandlers } from './handlers/annotations.js';
 // ─── P4 handlers (scan) ───
 import { registerScanHandlers } from './handlers/scan.js';
 
+// ─── P5 handlers (image/vector) ───
+import { registerImageVectorHandlers } from './handlers/image-vector.js';
+
 // ─── Register all handlers ───
 registerNodeHandlers();
 registerVariableHandlers();
@@ -49,6 +52,7 @@ registerSelectionHandlers();
 registerLintHandlers();
 registerAnnotationHandlers();
 registerScanHandlers();
+registerImageVectorHandlers();
 
 // Show the UI (establishes WebSocket connection to relay)
 figma.showUI(__html__, { visible: true, width: 320, height: 480 });
@@ -123,7 +127,33 @@ async function sendLibraryList() {
   });
 }
 
-figma.ui.on('message', async (msg: { type: string; channelId?: string; mode?: string; library?: string; token?: string; fileKey?: string; name?: string; url?: string; libraryName?: string }) => {
+figma.ui.on('message', async (msg: { type: string; channelId?: string; mode?: string; library?: string; token?: string; fileKey?: string; name?: string; url?: string; libraryName?: string; violations?: unknown[] }) => {
+  if (msg.type === 'ui-lint-check') {
+    // UI-initiated lint: run lint on current page and send result back to UI
+    try {
+      const handler = handlers.get('lint_check');
+      if (handler) {
+        const result = await handler({});
+        figma.ui.postMessage({ type: 'lint-result', report: result });
+      }
+    } catch (err) {
+      figma.ui.postMessage({ type: 'lint-result', report: { summary: { total: 0, pass: 0, violations: 0 }, categories: [] }, error: err instanceof Error ? err.message : String(err) });
+    }
+    return;
+  }
+  if (msg.type === 'ui-lint-fix') {
+    // UI-initiated fix
+    try {
+      const handler = handlers.get('lint_fix');
+      if (handler && msg.violations) {
+        const result = await handler({ violations: msg.violations });
+        figma.ui.postMessage({ type: 'lint-fix-result', result });
+      }
+    } catch (err) {
+      figma.ui.postMessage({ type: 'lint-fix-result', result: { fixed: 0, failed: 0 }, error: err instanceof Error ? err.message : String(err) });
+    }
+    return;
+  }
   if (msg.type === 'get-lang') {
     const lang = await figma.clientStorage.getAsync(LANG_STORAGE_KEY);
     figma.ui.postMessage({ type: 'restore-lang', lang: lang || 'en' });

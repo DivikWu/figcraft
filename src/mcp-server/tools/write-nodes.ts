@@ -61,7 +61,8 @@ export function registerWriteNodeTools(server: McpServer, bridge: Bridge): void 
       'Supports: x, y, name, visible, opacity, cornerRadius, resize, fills (hex string), strokes (hex string), strokeWeight, ' +
       'effects (raw Figma effect array), layoutMode (NONE/HORIZONTAL/VERTICAL), layoutAlign, layoutGrow, ' +
       'primaryAxisAlignItems, counterAxisAlignItems, itemSpacing, paddingLeft/Right/Top/Bottom, ' +
-      'fontSize, fontName ({family,style}), rotation, constraints ({horizontal,vertical}).',
+      'fontSize, fontName ({family,style}), rotation, constraints ({horizontal,vertical}), ' +
+      'blendMode, isMask (boolean), clipsContent (boolean).',
     {
       patches: z.array(z.object({
         nodeId: z.string().describe('Node ID'),

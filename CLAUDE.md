@@ -105,13 +105,14 @@ figcraft/
 │   │   │   ├── lint.ts             # Lint 检查/修复/规则/注解
 │   │   │   ├── lint.ts             # Lint 检查/修复/规则/注解
 │   │   │   ├── mode.ts             # Library/Spec 模式切换
+│   │   │   ├── image-vector.ts    # 图片填充 + SVG 矢量 + 扁平化 + 星形/多边形
 │   │   │   └── prototype.ts        # 原型流分析（流程图 + 交互文档）
 │   │   └── prompts/
 │   │       └── index.ts            # 7 个 MCP Prompts（sync-tokens, lint-page, compare-spec, auto-fix, generate-element, review-design, prototype-flow）
 │   │
 │   └── plugin/
 │       ├── code.ts                 # Plugin sandbox 入口 — Handler 注册表 + 消息路由
-│       ├── ui.html                 # Plugin UI — WebSocket 连接 + channel 显示 + 消息日志
+│       ├── ui.html                 # Plugin UI — WebSocket 连接 + channel 显示 + Lint 面板 + 消息日志
 │       ├── handlers/               # 命令处理器（通过 registerHandler 注册，import 即生效）
 │       │   ├── nodes.ts            # 节点读取
 │       │   ├── write-nodes.ts      # 节点写入
@@ -125,6 +126,7 @@ figcraft/
 │       │   ├── storage.ts          # clientStorage 缓存
 │       │   ├── lint.ts             # Lint 执行 + 自动修复 + 注解
 │       │   ├── annotations.ts      # 通用注解读写（get/set/set_multiple_annotations）
+│       │   ├── image-vector.ts    # 图片填充 + SVG 矢量 + 扁平化 + 星形/多边形
 │       │   └── scan.ts             # 样式扫描/Token 导出/对比
 │       ├── adapters/               # 数据适配层
 │       │   ├── node-simplifier.ts  # Figma 节点 → 压缩 JSON（~90% 压缩）
@@ -174,7 +176,7 @@ figcraft/
 | **library** | Figma 共享库 Variables/Styles | 检查节点是否绑定了 Library Variable/Style | 设计师日常设计，使用团队共享库 |
 | **spec** | DTCG JSON 文件 | 检查节点值是否匹配 DTCG Token 值 | 从设计规范文档同步，验证合规性 |
 
-## MCP 工具清单 (60+)
+## MCP 工具清单 (65+)
 
 ### 基础
 - `ping` — 测试连通性
@@ -190,8 +192,11 @@ figcraft/
 
 ### 写入 (P2)
 - `create_frame` / `create_text` / `create_rectangle` / `create_ellipse` / `create_line` / `create_section` / `create_document` / `patch_nodes` / `delete_node` / `clone_node` / `insert_child` / `boolean_operation` — 节点 CRUD
-- `save_version_history` — 创建命名版本历史快照（AI 迭代设计前的 checkpoint）
-- `create_variable` / `update_variable` / `delete_variable` — Variable CRUD
+- `set_image_fill` — 设置节点的图片填充（base64 PNG/JPG）
+- `create_vector` — 从 SVG 字符串创建矢量节点
+- `create_star` / `create_polygon` — 星形/多边形
+- `flatten_node` — 将节点扁平化为单一矢量
+- `save_version_history` — 创建命名版本历史快照（AI 迭代设计前的 checkpoint）- `create_variable` / `update_variable` / `delete_variable` — Variable CRUD
 - `create_collection` / `delete_collection` / `rename_collection` — Collection 管理
 - `add_collection_mode` / `rename_collection_mode` / `remove_collection_mode` — Mode 管理
 - `list_tokens` / `sync_tokens` / `sync_tokens_multi_mode` / `diff_tokens` / `reverse_sync_tokens` — DTCG Token 同步（含多模式）
@@ -213,6 +218,13 @@ figcraft/
 - `get_annotations` — 读取当前页面或指定节点的所有注解
 - `set_annotation` — 在节点上添加/覆盖注解（支持 Markdown）
 - `set_multiple_annotations` — 批量注解多个节点
+
+### 图片与矢量 (P2)
+- `set_image_fill` — 设置节点的图片填充（base64 PNG/JPG，支持 FILL/FIT/CROP/TILE 模式）
+- `create_vector` — 从 SVG 字符串创建矢量节点
+- `create_star` — 创建星形（可配置角数和内径比）
+- `create_polygon` — 创建正多边形（三角形、五边形等）
+- `flatten_node` — 将节点扁平化为单一矢量路径
 
 ### Lint (P3)
 - `lint_check` — 运行 Lint 规则（支持分页、注解、按类别过滤）
