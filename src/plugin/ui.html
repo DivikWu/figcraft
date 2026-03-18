@@ -99,11 +99,13 @@
       flex-shrink: 0;
     }
     .channel-bar .input,
+    .channel-bar .select,
     .channel-bar .btn {
       height: 32px;
       border-radius: 8px;
     }
-    .channel-bar .input {
+    .channel-bar .input,
+    .channel-bar .select {
       flex: 1;
       min-width: 0;
     }
@@ -920,8 +922,19 @@
   <div class="header">
     <h1 data-i18n="header.channel">Channel</h1>
   </div>
-  <div class="channel-bar">
-    <input id="channel-input" class="input" type="text" placeholder="figcraft" title="Channel ID">
+  <div class="channel-bar" style="position:relative">
+    <button id="channel-trigger" class="library-trigger" type="button">
+      <span class="label-text" id="channel-trigger-label">design-1</span>
+      <span class="chevron">&#9662;</span>
+    </button>
+    <div id="channel-popup-overlay" class="library-popup-overlay"></div>
+    <div id="channel-popup" class="library-popup">
+      <button class="library-popup-item active" data-channel="design-1" type="button"><span class="check">✓</span>design-1</button>
+      <button class="library-popup-item" data-channel="design-2" type="button"><span class="check"></span>design-2</button>
+      <button class="library-popup-item" data-channel="design-3" type="button"><span class="check"></span>design-3</button>
+      <button class="library-popup-item" data-channel="design-4" type="button"><span class="check"></span>design-4</button>
+      <button class="library-popup-item" data-channel="design-5" type="button"><span class="check"></span>design-5</button>
+    </div>
     <button id="connect-btn" class="btn status-btn disconnected" type="button"><span class="status-dot"></span><span class="sr-only" id="status-sr">Disconnected</span><span id="status-text">Connect</span></button>
   </div>
   <div class="channel-bar" id="library-bar" style="position:relative">
@@ -1051,7 +1064,7 @@
 
   <script>
     // ─── State ───
-    const DEFAULT_CHANNEL = 'figcraft';
+    const DEFAULT_CHANNEL = 'design-1';
     let channelId = DEFAULT_CHANNEL;
     let ws = null;
     let reconnectTimer = null;
@@ -1230,7 +1243,10 @@
     }
 
     // ─── Elements ───
-    const channelInput = document.getElementById('channel-input');
+    const channelTrigger = document.getElementById('channel-trigger');
+    const channelTriggerLabel = document.getElementById('channel-trigger-label');
+    const channelPopup = document.getElementById('channel-popup');
+    const channelPopupOverlay = document.getElementById('channel-popup-overlay');
     const connectBtn = document.getElementById('connect-btn');
     const statusTextEl = document.getElementById('status-text');
     const modeLibraryBtn = document.getElementById('mode-library');
@@ -1267,9 +1283,6 @@
     // ─── Connect ───
     connectBtn.addEventListener('click', function() {
       if (connected) { disconnect(); } else { connect(); }
-    });
-    channelInput.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') connect();
     });
 
     // ─── Copy Config ───
@@ -1399,8 +1412,7 @@
     let currentRelayPort = null;
 
     function connect(silent) {
-      channelId = channelInput.value.trim() || DEFAULT_CHANNEL;
-      channelInput.value = channelId;
+      channelId = channelTriggerLabel.textContent || DEFAULT_CHANNEL;
       parent.postMessage({ pluginMessage: { type: 'save-channel', channelId: channelId } }, '*');
 
       if (ws) { ws.onclose = null; ws.close(); }
@@ -1437,6 +1449,9 @@
         clearTimeout(timeout);
         currentRelayPort = port;
         ws.send(JSON.stringify({ type: 'join', channel: channelId, role: 'plugin' }));
+        // Announce on control channel so MCP Server auto-switches
+        ws.send(JSON.stringify({ type: 'join', channel: '__control__', role: 'plugin' }));
+        ws.send(JSON.stringify({ type: 'channel-announce', channel: '__control__', designChannel: channelId }));
         if (savedApiToken) {
           ws.send(JSON.stringify({ type: 'set-api-token', channel: channelId, token: savedApiToken }));
         }
@@ -1498,8 +1513,16 @@
       if (msg.type === 'restore-lang') { setLocale(msg.lang || 'en'); return; }
 
       if (msg.type === 'restore-channel') {
-        channelId = msg.channelId || DEFAULT_CHANNEL;
-        channelInput.value = channelId;
+        var restored = msg.channelId || DEFAULT_CHANNEL;
+        // Only use restored value if it exists in the channel popup
+        var validChannels = Array.from(channelPopup.querySelectorAll('[data-channel]')).map(function(el) { return el.dataset.channel; });
+        channelId = validChannels.indexOf(restored) >= 0 ? restored : DEFAULT_CHANNEL;
+        channelTriggerLabel.textContent = channelId;
+        // Update check marks
+        channelPopup.querySelectorAll('[data-channel]').forEach(function(el) {
+          el.classList.toggle('active', el.dataset.channel === channelId);
+          el.querySelector('.check').textContent = el.dataset.channel === channelId ? '✓' : '';
+        });
         connect();
         return;
       }
@@ -1593,6 +1616,38 @@
     // ─── Library Popup ───
     let cachedLibraryData = null;
 
+    // ─── Channel Popup ───
+    function openChannelPopup() {
+      channelPopup.classList.add('open');
+      channelPopupOverlay.classList.add('open');
+      channelTrigger.classList.add('open');
+      var first = channelPopup.querySelector('.library-popup-item');
+      if (first) first.focus();
+    }
+    function closeChannelPopup() {
+      channelPopup.classList.remove('open');
+      channelPopupOverlay.classList.remove('open');
+      channelTrigger.classList.remove('open');
+    }
+    channelTrigger.addEventListener('click', function() {
+      if (channelPopup.classList.contains('open')) { closeChannelPopup(); } else { openChannelPopup(); }
+    });
+    channelPopupOverlay.addEventListener('click', closeChannelPopup);
+    channelPopup.addEventListener('click', function(e) {
+      var item = e.target.closest('[data-channel]');
+      if (!item) return;
+      var val = item.dataset.channel;
+      channelId = val;
+      channelTriggerLabel.textContent = val;
+      channelPopup.querySelectorAll('[data-channel]').forEach(function(el) {
+        el.classList.toggle('active', el.dataset.channel === val);
+        el.querySelector('.check').textContent = el.dataset.channel === val ? '✓' : '';
+      });
+      closeChannelPopup();
+      connect();
+    });
+
+    // ─── Library Popup ───
     function handleLibraryKeydown(e) {
       if (e.key === 'Escape') {
         closeLibraryPopup();

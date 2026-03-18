@@ -11,12 +11,14 @@ import {
   generateId,
   REQUEST_TIMEOUT_MS,
   HEARTBEAT_INTERVAL_MS,
+  CONTROL_CHANNEL,
   isResponseMessage,
   isErrorMessage,
   isPongMessage,
   isSetApiTokenMessage,
   isSetLibraryFileKeyMessage,
   isResolveFileNameMessage,
+  isChannelAnnounceMessage,
 } from '../shared/protocol.js';
 import { fetchFileName } from './figma-api.js';
 
@@ -51,8 +53,9 @@ export class Bridge {
       this.ws.on('open', () => {
         this.connected = true;
         this.reconnectAttempts = 0;
-        // Join channel as MCP role
+        // Join data channel + control channel
         this.ws!.send(JSON.stringify({ type: 'join', channel: this.channel, role: 'mcp' }));
+        this.ws!.send(JSON.stringify({ type: 'join', channel: CONTROL_CHANNEL, role: 'mcp' }));
         this.startHeartbeat();
         resolve();
       });
@@ -87,6 +90,14 @@ export class Bridge {
 
         if (isPongMessage(msg)) {
           // heartbeat acknowledged
+          return;
+        }
+
+        if (isChannelAnnounceMessage(msg)) {
+          if (msg.designChannel && msg.designChannel !== this.channel) {
+            console.error(`[FigCraft bridge] plugin announced channel "${msg.designChannel}", switching from "${this.channel}"`);
+            this.joinChannel(msg.designChannel);
+          }
           return;
         }
 
@@ -270,10 +281,10 @@ export class Bridge {
     this.reconnectAttempts++;
     this.reconnectTimer = setTimeout(async () => {
       this.reconnectTimer = null;
-      console.log(`[FigCraft bridge] reconnect attempt ${this.reconnectAttempts} (delay was ${delay}ms)...`);
+      console.error(`[FigCraft bridge] reconnect attempt ${this.reconnectAttempts} (delay was ${delay}ms)...`);
       try {
         await this.connect();
-        console.log('[FigCraft bridge] reconnected');
+        console.error('[FigCraft bridge] reconnected');
       } catch {
         this.scheduleReconnect();
       }

@@ -55,7 +55,7 @@ function setupRelay(wss: WebSocketServer): void {
         }
         members.add(member);
         memberRef = { channel: msg.channel, member };
-        console.log(`[FigCraft relay] ${msg.role} joined channel ${msg.channel}`);
+        console.error(`[FigCraft relay] ${msg.role} joined channel ${msg.channel}`);
         return;
       }
 
@@ -88,7 +88,7 @@ function setupRelay(wss: WebSocketServer): void {
             channels.delete(memberRef.channel);
           }
         }
-        console.log(`[FigCraft relay] ${memberRef.member.role} left channel ${memberRef.channel}`);
+        console.error(`[FigCraft relay] ${memberRef.member.role} left channel ${memberRef.channel}`);
       }
     });
 
@@ -128,7 +128,7 @@ export async function startRelay(preferredPort?: number): Promise<{ wss: WebSock
   for (const port of ports) {
     try {
       const wss = await tryListen(port);
-      console.log(`[FigCraft relay] listening on ws://localhost:${port}`);
+      console.error(`[FigCraft relay] listening on ws://localhost:${port}`);
       return { wss, port };
     } catch (err: unknown) {
       if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
@@ -148,7 +148,7 @@ const isDirectRun = !process.argv[1] || process.argv[1].includes('relay');
 if (isDirectRun) {
   startRelay().then(({ wss }) => {
     process.on('SIGINT', () => {
-      console.log('[FigCraft relay] shutting down...');
+      console.error('[FigCraft relay] shutting down...');
       wss.close();
       process.exit(0);
     });

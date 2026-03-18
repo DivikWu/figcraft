@@ -81,6 +81,12 @@ export interface FileNameResolvedMessage {
   error?: string;
 }
 
+export interface ChannelAnnounceMessage {
+  type: 'channel-announce';
+  channel: ChannelId;       // always '__control__'
+  designChannel: ChannelId; // the actual channel the plugin joined
+}
+
 export type WireMessage =
   | RequestMessage
   | ResponseMessage
@@ -91,7 +97,8 @@ export type WireMessage =
   | SetApiTokenMessage
   | SetLibraryFileKeyMessage
   | ResolveFileNameMessage
-  | FileNameResolvedMessage;
+  | FileNameResolvedMessage
+  | ChannelAnnounceMessage;
 
 // ─── Helpers ───
 
@@ -130,6 +137,13 @@ export function isSetLibraryFileKeyMessage(msg: unknown): msg is SetLibraryFileK
 export function isResolveFileNameMessage(msg: unknown): msg is ResolveFileNameMessage {
   return isObject(msg) && msg.type === 'resolve-file-name';
 }
+
+export function isChannelAnnounceMessage(msg: unknown): msg is ChannelAnnounceMessage {
+  return isObject(msg) && msg.type === 'channel-announce';
+}
+
+/** Fixed control channel for cross-channel coordination. */
+export const CONTROL_CHANNEL: ChannelId = '__control__';
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && 'type' in v;

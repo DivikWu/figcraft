@@ -36,7 +36,7 @@ import { setBridgeTokenProvider } from './auth.js';
 import { startRelay } from '../relay/index.js';
 
 const RELAY_URL = process.env.FIGCRAFT_RELAY_URL ?? 'ws://localhost:3055';
-const CHANNEL = process.env.FIGCRAFT_CHANNEL ?? 'figcraft';
+const CHANNEL = process.env.FIGCRAFT_CHANNEL ?? 'design-1';
 
 const server = new McpServer({
   name: 'FigCraft',
