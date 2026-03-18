@@ -1,9 +1,9 @@
 {
-  "name": "figcraft",
+  "name": "figcraft-design",
   "version": "0.1.0",
   "description": "AI-powered Figma plugin for design system compliance — Token sync, Lint, Auto-fix, Element generation via MCP",
   "bin": {
-    "figcraft": "./dist/mcp-server/index.js"
+    "figcraft-design": "./dist/mcp-server/index.js"
   },
   "files": [
     "dist/mcp-server/",

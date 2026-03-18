@@ -331,7 +331,7 @@ FIGMA_CLIENT_SECRET=xxx                   # OAuth 2.0 Client Secret（可选，�
 #   "mcpServers": {
 #     "figcraft": {
 #       "command": "npx",
-#       "args": ["figcraft"]
+#       "args": ["figcraft-design"]
 #     }
 #   }
 # }
