@@ -25,14 +25,11 @@ Describe what you want in natural language, and FigCraft makes it happen in Figm
 
 ## Quick Start
 
+> Requires Node.js >= 20.
+
 ### 1. Install the Figma Plugin
 
-<!-- TODO: Update when published to Figma Community -->
-
-> FigCraft is not yet on the Figma Community. For now, install from source:
-
-<details>
-<summary><strong>Install from source</strong></summary>
+FigCraft is not yet on the Figma Community. Build from source:
 
 ```bash
 git clone https://github.com/DivikWu/figcraft.git
@@ -45,13 +42,11 @@ Then in Figma Desktop:
 1. **Plugins → Development → Import plugin from manifest**
 2. Select the `manifest.json` file from the cloned repo
 
-</details>
+### 2. Add MCP Server to your IDE
 
-### 2. Configure your AI IDE
+The Figma plugin runs inside Figma, but your AI IDE needs an MCP Server to talk to it. The npm package [`figcraft-design`](https://www.npmjs.com/package/figcraft-design) provides this bridge — just tell your IDE how to start it.
 
-FigCraft works with all major AI IDEs via MCP. The npm package is [`figcraft-design`](https://www.npmjs.com/package/figcraft-design).
-
-The core config is the same for all IDEs:
+Core config (same for all IDEs):
 
 ```json
 {
@@ -64,7 +59,7 @@ The core config is the same for all IDEs:
 }
 ```
 
-Just put it in the right file for your IDE:
+Put it in the right file for your IDE:
 
 <details>
 <summary><strong>Cursor</strong> — <code>.cursor/mcp.json</code></summary>
@@ -85,7 +80,7 @@ Or create `.mcp.json` in your project root with the config above.
 <details>
 <summary><strong>Kiro</strong> — <code>.kiro/settings/mcp.json</code></summary>
 
-Create `.kiro/settings/mcp.json` in your project root. You can add `autoApprove` for hands-free usage:
+Create `.kiro/settings/mcp.json` in your project root. Kiro supports additional fields like `autoApprove`:
 
 ```json
 {
@@ -121,9 +116,13 @@ args = ["figcraft-design"]
 ```
 </details>
 
-### 3. Connect
+### 3. Connect & Verify
 
 Open the FigCraft plugin in Figma — both sides auto-connect via the WebSocket relay. The plugin UI shows the channel ID and connection status.
+
+To verify the connection works, ask your AI IDE to run the `ping` tool. If it returns a response, you're all set.
+
+> **Troubleshooting**: If the connection fails, check that port 3055 is not occupied by another process. The relay will auto-try ports 3056–3060 as fallback.
 
 ## Architecture
 
