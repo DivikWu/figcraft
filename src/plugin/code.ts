@@ -128,6 +128,81 @@ async function sendLibraryList() {
 }
 
 figma.ui.on('message', async (msg: { type: string; channelId?: string; mode?: string; library?: string; token?: string; fileKey?: string; name?: string; url?: string; libraryName?: string; violations?: unknown[] }) => {
+  // ─── Focus node: select + zoom to a specific node ───
+  if (msg.type === 'focus-node') {
+    const nodeId = (msg as { nodeId?: string }).nodeId;
+    if (nodeId) {
+      const node = await figma.getNodeByIdAsync(nodeId);
+      if (node && node.type !== 'PAGE' && node.type !== 'DOCUMENT') {
+        const sceneNode = node as SceneNode;
+        figma.currentPage.selection = [sceneNode];
+        figma.viewport.scrollAndZoomIntoView([sceneNode]);
+      }
+    }
+    return;
+  }
+
+  // ─── Annotate a single lint category ───
+  if (msg.type === 'annotate-category') {
+    const violations = (msg as { violations?: Array<{ nodeId: string; suggestion: string }> }).violations || [];
+    let annotated = 0;
+    for (const v of violations) {
+      const node = await figma.getNodeByIdAsync(v.nodeId);
+      if (!node) continue;
+      if (!('annotations' in node)) continue;
+      const sn = node as SceneNode & { annotations: Array<{ label: string; labelMarkdown?: string }> };
+      const existing = sn.annotations || [];
+      sn.annotations = [
+        ...existing,
+        { label: '[FigCraft] ' + v.suggestion },
+      ];
+      annotated++;
+    }
+    figma.ui.postMessage({ type: 'annotate-category-result', annotated });
+    return;
+  }
+
+  // ─── Clear annotations for specific node IDs (by category) ───
+  if (msg.type === 'clear-category-annotations') {
+    const nodeIds = (msg as { nodeIds?: string[] }).nodeIds || [];
+    let cleared = 0;
+    for (const nodeId of nodeIds) {
+      const node = await figma.getNodeByIdAsync(nodeId);
+      if (!node || !('annotations' in node)) continue;
+      const sn = node as SceneNode & { annotations: Array<{ label: string }> };
+      const before = (sn.annotations || []).length;
+      sn.annotations = (sn.annotations || []).filter(function(a) { return !a.label || a.label.indexOf('[FigCraft]') !== 0; });
+      if (sn.annotations.length < before) cleared++;
+    }
+    figma.ui.postMessage({ type: 'clear-category-annotations-result', cleared });
+    return;
+  }
+
+  // ─── Clear all FigCraft annotations on current page ───
+  if (msg.type === 'clear-annotations') {
+    let cleared = 0;
+    function walkClear(node: SceneNode) {
+      if ('annotations' in node) {
+        const sn = node as SceneNode & { annotations: Array<{ label: string }> };
+        const before = (sn.annotations || []).length;
+        sn.annotations = (sn.annotations || []).filter(function(a) { return !a.label || a.label.indexOf('[FigCraft]') !== 0; });
+        if (sn.annotations.length < before) cleared++;
+      }
+      if ('children' in node) {
+        for (const child of (node as ChildrenMixin).children) {
+          walkClear(child as SceneNode);
+        }
+      }
+    }
+    // Scope: selection first, fallback to current page
+    const targets = figma.currentPage.selection.length > 0
+      ? [...figma.currentPage.selection]
+      : [...figma.currentPage.children];
+    for (const node of targets) { walkClear(node); }
+    figma.ui.postMessage({ type: 'clear-annotations-result', cleared });
+    return;
+  }
+
   if (msg.type === 'ui-lint-check') {
     // UI-initiated lint: run lint on current page and send result back to UI
     try {

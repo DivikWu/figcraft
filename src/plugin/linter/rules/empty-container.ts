@@ -6,7 +6,7 @@ import type { AbstractNode, LintContext, LintViolation, LintRule } from '../type
 
 export const emptyContainerRule: LintRule = {
   name: 'empty-container',
-  description: 'Detect empty frames or groups with no visible children.',
+  description: 'Detect empty frames or groups that have no visible content inside.',
   category: 'layout',
   severity: 'warning',
 
@@ -22,7 +22,7 @@ export const emptyContainerRule: LintRule = {
         rule: 'empty-container',
         severity: 'warning',
         currentValue: `${node.type} with ${node.children?.length ?? 0} children (none visible)`,
-        suggestion: `"${node.name}" is an empty container — remove it or add content`,
+        suggestion: `"${node.name}" is an empty container with nothing visible inside — remove it or add content`,
         autoFixable: false,
       }];
     }

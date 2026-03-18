@@ -9,7 +9,7 @@ import type { AbstractNode, LintContext, LintViolation, LintRule } from '../type
 
 export const fixedInAutolayoutRule: LintRule = {
   name: 'fixed-in-autolayout',
-  description: 'Detect absolute-positioned children inside auto layout frames.',
+  description: 'Detect layers set to absolute position inside an auto layout frame, which may break the layout.',
   category: 'layout',
   severity: 'warning',
 
@@ -28,7 +28,7 @@ export const fixedInAutolayoutRule: LintRule = {
           rule: 'fixed-in-autolayout',
           severity: 'warning',
           currentValue: 'absolute positioning in auto layout',
-          suggestion: `"${child.name}" uses absolute positioning inside auto layout "${node.name}" — this may be unintentional`,
+          suggestion: `"${child.name}" is set to absolute position inside auto layout "${node.name}" — this may break the layout flow`,
           autoFixable: false,
         });
       }

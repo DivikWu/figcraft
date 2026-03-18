@@ -27,7 +27,7 @@ function collectReferences(node: AbstractNode): Set<string> {
 
 export const componentBindingsRule: LintRule = {
   name: 'component-bindings',
-  description: 'Component properties should be referenced by child nodes',
+  description: 'Detect component properties that are defined but not connected to any child layer.',
   category: 'component',
   severity: 'warning',
   check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
@@ -54,7 +54,7 @@ export const componentBindingsRule: LintRule = {
           severity: 'warning',
           currentValue: key,
           expectedValue: 'referenced by child node',
-          suggestion: `Component property "${key}" (${defs[key].type}) is defined but not referenced by any child`,
+          suggestion: `Component property "${key}" (${defs[key].type}) is defined on "${node.name}" but not connected to any child layer — remove it or wire it up`,
           autoFixable: false,
         });
       }

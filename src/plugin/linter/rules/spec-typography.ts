@@ -6,7 +6,7 @@ import type { AbstractNode, LintContext, LintViolation, LintRule } from '../type
 
 export const specTypographyRule: LintRule = {
   name: 'spec-typography',
-  description: 'Detect text nodes with hardcoded font properties that should use a typography token.',
+  description: 'Detect text layers with custom font settings that should use a typography token.',
   category: 'token',
   severity: 'error',
 
@@ -29,7 +29,7 @@ export const specTypographyRule: LintRule = {
             fontFamily: node.fontName?.family,
           },
           expectedValue: match.tokenName,
-          suggestion: `Apply text style "${match.tokenName}" instead of hardcoded typography`,
+          suggestion: `"${node.name}" uses custom font settings — apply text style "${match.tokenName}" instead`,
           autoFixable: true,
           fixData: { tokenName: match.tokenName },
         });

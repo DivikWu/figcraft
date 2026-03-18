@@ -8,7 +8,7 @@ const MIN_TEXT_SIZE = 12;
 
 export const wcagTextSizeRule: LintRule = {
   name: 'wcag-text-size',
-  description: `Detect text smaller than ${MIN_TEXT_SIZE}px which may be difficult to read.`,
+  description: `Detect text smaller than ${MIN_TEXT_SIZE}px — very small text can be hard to read for many users.`,
   category: 'wcag',
   severity: 'warning',
 
@@ -23,7 +23,7 @@ export const wcagTextSizeRule: LintRule = {
       severity: 'warning',
       currentValue: `${node.fontSize}px`,
       expectedValue: `>= ${MIN_TEXT_SIZE}px`,
-      suggestion: `Text "${node.name}" is ${node.fontSize}px — consider using at least ${MIN_TEXT_SIZE}px for readability`,
+      suggestion: `"${node.name}" is only ${node.fontSize}px — bump it to at least ${MIN_TEXT_SIZE}px for comfortable reading`,
       autoFixable: true,
       fixData: { fontSize: MIN_TEXT_SIZE },
     }];

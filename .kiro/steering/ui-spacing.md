@@ -1,5 +1,6 @@
 ---
 inclusion: auto
+description: "8dp Grid 间距规则 — UI 代码中所有尺寸属性必须遵循 8dp grid 系统"
 ---
 
 # 8dp Grid 间距规则
@@ -8,8 +9,9 @@ inclusion: auto
 
 ## 允许的数值
 
-所有 padding、margin、gap、width、height、border-radius 等尺寸属性只能使用以下值：
+所有 padding、margin、gap、width、height、border-radius 等尺寸属性只能使用 **2 的倍数**：
 
+- **2px** — 极小间距（微调、细线间距）
 - **4px** — 最小间距（紧凑元素内部）
 - **8px** — 基础间距
 - **12px** — 中小间距（4+8）
@@ -21,8 +23,9 @@ inclusion: auto
 
 ## 禁止的数值
 
-- 奇数值：3px, 5px, 7px, 9px, 11px, 13px, 14px, 15px 等
-- 非 4 倍数的偶数：6px, 10px, 14px, 18px, 22px 等（border-width 1-2px 除外）
+- 奇数值：3px, 5px, 7px, 9px, 11px, 13px, 15px 等
+- 非 2 倍数的值：不存在，因为所有偶数都是 2 的倍数
+- 但应优先使用 4 的倍数（4, 8, 12, 16, 24, 32...），2px 和 6px 仅用于极小场景
 
 ## 例外
 

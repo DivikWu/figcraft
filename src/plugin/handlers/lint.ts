@@ -270,14 +270,12 @@ async function annotateViolations(report: LintReport): Promise<void> {
       const node = await figma.getNodeByIdAsync(violation.nodeId);
       if (!node || !('annotations' in node)) continue;
       const annotated = node as SceneNode & {
-        annotations: Array<{ label: string; properties: Array<{ type: string }> }>;
+        annotations: Array<{ label: string }>;
       };
+      const existing = annotated.annotations || [];
       annotated.annotations = [
-        ...annotated.annotations,
-        {
-          label: `[figcraft] ${violation.suggestion}`,
-          properties: [{ type: 'design' }],
-        },
+        ...existing,
+        { label: `[figcraft] ${violation.suggestion}` },
       ];
     }
   }

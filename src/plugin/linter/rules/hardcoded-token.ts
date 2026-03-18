@@ -11,7 +11,7 @@ import type { AbstractNode, LintContext, LintViolation, LintRule } from '../type
 
 export const hardcodedTokenRule: LintRule = {
   name: 'hardcoded-token',
-  description: 'Detect properties with hardcoded values not bound to any variable (library mode).',
+  description: 'Detect fill colors or corner radii that aren\'t linked to a shared library variable.',
   category: 'token',
   severity: 'warning',
 
@@ -42,7 +42,7 @@ export const hardcodedTokenRule: LintRule = {
             rule: 'hardcoded-token',
             severity: 'warning',
             currentValue: `fills: no variable binding (${fill?.color ?? 'solid'})`,
-            suggestion: `"${node.name}" has hardcoded fill color — bind to a library variable`,
+            suggestion: `"${node.name}" uses a custom fill color — link it to a library color variable for consistency`,
             autoFixable: false,
           });
         }
@@ -57,7 +57,7 @@ export const hardcodedTokenRule: LintRule = {
         rule: 'hardcoded-token',
         severity: 'warning',
         currentValue: `cornerRadius: ${node.cornerRadius}`,
-        suggestion: `"${node.name}" has hardcoded corner radius — bind to a library variable`,
+        suggestion: `"${node.name}" uses a custom corner radius — link it to a library radius variable for consistency`,
         autoFixable: false,
       });
     }

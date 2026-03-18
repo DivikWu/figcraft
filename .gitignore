@@ -4,4 +4,5 @@ dist/
 .env
 .env.local
 .mcp.json
+.kiro/settings/mcp.json
 .vscode/

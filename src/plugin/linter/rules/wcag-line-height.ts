@@ -8,7 +8,7 @@ const MIN_LINE_HEIGHT_RATIO = 1.0;
 
 export const wcagLineHeightRule: LintRule = {
   name: 'wcag-line-height',
-  description: 'Check that text line height is at least 1.0x the font size (text overlap prevention).',
+  description: 'Check that line height is large enough to prevent text lines from overlapping.',
   category: 'wcag',
   severity: 'error',
 
@@ -41,7 +41,7 @@ export const wcagLineHeightRule: LintRule = {
       severity: 'error',
       currentValue: `${effectiveLineHeight.toFixed(1)}px (${ratio.toFixed(2)}x)`,
       expectedValue: `>= ${node.fontSize.toFixed(1)}px (${MIN_LINE_HEIGHT_RATIO}x)`,
-      suggestion: `Line height is ${ratio.toFixed(2)}x font size — text lines will overlap`,
+      suggestion: `"${node.name}" line height is only ${ratio.toFixed(2)}× the font size — text lines will overlap. Increase line height to at least ${node.fontSize.toFixed(0)}px`,
       autoFixable: false,
     }];
   },

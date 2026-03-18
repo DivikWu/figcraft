@@ -34,7 +34,7 @@ npm run test:watch     # 测试 watch 模式
 ### 三组件中继架构
 
 ```
-IDE (Claude/Cursor)
+IDE (Kiro / Cursor / Claude Code / Antigravity / Codex)
     │ MCP (stdio)
     ▼
 MCP Server (Node.js)           ← src/mcp-server/

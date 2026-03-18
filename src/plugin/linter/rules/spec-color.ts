@@ -6,7 +6,7 @@ import type { AbstractNode, LintContext, LintViolation, LintRule } from '../type
 
 export const specColorRule: LintRule = {
   name: 'spec-color',
-  description: 'Detect hardcoded colors that should use a design token variable.',
+  description: 'Detect colors that don\'t match any design token — suggests the closest token to use.',
   category: 'token',
   severity: 'error',
 
@@ -32,7 +32,7 @@ export const specColorRule: LintRule = {
               severity: 'error',
               currentValue: hex,
               expectedValue: match.tokenValue,
-              suggestion: `Use token "${match.tokenName}" (${match.tokenValue}) instead of hardcoded ${hex}`,
+              suggestion: `"${node.name}" uses ${hex} — switch to token "${match.tokenName}" (${match.tokenValue}) instead`,
               autoFixable: true,
               fixData: {
                 property: 'fills',
@@ -59,7 +59,7 @@ export const specColorRule: LintRule = {
               severity: 'error',
               currentValue: hex,
               expectedValue: match.tokenValue,
-              suggestion: `Use token "${match.tokenName}" for stroke instead of ${hex}`,
+              suggestion: `"${node.name}" stroke uses ${hex} — switch to token "${match.tokenName}" instead`,
               autoFixable: true,
               fixData: {
                 property: 'strokes',

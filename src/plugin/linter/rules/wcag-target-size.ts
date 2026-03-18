@@ -15,7 +15,7 @@ const INTERACTIVE_PATTERNS = [
 
 export const wcagTargetSizeRule: LintRule = {
   name: 'wcag-target-size',
-  description: 'Check that interactive elements meet WCAG 2.5.8 minimum target size (44x44px).',
+  description: 'Check that buttons and interactive elements are large enough to tap easily (at least 44×44px).',
   category: 'wcag',
   severity: 'error',
 
@@ -35,7 +35,7 @@ export const wcagTargetSizeRule: LintRule = {
         severity: 'error',
         currentValue: `${w}x${h}`,
         expectedValue: `>= ${MIN_TARGET_SIZE}x${MIN_TARGET_SIZE}`,
-        suggestion: `Interactive element "${node.name}" is ${w}x${h}px, should be at least ${MIN_TARGET_SIZE}x${MIN_TARGET_SIZE}px`,
+        suggestion: `"${node.name}" is only ${w}×${h}px — make it at least ${MIN_TARGET_SIZE}×${MIN_TARGET_SIZE}px so it's easy to tap`,
         autoFixable: false,
       }];
     }

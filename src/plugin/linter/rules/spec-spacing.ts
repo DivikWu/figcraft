@@ -6,7 +6,7 @@ import type { AbstractNode, LintContext, LintViolation, LintRule } from '../type
 
 export const specSpacingRule: LintRule = {
   name: 'spec-spacing',
-  description: 'Detect spacing values (padding, gap) not matching any spacing token.',
+  description: 'Detect padding or gap values that don\'t match any spacing token.',
   category: 'token',
   severity: 'error',
 
@@ -38,7 +38,7 @@ export const specSpacingRule: LintRule = {
           severity: 'error',
           currentValue: `${key}: ${value}`,
           expectedValue: `${match.tokenName}: ${match.tokenValue}`,
-          suggestion: `Use spacing token "${match.tokenName}" (${match.tokenValue}) instead of ${value}`,
+          suggestion: `"${node.name}" ${key} is ${value}px — use spacing token "${match.tokenName}" (${match.tokenValue}px) instead`,
           autoFixable: true,
           fixData: {
             property: key,

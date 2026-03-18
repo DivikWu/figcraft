@@ -10,7 +10,7 @@ import type { AbstractNode, LintContext, LintViolation, LintRule } from '../type
 
 export const noTextStyleRule: LintRule = {
   name: 'no-text-style',
-  description: 'Detect text nodes not using any text style.',
+  description: 'Detect text layers that don\'t use a shared text style.',
   category: 'token',
   severity: 'warning',
 
@@ -28,7 +28,7 @@ export const noTextStyleRule: LintRule = {
       rule: 'no-text-style',
       severity: 'warning',
       currentValue: `fontSize: ${node.fontSize ?? 'mixed'}, fontFamily: ${node.fontName?.family ?? 'unknown'}`,
-      suggestion: `Apply a text style to "${node.name}" instead of using hardcoded typography`,
+      suggestion: `"${node.name}" uses custom font settings — apply a shared text style to keep typography consistent`,
       autoFixable: false,
     }];
   },

@@ -8,7 +8,7 @@ const DEFAULT_NAME_PATTERN = /^(Frame|Group|Rectangle|Ellipse|Line|Vector|Text|C
 
 export const defaultNameRule: LintRule = {
   name: 'default-name',
-  description: 'Detect nodes with default auto-generated names (e.g. "Frame 1", "Rectangle 2").',
+  description: 'Detect layers still using Figma\'s auto-generated names like "Frame 1" or "Rectangle 2".',
   category: 'naming',
   severity: 'warning',
 
@@ -23,7 +23,7 @@ export const defaultNameRule: LintRule = {
       rule: 'default-name',
       severity: 'warning',
       currentValue: node.name,
-      suggestion: `Rename "${node.name}" to a meaningful name that describes its purpose`,
+      suggestion: `"${node.name}" still has a default name — give it a descriptive name so the design is easier to navigate`,
       autoFixable: false,
     }];
   },

@@ -13,7 +13,7 @@ const MAX_DEPTH = 6;
 
 export const maxNestingDepthRule: LintRule = {
   name: 'max-nesting-depth',
-  description: `Detect frames nested deeper than ${MAX_DEPTH} levels.`,
+  description: `Detect layers nested more than ${MAX_DEPTH} levels deep — simplifying the hierarchy makes designs easier to maintain.`,
   category: 'layout',
   severity: 'info',
 
@@ -41,7 +41,7 @@ function measureDepth(node: AbstractNode, currentDepth: number, violations: Lint
           severity: 'info',
           currentValue: `depth ${childDepth}`,
           expectedValue: `<= ${MAX_DEPTH}`,
-          suggestion: `"${child.name}" is nested ${childDepth} levels deep — consider flattening the hierarchy`,
+          suggestion: `"${child.name}" is nested ${childDepth} levels deep — try flattening the layer structure for easier editing`,
           autoFixable: false,
         });
         // Don't recurse further to avoid flooding with violations

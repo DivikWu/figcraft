@@ -8,7 +8,7 @@ import { contrastRatioTuple, isLargeText } from './wcag-helpers.js';
 
 export const wcagContrastRule: LintRule = {
   name: 'wcag-contrast',
-  description: 'Check WCAG AA contrast ratio (4.5:1 for normal text, 3:1 for large text).',
+  description: 'Check that text has enough contrast against its background for readability (WCAG AA).',
   category: 'wcag',
   severity: 'error',
 
@@ -40,7 +40,7 @@ export const wcagContrastRule: LintRule = {
       severity: 'error',
       currentValue: `${worstRatio.toFixed(2)}:1`,
       expectedValue: `>= ${threshold}:1`,
-      suggestion: `Text color has insufficient contrast (${worstRatio.toFixed(2)}:1 best-case) against both white and black backgrounds`,
+      suggestion: `"${node.name}" text color may be hard to read — contrast is only ${worstRatio.toFixed(2)}:1 (needs at least ${threshold}:1)`,
       autoFixable: false,
     }];
   },

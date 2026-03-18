@@ -10,8 +10,8 @@
       --surface-hover: #ebebeb;
       --border: #e6e6e6;
       --text-primary: #333333;
-      --text-secondary: #888888;
-      --text-tertiary: #aaaaaa;
+      --text-secondary: #595959;
+      --text-tertiary: #767676;
       --accent: #0d99ff;
       --accent-hover: #0b85e0;
       --accent-bg: #e8f4fd;
@@ -30,8 +30,8 @@
         --surface-hover: #444444;
         --border: #4a4a4a;
         --text-primary: #e8e8e8;
-        --text-secondary: #999999;
-        --text-tertiary: #777777;
+        --text-secondary: #a3a3a3;
+        --text-tertiary: #8b8b8b;
         --accent: #0d99ff;
         --accent-hover: #3dabff;
         --accent-bg: #1a3a4f;
@@ -50,8 +50,8 @@
       --surface-hover: #444444;
       --border: #4a4a4a;
       --text-primary: #e8e8e8;
-      --text-secondary: #999999;
-      --text-tertiary: #777777;
+      --text-secondary: #a3a3a3;
+      --text-tertiary: #8b8b8b;
       --accent: #0d99ff;
       --accent-hover: #3dabff;
       --accent-bg: #1a3a4f;
@@ -87,7 +87,7 @@
       flex-shrink: 0;
     }
     .header h1 {
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 600;
       letter-spacing: -0.2px;
     }
@@ -125,9 +125,9 @@
     .status-btn.connected { background: var(--bg); color: var(--success); border-color: var(--border); }
     .status-btn.connected .status-dot { background: var(--success); }
     .status-btn.connected:hover { background: var(--surface); }
-    .status-btn.disconnected { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .status-btn.disconnected .status-dot { display: none; }
-    .status-btn.disconnected:hover { background: var(--accent-hover); }
+    .status-btn.disconnected { background: var(--bg); color: var(--text-primary); border-color: var(--border); }
+    .status-btn.disconnected .status-dot { background: var(--error); }
+    .status-btn.disconnected:hover { background: var(--surface); }
     .status-btn.connecting { background: var(--bg); color: var(--text-secondary); border-color: var(--border); }
     .status-btn.connecting .status-dot {
       background: var(--warning);
@@ -139,12 +139,17 @@
     }
 
     /* ─── Tab Bar ─── */
+    #library-bar {
+      padding: 0 12px 8px;
+    }
     .tab-bar {
       display: flex;
       padding: 8px 12px 0;
       gap: 16px;
       flex-shrink: 0;
       border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      white-space: nowrap;
     }
     .tab-btn {
       padding: 8px 2px;
@@ -208,19 +213,9 @@
       font-size: 10px;
       color: var(--text-tertiary);
     }
-    .mode-indicator {
-      font-size: 10px;
-      font-weight: 600;
-      color: var(--accent);
-      background: var(--accent-bg);
-      padding: 2px 8px;
-      border-radius: 4px;
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
-    }
     .log-entry {
-      margin-bottom: 1px;
-      padding: 1px 0;
+      margin-bottom: 2px;
+      padding: 2px 0;
     }
     .log-entry .time { color: var(--text-tertiary); }
     .log-entry .arrow { font-weight: 600; }
@@ -257,7 +252,7 @@
       padding: 12px;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 24px;
       overflow-y: auto;
       flex: 1;
       min-height: 0;
@@ -274,16 +269,16 @@
       font-size: 10px;
       color: var(--text-tertiary);
       line-height: 1.4;
-      margin-top: -2px;
+      margin-top: 0;
     }
 
     /* ─── Mode Toggle ─── */
     .mode-toggle {
       display: flex;
       background: var(--surface);
-      border-radius: 8px;
-      padding: 4px;
-      gap: 4px;
+      border-radius: 10px;
+      padding: 2px;
+      gap: 2px;
     }
     .mode-toggle button {
       flex: 1;
@@ -345,13 +340,14 @@
       color: var(--text-primary);
       cursor: pointer;
       white-space: nowrap;
-      transition: background 0.15s;
+      transition: background 0.2s, color 0.2s, border-color 0.2s, opacity 0.3s;
     }
     .btn:hover { background: var(--surface-hover); }
     .btn:disabled { opacity: 0.4; cursor: default; }
     .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
     .btn.primary:hover { background: var(--accent-hover); }
-    .btn.success { background: var(--success); color: #fff; border-color: var(--success); }
+    .btn.success { background: var(--success); color: #fff; border-color: var(--success); opacity: 1; }
+    .btn.fade-out { opacity: 0; }
 
     .select {
       width: 100%;
@@ -425,7 +421,7 @@
       max-height: 240px;
       overflow-y: auto;
       flex-direction: column;
-      gap: 1px;
+      gap: 2px;
     }
     .library-popup.open { display: flex; }
 
@@ -484,13 +480,13 @@
     .library-popup-add-row .input {
       flex: 1;
       min-width: 0;
-      height: 28px;
+      height: 32px;
       font-size: 10px;
       border-radius: 8px;
     }
     .library-popup-add-btn {
-      height: 28px;
-      width: 28px;
+      height: 32px;
+      width: 32px;
       flex-shrink: 0;
       display: flex;
       align-items: center;
@@ -513,6 +509,21 @@
       color: transparent;
     }
     .library-popup-add-btn.loading::after {
+      content: '';
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    #lint-run-btn.loading {
+      pointer-events: none;
+      position: relative;
+      color: transparent;
+    }
+    #lint-run-btn.loading::after {
       content: '';
       position: absolute;
       width: 14px;
@@ -567,12 +578,12 @@
       color: var(--text-secondary);
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      margin-bottom: 4px;
+      margin-bottom: 12px;
     }
     .help-steps { list-style: none; counter-reset: step; }
     .help-steps li {
       counter-increment: step;
-      padding-left: 24px;
+      padding-left: 28px;
       position: relative;
       margin-bottom: 8px;
     }
@@ -580,12 +591,12 @@
       content: counter(step);
       position: absolute;
       left: 0;
-      width: 16px;
-      height: 16px;
-      background: var(--text-primary);
-      color: #fff;
+      width: 20px;
+      height: 20px;
+      background: var(--surface);
+      color: var(--text-primary);
       border-radius: 50%;
-      font-size: 9px;
+      font-size: 10px;
       font-weight: 600;
       display: flex;
       align-items: center;
@@ -622,7 +633,7 @@
     .copy-btn:hover { background: var(--surface-hover); }
     .conn-info {
       display: grid;
-      grid-template-columns: 80px 1fr;
+      grid-template-columns: auto 1fr;
       gap: 4px 8px;
       font-size: 11px;
     }
@@ -632,12 +643,24 @@
 
     .hidden { display: none !important; }
 
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
     /* ─── Lint Panel ─── */
     .lint-content {
       padding: 12px;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 8px;
       overflow-y: auto;
       flex: 1;
       min-height: 0;
@@ -648,42 +671,41 @@
     }
     .lint-actions .btn { flex: 1; }
 
-    /* Score card — combines circle + stats in one surface */
+    /* Score card — compact summary bar */
     .lint-score-card {
       background: var(--surface);
       border-radius: 12px;
-      padding: 16px;
+      padding: 12px 16px;
       display: flex;
-      flex-direction: column;
       align-items: center;
       gap: 12px;
     }
     .lint-score-top {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 12px;
       width: 100%;
     }
     .lint-score-circle {
-      width: 48px;
-      height: 48px;
+      width: 36px;
+      height: 36px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 18px;
+      font-size: 13px;
       font-weight: 700;
       color: #fff;
       flex-shrink: 0;
     }
     .lint-score-circle.good { background: var(--success); }
-    .lint-score-circle.warn { background: var(--warning); color: var(--text-primary); }
+    .lint-score-circle.warn { background: var(--warning); color: #1a1a00; }
     .lint-score-circle.bad { background: var(--error); }
     .lint-score-detail {
       flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
     }
     .lint-score-stats {
       display: flex;
@@ -692,10 +714,10 @@
     .lint-stat {
       display: flex;
       align-items: baseline;
-      gap: 4px;
+      gap: 3px;
     }
     .lint-stat-value {
-      font-size: 16px;
+      font-size: 13px;
       font-weight: 700;
       line-height: 1;
     }
@@ -742,26 +764,31 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 8px 12px;
+      padding: 8px 8px;
       background: var(--surface);
       border-radius: 8px;
       font-size: 11px;
       transition: background 0.1s;
     }
     .lint-cat-row:hover { background: var(--surface-hover); }
-    .lint-cat-name { color: var(--text-primary); font-weight: 500; }
+    .lint-cat-name {
+      color: var(--text-primary);
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+    }
     .lint-cat-count {
       font-size: 10px;
       font-weight: 600;
-      min-width: 24px;
+      min-width: 20px;
       text-align: center;
-      padding: 2px 8px;
-      border-radius: 12px;
-      background: var(--error-bg);
+      padding: 1px 6px;
+      border-radius: 10px;
+      background: transparent;
       color: var(--error);
     }
     .lint-cat-count.zero {
-      background: var(--success-bg);
+      background: transparent;
       color: var(--success);
     }
     .lint-empty {
@@ -775,6 +802,117 @@
       font-size: 11px;
       padding: 32px 24px;
     }
+    .lint-error-banner {
+      display: none;
+      font-size: 11px;
+      color: var(--error);
+      background: var(--error-bg);
+      padding: 8px 12px;
+      border-radius: 8px;
+    }
+    .lint-result-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* ─── Lint category expand/collapse ─── */
+    .lint-cat-group { display: flex; flex-direction: column; gap: 0; }
+    .lint-cat-row { cursor: pointer; user-select: none; }
+    .lint-cat-row .chevron {
+      font-size: 8px;
+      color: var(--text-tertiary);
+      margin-right: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 12px;
+      transition: transform 0.15s;
+    }
+    .lint-cat-row:hover .chevron { color: var(--text-secondary); }
+    .lint-cat-row.expanded .chevron { transform: rotate(90deg); }
+    .lint-cat-actions {
+      display: flex;
+      align-items: center;
+      gap: 0;
+    }
+    .lint-annotate-btn {
+      font-size: 9px;
+      padding: 3px 8px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.1s, color 0.1s, border-color 0.1s;
+    }
+    .lint-annotate-btn:hover { background: var(--surface-hover); color: var(--text-primary); }
+    .lint-annotate-btn.active {
+      background: var(--error-bg);
+      color: var(--error);
+      border-color: var(--error);
+    }
+    .lint-annotate-btn.active:hover { background: var(--error); color: #fff; }
+    .lint-node-list {
+      display: none;
+      flex-direction: column;
+      gap: 0;
+      padding: 4px 0 2px;
+      margin-left: 14px;
+      border-left: 2px solid var(--border);
+    }
+    .lint-node-list.open { display: flex; }
+    .lint-node-list {
+      border-radius: 0 8px 8px 0;
+    }
+    .lint-node-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 6px 12px;
+      font-size: 10px;
+      cursor: pointer;
+      border-radius: 0 6px 6px 0;
+      transition: background 0.1s;
+    }
+    .lint-node-item:hover { background: var(--surface-hover); }
+    .lint-node-name {
+      color: var(--text-primary);
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .lint-node-name .icon { font-size: 9px; color: var(--accent); }
+    .lint-node-suggestion {
+      color: var(--text-tertiary);
+      font-size: 10px;
+      line-height: 1.4;
+      padding-left: 13px;
+    }
+    .lint-node-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 4px 12px 6px;
+    }
+    .lint-clear-annotations-bar {
+      display: none;
+      padding: 0;
+    }
+    .lint-clear-annotations-bar.visible { display: flex; }
+    .lint-clear-annotations-btn {
+      font-size: 10px;
+      padding: 4px 8px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      transition: background 0.1s, color 0.1s;
+    }
+    .lint-clear-annotations-btn:hover { background: var(--error-bg); color: var(--error); }
   </style>
 </head>
 <body>
@@ -784,23 +922,29 @@
   </div>
   <div class="channel-bar">
     <input id="channel-input" class="input" type="text" placeholder="figcraft" title="Channel ID">
-    <button id="connect-btn" class="btn status-btn disconnected"><span class="status-dot"></span><span id="status-text">Connect</span></button>
+    <button id="connect-btn" class="btn status-btn disconnected" type="button"><span class="status-dot"></span><span class="sr-only" id="status-sr">Disconnected</span><span id="status-text">Connect</span></button>
+  </div>
+  <div class="channel-bar" id="library-bar" style="position:relative">
+    <button id="library-trigger" class="library-trigger" type="button">
+      <span class="label-text placeholder" id="library-trigger-label">None</span>
+      <span class="chevron">&#9662;</span>
+    </button>
+    <div id="library-popup-overlay" class="library-popup-overlay"></div>
+    <div id="library-popup" class="library-popup"></div>
   </div>
 
   <!-- ─── Tab Bar ─── -->
-  <div class="tab-bar">
-    <button class="tab-btn active" data-tab="activity" data-i18n="tab.activity">Activity</button>
-    <button class="tab-btn" data-tab="lint" data-i18n="tab.lint">Lint</button>
-    <button class="tab-btn" data-tab="spec" data-i18n="tab.spec">Spec Setup</button>
-    <button class="tab-btn" data-tab="guide" data-i18n="tab.settings">Settings</button>
+  <div class="tab-bar" role="tablist">
+    <button class="tab-btn active" data-tab="activity" data-i18n="tab.activity" role="tab" id="tab-activity" aria-controls="panel-activity" aria-selected="true" type="button">Activity</button>
+    <button class="tab-btn" data-tab="lint" data-i18n="tab.lint" role="tab" id="tab-lint" aria-controls="panel-lint" aria-selected="false" type="button">Lint</button>
+    <button class="tab-btn" data-tab="settings" data-i18n="tab.settings" role="tab" id="tab-settings" aria-controls="panel-settings" aria-selected="false" type="button">Settings</button>
   </div>
 
   <!-- ─── Activity Tab ─── -->
-  <div class="tab-pane active" data-tab-content="activity">
+  <div class="tab-pane active" data-tab-content="activity" role="tabpanel" id="panel-activity" aria-labelledby="tab-activity">
     <div class="activity-header">
       <span class="activity-badge" id="activity-count"></span>
-      <span class="mode-indicator" id="mode-indicator" title="Current mode">Library</span>
-      <button class="activity-clear" id="log-clear" title="Clear activity">Clear</button>
+      <button class="activity-clear" id="log-clear" title="Clear activity" type="button">Clear</button>
     </div>
     <div class="activity-feed" id="log">
       <div class="empty-state" id="empty-state">
@@ -811,13 +955,17 @@
   </div>
 
   <!-- ─── Lint Tab ─── -->
-  <div class="tab-pane" data-tab-content="lint">
+  <div class="tab-pane" data-tab-content="lint" role="tabpanel" id="panel-lint" aria-labelledby="tab-lint">
     <div class="lint-content">
       <div class="lint-actions">
-        <button class="btn primary" id="lint-run-btn" data-i18n="lint.run">Run Lint</button>
-        <button class="btn" id="lint-fix-btn" disabled data-i18n="lint.fix">Auto Fix</button>
+        <button class="btn primary" id="lint-run-btn" data-i18n="lint.run" type="button">Run Lint</button>
+        <button class="btn" id="lint-fix-btn" disabled data-i18n="lint.fix" type="button">Auto Fix</button>
       </div>
-      <div id="lint-result" style="display:none">
+      <div class="lint-clear-annotations-bar" id="lint-clear-bar">
+        <button class="lint-clear-annotations-btn" id="lint-clear-annotations-btn" type="button">✕ Clear canvas annotations</button>
+      </div>
+      <div class="lint-error-banner" id="lint-error-banner" role="alert"></div>
+      <div id="lint-result" class="lint-result-container" style="display:none">
         <div class="lint-scope" id="lint-scope"></div>
         <div id="lint-score-card-area"></div>
         <div class="lint-categories" id="lint-categories"></div>
@@ -829,29 +977,16 @@
   </div>
 
   <!-- ─── Settings Tab ─── -->
-  <div class="tab-pane" data-tab-content="spec">
+  <div class="tab-pane" data-tab-content="settings" role="tabpanel" id="panel-settings" aria-labelledby="tab-settings">
     <div class="settings-content">
       <!-- Mode -->
       <div class="setting-group">
         <div class="setting-label" data-i18n="spec.mode">Mode</div>
         <div class="mode-toggle">
-          <button id="mode-library" class="active" data-i18n="spec.mode.library">Library</button>
-          <button id="mode-spec" data-i18n="spec.mode.spec">Spec</button>
+          <button id="mode-library" class="active" data-i18n="spec.mode.library" type="button">Library</button>
+          <button id="mode-spec" data-i18n="spec.mode.spec" type="button">Spec</button>
         </div>
         <div class="mode-desc" id="mode-desc">Check if designs use shared library tokens</div>
-      </div>
-
-      <!-- Library (shown in library mode) -->
-      <div class="setting-group" id="library-group">
-        <div class="setting-label" data-i18n="spec.library">Library</div>
-        <div style="position:relative">
-          <button id="library-trigger" class="library-trigger">
-            <span class="label-text placeholder" id="library-trigger-label">None</span>
-            <span class="chevron">&#9662;</span>
-          </button>
-          <div id="library-popup-overlay" class="library-popup-overlay"></div>
-          <div id="library-popup" class="library-popup"></div>
-        </div>
       </div>
 
       <!-- API Token -->
@@ -859,23 +994,17 @@
         <div class="setting-label" data-i18n="spec.apitoken">API Token</div>
         <div class="input-row">
           <input id="token-input" class="input" type="password" placeholder="figd_xxx">
-          <button id="token-save-btn" class="btn" data-i18n="spec.save">Save</button>
+          <button id="token-save-btn" class="btn" data-i18n="spec.save" type="button">Save</button>
         </div>
         <div class="hint" data-i18n="spec.token.hint">Figma Settings > Personal access tokens</div>
       </div>
 
-    </div>
-  </div>
-
-  <!-- ─── Settings Tab ─── -->
-  <div class="tab-pane" data-tab-content="guide">
-    <div class="help-content">
       <!-- Language -->
       <div class="setting-group">
         <div class="setting-label" data-i18n="settings.language">Language</div>
         <div class="mode-toggle">
-          <button id="lang-en" class="active">EN</button>
-          <button id="lang-zh">中文</button>
+          <button id="lang-en" class="active" type="button">EN</button>
+          <button id="lang-zh" type="button">中文</button>
         </div>
       </div>
 
@@ -901,7 +1030,7 @@
     }
   }
 }</div>
-          <button class="copy-btn" id="copy-config" data-i18n="settings.copy">Copy</button>
+          <button class="copy-btn" id="copy-config" data-i18n="settings.copy" type="button">Copy</button>
         </div>
       </div>
 
@@ -922,20 +1051,20 @@
 
   <script>
     // ─── State ───
-    var DEFAULT_CHANNEL = 'figcraft';
-    var channelId = DEFAULT_CHANNEL;
-    var ws = null;
-    var reconnectTimer = null;
-    var connected = false;
-    var currentMode = 'library';
-    var selectedLibrary = null;
-    var savedApiToken = '';
-    var libraryEntries = {};  // { fileKey: { name, url } } — synced from plugin sandbox
-    var logCount = 0;
+    const DEFAULT_CHANNEL = 'figcraft';
+    let channelId = DEFAULT_CHANNEL;
+    let ws = null;
+    let reconnectTimer = null;
+    let connected = false;
+    let currentMode = 'library';
+    let selectedLibrary = null;
+    let savedApiToken = '';
+    let libraryEntries = {};  // { fileKey: { name, url } } — synced from plugin sandbox
+    let logCount = 0;
 
     // ─── i18n ───
-    var currentLang = 'en';
-    var TRANSLATIONS = {
+    let currentLang = 'en';
+    const TRANSLATIONS = {
       en: {
         'tab.activity': 'Activity', 'tab.lint': 'Lint', 'tab.spec': 'Spec Setup', 'tab.settings': 'Settings',
         'header.channel': 'Channel',
@@ -949,6 +1078,10 @@
         'lint.passed': 'Passed', 'lint.violations': 'Violations', 'lint.fixable': 'Fixable',
         'lint.running': 'Checking...', 'lint.fixing': 'Fixing...',
         'lint.score': 'Score',
+        'lint.annotate': '📌 Mark', 'lint.annotated': '✓ Done',
+        'lint.removeAnnotation': '✕ Remove',
+        'lint.clearAnnotations': '✕ Clear annotations (selection or page)',
+        'lint.annotateTitle': 'Annotate on canvas',
         'settings.language': 'Language',
         'settings.quickstart': 'QUICK START',
         'settings.step1': "Add FigCraft to your IDE's MCP config",
@@ -957,6 +1090,12 @@
         'settings.mcpconfig': 'MCP CONFIG', 'settings.copy': 'Copy',
         'settings.conninfo': 'CONNECTION INFO',
         'settings.status': 'Status', 'settings.port': 'Port', 'settings.channel': 'Channel',
+        'status.sr.connected': 'Connected', 'status.sr.connecting': 'Connecting', 'status.sr.disconnected': 'Disconnected',
+        'lint.autofix.disabled.notconnected': 'Connect to relay first',
+        'lint.autofix.disabled.noviolations': 'No fixable violations found',
+        'error.notconnected.lint': 'Connect to relay first to run lint checks.',
+        'error.relay.unavailable': 'Cannot connect to relay. Make sure your IDE has FigCraft running.',
+        'error.relay.suggestion': 'Try restarting your IDE or check if another process is using the port.',
       },
       zh: {
         'tab.activity': '日志', 'tab.lint': '检查', 'tab.spec': '规范配置', 'tab.settings': '设置',
@@ -971,6 +1110,10 @@
         'lint.passed': '通过', 'lint.violations': '违规', 'lint.fixable': '可修复',
         'lint.running': '检查中...', 'lint.fixing': '修复中...',
         'lint.score': '评分',
+        'lint.annotate': '📌 标注', 'lint.annotated': '✓ 已标注',
+        'lint.removeAnnotation': '✕ 移除',
+        'lint.clearAnnotations': '✕ 清除标注（选中项或本页）',
+        'lint.annotateTitle': '在画布上标注',
         'settings.language': '语言',
         'settings.quickstart': '快速开始',
         'settings.step1': '在 IDE 的 MCP 配置中添加 FigCraft',
@@ -979,8 +1122,95 @@
         'settings.mcpconfig': 'MCP 配置', 'settings.copy': '复制',
         'settings.conninfo': '连接信息',
         'settings.status': '状态', 'settings.port': '端口', 'settings.channel': '频道',
+        'status.sr.connected': '已连接', 'status.sr.connecting': '连接中', 'status.sr.disconnected': '未连接',
+        'lint.autofix.disabled.notconnected': '请先连接中继服务',
+        'lint.autofix.disabled.noviolations': '没有可自动修复的违规项',
+        'error.notconnected.lint': '请先连接中继服务后再运行检查。',
+        'error.relay.unavailable': '无法连接到中继服务，请确认 IDE 已启动 FigCraft。',
+        'error.relay.suggestion': '请尝试重启 IDE，或检查端口是否被其他进程占用。',
       }
     };
+    // Designer-friendly rule display names
+    const RULE_LABELS = {
+      en: {
+        'spec-color': 'Color not from tokens',
+        'spec-typography': 'Text style not from tokens',
+        'spec-spacing': 'Spacing not from tokens',
+        'spec-border-radius': 'Corner radius not from tokens',
+        'hardcoded-token': 'Hardcoded value (no variable)',
+        'no-text-style': 'Missing text style',
+        'wcag-contrast': 'Low contrast (accessibility)',
+        'wcag-target-size': 'Tap target too small',
+        'wcag-text-size': 'Text too small to read',
+        'wcag-line-height': 'Line height causes overlap',
+        'fixed-in-autolayout': 'Fixed position in auto layout',
+        'empty-container': 'Empty frame / group',
+        'max-nesting-depth': 'Too deeply nested',
+        'default-name': 'Default layer name',
+        'component-bindings': 'Unused component property',
+      },
+      zh: {
+        'spec-color': '颜色未使用设计令牌',
+        'spec-typography': '文字样式未使用设计令牌',
+        'spec-spacing': '间距未使用设计令牌',
+        'spec-border-radius': '圆角未使用设计令牌',
+        'hardcoded-token': '硬编码值（未绑定变量）',
+        'no-text-style': '缺少文字样式',
+        'wcag-contrast': '对比度不足（无障碍）',
+        'wcag-target-size': '点击区域太小',
+        'wcag-text-size': '文字太小，难以阅读',
+        'wcag-line-height': '行高过小，文字重叠',
+        'fixed-in-autolayout': '自动布局中使用了固定定位',
+        'empty-container': '空的容器图层',
+        'max-nesting-depth': '嵌套层级过深',
+        'default-name': '使用了默认图层名',
+        'component-bindings': '组件属性未被使用',
+      }
+    };
+    function ruleLabel(ruleName) {
+      return (RULE_LABELS[currentLang] || RULE_LABELS.en)[ruleName] || ruleName;
+    }
+
+    // Short annotation tips for canvas markers (no node name, action-oriented)
+    const ANNOTATION_TIPS = {
+      en: {
+        'spec-color': 'Color doesn\'t match any token — pick one from the library',
+        'spec-typography': 'Text style doesn\'t match any token — apply one from the library',
+        'spec-spacing': 'Spacing doesn\'t match any token — use a standard value',
+        'spec-border-radius': 'Corner radius doesn\'t match any token — use a standard value',
+        'hardcoded-token': 'This value isn\'t linked to a variable — bind it to the library',
+        'no-text-style': 'No text style applied — pick one from the library',
+        'wcag-contrast': 'Text contrast is too low — increase it for readability',
+        'wcag-target-size': 'Tap area is under 44×44px — make it bigger',
+        'wcag-text-size': 'Text is under 12px — increase for readability',
+        'wcag-line-height': 'Line height is too tight — text lines may overlap',
+        'fixed-in-autolayout': 'Absolute position inside auto layout — may break the flow',
+        'empty-container': 'Empty container — remove or add content',
+        'max-nesting-depth': 'Nested too deep — try flattening the layers',
+        'default-name': 'Still using a default name — rename to something descriptive',
+        'component-bindings': 'Component property defined but not wired to any child',
+      },
+      zh: {
+        'spec-color': '颜色不在令牌中，请从库中选择',
+        'spec-typography': '文字样式不在令牌中，请从库中应用',
+        'spec-spacing': '间距不在令牌中，请使用标准值',
+        'spec-border-radius': '圆角不在令牌中，请使用标准值',
+        'hardcoded-token': '该值未绑定变量，请关联到库',
+        'no-text-style': '未应用文字样式，请从库中选择',
+        'wcag-contrast': '文字对比度不足，请提高以便阅读',
+        'wcag-target-size': '点击区域不足 44×44px，请增大',
+        'wcag-text-size': '文字小于 12px，请增大以便阅读',
+        'wcag-line-height': '行高过小，文字可能重叠',
+        'fixed-in-autolayout': '自动布局中使用了固定定位，可能破坏布局',
+        'empty-container': '空容器，请移除或添加内容',
+        'max-nesting-depth': '嵌套过深，建议精简图层结构',
+        'default-name': '仍在使用默认名称，请重命名',
+        'component-bindings': '组件属性已定义但未连接到子图层',
+      }
+    };
+    function annotationTip(ruleName) {
+      return (ANNOTATION_TIPS[currentLang] || ANNOTATION_TIPS.en)[ruleName] || ruleLabel(ruleName);
+    }
     function t(key) { return (TRANSLATIONS[currentLang] || TRANSLATIONS.en)[key] || key; }
     function applyLocale() {
       document.querySelectorAll('[data-i18n]').forEach(function(el) {
@@ -995,35 +1225,37 @@
       // Re-apply dynamic texts that depend on current state
       setStatus(connected ? 'connected' : 'disconnected', '');
       updateModeUI(currentMode);
+      if (typeof updateClearBarText === 'function') updateClearBarText();
       parent.postMessage({ pluginMessage: { type: 'save-lang', lang: lang } }, '*');
     }
 
     // ─── Elements ───
-    var channelInput = document.getElementById('channel-input');
-    var connectBtn = document.getElementById('connect-btn');
-    var statusTextEl = document.getElementById('status-text');
-    var modeLibraryBtn = document.getElementById('mode-library');
-    var modeSpecBtn = document.getElementById('mode-spec');
-    var modeDescEl = document.getElementById('mode-desc');
-    var libraryGroup = document.getElementById('library-group');
-    var libraryTrigger = document.getElementById('library-trigger');
-    var libraryTriggerLabel = document.getElementById('library-trigger-label');
-    var libraryPopup = document.getElementById('library-popup');
-    var libraryPopupOverlay = document.getElementById('library-popup-overlay');
-    var tokenInput = document.getElementById('token-input');
-    var tokenSaveBtn = document.getElementById('token-save-btn');
-    var logEl = document.getElementById('log');
-    var logClearBtn = document.getElementById('log-clear');
-    var emptyState = document.getElementById('empty-state');
-    var activityCount = document.getElementById('activity-count');
+    const channelInput = document.getElementById('channel-input');
+    const connectBtn = document.getElementById('connect-btn');
+    const statusTextEl = document.getElementById('status-text');
+    const modeLibraryBtn = document.getElementById('mode-library');
+    const modeSpecBtn = document.getElementById('mode-spec');
+    const modeDescEl = document.getElementById('mode-desc');
+    const libraryGroup = document.getElementById('library-bar');
+    const libraryTrigger = document.getElementById('library-trigger');
+    const libraryTriggerLabel = document.getElementById('library-trigger-label');
+    const libraryPopup = document.getElementById('library-popup');
+    const libraryPopupOverlay = document.getElementById('library-popup-overlay');
+    const tokenInput = document.getElementById('token-input');
+    const tokenSaveBtn = document.getElementById('token-save-btn');
+    const logEl = document.getElementById('log');
+    const logClearBtn = document.getElementById('log-clear');
+    let emptyState = document.getElementById('empty-state');
+    const activityCount = document.getElementById('activity-count');
 
 
     // ─── Tab Switching ───
     document.querySelectorAll('.tab-btn').forEach(function(btn) {
       btn.addEventListener('click', function() {
-        document.querySelectorAll('.tab-btn').forEach(function(t) { t.classList.remove('active'); });
+        document.querySelectorAll('.tab-btn').forEach(function(t) { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
         document.querySelectorAll('.tab-pane').forEach(function(p) { p.classList.remove('active'); });
         btn.classList.add('active');
+        btn.setAttribute('aria-selected', 'true');
         document.querySelector('[data-tab-content="' + btn.dataset.tab + '"]').classList.add('active');
       });
     });
@@ -1042,8 +1274,8 @@
 
     // ─── Copy Config ───
     document.getElementById('copy-config').addEventListener('click', function() {
-      var text = document.getElementById('mcp-config').textContent.trim();
-      var btn = document.getElementById('copy-config');
+      const text = document.getElementById('mcp-config').textContent.trim();
+      const btn = document.getElementById('copy-config');
       // Try modern Clipboard API, fallback to execCommand
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(function() {
@@ -1055,7 +1287,7 @@
       }
     });
     function fallbackCopy(text, btn) {
-      var ta = document.createElement('textarea');
+      const ta = document.createElement('textarea');
       ta.value = text;
       ta.style.cssText = 'position:fixed;left:-9999px';
       document.body.appendChild(ta);
@@ -1069,10 +1301,10 @@
     // ─── Logging ───
     function log(text, type) {
       if (emptyState && emptyState.parentNode) { emptyState.remove(); emptyState = null; }
-      var entry = document.createElement('div');
+      const entry = document.createElement('div');
       entry.className = 'log-entry' + (type ? ' ' + type : '');
 
-      var time = document.createElement('span');
+      const time = document.createElement('span');
       time.className = 'time';
       time.textContent = new Date().toLocaleTimeString() + ' ';
       entry.appendChild(time);
@@ -1080,26 +1312,26 @@
       // Detect direction from text content
       if (text.charAt(0) === '\u2190') {
         // Incoming request
-        var arrow = document.createElement('span');
+        const arrow = document.createElement('span');
         arrow.className = 'arrow in';
         arrow.textContent = '\u2190 ';
         entry.appendChild(arrow);
-        var msg = document.createElement('span');
+        const msg = document.createElement('span');
         msg.className = 'msg';
         msg.textContent = text.substring(2);
         entry.appendChild(msg);
       } else if (text.charAt(0) === '\u2192') {
         // Outgoing response
-        var arrow = document.createElement('span');
+        const arrow = document.createElement('span');
         arrow.className = 'arrow out';
         arrow.textContent = '\u2192 ';
         entry.appendChild(arrow);
-        var msg = document.createElement('span');
+        const msg = document.createElement('span');
         msg.className = 'msg';
         msg.textContent = text.substring(2);
         entry.appendChild(msg);
       } else {
-        var msg = document.createElement('span');
+        const msg = document.createElement('span');
         msg.className = 'msg';
         msg.textContent = text;
         entry.appendChild(msg);
@@ -1115,7 +1347,7 @@
       logCount = 0;
       activityCount.textContent = '';
       // Re-add empty state
-      var es = document.createElement('div');
+      const es = document.createElement('div');
       es.className = 'empty-state';
       es.id = 'empty-state';
       es.innerHTML = '<div class="empty-dot"></div><span data-i18n="activity.empty">' + t('activity.empty') + '</span>';
@@ -1126,15 +1358,19 @@
     // ─── Status ───
     function setStatus(state, text) {
       connectBtn.className = 'btn status-btn ' + state;
+      const statusSr = document.getElementById('status-sr');
 
       if (state === 'connected') {
         statusTextEl.textContent = t('btn.connected');
+        if (statusSr) statusSr.textContent = t('status.sr.connected');
         connectBtn.disabled = false;
       } else if (state === 'connecting') {
         statusTextEl.textContent = t('btn.connecting');
+        if (statusSr) statusSr.textContent = t('status.sr.connecting');
         connectBtn.disabled = true;
       } else {
         statusTextEl.textContent = t('btn.connect');
+        if (statusSr) statusSr.textContent = t('status.sr.disconnected');
         connectBtn.disabled = false;
       }
 
@@ -1147,15 +1383,20 @@
 
     // ─── Save feedback helper ───
     function flashSaved(btn) {
-      var orig = btn.textContent;
+      const orig = btn.textContent;
       btn.textContent = 'Saved';
       btn.classList.add('success');
-      setTimeout(function() { btn.textContent = orig; btn.classList.remove('success'); }, 1200);
+      // fade-out starts after 900ms visible, 300ms fade-out transition, then restore
+      setTimeout(function() { btn.classList.add('fade-out'); }, 900);
+      setTimeout(function() {
+        btn.textContent = orig;
+        btn.classList.remove('success', 'fade-out');
+      }, 1500);
     }
 
     // ─── WebSocket ───
-    var RELAY_PORTS = [3055, 3056, 3057, 3058, 3059, 3060];
-    var currentRelayPort = null;
+    const RELAY_PORTS = [3055, 3056, 3057, 3058, 3059, 3060];
+    let currentRelayPort = null;
 
     function connect(silent) {
       channelId = channelInput.value.trim() || DEFAULT_CHANNEL;
@@ -1176,15 +1417,18 @@
       if (index < 0) index = 0;
       if (index >= RELAY_PORTS.length) {
         setStatus('disconnected', 'Disconnected');
-        if (!silent) log('All relay ports unavailable', 'error');
+        if (!silent) {
+          log(t('error.relay.unavailable'), 'error');
+          log(t('error.relay.suggestion'), 'info');
+        }
         scheduleReconnect();
         return;
       }
 
-      var port = RELAY_PORTS[index];
+      const port = RELAY_PORTS[index];
       ws = new WebSocket('ws://localhost:' + port);
 
-      var timeout = setTimeout(function() {
+      const timeout = setTimeout(function() {
         ws.onopen = null; ws.onerror = null; ws.close();
         tryConnectPort(index + 1, silent);
       }, 1000);
@@ -1198,7 +1442,7 @@
         }
         // Sync all stored library fileKeys to MCP server
         Object.keys(libraryEntries).forEach(function(fk) {
-          var entry = libraryEntries[fk];
+          const entry = libraryEntries[fk];
           if (entry && entry.name) {
             ws.send(JSON.stringify({ type: 'set-library-file-key', channel: channelId, library: entry.name, fileKey: fk }));
           }
@@ -1206,10 +1450,11 @@
         setStatus('connected', 'Online');
         log('Connected on port ' + port, 'success');
         connected = true;
+        updateFixBtnTitle();
         document.getElementById('info-port').textContent = String(port);
 
         ws.onmessage = function(event) {
-          var msg;
+          let msg;
           try { msg = JSON.parse(event.data); } catch(e) { return; }
           if (msg.type === 'ping') { ws.send(JSON.stringify({ type: 'pong', channel: channelId })); return; }
           if (msg.type === 'file-name-resolved') { handleFileNameResolved(msg); return; }
@@ -1218,6 +1463,7 @@
 
         ws.onclose = function() {
           connected = false;
+          updateFixBtnTitle();
           setStatus('disconnected', 'Disconnected');
           log('Disconnected', 'error');
           scheduleReconnect();
@@ -1234,6 +1480,7 @@
       reconnectTimer = null;
       if (ws) { ws.onclose = null; ws.close(); ws = null; }
       connected = false;
+      updateFixBtnTitle();
       setStatus('disconnected', 'Disconnected');
       log('Disconnected by user', 'info');
     }
@@ -1245,7 +1492,7 @@
 
     // ─── Plugin sandbox messages ───
     window.onmessage = function(event) {
-      var msg = event.data.pluginMessage;
+      const msg = event.data.pluginMessage;
       if (!msg) return;
 
       if (msg.type === 'restore-lang') { setLocale(msg.lang || 'en'); return; }
@@ -1313,11 +1560,11 @@
     };
 
     // ─── Mode ───
-    var MODE_DESCS = {
+    const MODE_DESCS = {
       library: 'Check if designs use shared library tokens',
       spec: 'Validate design values against DTCG token specs'
     };
-    var MODE_DESCS_ZH = {
+    const MODE_DESCS_ZH = {
       library: '检查设计是否使用了共享库 Token',
       spec: '对照 DTCG Token 规范校验设计值'
     };
@@ -1328,13 +1575,6 @@
       modeSpecBtn.className = mode === 'spec' ? 'active' : '';
       modeDescEl.textContent = (currentLang === 'zh' ? MODE_DESCS_ZH : MODE_DESCS)[mode] || '';
       libraryGroup.style.display = mode === 'library' ? '' : 'none';
-      // Update mode indicator in Activity tab
-      var indicator = document.getElementById('mode-indicator');
-      if (indicator) {
-        indicator.textContent = mode === 'library'
-          ? (currentLang === 'zh' ? '共享库' : 'Library')
-          : (currentLang === 'zh' ? '规范' : 'Spec');
-      }
       if (mode === 'library') {
         parent.postMessage({ pluginMessage: { type: 'get-libraries' } }, '*');
       }
@@ -1351,18 +1591,43 @@
     modeSpecBtn.addEventListener('click', function() { setMode('spec'); });
 
     // ─── Library Popup ───
-    var cachedLibraryData = null;
+    let cachedLibraryData = null;
+
+    function handleLibraryKeydown(e) {
+      if (e.key === 'Escape') {
+        closeLibraryPopup();
+        libraryTrigger.focus();
+        return;
+      }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const items = libraryPopup.querySelectorAll('.library-popup-item');
+        if (items.length === 0) return;
+        const current = libraryPopup.querySelector('.library-popup-item:focus');
+        let index = Array.prototype.indexOf.call(items, current);
+        if (e.key === 'ArrowDown') {
+          index = (index + 1) % items.length;
+        } else {
+          index = index <= 0 ? items.length - 1 : index - 1;
+        }
+        items[index].focus();
+      }
+    }
 
     function openLibraryPopup() {
       libraryPopup.classList.add('open');
       libraryPopupOverlay.classList.add('open');
       libraryTrigger.classList.add('open');
+      document.addEventListener('keydown', handleLibraryKeydown);
+      const firstItem = libraryPopup.querySelector('.library-popup-item');
+      if (firstItem) firstItem.focus();
     }
 
     function closeLibraryPopup() {
       libraryPopup.classList.remove('open');
       libraryPopupOverlay.classList.remove('open');
       libraryTrigger.classList.remove('open');
+      document.removeEventListener('keydown', handleLibraryKeydown);
     }
 
     libraryTrigger.addEventListener('click', function() {
@@ -1383,7 +1648,7 @@
       }
     }
 
-    var URL_RE = /figma\.com\/(?:file|design)\/([a-zA-Z0-9]+)/;
+    const URL_RE = /figma\.com\/(?:file|design)\/([a-zA-Z0-9]+)/;
 
     function populateLibraryDropdown(libraries, inUseLibraries, savedLibrary, hasLocal) {
       libraryPopup.innerHTML = '';
@@ -1399,10 +1664,10 @@
 
       // libraries is [{name, fileKey}]
       if (libraries.length > 0) {
-        var inUseSet = {};
+        const inUseSet = {};
         (inUseLibraries || []).forEach(function(l) { inUseSet[l] = true; });
-        var inUse = libraries.filter(function(l) { return inUseSet[l.name]; });
-        var available = libraries.filter(function(l) { return !inUseSet[l.name]; });
+        const inUse = libraries.filter(function(l) { return inUseSet[l.name]; });
+        const available = libraries.filter(function(l) { return !inUseSet[l.name]; });
 
         if (inUse.length > 0 && available.length > 0) {
           addPopupSeparator('In Use');
@@ -1415,18 +1680,18 @@
       }
 
       // Add URL input row
-      var divider = document.createElement('div');
+      const divider = document.createElement('div');
       divider.className = 'library-popup-divider';
       libraryPopup.appendChild(divider);
 
-      var addRow = document.createElement('div');
+      const addRow = document.createElement('div');
       addRow.className = 'library-popup-add-row';
-      var urlInput = document.createElement('input');
+      const urlInput = document.createElement('input');
       urlInput.className = 'input';
       urlInput.type = 'text';
       urlInput.placeholder = t('spec.library.placeholder');
       addRow.appendChild(urlInput);
-      var addBtn = document.createElement('button');
+      const addBtn = document.createElement('button');
       addBtn.className = 'library-popup-add-btn';
       addBtn.textContent = '+';
       addBtn.addEventListener('click', function() { addLibraryByUrl(urlInput); });
@@ -1438,17 +1703,17 @@
     }
 
     function addPopupItem(value, label, isActive, fileKey) {
-      var el = document.createElement('button');
+      const el = document.createElement('button');
       el.className = 'library-popup-item' + (isActive ? ' active' : '');
       el.dataset.value = value;
-      var check = document.createElement('span');
+      const check = document.createElement('span');
       check.className = 'check';
       check.textContent = isActive ? '\u2713' : '';
       el.appendChild(check);
-      var text = document.createTextNode(label);
+      const text = document.createTextNode(label);
       el.appendChild(text);
       if (fileKey) {
-        var delBtn = document.createElement('button');
+        const delBtn = document.createElement('button');
         delBtn.className = 'delete-btn';
         delBtn.textContent = '\u00d7';
         delBtn.addEventListener('click', function(e) {
@@ -1462,7 +1727,7 @@
     }
 
     function addPopupSeparator(label) {
-      var el = document.createElement('div');
+      const el = document.createElement('div');
       el.className = 'library-popup-separator';
       el.textContent = label;
       libraryPopup.appendChild(el);
@@ -1475,7 +1740,7 @@
 
       // Update check marks
       libraryPopup.querySelectorAll('.library-popup-item').forEach(function(el) {
-        var match = el.dataset.value === (value || '');
+        const match = el.dataset.value === (value || '');
         el.classList.toggle('active', match);
         el.querySelector('.check').textContent = match ? '\u2713' : '';
       });
@@ -1496,7 +1761,7 @@
     function updateLibrarySelectUI(library) {
       updateTriggerLabel(library);
       libraryPopup.querySelectorAll('.library-popup-item').forEach(function(el) {
-        var match = el.dataset.value === (library || '');
+        const match = el.dataset.value === (library || '');
         el.classList.toggle('active', match);
         el.querySelector('.check').textContent = match ? '\u2713' : '';
       });
@@ -1504,8 +1769,8 @@
 
     // ─── Add Library by URL ───
     function addLibraryByUrl(input) {
-      var val = input.value.trim();
-      var m = val.match(URL_RE);
+      const val = input.value.trim();
+      const m = val.match(URL_RE);
       if (!m) {
         showPopupError('Invalid URL \u2014 expected figma.com/design/...');
         input.classList.add('error');
@@ -1518,15 +1783,15 @@
       input.classList.remove('error');
       clearPopupError();
       input.disabled = true;
-      var btn = input.parentElement.querySelector('.library-popup-add-btn');
+      const btn = input.parentElement.querySelector('.library-popup-add-btn');
       if (btn) btn.classList.add('loading');
       ws.send(JSON.stringify({ type: 'resolve-file-name', channel: channelId, fileKey: m[1], url: val }));
       log('Resolving library name for ' + m[1] + '...', 'info');
     }
 
     function handleFileNameResolved(msg) {
-      var input = libraryPopup.querySelector('.library-popup-add-row .input');
-      var btn = libraryPopup.querySelector('.library-popup-add-btn');
+      const input = libraryPopup.querySelector('.library-popup-add-row .input');
+      const btn = libraryPopup.querySelector('.library-popup-add-btn');
       if (input) { input.disabled = false; input.value = ''; }
       if (btn) btn.classList.remove('loading');
       clearPopupError();
@@ -1545,16 +1810,20 @@
       }
     }
 
+    let popupErrorTimer = null;
+
     function showPopupError(text) {
       clearPopupError();
-      var el = document.createElement('div');
+      const el = document.createElement('div');
       el.className = 'library-popup-error';
       el.textContent = text;
       libraryPopup.appendChild(el);
+      popupErrorTimer = setTimeout(clearPopupError, 5000);
     }
 
     function clearPopupError() {
-      var existing = libraryPopup.querySelector('.library-popup-error');
+      if (popupErrorTimer) { clearTimeout(popupErrorTimer); popupErrorTimer = null; }
+      const existing = libraryPopup.querySelector('.library-popup-error');
       if (existing) existing.remove();
     }
 
@@ -1572,34 +1841,68 @@
     // ─── Figma theme detection ───
     function detectTheme() {
       // Figma injects a dark background when dark theme is active
-      var bg = window.getComputedStyle(document.documentElement).backgroundColor;
-      var match = bg.match(/\d+/g);
+      const bg = window.getComputedStyle(document.documentElement).backgroundColor;
+      const match = bg.match(/\d+/g);
       if (match) {
-        var r = parseInt(match[0], 10);
-        var g = parseInt(match[1], 10);
-        var b = parseInt(match[2], 10);
-        var luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        const r = parseInt(match[0], 10);
+        const g = parseInt(match[1], 10);
+        const b = parseInt(match[2], 10);
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
         document.documentElement.setAttribute('data-theme', luminance < 0.5 ? 'dark' : 'light');
       }
     }
-    // Detect on load and observe for changes
+    // Detect on load and observe for changes (debounced to avoid flicker)
+    let themeDebounceTimer = null;
+    function debouncedDetectTheme() {
+      clearTimeout(themeDebounceTimer);
+      themeDebounceTimer = setTimeout(detectTheme, 150);
+    }
     detectTheme();
-    new MutationObserver(detectTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'class'] });
+    new MutationObserver(debouncedDetectTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'class'] });
 
     // ─── Lint Panel ───
-    var lintRunBtn = document.getElementById('lint-run-btn');
-    var lintFixBtn = document.getElementById('lint-fix-btn');
-    var lintResult = document.getElementById('lint-result');
-    var lintEmpty = document.getElementById('lint-empty');
-    var lintCategories = document.getElementById('lint-categories');
-    var lintScoreCardArea = document.getElementById('lint-score-card-area');
-    var lintScope = document.getElementById('lint-scope');
-    var lastLintViolations = [];
+    const lintRunBtn = document.getElementById('lint-run-btn');
+    const lintFixBtn = document.getElementById('lint-fix-btn');
+    const lintResult = document.getElementById('lint-result');
+    const lintEmpty = document.getElementById('lint-empty');
+    const lintCategories = document.getElementById('lint-categories');
+    const lintScoreCardArea = document.getElementById('lint-score-card-area');
+    const lintScope = document.getElementById('lint-scope');
+    const clearBar = document.getElementById('lint-clear-bar');
+    const clearAnnotationsBtn = document.getElementById('lint-clear-annotations-btn');
+    let lastLintViolations = [];
+
+    clearAnnotationsBtn.addEventListener('click', function() {
+      parent.postMessage({ pluginMessage: { type: 'clear-annotations' } }, '*');
+      clearBar.classList.remove('visible');
+    });
+
+    function updateClearBarText() {
+      clearAnnotationsBtn.textContent = t('lint.clearAnnotations');
+    }
+    updateClearBarText();
+
+    function updateFixBtnTitle() {
+      if (!lintFixBtn.disabled) {
+        lintFixBtn.title = '';
+      } else if (!connected) {
+        lintFixBtn.title = t('lint.autofix.disabled.notconnected');
+      } else {
+        lintFixBtn.title = t('lint.autofix.disabled.noviolations');
+      }
+    }
 
     lintRunBtn.addEventListener('click', function() {
-      if (!connected) { log('Not connected', 'error'); return; }
+      if (!connected) {
+        const banner = document.getElementById('lint-error-banner');
+        banner.textContent = t('error.notconnected.lint');
+        banner.style.display = 'block';
+        return;
+      }
+      document.getElementById('lint-error-banner').style.display = 'none';
       lintRunBtn.disabled = true;
       lintRunBtn.textContent = t('lint.running');
+      lintRunBtn.classList.add('loading');
       // Send lint_check request through the plugin sandbox (cap at 500 violations for UI responsiveness)
       parent.postMessage({ pluginMessage: { type: 'ui-lint-check', maxViolations: 500 } }, '*');
     });
@@ -1607,22 +1910,27 @@
     lintFixBtn.addEventListener('click', function() {
       if (!connected || lastLintViolations.length === 0) return;
       lintFixBtn.disabled = true;
+      lintFixBtn.title = '';
       lintFixBtn.textContent = t('lint.fixing');
       parent.postMessage({ pluginMessage: { type: 'ui-lint-fix', violations: lastLintViolations } }, '*');
     });
+
+    // Set initial title for disabled Auto Fix button
+    updateFixBtnTitle();
 
     function renderLintResult(report) {
       lintEmpty.style.display = 'none';
       lintResult.style.display = '';
       lintRunBtn.disabled = false;
       lintRunBtn.textContent = t('lint.run');
+      lintRunBtn.classList.remove('loading');
 
       // Scope info
-      var s = report.scope;
+      const s = report.scope;
       if (s) {
-        var scopeText = '';
+        let scopeText = '';
         if (s.type === 'selection') {
-          var names = (s.names || []).join(', ');
+          let names = (s.names || []).join(', ');
           if (s.count > 5) names += ' …';
           scopeText = (currentLang === 'zh' ? '检查范围：选中的 ' : 'Scope: ') + s.count +
             (currentLang === 'zh' ? ' 个节点' : ' node' + (s.count > 1 ? 's' : '')) +
@@ -1638,10 +1946,10 @@
         lintScope.textContent = '';
       }
 
-      var total = report.summary.total;
-      var pass = report.summary.pass;
-      var violations = report.summary.violations;
-      var score = total > 0 ? Math.round((pass / total) * 100) : 100;
+      const total = report.summary.total;
+      const pass = report.summary.pass;
+      const violations = report.summary.violations;
+      const score = total > 0 ? Math.round((pass / total) * 100) : 100;
 
       // Collect fixable violations
       lastLintViolations = [];
@@ -1651,11 +1959,15 @@
         });
       });
 
-      lintFixBtn.disabled = lastLintViolations.length === 0;
+      lintFixBtn.disabled = !connected || lastLintViolations.length === 0;
       lintFixBtn.textContent = t('lint.fix') + (lastLintViolations.length > 0 ? ' (' + lastLintViolations.length + ')' : '');
+      updateFixBtnTitle();
 
-      // Score card
-      var scoreClass = score >= 80 ? 'good' : score >= 50 ? 'warn' : 'bad';
+      // Score card — compact
+      const scoreClass = score >= 80 ? 'good' : score >= 50 ? 'warn' : 'bad';
+      var fixableHtml = lastLintViolations.length > 0
+        ? '<div class="lint-stat"><span class="lint-stat-value fix">' + lastLintViolations.length + '</span><span class="lint-stat-label"> ' + t('lint.fixable') + '</span></div>'
+        : '';
       lintScoreCardArea.innerHTML =
         '<div class="lint-score-card">' +
           '<div class="lint-score-top">' +
@@ -1664,23 +1976,83 @@
               '<div class="lint-score-stats">' +
                 '<div class="lint-stat"><span class="lint-stat-value pass">' + pass + '</span><span class="lint-stat-label"> ' + t('lint.passed') + '</span></div>' +
                 '<div class="lint-stat"><span class="lint-stat-value fail">' + violations + '</span><span class="lint-stat-label"> ' + t('lint.violations') + '</span></div>' +
-                '<div class="lint-stat"><span class="lint-stat-value fix">' + lastLintViolations.length + '</span><span class="lint-stat-label"> ' + t('lint.fixable') + '</span></div>' +
+                fixableHtml +
               '</div>' +
-              '<div class="lint-progress"><div class="lint-progress-bar" style="width:' + score + '%;background:' + (score >= 80 ? 'var(--success)' : score >= 50 ? 'var(--warning)' : 'var(--error)') + '"></div></div>' +
             '</div>' +
           '</div>' +
         '</div>';
 
-      // Category breakdown
+      // Category breakdown — expandable with node list
       lintCategories.innerHTML = '';
-      var cats = report.categories || [];
+      const cats = report.categories || [];
       cats.sort(function(a, b) { return b.count - a.count; });
       cats.forEach(function(cat) {
+        var group = document.createElement('div');
+        group.className = 'lint-cat-group';
+
+        // Header row — clean: just chevron + label + count
         var row = document.createElement('div');
         row.className = 'lint-cat-row';
-        row.innerHTML = '<span class="lint-cat-name">' + cat.rule + '</span>' +
+        row.innerHTML =
+          '<span class="lint-cat-name"><span class="chevron">▶</span>' + ruleLabel(cat.rule) + '</span>' +
           '<span class="lint-cat-count' + (cat.count === 0 ? ' zero' : '') + '">' + cat.count + '</span>';
-        lintCategories.appendChild(row);
+
+        // Node list (hidden by default)
+        var nodeList = document.createElement('div');
+        nodeList.className = 'lint-node-list';
+        (cat.nodes || []).forEach(function(v) {
+          var item = document.createElement('div');
+          item.className = 'lint-node-item';
+          item.innerHTML =
+            '<span class="lint-node-name"><span class="icon">◎</span>' + escapeHtml(v.nodeName) + '</span>' +
+            '<span class="lint-node-suggestion">' + escapeHtml(annotationTip(cat.rule)) + '</span>';
+          item.addEventListener('click', function(e) {
+            e.stopPropagation();
+            parent.postMessage({ pluginMessage: { type: 'focus-node', nodeId: v.nodeId } }, '*');
+          });
+          nodeList.appendChild(item);
+        });
+
+        // Annotate button — inside expanded area, at the bottom
+        var actionsBar = document.createElement('div');
+        actionsBar.className = 'lint-node-actions';
+        var annotateBtn = document.createElement('button');
+        annotateBtn.className = 'lint-annotate-btn';
+        annotateBtn.title = t('lint.annotateTitle');
+        annotateBtn.textContent = t('lint.annotate');
+        var isAnnotated = false;
+        annotateBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          if (!isAnnotated) {
+            var tip = annotationTip(cat.rule);
+            var violations = (cat.nodes || []).map(function(v) {
+              return { nodeId: v.nodeId, suggestion: tip };
+            });
+            parent.postMessage({ pluginMessage: { type: 'annotate-category', violations: violations } }, '*');
+            isAnnotated = true;
+            annotateBtn.textContent = t('lint.removeAnnotation');
+            annotateBtn.classList.add('active');
+            clearBar.classList.add('visible');
+          } else {
+            var nodeIds = (cat.nodes || []).map(function(v) { return v.nodeId; });
+            parent.postMessage({ pluginMessage: { type: 'clear-category-annotations', nodeIds: nodeIds } }, '*');
+            isAnnotated = false;
+            annotateBtn.textContent = t('lint.annotate');
+            annotateBtn.classList.remove('active');
+          }
+        });
+        actionsBar.appendChild(annotateBtn);
+        nodeList.appendChild(actionsBar);
+
+        // Toggle expand/collapse
+        row.addEventListener('click', function() {
+          row.classList.toggle('expanded');
+          nodeList.classList.toggle('open');
+        });
+
+        group.appendChild(row);
+        group.appendChild(nodeList);
+        lintCategories.appendChild(group);
       });
 
       if (cats.length === 0) {
@@ -1691,10 +2063,17 @@
       }
     }
 
+    function escapeHtml(str) {
+      var div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
     function renderLintFixResult(result) {
       lintFixBtn.disabled = true;
       lintFixBtn.textContent = t('lint.fix');
       lastLintViolations = [];
+      updateFixBtnTitle();
       log('\u2192 Fixed ' + (result.fixed || 0) + ' violations', 'success');
       // Re-run lint to refresh
       lintRunBtn.click();
