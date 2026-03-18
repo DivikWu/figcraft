@@ -29,7 +29,8 @@ export const noTextStyleRule: LintRule = {
       severity: 'warning',
       currentValue: `fontSize: ${node.fontSize ?? 'mixed'}, fontFamily: ${node.fontName?.family ?? 'unknown'}`,
       suggestion: `"${node.name}" uses custom font settings — apply a shared text style to keep typography consistent`,
-      autoFixable: false,
+      autoFixable: true,
+      fixData: { fontSize: node.fontSize, fontFamily: node.fontName?.family },
     }];
   },
 };

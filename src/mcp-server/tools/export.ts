@@ -1,10 +1,12 @@
 /**
  * Export tool — export Figma node as image (PNG/SVG/PDF/JPG).
+ * Supports REST API fallback when plugin is offline.
  */
 
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Bridge } from '../bridge.js';
+import { requestWithFallback, restExportImage } from '../rest-fallback.js';
 
 export function registerExportTools(server: McpServer, bridge: Bridge): void {
   server.tool(
@@ -23,10 +25,16 @@ export function registerExportTools(server: McpServer, bridge: Bridge): void {
         .describe('Export scale for raster formats (default: 2)'),
     },
     async ({ nodeId, format, scale }) => {
-      const result = await bridge.request('export_image', { nodeId, format, scale });
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-      };
+      const { result, source } = await requestWithFallback(
+        bridge,
+        'export_image',
+        { nodeId, format, scale },
+        () => restExportImage(nodeId, format, scale),
+      );
+      const text = source === 'rest-api'
+        ? JSON.stringify(result, null, 2) + '\n\n⚠️ Exported via REST API (plugin offline).'
+        : JSON.stringify(result, null, 2);
+      return { content: [{ type: 'text' as const, text }] };
     },
   );
 }

@@ -21,6 +21,7 @@ import {
   isChannelAnnounceMessage,
 } from '../shared/protocol.js';
 import { fetchFileName } from './figma-api.js';
+import { saveBridgeToken } from './auth.js';
 
 interface PendingRequest {
   resolve: (result: unknown) => void;
@@ -103,6 +104,9 @@ export class Bridge {
 
         if (isSetApiTokenMessage(msg)) {
           this.apiToken = msg.token || null;
+          if (msg.token) {
+            saveBridgeToken(msg.token);
+          }
           console.error('[FigCraft bridge] API token received from plugin');
           return;
         }

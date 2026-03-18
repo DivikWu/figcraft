@@ -117,6 +117,33 @@ async function refreshToken(refreshTok: string): Promise<Credentials> {
   return creds;
 }
 
+// ─── Bridge token persistence ───
+
+function bridgeTokenPath(): string {
+  return join(credentialsDir(), 'bridge-token.json');
+}
+
+/** Save the API token received from Plugin UI to disk for offline use. */
+export function saveBridgeToken(token: string): void {
+  const dir = credentialsDir();
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const tmp = bridgeTokenPath() + '.tmp';
+  writeFileSync(tmp, JSON.stringify({ token, savedAt: Date.now() }), { mode: 0o600 });
+  renameSync(tmp, bridgeTokenPath());
+  console.error('[FigCraft auth] Bridge token persisted to disk');
+}
+
+/** Load persisted bridge token from disk. */
+function loadBridgeToken(): string | null {
+  try {
+    const raw = readFileSync(bridgeTokenPath(), 'utf-8');
+    const data = JSON.parse(raw) as { token: string };
+    return data.token || null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Bridge token injection ───
 
 let bridgeTokenFn: (() => string | null) | null = null;
@@ -130,16 +157,20 @@ export function setBridgeTokenProvider(fn: () => string | null): void {
 
 /**
  * Get a valid Figma API token.
- * Priority: 1) FIGMA_API_TOKEN env var → 2) Plugin UI token (via Bridge) → 3) OAuth.
+ * Priority: 1) FIGMA_API_TOKEN env → 2) Live bridge token → 3) Persisted bridge token → 4) OAuth.
  */
 export async function getToken(): Promise<string> {
   // PAT takes priority — simplest setup, works on all plans
   const pat = process.env.FIGMA_API_TOKEN;
   if (pat) return pat;
 
-  // Plugin UI token (sent via WebSocket)
+  // Live plugin UI token (sent via WebSocket)
   const bridgeToken = bridgeTokenFn?.();
   if (bridgeToken) return bridgeToken;
+
+  // Persisted bridge token (plugin was online before, token saved to disk)
+  const persistedToken = loadBridgeToken();
+  if (persistedToken) return persistedToken;
 
   // Fall back to OAuth credentials
   const creds = loadCredentials();
@@ -284,8 +315,14 @@ export function startOAuthFlow(): { url: string; completion: Promise<{ ok: true 
 
 /**
  * Get current auth status.
+ * Reports the highest-priority auth method available.
  */
-export function getAuthStatus(): { method: 'oauth' | 'none'; expiresAt?: number } {
+export function getAuthStatus(): { method: 'pat' | 'bridge' | 'bridge-persisted' | 'oauth' | 'none'; expiresAt?: number } {
+  if (process.env.FIGMA_API_TOKEN) return { method: 'pat' };
+  const bridgeToken = bridgeTokenFn?.();
+  if (bridgeToken) return { method: 'bridge' };
+  const persistedToken = loadBridgeToken();
+  if (persistedToken) return { method: 'bridge-persisted' };
   const creds = loadCredentials();
   if (creds) return { method: 'oauth', expiresAt: creds.expires_at };
   return { method: 'none' };

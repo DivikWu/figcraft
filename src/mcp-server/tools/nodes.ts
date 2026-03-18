@@ -1,10 +1,20 @@
 /**
  * Node read tools — MCP wrappers that bridge to Plugin handlers.
+ * Supports REST API fallback for get_node_info and get_document_info
+ * when the plugin is offline but an API token is available.
  */
 
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Bridge } from '../bridge.js';
+import {
+  requestWithFallback,
+  restGetNodeInfo,
+  restGetDocumentInfo,
+  setFileKey,
+  getFileContext,
+} from '../rest-fallback.js';
+import { extractFileKeyFromUrl, extractNodeIdFromUrl } from '../figma-api.js';
 
 export function registerNodeTools(server: McpServer, bridge: Bridge): void {
   server.tool(
@@ -15,10 +25,33 @@ export function registerNodeTools(server: McpServer, bridge: Bridge): void {
       nodeId: z.string().describe('The Figma node ID (e.g. "1:23")'),
     },
     async ({ nodeId }) => {
-      const result = await bridge.request('get_node_info', { nodeId });
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-      };
+      // Support Figma URLs: extract fileKey + nodeId automatically
+      let resolvedNodeId = nodeId;
+      if (nodeId.includes('figma.com/')) {
+        const urlFileKey = extractFileKeyFromUrl(nodeId);
+        const urlNodeId = extractNodeIdFromUrl(nodeId);
+        if (urlFileKey) {
+          setFileKey(urlFileKey);
+        }
+        if (urlNodeId) {
+          resolvedNodeId = urlNodeId;
+        } else {
+          return {
+            content: [{ type: 'text' as const, text: 'Could not extract node ID from the Figma URL. Please include ?node-id= in the URL.' }],
+          };
+        }
+      }
+
+      const { result, source } = await requestWithFallback(
+        bridge,
+        'get_node_info',
+        { nodeId: resolvedNodeId },
+        () => restGetNodeInfo(resolvedNodeId),
+      );
+      const text = source === 'rest-api'
+        ? JSON.stringify(result, null, 2) + '\n\n⚠️ Data from REST API (plugin offline). Variable bindings and some properties may be missing.'
+        : JSON.stringify(result, null, 2);
+      return { content: [{ type: 'text' as const, text }] };
     },
   );
 
@@ -45,10 +78,16 @@ export function registerNodeTools(server: McpServer, bridge: Bridge): void {
     'Get document overview: name, current page, and list of all pages.',
     {},
     async () => {
-      const result = await bridge.request('get_document_info', {});
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-      };
+      const { result, source } = await requestWithFallback(
+        bridge,
+        'get_document_info',
+        {},
+        () => restGetDocumentInfo(),
+      );
+      const text = source === 'rest-api'
+        ? JSON.stringify(result, null, 2) + '\n\n⚠️ Data from REST API (plugin offline). Current page info unavailable.'
+        : JSON.stringify(result, null, 2);
+      return { content: [{ type: 'text' as const, text }] };
     },
   );
 

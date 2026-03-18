@@ -278,17 +278,18 @@
     .mode-toggle {
       display: flex;
       background: var(--surface);
-      border-radius: 10px;
+      border-radius: 8px;
       padding: 2px;
       gap: 2px;
     }
     .mode-toggle button {
       flex: 1;
-      padding: 8px 12px;
+      height: 28px;
+      padding: 0 12px;
       font-size: 12px;
       font-weight: 500;
       border: none;
-      border-radius: 8px;
+      border-radius: 6px;
       background: transparent;
       color: var(--text-secondary);
       cursor: pointer;
@@ -743,10 +744,10 @@
       transition: width 0.3s ease;
     }
     .lint-scope {
-      font-size: 10px;
-      color: var(--text-tertiary);
-      text-align: center;
-      padding: 4px 0;
+      font-size: 12px;
+      color: var(--text-primary);
+      text-align: left;
+      padding: 4px 0 2px;
     }
     .lint-all-pass {
       text-align: center;
@@ -769,7 +770,7 @@
       padding: 8px 8px;
       background: var(--surface);
       border-radius: 8px;
-      font-size: 11px;
+      font-size: 12px;
       transition: background 0.1s;
     }
     .lint-cat-row:hover { background: var(--surface-hover); }
@@ -778,6 +779,11 @@
       font-weight: 500;
       display: flex;
       align-items: center;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
     }
     .lint-cat-count {
       font-size: 10px;
@@ -839,23 +845,24 @@
       gap: 0;
     }
     .lint-annotate-btn {
-      font-size: 9px;
-      padding: 3px 8px;
-      border: 1px solid var(--border);
+      font-size: 12px;
+      height: 24px;
+      padding: 0 8px;
+      border: none;
       border-radius: 4px;
-      background: transparent;
-      color: var(--text-tertiary);
+      background: var(--bg);
+      color: var(--text-primary);
       cursor: pointer;
       white-space: nowrap;
       transition: background 0.1s, color 0.1s, border-color 0.1s;
     }
-    .lint-annotate-btn:hover { background: var(--surface-hover); color: var(--text-primary); }
+    .lint-annotate-btn:hover { background: #d4d4d4; color: var(--text-primary); }
     .lint-annotate-btn.active {
-      background: var(--error-bg);
+      background: var(--bg);
       color: var(--error);
       border-color: var(--error);
     }
-    .lint-annotate-btn.active:hover { background: var(--error); color: #fff; }
+    .lint-annotate-btn.active:hover { background: #d4d4d4; color: var(--error); }
     .lint-node-list {
       display: none;
       flex-direction: column;
@@ -873,7 +880,7 @@
       flex-direction: column;
       gap: 2px;
       padding: 6px 12px;
-      font-size: 10px;
+      font-size: 12px;
       cursor: pointer;
       border-radius: 0 6px 6px 0;
       transition: background 0.1s;
@@ -886,27 +893,28 @@
       align-items: center;
       gap: 4px;
     }
-    .lint-node-name .icon { font-size: 9px; color: var(--accent); }
+    .lint-node-name .icon { font-size: 8px; color: var(--text-tertiary); }
     .lint-node-suggestion {
       color: var(--text-tertiary);
-      font-size: 10px;
+      font-size: 12px;
       line-height: 1.4;
-      padding-left: 13px;
     }
     .lint-node-actions {
-      display: flex;
+      display: none;
       align-items: center;
-      justify-content: flex-end;
-      padding: 4px 12px 6px;
+      justify-content: flex-start;
+      padding: 4px 0 6px;
     }
+    .lint-node-actions.open { display: flex; }
     .lint-clear-annotations-bar {
       display: none;
-      padding: 0;
+      padding: 0 0 8px;
     }
     .lint-clear-annotations-bar.visible { display: flex; }
     .lint-clear-annotations-btn {
-      font-size: 10px;
-      padding: 4px 8px;
+      font-size: 12px;
+      height: 24px;
+      padding: 0 8px;
       border: 1px solid var(--border);
       border-radius: 6px;
       background: transparent;
@@ -974,12 +982,12 @@
         <button class="btn primary" id="lint-run-btn" data-i18n="lint.run" type="button">Run Lint</button>
         <button class="btn" id="lint-fix-btn" disabled data-i18n="lint.fix" type="button">Auto Fix</button>
       </div>
-      <div class="lint-clear-annotations-bar" id="lint-clear-bar">
-        <button class="lint-clear-annotations-btn" id="lint-clear-annotations-btn" type="button">✕ Clear canvas annotations</button>
-      </div>
       <div class="lint-error-banner" id="lint-error-banner" role="alert"></div>
       <div id="lint-result" class="lint-result-container" style="display:none">
         <div class="lint-scope" id="lint-scope"></div>
+        <div class="lint-clear-annotations-bar" id="lint-clear-bar">
+          <button class="lint-clear-annotations-btn" id="lint-clear-annotations-btn" type="button">✕ Clear canvas annotations</button>
+        </div>
         <div id="lint-score-card-area"></div>
         <div class="lint-categories" id="lint-categories"></div>
       </div>
@@ -1091,7 +1099,7 @@
         'lint.passed': 'Passed', 'lint.violations': 'Violations', 'lint.fixable': 'Fixable',
         'lint.running': 'Checking...', 'lint.fixing': 'Fixing...',
         'lint.score': 'Score',
-        'lint.annotate': '📌 Mark', 'lint.annotated': '✓ Done',
+        'lint.annotate': 'Mark', 'lint.annotated': '✓ Done',
         'lint.removeAnnotation': '✕ Remove',
         'lint.clearAnnotations': '✕ Clear annotations (selection or page)',
         'lint.annotateTitle': 'Annotate on canvas',
@@ -1106,12 +1114,15 @@
         'status.sr.connected': 'Connected', 'status.sr.connecting': 'Connecting', 'status.sr.disconnected': 'Disconnected',
         'lint.autofix.disabled.notconnected': 'Connect to relay first',
         'lint.autofix.disabled.noviolations': 'No fixable violations found',
+        'lint.fix.success': 'Fixed {0} violation(s)',
+        'lint.fix.partial': 'Fixed {0}, failed {1} — {2}',
+        'lint.fix.allfailed': 'Fix failed — {0}',
         'error.notconnected.lint': 'Connect to relay first to run lint checks.',
         'error.relay.unavailable': 'Cannot connect to relay. Make sure your IDE has FigCraft running.',
         'error.relay.suggestion': 'Try restarting your IDE or check if another process is using the port.',
       },
       zh: {
-        'tab.activity': '日志', 'tab.lint': '检查', 'tab.spec': '规范配置', 'tab.settings': '设置',
+        'tab.activity': '日志', 'tab.lint': '设计审查', 'tab.spec': '规范配置', 'tab.settings': '设置',
         'header.channel': '频道',
         'btn.connect': '连接', 'btn.connected': '已连接', 'btn.connecting': '连接中...',
         'activity.empty': '等待 MCP 命令...',
@@ -1119,11 +1130,11 @@
         'spec.library': '组件库', 'spec.apitoken': 'API Token', 'spec.save': '保存',
         'spec.token.hint': 'Figma 设置 > 个人访问令牌',
         'spec.library.placeholder': '粘贴组件库 URL...',
-        'lint.run': '运行检查', 'lint.fix': '自动修复', 'lint.empty': '点击"运行检查"检查当前页面',
-        'lint.passed': '通过', 'lint.violations': '违规', 'lint.fixable': '可修复',
-        'lint.running': '检查中...', 'lint.fixing': '修复中...',
+        'lint.run': '运行审查', 'lint.fix': '自动修复', 'lint.empty': '点击「运行审查」审查当前页面',
+        'lint.passed': '通过', 'lint.violations': '问题', 'lint.fixable': '可自动修复',
+        'lint.running': '审查中...', 'lint.fixing': '修复中...',
         'lint.score': '评分',
-        'lint.annotate': '📌 标注', 'lint.annotated': '✓ 已标注',
+        'lint.annotate': '标注', 'lint.annotated': '✓ 已标注',
         'lint.removeAnnotation': '✕ 移除',
         'lint.clearAnnotations': '✕ 清除标注（选中项或本页）',
         'lint.annotateTitle': '在画布上标注',
@@ -1137,10 +1148,13 @@
         'settings.status': '状态', 'settings.port': '端口', 'settings.channel': '频道',
         'status.sr.connected': '已连接', 'status.sr.connecting': '连接中', 'status.sr.disconnected': '未连接',
         'lint.autofix.disabled.notconnected': '请先连接中继服务',
-        'lint.autofix.disabled.noviolations': '没有可自动修复的违规项',
-        'error.notconnected.lint': '请先连接中继服务后再运行检查。',
+        'lint.autofix.disabled.noviolations': '没有可自动修复的问题',
+        'lint.fix.success': '已修复 {0} 个问题',
+        'lint.fix.partial': '已修复 {0} 个，失败 {1} 个 — {2}',
+        'lint.fix.allfailed': '修复失败 — {0}',
+        'error.notconnected.lint': '请先连接中继服务后再运行审查。',
         'error.relay.unavailable': '无法连接到中继服务，请确认 IDE 已启动 FigCraft。',
-        'error.relay.suggestion': '请尝试重启 IDE，或检查端口是否被其他进程占用。',
+        'error.relay.suggestion': '请尝试重启 IDE，或检查端口是否被占用。',
       }
     };
     // Designer-friendly rule display names
@@ -1163,20 +1177,20 @@
         'component-bindings': 'Unused component property',
       },
       zh: {
-        'spec-color': '颜色未使用设计令牌',
-        'spec-typography': '文字样式未使用设计令牌',
-        'spec-spacing': '间距未使用设计令牌',
-        'spec-border-radius': '圆角未使用设计令牌',
+        'spec-color': '颜色未使用 Token',
+        'spec-typography': '文字样式未使用 Token',
+        'spec-spacing': '间距未使用 Token',
+        'spec-border-radius': '圆角未使用 Token',
         'hardcoded-token': '硬编码值（未绑定变量）',
         'no-text-style': '缺少文字样式',
         'wcag-contrast': '对比度不足（无障碍）',
-        'wcag-target-size': '点击区域太小',
-        'wcag-text-size': '文字太小，难以阅读',
-        'wcag-line-height': '行高过小，文字重叠',
+        'wcag-target-size': '点击区域过小',
+        'wcag-text-size': '文字过小，不易阅读',
+        'wcag-line-height': '行高过小，文字可能重叠',
         'fixed-in-autolayout': '自动布局中使用了固定定位',
-        'empty-container': '空的容器图层',
+        'empty-container': '空容器',
         'max-nesting-depth': '嵌套层级过深',
-        'default-name': '使用了默认图层名',
+        'default-name': '未重命名的图层',
         'component-bindings': '组件属性未被使用',
       }
     };
@@ -1204,17 +1218,17 @@
         'component-bindings': 'Component property defined but not wired to any child',
       },
       zh: {
-        'spec-color': '颜色不在令牌中，请从库中选择',
-        'spec-typography': '文字样式不在令牌中，请从库中应用',
-        'spec-spacing': '间距不在令牌中，请使用标准值',
-        'spec-border-radius': '圆角不在令牌中，请使用标准值',
+        'spec-color': '颜色不在 Token 中，请从库中选择',
+        'spec-typography': '文字样式不在 Token 中，请从库中应用',
+        'spec-spacing': '间距不在 Token 中，请使用标准值',
+        'spec-border-radius': '圆角不在 Token 中，请使用标准值',
         'hardcoded-token': '该值未绑定变量，请关联到库',
         'no-text-style': '未应用文字样式，请从库中选择',
         'wcag-contrast': '文字对比度不足，请提高以便阅读',
         'wcag-target-size': '点击区域不足 44×44px，请增大',
         'wcag-text-size': '文字小于 12px，请增大以便阅读',
         'wcag-line-height': '行高过小，文字可能重叠',
-        'fixed-in-autolayout': '自动布局中使用了固定定位，可能破坏布局',
+        'fixed-in-autolayout': '自动布局中使用了固定定位，可能影响布局',
         'empty-container': '空容器，请移除或添加内容',
         'max-nesting-depth': '嵌套过深，建议精简图层结构',
         'default-name': '仍在使用默认名称，请重命名',
@@ -1577,8 +1591,17 @@
       if (msg.type === 'lint-result' && msg.report) {
         renderLintResult(msg.report);
       }
-      if (msg.type === 'lint-fix-result' && msg.result) {
-        renderLintFixResult(msg.result);
+      if (msg.type === 'lint-fix-result') {
+        if (msg.error) {
+          lintFixBtn.disabled = false;
+          lintFixBtn.textContent = t('lint.fix');
+          log('\u2192 ' + t('lint.fix.allfailed').replace('{0}', msg.error), 'error');
+          var banner = document.getElementById('lint-error-banner');
+          banner.textContent = msg.error;
+          banner.style.display = 'block';
+        } else if (msg.result) {
+          renderLintFixResult(msg.result);
+        }
       }
     };
 
@@ -1588,7 +1611,7 @@
       spec: 'Validate design values against DTCG token specs'
     };
     const MODE_DESCS_ZH = {
-      library: '检查设计是否使用了共享库 Token',
+      library: '审查设计是否使用了共享库 Token',
       spec: '对照 DTCG Token 规范校验设计值'
     };
 
@@ -1930,6 +1953,13 @@
     clearAnnotationsBtn.addEventListener('click', function() {
       parent.postMessage({ pluginMessage: { type: 'clear-annotations' } }, '*');
       clearBar.classList.remove('visible');
+      // Reset all category annotate buttons back to default state
+      document.querySelectorAll('.lint-annotate-btn.active').forEach(function(btn) {
+        btn.classList.remove('active');
+        var count = btn.dataset.count || '';
+        btn.textContent = t('lint.annotate') + (count ? ' (' + count + ')' : '');
+        btn.dataset.annotated = '';
+      });
     });
 
     function updateClearBarText() {
@@ -1987,11 +2017,11 @@
         if (s.type === 'selection') {
           let names = (s.names || []).join(', ');
           if (s.count > 5) names += ' …';
-          scopeText = (currentLang === 'zh' ? '检查范围：选中的 ' : 'Scope: ') + s.count +
+          scopeText = (currentLang === 'zh' ? '审查范围：选中的 ' : 'Scope: ') + s.count +
             (currentLang === 'zh' ? ' 个节点' : ' node' + (s.count > 1 ? 's' : '')) +
             (names ? ' (' + names + ')' : '');
         } else {
-          scopeText = (currentLang === 'zh' ? '检查范围：' : 'Scope: ') +
+          scopeText = (currentLang === 'zh' ? '审查范围：' : 'Scope: ') +
             (s.pageName || 'Page') +
             (currentLang === 'zh' ? '（' + s.count + ' 个顶层节点）' : ' (' + s.count + ' top-level nodes)');
         }
@@ -2045,12 +2075,41 @@
         var group = document.createElement('div');
         group.className = 'lint-cat-group';
 
-        // Header row — clean: just chevron + label + count
+        // Header row — chevron + label + annotate button with count
         var row = document.createElement('div');
         row.className = 'lint-cat-row';
-        row.innerHTML =
-          '<span class="lint-cat-name"><span class="chevron">▶</span>' + ruleLabel(cat.rule) + '</span>' +
-          '<span class="lint-cat-count' + (cat.count === 0 ? ' zero' : '') + '">' + cat.count + '</span>';
+
+        var nameSpan = document.createElement('span');
+        nameSpan.className = 'lint-cat-name';
+        nameSpan.innerHTML = '<span class="chevron">▶</span>' + ruleLabel(cat.rule);
+
+        var annotateBtn = document.createElement('button');
+        annotateBtn.className = 'lint-annotate-btn';
+        annotateBtn.title = t('lint.annotateTitle');
+        annotateBtn.textContent = t('lint.annotate') + ' (' + cat.count + ')';
+        annotateBtn.dataset.count = cat.count;
+        annotateBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          var isAnnotated = annotateBtn.classList.contains('active');
+          if (!isAnnotated) {
+            var violations = (cat.nodes || []).map(function(v) {
+              return { nodeId: v.nodeId, suggestion: v.suggestion || annotationTip(cat.rule) };
+            });
+            parent.postMessage({ pluginMessage: { type: 'annotate-category', violations: violations } }, '*');
+            annotateBtn.textContent = t('lint.removeAnnotation') + ' (' + cat.count + ')';
+            annotateBtn.classList.add('active');
+            clearBar.classList.add('visible');
+          } else {
+            var tip = annotationTip(cat.rule);
+            var nodeIds = (cat.nodes || []).map(function(v) { return v.nodeId; });
+            parent.postMessage({ pluginMessage: { type: 'clear-category-annotations', nodeIds: nodeIds, suggestion: tip } }, '*');
+            annotateBtn.textContent = t('lint.annotate') + ' (' + cat.count + ')';
+            annotateBtn.classList.remove('active');
+          }
+        });
+
+        row.appendChild(nameSpan);
+        row.appendChild(annotateBtn);
 
         // Node list (hidden by default)
         var nodeList = document.createElement('div');
@@ -2059,45 +2118,14 @@
           var item = document.createElement('div');
           item.className = 'lint-node-item';
           item.innerHTML =
-            '<span class="lint-node-name"><span class="icon">◎</span>' + escapeHtml(v.nodeName) + '</span>' +
-            '<span class="lint-node-suggestion">' + escapeHtml(annotationTip(cat.rule)) + '</span>';
+            '<span class="lint-node-name">' + escapeHtml(v.nodeName) + '</span>' +
+            '<span class="lint-node-suggestion">' + escapeHtml(v.suggestion || annotationTip(cat.rule)) + '</span>';
           item.addEventListener('click', function(e) {
             e.stopPropagation();
             parent.postMessage({ pluginMessage: { type: 'focus-node', nodeId: v.nodeId } }, '*');
           });
           nodeList.appendChild(item);
         });
-
-        // Annotate button — inside expanded area, at the bottom
-        var actionsBar = document.createElement('div');
-        actionsBar.className = 'lint-node-actions';
-        var annotateBtn = document.createElement('button');
-        annotateBtn.className = 'lint-annotate-btn';
-        annotateBtn.title = t('lint.annotateTitle');
-        annotateBtn.textContent = t('lint.annotate');
-        var isAnnotated = false;
-        annotateBtn.addEventListener('click', function(e) {
-          e.stopPropagation();
-          if (!isAnnotated) {
-            var tip = annotationTip(cat.rule);
-            var violations = (cat.nodes || []).map(function(v) {
-              return { nodeId: v.nodeId, suggestion: tip };
-            });
-            parent.postMessage({ pluginMessage: { type: 'annotate-category', violations: violations } }, '*');
-            isAnnotated = true;
-            annotateBtn.textContent = t('lint.removeAnnotation');
-            annotateBtn.classList.add('active');
-            clearBar.classList.add('visible');
-          } else {
-            var nodeIds = (cat.nodes || []).map(function(v) { return v.nodeId; });
-            parent.postMessage({ pluginMessage: { type: 'clear-category-annotations', nodeIds: nodeIds } }, '*');
-            isAnnotated = false;
-            annotateBtn.textContent = t('lint.annotate');
-            annotateBtn.classList.remove('active');
-          }
-        });
-        actionsBar.appendChild(annotateBtn);
-        nodeList.appendChild(actionsBar);
 
         // Toggle expand/collapse
         row.addEventListener('click', function() {
@@ -2111,10 +2139,7 @@
       });
 
       if (cats.length === 0) {
-        var allGood = document.createElement('div');
-        allGood.className = 'lint-all-pass';
-        allGood.textContent = '\u2713 ' + (currentLang === 'zh' ? '全部通过' : 'All checks passed');
-        lintCategories.appendChild(allGood);
+        // Score card already shows 100 / 0 problems — no extra message needed
       }
     }
 
@@ -2129,9 +2154,28 @@
       lintFixBtn.textContent = t('lint.fix');
       lastLintViolations = [];
       updateFixBtnTitle();
-      log('\u2192 Fixed ' + (result.fixed || 0) + ' violations', 'success');
-      // Re-run lint to refresh
-      lintRunBtn.click();
+
+      var fixedN = result.fixed || 0;
+      var failedN = result.failed || 0;
+      var errMsgs = (result.errors || []).map(function(e) { return e.error; });
+      var uniqueErrs = errMsgs.filter(function(v, i, a) { return a.indexOf(v) === i; });
+      var errSummary = uniqueErrs.join('; ');
+
+      if (fixedN > 0 && failedN === 0) {
+        log('\u2192 ' + t('lint.fix.success').replace('{0}', fixedN), 'success');
+        // Re-run lint to refresh results
+        lintRunBtn.click();
+      } else if (fixedN > 0 && failedN > 0) {
+        log('\u2192 ' + t('lint.fix.partial').replace('{0}', fixedN).replace('{1}', failedN).replace('{2}', errSummary), 'info');
+        // Some fixes applied — re-run lint to refresh
+        lintRunBtn.click();
+      } else if (failedN > 0) {
+        log('\u2192 ' + t('lint.fix.allfailed').replace('{0}', errSummary), 'error');
+        // Show error banner — don't re-run lint since nothing changed
+        var banner = document.getElementById('lint-error-banner');
+        banner.textContent = t('lint.fix.allfailed').replace('{0}', errSummary);
+        banner.style.display = 'block';
+      }
     }
 
     // ─── Init ───

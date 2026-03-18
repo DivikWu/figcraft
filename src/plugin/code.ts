@@ -152,10 +152,23 @@ figma.ui.on('message', async (msg: { type: string; channelId?: string; mode?: st
       if (!('annotations' in node)) continue;
       const sn = node as SceneNode & { annotations: Array<{ label: string; labelMarkdown?: string }> };
       const existing = sn.annotations || [];
-      sn.annotations = [
-        ...existing,
-        { label: '[FigCraft] ' + v.suggestion },
-      ];
+      // Find existing FigCraft annotation to merge into
+      const fcIdx = existing.findIndex(
+        (a) => a.label.startsWith('[FigCraft]') || a.label.startsWith('[figcraft]'),
+      );
+      if (fcIdx >= 0) {
+        // Extract existing tips and merge with new one
+        const oldLabel = existing[fcIdx].label.replace(/^\[FigCraft\]\s*/, '').replace(/^\[figcraft\]\s*/, '');
+        const oldTips = oldLabel.split(' · ').filter(Boolean);
+        if (!oldTips.includes(v.suggestion)) {
+          oldTips.push(v.suggestion);
+        }
+        const merged = [...existing];
+        merged[fcIdx] = { label: '[FigCraft] ' + oldTips.join(' · ') };
+        sn.annotations = merged;
+      } else {
+        sn.annotations = [...existing, { label: '[FigCraft] ' + v.suggestion }];
+      }
       annotated++;
     }
     figma.ui.postMessage({ type: 'annotate-category-result', annotated });
@@ -165,14 +178,31 @@ figma.ui.on('message', async (msg: { type: string; channelId?: string; mode?: st
   // ─── Clear annotations for specific node IDs (by category) ───
   if (msg.type === 'clear-category-annotations') {
     const nodeIds = (msg as { nodeIds?: string[] }).nodeIds || [];
+    const suggestion = (msg as { suggestion?: string }).suggestion || '';
     let cleared = 0;
     for (const nodeId of nodeIds) {
       const node = await figma.getNodeByIdAsync(nodeId);
       if (!node || !('annotations' in node)) continue;
       const sn = node as SceneNode & { annotations: Array<{ label: string }> };
-      const before = (sn.annotations || []).length;
-      sn.annotations = (sn.annotations || []).filter(function(a) { return !a.label || a.label.indexOf('[FigCraft]') !== 0; });
-      if (sn.annotations.length < before) cleared++;
+      const annotations = sn.annotations || [];
+      const updated: Array<{ label: string }> = [];
+      for (const a of annotations) {
+        if (!a.label.startsWith('[FigCraft]') && !a.label.startsWith('[figcraft]')) {
+          updated.push(a);
+          continue;
+        }
+        // Remove the specific tip from the merged annotation
+        const body = a.label.replace(/^\[FigCraft\]\s*/, '').replace(/^\[figcraft\]\s*/, '');
+        const tips = body.split(' · ').filter(function(t) { return t !== suggestion; });
+        if (tips.length > 0) {
+          updated.push({ label: '[FigCraft] ' + tips.join(' · ') });
+        }
+        // If no tips left, drop the annotation entirely
+      }
+      if (updated.length < annotations.length || JSON.stringify(updated) !== JSON.stringify(annotations)) {
+        sn.annotations = updated;
+        cleared++;
+      }
     }
     figma.ui.postMessage({ type: 'clear-category-annotations-result', cleared });
     return;
@@ -290,6 +320,7 @@ registerHandler('ping', async () => {
     pluginVersion: PLUGIN_VERSION,
     documentName: figma.root.name,
     currentPage: figma.currentPage.name,
+    fileKey: figma.fileKey ?? null,
     timestamp: Date.now(),
   };
 });

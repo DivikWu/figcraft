@@ -6,6 +6,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { Bridge } from '../bridge.js';
+import { setFileContext } from '../rest-fallback.js';
 
 const SERVER_VERSION = '0.1.0';
 
@@ -44,6 +45,13 @@ export function registerPing(server: McpServer, bridge: Bridge): void {
         let versionWarning: string | undefined;
         if (pluginVersion && pluginVersion !== SERVER_VERSION) {
           versionWarning = `Version mismatch: MCP Server ${SERVER_VERSION}, Plugin ${pluginVersion}. Please rebuild the plugin.`;
+        }
+
+        // Cache file context for REST API fallback
+        const fileKey = result.fileKey as string | undefined;
+        const documentName = result.documentName as string | undefined;
+        if (fileKey && documentName) {
+          setFileContext(fileKey, documentName);
         }
 
         return {

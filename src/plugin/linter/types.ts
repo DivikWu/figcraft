@@ -8,7 +8,7 @@ export interface AbstractNode {
   name: string;
   type: string;
   // Style values
-  fills?: Array<{ type: string; color?: string; visible?: boolean }>;
+  fills?: Array<{ type: string; color?: string; opacity?: number; visible?: boolean }>;
   strokes?: Array<{ type: string; color?: string; visible?: boolean }>;
   cornerRadius?: number | number[];
   fontSize?: number;

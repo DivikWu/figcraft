@@ -196,12 +196,74 @@ export async function fetchFileName(fileKey: string, token: string): Promise<str
   return data.name;
 }
 
+// ─── REST API Read Operations (fallback when plugin is offline) ───
+
+/**
+ * Fetch specific nodes from a Figma file by IDs.
+ * GET /v1/files/:fileKey/nodes?ids=nodeId
+ */
+export async function fetchFileNodes(
+  fileKey: string,
+  token: string,
+  nodeIds: string[],
+): Promise<Record<string, unknown>> {
+  const ids = nodeIds.join(',');
+  const data = (await figmaFetch(
+    `/v1/files/${fileKey}/nodes?ids=${encodeURIComponent(ids)}`,
+    token,
+  )) as { nodes: Record<string, { document: Record<string, unknown> } | null> };
+  return data.nodes;
+}
+
+/**
+ * Fetch file overview: name, pages, and optionally shallow node tree.
+ * GET /v1/files/:fileKey?depth=:depth
+ */
+export async function fetchFileInfo(
+  fileKey: string,
+  token: string,
+  depth = 1,
+): Promise<{ name: string; document: Record<string, unknown> }> {
+  const data = (await figmaFetch(`/v1/files/${fileKey}?depth=${depth}`, token)) as {
+    name: string;
+    document: Record<string, unknown>;
+  };
+  return data;
+}
+
+/**
+ * Export node images via REST API.
+ * GET /v1/images/:fileKey?ids=nodeId&format=png&scale=2
+ */
+export async function fetchNodeImages(
+  fileKey: string,
+  token: string,
+  nodeIds: string[],
+  format: 'png' | 'svg' | 'pdf' | 'jpg' = 'png',
+  scale = 2,
+): Promise<Record<string, string | null>> {
+  const ids = nodeIds.join(',');
+  const data = (await figmaFetch(
+    `/v1/images/${fileKey}?ids=${encodeURIComponent(ids)}&format=${format}&scale=${scale}`,
+    token,
+  )) as { images: Record<string, string | null> };
+  return data.images;
+}
+
 // ─── Utility ───
 
 /** Extract fileKey from a Figma URL. Supports /file/ and /design/ formats. */
 export function extractFileKeyFromUrl(url: string): string | null {
   const match = url.match(/figma\.com\/(?:file|design)\/([a-zA-Z0-9]+)/);
   return match ? match[1] : null;
+}
+
+/** Extract nodeId from a Figma URL query parameter. */
+export function extractNodeIdFromUrl(url: string): string | null {
+  const match = url.match(/node-id=([^&]+)/);
+  if (!match) return null;
+  // URL-encoded "705-60" → "705:60"
+  return decodeURIComponent(match[1]).replace('-', ':');
 }
 
 // ─── Property extraction ───

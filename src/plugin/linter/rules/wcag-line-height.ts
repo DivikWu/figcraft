@@ -42,7 +42,8 @@ export const wcagLineHeightRule: LintRule = {
       currentValue: `${effectiveLineHeight.toFixed(1)}px (${ratio.toFixed(2)}x)`,
       expectedValue: `>= ${node.fontSize.toFixed(1)}px (${MIN_LINE_HEIGHT_RATIO}x)`,
       suggestion: `"${node.name}" line height is only ${ratio.toFixed(2)}× the font size — text lines will overlap. Increase line height to at least ${node.fontSize.toFixed(0)}px`,
-      autoFixable: false,
+      autoFixable: true,
+      fixData: { lineHeight: Math.ceil(node.fontSize * MIN_LINE_HEIGHT_RATIO) },
     }];
   },
 };

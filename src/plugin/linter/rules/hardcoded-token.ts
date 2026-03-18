@@ -36,14 +36,17 @@ export const hardcodedTokenRule: LintRule = {
           fill.color.toLowerCase() === '#fff'
         );
         if (!isDefaultWhite) {
+          const colorStr = fill?.color ?? 'solid';
+          const opacityStr = fill?.opacity !== undefined && fill.opacity !== 1 ? ` ${Math.round(fill.opacity * 100)}%` : '';
           violations.push({
             nodeId: node.id,
             nodeName: node.name,
             rule: 'hardcoded-token',
             severity: 'warning',
-            currentValue: `fills: no variable binding (${fill?.color ?? 'solid'})`,
-            suggestion: `"${node.name}" uses a custom fill color — link it to a library color variable for consistency`,
-            autoFixable: false,
+            currentValue: `fills: ${colorStr}${opacityStr}`,
+            suggestion: `填充色 ${colorStr}${opacityStr} 未绑定变量，请关联到库`,
+            autoFixable: true,
+            fixData: { property: 'fills', hex: fill?.color ?? null, opacity: fill?.opacity ?? 1, nodeType: node.type },
           });
         }
       }
@@ -51,14 +54,16 @@ export const hardcodedTokenRule: LintRule = {
 
     // Check corner radius
     if (node.cornerRadius !== undefined && node.cornerRadius !== 0 && !bv['cornerRadius']) {
+      const radiusVal = Array.isArray(node.cornerRadius) ? node.cornerRadius.join('/') : node.cornerRadius;
       violations.push({
         nodeId: node.id,
         nodeName: node.name,
         rule: 'hardcoded-token',
         severity: 'warning',
-        currentValue: `cornerRadius: ${node.cornerRadius}`,
-        suggestion: `"${node.name}" uses a custom corner radius — link it to a library radius variable for consistency`,
-        autoFixable: false,
+        currentValue: `cornerRadius: ${radiusVal}`,
+        suggestion: `圆角 ${radiusVal}px 未绑定变量，请关联到库`,
+        autoFixable: true,
+        fixData: { property: 'cornerRadius', value: node.cornerRadius, nodeName: node.name },
       });
     }
 
