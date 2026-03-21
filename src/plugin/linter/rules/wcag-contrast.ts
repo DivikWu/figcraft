@@ -1,10 +1,23 @@
 /**
  * WCAG contrast rule — check text/background contrast ratio.
+ *
+ * Walks up the node tree (via parentBgColor on AbstractNode) to find the
+ * nearest ancestor with a solid fill, then checks contrast against that
+ * background. Falls back to white/black worst-case when no parent bg is known.
  */
 
 import type { AbstractNode, LintContext, LintViolation, LintRule } from '../types.js';
 import { hexToRgbTuple } from '../../utils/color.js';
 import { contrastRatioTuple, isLargeText } from './wcag-helpers.js';
+
+/**
+ * Extract the effective background color from a node's parentBgColor field.
+ * Returns an RGB tuple or null if unknown.
+ */
+function getParentBg(node: AbstractNode): [number, number, number] | null {
+  if (!node.parentBgColor) return null;
+  return hexToRgbTuple(node.parentBgColor);
+}
 
 export const wcagContrastRule: LintRule = {
   name: 'wcag-contrast',
@@ -25,6 +38,24 @@ export const wcagContrastRule: LintRule = {
     const large = isLargeText(node.fontSize, node.fontName?.style);
     const threshold = large ? 3 : 4.5;
 
+    // Use actual parent background when available, otherwise fall back to white/black
+    const parentBg = getParentBg(node);
+    if (parentBg) {
+      const ratio = contrastRatioTuple(fgRgb, parentBg);
+      if (ratio >= threshold) return [];
+      return [{
+        nodeId: node.id,
+        nodeName: node.name,
+        rule: 'wcag-contrast',
+        severity: 'error',
+        currentValue: `${ratio.toFixed(2)}:1`,
+        expectedValue: `>= ${threshold}:1`,
+        suggestion: `"${node.name}" text color may be hard to read — contrast is only ${ratio.toFixed(2)}:1 against its background (needs at least ${threshold}:1)`,
+        autoFixable: false,
+      }];
+    }
+
+    // Fallback: check against both white and black (conservative)
     const ratioOnWhite = contrastRatioTuple(fgRgb, [1, 1, 1]);
     const ratioOnBlack = contrastRatioTuple(fgRgb, [0, 0, 0]);
 

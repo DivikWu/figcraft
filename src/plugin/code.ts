@@ -18,7 +18,7 @@ import { registerLibraryHandlers } from './handlers/library.js';
 import { registerExportHandlers } from './handlers/export.js';
 
 // ─── P2 handlers (write) ───
-import { registerWriteNodeHandlers } from './handlers/write-nodes.js';
+import { registerWriteNodeHandlers, invalidateModeCache } from './handlers/write-nodes.js';
 import { registerWriteVariableHandlers } from './handlers/write-variables.js';
 import { registerWriteStyleHandlers } from './handlers/write-styles.js';
 import { registerComponentHandlers } from './handlers/components.js';
@@ -97,26 +97,39 @@ async function sendLibraryList() {
   }));
   const savedLibrary = await figma.clientStorage.getAsync(LIBRARY_STORAGE_KEY);
 
-  // Detect local styles/variables
-  const localCollections = await figma.variables.getLocalVariableCollectionsAsync();
-  const localPaintStyles = await figma.getLocalPaintStylesAsync();
-  const localTextStyles = await figma.getLocalTextStylesAsync();
-  const localEffectStyles = await figma.getLocalEffectStylesAsync();
+  // Detect local styles/variables — run in parallel
+  const [localCollections, localPaintStyles, localTextStyles, localEffectStyles] = await Promise.all([
+    figma.variables.getLocalVariableCollectionsAsync(),
+    figma.getLocalPaintStylesAsync(),
+    figma.getLocalTextStylesAsync(),
+    figma.getLocalEffectStylesAsync(),
+  ]);
   const hasLocal = localCollections.length > 0
     || localPaintStyles.length > 0
     || localTextStyles.length > 0
     || localEffectStyles.length > 0;
 
   // Detect which libraries have variables imported into the current file
-  const availableCollections = await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync();
-  const remoteCollectionKeys = new Set(
-    localCollections.filter((c) => c.remote).map((c) => c.key),
-  );
-  const inUseLibraries = [...new Set(
-    availableCollections
-      .filter((c) => remoteCollectionKeys.has(c.key))
-      .map((c) => c.libraryName),
-  )];
+  // Wrap with a 8s timeout to prevent blocking the UI message handler
+  let inUseLibraries: string[] = [];
+  try {
+    const availableCollections = await Promise.race([
+      figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('getAvailableLibraryVariableCollections timed out')), 8_000),
+      ),
+    ]);
+    const remoteCollectionKeys = new Set(
+      localCollections.filter((c) => c.remote).map((c) => c.key),
+    );
+    inUseLibraries = [...new Set(
+      availableCollections
+        .filter((c) => remoteCollectionKeys.has(c.key))
+        .map((c) => c.libraryName),
+    )];
+  } catch (err) {
+    console.warn('[figcraft] sendLibraryList: failed to get available collections:', err);
+  }
 
   figma.ui.postMessage({
     type: 'library-list',
@@ -277,6 +290,7 @@ figma.ui.on('message', async (msg: { type: string; channelId?: string; mode?: st
     figma.ui.postMessage({ type: 'restore-mode', mode: saved || 'library' });
   } else if (msg.type === 'save-mode' && msg.mode) {
     await figma.clientStorage.setAsync(MODE_STORAGE_KEY, msg.mode);
+    invalidateModeCache();
   } else if (msg.type === 'get-library') {
     const saved = await figma.clientStorage.getAsync(LIBRARY_STORAGE_KEY);
     figma.ui.postMessage({ type: 'restore-library', library: saved || null });
@@ -284,6 +298,7 @@ figma.ui.on('message', async (msg: { type: string; channelId?: string; mode?: st
     await figma.clientStorage.setAsync(LIBRARY_STORAGE_KEY, msg.library || '');
     clearDesignContextCache();
     clearStyleRegistry();
+    invalidateModeCache();
   } else if (msg.type === 'get-token') {
     const saved = await figma.clientStorage.getAsync(API_TOKEN_STORAGE_KEY);
     figma.ui.postMessage({ type: 'restore-token', token: saved || '' });
@@ -330,30 +345,67 @@ registerHandler('get_mode', async () => {
   const library = await figma.clientStorage.getAsync(LIBRARY_STORAGE_KEY);
 
   let designContext = null;
+  let libraryFileKey: string | null = null;
+
   if (mode === 'library' && library) {
     try {
-      designContext = library === '__local__'
-        ? await getLocalDesignContext()
-        : await getLibraryDesignContext(library);
+      // Race design context loading against a 10s timeout to prevent hanging
+      // Clean up timer on resolve to avoid leaks
+      const contextPromise = library === '__local__'
+        ? getLocalDesignContext()
+        : getLibraryDesignContext(library);
+      let contextTimer: ReturnType<typeof setTimeout>;
+      const timeoutPromise = new Promise<null>((resolve) => {
+        contextTimer = setTimeout(() => resolve(null), 10_000);
+      });
+      const result = await Promise.race([
+        contextPromise.finally(() => clearTimeout(contextTimer!)),
+        timeoutPromise,
+      ]);
 
-      // Include registered styles summary
-      const registered = await getRegisteredStylesSummary(library);
-      if (registered) {
-        designContext.registeredStyles = {
-          textStyles: registered.textStyles.map((s) => ({ name: s.name, fontSize: s.fontSize, fontFamily: s.fontFamily })),
-          paintStyles: registered.paintStyles.map((s) => ({ name: s.name, hex: s.hex })),
-          effectStyles: registered.effectStyles.map((s) => ({ name: s.name, effectType: s.effectType })),
-        };
+      if (result) {
+        designContext = result;
+        // Include registered styles summary (with its own timeout)
+        try {
+          let stylesTimer: ReturnType<typeof setTimeout>;
+          const registered = await Promise.race([
+            getRegisteredStylesSummary(library).finally(() => clearTimeout(stylesTimer!)),
+            new Promise<null>((resolve) => {
+              stylesTimer = setTimeout(() => resolve(null), 5_000);
+            }),
+          ]);
+          if (registered) {
+            designContext.registeredStyles = {
+              textStyles: registered.textStyles.map((s: { name: string; fontSize: number; fontFamily: string }) => ({ name: s.name, fontSize: s.fontSize, fontFamily: s.fontFamily })),
+              paintStyles: registered.paintStyles.map((s: { name: string; hex: string }) => ({ name: s.name, hex: s.hex })),
+              effectStyles: registered.effectStyles.map((s: { name: string; effectType: string }) => ({ name: s.name, effectType: s.effectType })),
+            };
+          }
+        } catch { /* styles summary timeout or error — skip */ }
+      } else {
+        console.warn('[figcraft] get_mode designContext timed out after 10s');
       }
     } catch (err) { console.warn('[figcraft] get_mode designContext failed:', err); }
+
+    // Resolve fileKey for the selected library from stored entries
+    if (library && library !== '__local__') {
+      const entries = await getLibraryEntries();
+      for (const [fk, entry] of Object.entries(entries)) {
+        if (entry.name === library) {
+          libraryFileKey = fk;
+          break;
+        }
+      }
+    }
   }
 
-  return { mode, selectedLibrary: library || null, designContext };
+  return { mode, selectedLibrary: library || null, designContext, libraryFileKey };
 });
 
 registerHandler('set_mode', async (params) => {
   const mode = (params.mode as string) || 'library';
   await figma.clientStorage.setAsync(MODE_STORAGE_KEY, mode);
+  invalidateModeCache();
   if (params.library !== undefined) {
     await figma.clientStorage.setAsync(LIBRARY_STORAGE_KEY, params.library as string);
     figma.ui.postMessage({ type: 'library-changed', library: params.library });
@@ -367,34 +419,90 @@ registerHandler('set_mode', async (params) => {
 
 // ─── Message routing ───
 
-figma.ui.onmessage = async (msg: {
-  id: string;
-  type: string;
-  method: string;
-  params: Record<string, unknown>;
-}) => {
-  if (msg.type !== 'request') return;
-
-  const handler = handlers.get(msg.method);
-  if (!handler) {
+/** Safe postMessage with payload size check. Figma postMessage can silently fail on very large payloads. */
+function safePostResponse(msg: Record<string, unknown>): void {
+  try {
+    const payload = JSON.stringify(msg);
+    // Figma postMessage has practical limits around 2-4MB; warn and truncate if too large
+    if (payload.length > 2_000_000) {
+      console.warn(`[figcraft] Response payload too large (${(payload.length / 1024 / 1024).toFixed(1)}MB) for method, sending truncated error`);
+      figma.ui.postMessage({
+        id: msg.id,
+        type: 'error',
+        error: {
+          code: 'PAYLOAD_TOO_LARGE',
+          message: `Response too large (${(payload.length / 1024 / 1024).toFixed(1)}MB). Try using maxDepth=1 or smaller maxNodes to reduce payload size.`,
+        },
+      });
+      return;
+    }
+    figma.ui.postMessage(msg);
+  } catch (err) {
+    console.warn('[figcraft] postMessage failed:', err);
     figma.ui.postMessage({
       id: msg.id,
       type: 'error',
-      error: { code: 'METHOD_NOT_FOUND', message: `Unknown method: ${msg.method}` },
+      error: {
+        code: 'POST_MESSAGE_FAILED',
+        message: err instanceof Error ? err.message : String(err),
+      },
     });
+  }
+}
+
+// ─── Sequential request queue ───
+// Figma Plugin API is not concurrency-safe — certain operations (e.g.
+// node creation, variable writes) can corrupt state when interleaved.
+// We serialize handler execution to prevent this.
+
+const MAX_QUEUE_SIZE = 100;
+let requestQueue: Array<{ id: string; method: string; params: Record<string, unknown>; timeoutMs?: number }> = [];
+let processingRequest = false;
+
+async function processNextRequest(): Promise<void> {
+  if (processingRequest || requestQueue.length === 0) return;
+  processingRequest = true;
+
+  const { id, method, params, timeoutMs } = requestQueue.shift()!;
+  const startTime = Date.now();
+  console.log(`[figcraft] → ${method} (id=${id}) [queue=${requestQueue.length}]`);
+
+  const handler = handlers.get(method);
+  if (!handler) {
+    console.warn(`[figcraft] ✗ ${method} — unknown method`);
+    figma.ui.postMessage({
+      id,
+      type: 'error',
+      error: { code: 'METHOD_NOT_FOUND', message: `Unknown method: ${method}` },
+    });
+    processingRequest = false;
+    processNextRequest();
     return;
   }
 
   try {
-    const result = await handler(msg.params);
-    figma.ui.postMessage({
-      id: msg.id,
-      type: 'response',
-      result,
+    const HANDLER_TIMEOUT_MS = timeoutMs ?? 25_000;
+    const handlerPromise = handler(params);
+    // NOTE: On timeout, the handler promise continues running in the background.
+    // Since Figma Plugin API is not concurrency-safe, the timed-out handler may
+    // still mutate state. The sequential queue prevents new requests from starting
+    // until this function returns, but the orphaned handler cannot be cancelled.
+    let handlerTimer: ReturnType<typeof setTimeout>;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      handlerTimer = setTimeout(() => reject(new Error(`Handler ${method} timed out after ${HANDLER_TIMEOUT_MS}ms`)), HANDLER_TIMEOUT_MS);
     });
+    const result = await Promise.race([
+      handlerPromise.finally(() => clearTimeout(handlerTimer!)),
+      timeoutPromise,
+    ]);
+    const elapsed = Date.now() - startTime;
+    console.log(`[figcraft] ✓ ${method} — ${elapsed}ms`);
+    safePostResponse({ id, type: 'response', result });
   } catch (err) {
+    const elapsed = Date.now() - startTime;
+    console.warn(`[figcraft] ✗ ${method} — ${elapsed}ms — ${err instanceof Error ? err.message : String(err)}`);
     figma.ui.postMessage({
-      id: msg.id,
+      id,
       type: 'error',
       error: {
         code: 'HANDLER_ERROR',
@@ -402,4 +510,29 @@ figma.ui.onmessage = async (msg: {
       },
     });
   }
+
+  processingRequest = false;
+  processNextRequest();
+}
+
+figma.ui.onmessage = async (msg: {
+  id: string;
+  type: string;
+  method: string;
+  params: Record<string, unknown>;
+  _timeoutMs?: number;
+}) => {
+  if (msg.type !== 'request') return;
+
+  if (requestQueue.length >= MAX_QUEUE_SIZE) {
+    figma.ui.postMessage({
+      id: msg.id,
+      type: 'error',
+      error: { code: 'QUEUE_FULL', message: `Request queue full (${MAX_QUEUE_SIZE}). Wait for pending requests to complete.` },
+    });
+    return;
+  }
+
+  requestQueue.push({ id: msg.id, method: msg.method, params: msg.params, timeoutMs: msg._timeoutMs });
+  processNextRequest();
 };

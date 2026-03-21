@@ -7,12 +7,14 @@
 import { registerHandler } from '../registry.js';
 import { simplifyNode } from '../adapters/node-simplifier.js';
 import { runLint, getAvailableRules } from '../linter/engine.js';
-import type { AbstractNode, LintContext, LintViolation } from '../linter/types.js';
+import { findNodeByIdAsync } from '../utils/node-lookup.js';
+import type { AbstractNode, LintContext, LintViolation, LintCategory as LintRuleCategory } from '../linter/types.js';
 import type { CompressedNode } from '../../shared/types.js';
 import type { LintReport } from '../linter/engine.js';
 import { STORAGE_KEYS } from '../constants.js';
 import { hexToFigmaRgb, figmaRgbaToHex } from '../utils/color.js';
 import { ensureLoaded, getTextStyleId } from '../utils/style-registry.js';
+import { isVariableAlias, isRgbaLike, setSpacingProp } from '../utils/type-guards.js';
 
 // Cache last-built LintContext Maps to avoid redundant Map construction on repeated calls
 // with the same tokenContext (common in iterative lint workflows).
@@ -29,6 +31,7 @@ registerHandler('lint_check', async (params) => {
   const limit = params.limit as number | undefined;
   const maxViolations = params.maxViolations as number | undefined;
   const annotate = params.annotate as boolean | undefined;
+  const minSeverity = params.minSeverity as 'error' | 'warning' | 'info' | 'hint' | undefined;
 
   // Token context (passed from MCP Server or loaded from cache)
   const tokenContext = params.tokenContext as {
@@ -65,7 +68,7 @@ registerHandler('lint_check', async (params) => {
   let targetNodes: SceneNode[];
   let scope: { type: 'selection' | 'page'; count: number; names?: string[] };
   if (nodeIds && nodeIds.length > 0) {
-    const resolved = await Promise.all(nodeIds.map((id) => figma.getNodeByIdAsync(id)));
+    const resolved = await Promise.all(nodeIds.map((id) => findNodeByIdAsync(id)));
     targetNodes = resolved
       .filter((n): n is SceneNode => n !== null && 'type' in n && n.type !== 'PAGE' && n.type !== 'DOCUMENT');
     scope = { type: 'selection', count: targetNodes.length, names: targetNodes.slice(0, 5).map((n) => n.name) };
@@ -93,7 +96,7 @@ registerHandler('lint_check', async (params) => {
   const abstractNodes = targetNodes.map((n) => compressedToAbstract(simplifyNode(n)));
 
   // Run lint
-  const report = runLint(abstractNodes, ctx, { rules, categories, offset, limit, maxViolations });
+  const report = runLint(abstractNodes, ctx, { rules, categories: categories as LintRuleCategory[] | undefined, offset, limit, maxViolations, minSeverity });
 
   // Annotate if requested
   if (annotate) {
@@ -114,7 +117,7 @@ registerHandler('lint_fix', async (params) => {
     if (!v.autoFixable || !v.fixData) continue;
 
     try {
-      const node = await figma.getNodeByIdAsync(v.nodeId);
+      const node = await findNodeByIdAsync(v.nodeId);
       if (!node) { failed++; errors.push({ nodeId: v.nodeId, error: 'Node not found' }); continue; }
 
       switch (v.rule) {
@@ -126,7 +129,9 @@ registerHandler('lint_fix', async (params) => {
               const prop = v.fixData.property as string;
               const geom = node as GeometryMixin;
               if (prop === 'fills') {
-                const fills = [...geom.fills] as Paint[];
+                const rawFills = geom.fills;
+                if (rawFills === figma.mixed) break;
+                const fills = [...rawFills] as Paint[];
                 if (fills.length > 0 && fills[0].type === 'SOLID') {
                   fills[0] = figma.variables.setBoundVariableForPaint(
                     fills[0] as SolidPaint,
@@ -165,8 +170,7 @@ registerHandler('lint_fix', async (params) => {
         case 'spec-spacing': {
           const prop = v.fixData.property as string;
           const value = v.fixData.value as number;
-          if (prop in node) {
-            (node as FrameNode)[prop as keyof FrameNode] = value as never;
+          if (setSpacingProp(node, prop, value)) {
             fixed++;
           }
           break;
@@ -197,9 +201,9 @@ registerHandler('lint_fix', async (params) => {
               if (modeIds.length === 0) return null;
               let val = variable.valuesByMode[modeIds[0]];
               // Resolve alias
-              if (val && typeof val === 'object' && 'type' in (val as Record<string, unknown>) && (val as Record<string, unknown>).type === 'VARIABLE_ALIAS') {
+              if (isVariableAlias(val)) {
                 try {
-                  const resolved = await figma.variables.getVariableByIdAsync((val as { id: string }).id);
+                  const resolved = await figma.variables.getVariableByIdAsync(val.id);
                   if (resolved) {
                     const resModes = Object.keys(resolved.valuesByMode);
                     if (resModes.length > 0) val = resolved.valuesByMode[resModes[0]];
@@ -275,7 +279,7 @@ registerHandler('lint_fix', async (params) => {
               if (picked.dist > 0) {
                 (node as RectangleNode).cornerRadius = picked.value;
               }
-              (node as SceneNode).setBoundVariable('cornerRadius', picked.variable);
+              (node as SceneNode).setBoundVariable('cornerRadius' as VariableBindableNodeField, picked.variable);
               fixed++;
             } else {
               const closest = candidates.length > 0 ? candidates.reduce((a, b) => a.dist < b.dist ? a : b) : null;
@@ -331,8 +335,8 @@ registerHandler('lint_fix', async (params) => {
                     const modeId = col.modes[0]?.modeId;
                     if (!modeId) continue;
                     const val = variable.valuesByMode[modeId];
-                    if (!val || typeof val !== 'object' || !('r' in (val as object))) continue;
-                    evaluateVariable(variable, val as RGBA);
+                    if (!val || !isRgbaLike(val)) continue;
+                    evaluateVariable(variable, val);
                   }
                 }
               } else {
@@ -359,12 +363,12 @@ registerHandler('lint_fix', async (params) => {
                       if (modeIds.length === 0) continue;
                       const val = imported.valuesByMode[modeIds[0]];
                       let c: RGBA | null = null;
-                      if (val && typeof val === 'object' && 'r' in (val as object)) {
-                        c = val as RGBA;
-                      } else if (val && typeof val === 'object' && 'type' in (val as Record<string, unknown>) && (val as Record<string, unknown>).type === 'VARIABLE_ALIAS') {
+                      if (isRgbaLike(val)) {
+                        c = val;
+                      } else if (isVariableAlias(val)) {
                         // Resolve alias to get actual RGBA value
                         try {
-                          const aliasId = (val as { id: string }).id;
+                          const aliasId = val.id;
                           let resolved = await figma.variables.getVariableByIdAsync(aliasId);
                           // If local lookup fails, the alias target may not be imported yet
                           if (!resolved) {
@@ -374,21 +378,21 @@ registerHandler('lint_fix', async (params) => {
                             const resModes = Object.keys(resolved.valuesByMode);
                             for (const rm of resModes) {
                               const resVal = resolved.valuesByMode[rm];
-                              if (resVal && typeof resVal === 'object' && 'r' in (resVal as object)) {
-                                c = resVal as RGBA;
+                              if (isRgbaLike(resVal)) {
+                                c = resVal;
                                 break;
                               }
                               // Handle nested alias (one more level)
-                              if (resVal && typeof resVal === 'object' && 'type' in (resVal as Record<string, unknown>) && (resVal as Record<string, unknown>).type === 'VARIABLE_ALIAS') {
+                              if (isVariableAlias(resVal)) {
                                 try {
-                                  const deepId = (resVal as { id: string }).id;
+                                  const deepId = resVal.id;
                                   let deep = await figma.variables.getVariableByIdAsync(deepId);
                                   if (!deep) { try { deep = await figma.variables.importVariableByKeyAsync(deepId); } catch { /* skip */ } }
                                   if (deep) {
                                     const deepModes = Object.keys(deep.valuesByMode);
                                     if (deepModes.length > 0) {
                                       const dv = deep.valuesByMode[deepModes[0]];
-                                      if (dv && typeof dv === 'object' && 'r' in (dv as object)) { c = dv as RGBA; break; }
+                                      if (isRgbaLike(dv)) { c = dv; break; }
                                     }
                                   }
                                 } catch { /* skip */ }
@@ -411,14 +415,20 @@ registerHandler('lint_fix', async (params) => {
               // Only bind if we found a close enough match (distance < 0.01 ≈ ~4 RGB units)
               if (finalVar && finalDist < 0.01) {
                 const geom = node as GeometryMixin;
-                const fills = [...geom.fills] as Paint[];
-                if (fills.length > 0 && fills[0].type === 'SOLID') {
-                  fills[0] = figma.variables.setBoundVariableForPaint(fills[0] as SolidPaint, 'color', finalVar);
-                  geom.fills = fills;
-                  fixed++;
-                } else {
+                const rawFills = geom.fills;
+                if (rawFills === figma.mixed) {
                   failed++;
-                  errors.push({ nodeId: v.nodeId, error: 'No solid fill to bind' });
+                  errors.push({ nodeId: v.nodeId, error: 'Mixed fills' });
+                } else {
+                  const fills = [...rawFills] as Paint[];
+                  if (fills.length > 0 && fills[0].type === 'SOLID') {
+                    fills[0] = figma.variables.setBoundVariableForPaint(fills[0] as SolidPaint, 'color', finalVar);
+                    geom.fills = fills;
+                    fixed++;
+                  } else {
+                    failed++;
+                    errors.push({ nodeId: v.nodeId, error: 'No solid fill to bind' });
+                  }
                 }
               } else {
                 failed++;
@@ -490,6 +500,100 @@ registerHandler('lint_fix', async (params) => {
           }
           break;
         }
+        case 'button-structure': {
+          // Auto-fix: multiple fix types based on fixData.fix
+          if (node.type === 'FRAME' || node.type === 'COMPONENT') {
+            const frame = node as FrameNode;
+            const fixType = v.fixData?.fix as string | undefined;
+
+            if (fixType === 'layout' || (!fixType && v.fixData?.layoutMode)) {
+              // Legacy + new: set auto-layout with centered alignment
+              if (v.fixData?.layoutMode) frame.layoutMode = v.fixData.layoutMode as 'HORIZONTAL' | 'VERTICAL';
+              if (v.fixData?.primaryAxisAlignItems) (frame as any).primaryAxisAlignItems = v.fixData.primaryAxisAlignItems;
+              if (v.fixData?.counterAxisAlignItems) (frame as any).counterAxisAlignItems = v.fixData.counterAxisAlignItems;
+              fixed++;
+            } else if (fixType === 'padding') {
+              if (v.fixData?.paddingLeft != null) frame.paddingLeft = v.fixData.paddingLeft as number;
+              if (v.fixData?.paddingRight != null) frame.paddingRight = v.fixData.paddingRight as number;
+              fixed++;
+            } else if (fixType === 'height') {
+              const targetHeight = v.fixData?.height as number ?? 48;
+              if (frame.height < targetHeight) {
+                frame.resize(frame.width, targetHeight);
+                // Also set minHeight so auto-layout doesn't shrink it
+                if ('minHeight' in frame) frame.minHeight = targetHeight;
+              }
+              fixed++;
+            } else {
+              failed++;
+              errors.push({ nodeId: v.nodeId, error: `Unknown button-structure fix type: ${fixType}` });
+            }
+          } else {
+            failed++;
+            errors.push({ nodeId: v.nodeId, error: 'Node is not a frame — cannot auto-fix button structure' });
+          }
+          break;
+        }
+        case 'text-overflow': {
+          // Auto-fix: set textAutoResize to WIDTH_AND_HEIGHT
+          if (node.type === 'TEXT') {
+            const textNode = node as TextNode;
+            if (textNode.fontName !== figma.mixed) {
+              await figma.loadFontAsync(textNode.fontName);
+            }
+            textNode.textAutoResize = (v.fixData?.textAutoResize as TextNode['textAutoResize']) ?? 'WIDTH_AND_HEIGHT';
+            fixed++;
+          } else {
+            failed++;
+            errors.push({ nodeId: v.nodeId, error: 'Node is not a text node — cannot fix text overflow' });
+          }
+          break;
+        }
+        case 'form-consistency': {
+          // Auto-fix: set layoutAlign=STRETCH on children that are narrower than siblings
+          if ('layoutAlign' in node) {
+            (node as SceneNode & { layoutAlign: string }).layoutAlign = v.fixData?.layoutAlign as string ?? 'STRETCH';
+            fixed++;
+          } else {
+            failed++;
+            errors.push({ nodeId: v.nodeId, error: 'Node does not support layoutAlign' });
+          }
+          break;
+        }
+        case 'overflow-parent': {
+          // Auto-fix: set layoutAlign=STRETCH so child fills parent cross-axis
+          if (v.fixData?.fix === 'stretch' && 'layoutAlign' in node) {
+            (node as SceneNode & { layoutAlign: string }).layoutAlign = v.fixData.layoutAlign as string ?? 'STRETCH';
+            fixed++;
+          } else {
+            failed++;
+            errors.push({ nodeId: v.nodeId, error: 'Node does not support layoutAlign' });
+          }
+          break;
+        }
+        case 'unbounded-hug': {
+          // Auto-fix: set layoutAlign=STRETCH on the frame itself so it fills parent cross-axis
+          if (v.fixData?.fix === 'stretch-self' && 'layoutAlign' in node) {
+            (node as SceneNode & { layoutAlign: string }).layoutAlign = v.fixData.layoutAlign as string ?? 'STRETCH';
+            fixed++;
+          } else {
+            failed++;
+            errors.push({ nodeId: v.nodeId, error: v.fixData?.fix ? 'Node does not support layoutAlign' : 'No auto-fix available for this violation' });
+          }
+          break;
+        }
+        case 'no-autolayout': {
+          // Auto-fix: enable auto-layout with inferred direction
+          if (node.type === 'FRAME' || node.type === 'COMPONENT') {
+            const frame = node as FrameNode;
+            frame.layoutMode = (v.fixData?.layoutMode as 'HORIZONTAL' | 'VERTICAL') ?? 'VERTICAL';
+            fixed++;
+          } else {
+            failed++;
+            errors.push({ nodeId: v.nodeId, error: 'Node is not a frame — cannot enable auto-layout' });
+          }
+          break;
+        }
         default:
           failed++;
           errors.push({ nodeId: v.nodeId, error: `No fix for rule ${v.rule}` });
@@ -513,7 +617,7 @@ registerHandler('lint_rules', async () => {
 registerHandler('clear_annotations', async (params) => {
   const nodeIds = params.nodeIds as string[] | undefined;
   const targets = nodeIds
-    ? (await Promise.all(nodeIds.map((id) => figma.getNodeByIdAsync(id)))).filter(Boolean) as SceneNode[]
+    ? (await Promise.all(nodeIds.map((id) => findNodeByIdAsync(id)))).filter(Boolean) as SceneNode[]
     : [...figma.currentPage.children];
 
   const MAX_DEPTH = 10;
@@ -564,9 +668,15 @@ function compressedToAbstract(node: CompressedNode): AbstractNode {
     paddingRight: node.paddingRight,
     paddingTop: node.paddingTop,
     paddingBottom: node.paddingBottom,
+    primaryAxisAlignItems: node.primaryAxisAlignItems,
+    counterAxisAlignItems: node.counterAxisAlignItems,
+    clipsContent: node.clipsContent,
+    strokeWeight: node.strokeWeight,
+    layoutAlign: node.layoutAlign,
     x: node.x,
     y: node.y,
     characters: node.characters,
+    textAutoResize: node.textAutoResize,
     boundVariables: node.boundVariables,
     fillStyleId: node.fillStyleId,
     textStyleId: node.textStyleId,
@@ -592,7 +702,7 @@ async function annotateViolations(report: LintReport): Promise<void> {
   }
 
   for (const [nodeId, suggestions] of grouped) {
-    const node = await figma.getNodeByIdAsync(nodeId);
+    const node = await findNodeByIdAsync(nodeId);
     if (!node || !('annotations' in node)) continue;
     const annotated = node as SceneNode & {
       annotations: Array<{ label: string }>;

@@ -6,7 +6,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Bridge } from '../bridge.js';
-import { requestWithFallback, restExportImage } from '../rest-fallback.js';
+import { exportImageLogic } from './logic/export-logic.js';
 
 export function registerExportTools(server: McpServer, bridge: Bridge): void {
   server.tool(
@@ -25,16 +25,7 @@ export function registerExportTools(server: McpServer, bridge: Bridge): void {
         .describe('Export scale for raster formats (default: 2)'),
     },
     async ({ nodeId, format, scale }) => {
-      const { result, source } = await requestWithFallback(
-        bridge,
-        'export_image',
-        { nodeId, format, scale },
-        () => restExportImage(nodeId, format, scale),
-      );
-      const text = source === 'rest-api'
-        ? JSON.stringify(result, null, 2) + '\n\n⚠️ Exported via REST API (plugin offline).'
-        : JSON.stringify(result, null, 2);
-      return { content: [{ type: 'text' as const, text }] };
+      return exportImageLogic(bridge, { nodeId, format, scale });
     },
   );
 }

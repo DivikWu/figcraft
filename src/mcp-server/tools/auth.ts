@@ -64,7 +64,9 @@ export function registerAuthTools(server: McpServer): void {
 
   server.tool(
     'figma_auth_status',
-    'Check current Figma authentication status (pat, oauth, or none).',
+    'Check current Figma authentication status (pat, oauth, or none). ' +
+      'NOTE: Auth status is NOT required before most operations — the plugin handles auth. ' +
+      'Only check this if a tool explicitly reports an auth error.',
     {},
     async () => {
       const status = getAuthStatus();

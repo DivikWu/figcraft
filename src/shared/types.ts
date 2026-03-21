@@ -117,12 +117,18 @@ export interface CompressedNode {
   paddingRight?: number;
   paddingTop?: number;
   paddingBottom?: number;
+  primaryAxisAlignItems?: string;
+  counterAxisAlignItems?: string;
+  clipsContent?: boolean;
+  strokeWeight?: number;
+  layoutAlign?: string;
   // Text
   characters?: string;
   fontSize?: number;
   fontName?: unknown;
   lineHeight?: unknown;
   letterSpacing?: unknown;
+  textAutoResize?: string;
   // Variable/Style bindings
   boundVariables?: Record<string, unknown>;
   fillStyleId?: string;
@@ -131,6 +137,10 @@ export interface CompressedNode {
   // Component properties
   componentPropertyDefinitions?: Record<string, { type: string; defaultValue?: unknown; variantOptions?: string[] }>;
   componentPropertyReferences?: Record<string, string>;
+  // Truncation indicator — set when node tree was cut short by depth/count/time limits
+  truncated?: boolean;
+  /** Number of direct children omitted due to limits. */
+  truncatedChildCount?: number;
 }
 
 // ─── Operation Mode ───

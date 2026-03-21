@@ -19,6 +19,7 @@ import {
   isSetLibraryFileKeyMessage,
   isResolveFileNameMessage,
   isChannelAnnounceMessage,
+  isCommandProgressMessage,
 } from '../shared/protocol.js';
 import { fetchFileName } from './figma-api.js';
 import { saveBridgeToken } from './auth.js';
@@ -35,29 +36,56 @@ export class Bridge {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private connected = false;
+  private connecting = false;
   private apiToken: string | null = null;
   private libraryFileKeys = new Map<string, string>();
   private reconnectAttempts = 0;
+  private missedPongs = 0;
+  private connectionWaiters: Array<() => void> = [];
+  private intentionalDisconnect = false;
+  private static readonly MAX_MISSED_PONGS = 2;
 
   constructor(
     private relayUrl: string,
     private channel: ChannelId,
   ) {}
 
+  /** Maximum time to wait for a connection to establish (ms). */
+  private static readonly CONNECT_TIMEOUT_MS = 15_000;
+
   /** Connect to the relay and join the channel. */
   async connect(): Promise<void> {
     if (this.connected) return;
+    if (this.connecting) return;
+    this.connecting = true;
+    this.intentionalDisconnect = false;
 
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
+      let settled = false;
       this.ws = new WebSocket(this.relayUrl);
 
+      // Guard against connections that never open and never error
+      const connectTimeout = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          this.connecting = false;
+          this.ws?.terminate();
+          reject(new Error(`Connection to relay timed out after ${Bridge.CONNECT_TIMEOUT_MS}ms`));
+        }
+      }, Bridge.CONNECT_TIMEOUT_MS);
+
       this.ws.on('open', () => {
+        clearTimeout(connectTimeout);
         this.connected = true;
+        this.connecting = false;
         this.reconnectAttempts = 0;
+        this.missedPongs = 0;
         // Join data channel + control channel
         this.ws!.send(JSON.stringify({ type: 'join', channel: this.channel, role: 'mcp' }));
         this.ws!.send(JSON.stringify({ type: 'join', channel: CONTROL_CHANNEL, role: 'mcp' }));
         this.startHeartbeat();
+        this.notifyConnectionWaiters();
+        settled = true;
         resolve();
       });
 
@@ -90,7 +118,7 @@ export class Bridge {
         }
 
         if (isPongMessage(msg)) {
-          // heartbeat acknowledged
+          this.missedPongs = 0;
           return;
         }
 
@@ -98,6 +126,22 @@ export class Bridge {
           if (msg.designChannel && msg.designChannel !== this.channel) {
             console.error(`[FigCraft bridge] plugin announced channel "${msg.designChannel}", switching from "${this.channel}"`);
             this.joinChannel(msg.designChannel);
+          }
+          return;
+        }
+
+        // Progress messages extend the timeout of the associated pending request.
+        // This prevents long-running operations (e.g. create_document with many nodes)
+        // from timing out while the plugin is still actively working.
+        if (isCommandProgressMessage(msg)) {
+          const req = this.pending.get(msg.commandId);
+          if (req) {
+            clearTimeout(req.timer);
+            req.timer = setTimeout(() => {
+              this.pending.delete(msg.commandId);
+              console.error(`[FigCraft bridge] ✗ request timed out after progress (id=${msg.commandId.slice(0, 8)})`);
+              req.reject(new Error(`Request timed out after ${REQUEST_TIMEOUT_MS}ms (progress was received)`));
+            }, REQUEST_TIMEOUT_MS);
           }
           return;
         }
@@ -142,17 +186,28 @@ export class Bridge {
       });
 
       this.ws.on('close', () => {
+        clearTimeout(connectTimeout);
         this.connected = false;
+        this.connecting = false;
         this.stopHeartbeat();
         this.rejectAllPending('Connection closed');
-        this.scheduleReconnect();
+        if (!this.intentionalDisconnect) {
+          this.scheduleReconnect();
+        }
+        if (!settled) {
+          settled = true;
+          reject(new Error('Connection closed during handshake'));
+        }
       });
 
       this.ws.on('error', (err) => {
-        if (!this.connected) {
+        clearTimeout(connectTimeout);
+        console.error('[FigCraft bridge] ws error:', err.message);
+        if (!settled) {
+          settled = true;
+          this.connecting = false;
           reject(err);
         }
-        console.error('[FigCraft bridge] ws error:', err.message);
       });
     });
   }
@@ -169,24 +224,51 @@ export class Bridge {
 
     const id = generateId();
     const timeout = timeoutMs ?? REQUEST_TIMEOUT_MS;
+    const startTime = Date.now();
+    console.error(`[FigCraft bridge] → ${method} (id=${id.slice(0, 8)})`);
 
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
+        const elapsed = Date.now() - startTime;
+        console.error(`[FigCraft bridge] ✗ ${method} timed out after ${elapsed}ms (id=${id.slice(0, 8)})`);
         reject(new Error(`Request ${method} timed out after ${timeout}ms`));
       }, timeout);
 
-      this.pending.set(id, { resolve, reject, timer });
+      this.pending.set(id, {
+        resolve: (result: unknown) => {
+          const elapsed = Date.now() - startTime;
+          console.error(`[FigCraft bridge] ✓ ${method} — ${elapsed}ms (id=${id.slice(0, 8)})`);
+          resolve(result);
+        },
+        reject: (error: Error) => {
+          const elapsed = Date.now() - startTime;
+          console.error(`[FigCraft bridge] ✗ ${method} — ${elapsed}ms — ${error.message} (id=${id.slice(0, 8)})`);
+          reject(error);
+        },
+        timer,
+      });
 
-      this.ws!.send(
-        JSON.stringify({
-          id,
-          type: 'request',
-          channel: this.channel,
-          method,
-          params,
-        }),
-      );
+      try {
+        this.ws!.send(
+          JSON.stringify({
+            id,
+            type: 'request',
+            channel: this.channel,
+            method,
+            // Inject _commandId so the plugin can reference it in progress messages.
+            // Handlers that don't use it simply ignore the extra field.
+            params: { ...params, _commandId: id },
+            ...(timeoutMs != null ? { _timeoutMs: timeoutMs } : {}),
+          }),
+        );
+      } catch (sendErr) {
+        clearTimeout(timer);
+        this.pending.delete(id);
+        const elapsed = Date.now() - startTime;
+        console.error(`[FigCraft bridge] ✗ ${method} send failed — ${elapsed}ms (id=${id.slice(0, 8)})`);
+        reject(sendErr instanceof Error ? sendErr : new Error(String(sendErr)));
+      }
     });
   }
 
@@ -194,24 +276,37 @@ export class Bridge {
   private waitForConnection(maxWaitMs: number): Promise<void> {
     if (this.connected) return Promise.resolve();
     return new Promise((resolve) => {
-      const start = Date.now();
-      const interval = setInterval(() => {
-        if (this.connected || Date.now() - start > maxWaitMs) {
-          clearInterval(interval);
-          resolve();
-        }
-      }, 200);
+      const timer = setTimeout(() => {
+        // Remove this waiter on timeout
+        this.connectionWaiters = this.connectionWaiters.filter((w) => w !== onConnect);
+        resolve();
+      }, maxWaitMs);
+      const onConnect = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      this.connectionWaiters.push(onConnect);
     });
+  }
+
+  /** Notify all connection waiters that we're connected. */
+  private notifyConnectionWaiters(): void {
+    const waiters = this.connectionWaiters;
+    this.connectionWaiters = [];
+    for (const waiter of waiters) waiter();
   }
 
   /** Disconnect from the relay. */
   disconnect(): void {
+    this.intentionalDisconnect = true;
     this.stopHeartbeat();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
     this.rejectAllPending('Disconnected');
+    // Reject any pending connection waiters so they don't hang until timeout
+    this.notifyConnectionWaiters();
     if (this.ws) {
       this.ws.close();
       this.ws = null;
@@ -242,6 +337,11 @@ export class Bridge {
     return this.libraryFileKeys.get(library) ?? null;
   }
 
+  /** Set the file key for a library (from plugin response or UI). */
+  setLibraryFileKey(library: string, fileKey: string): void {
+    this.libraryFileKeys.set(library, fileKey);
+  }
+
   /** Switch to a different channel. Re-joins the relay with the new channel. */
   joinChannel(channel: ChannelId): void {
     if (!this.ws || !this.connected) {
@@ -251,11 +351,59 @@ export class Bridge {
     this.ws.send(JSON.stringify({ type: 'join', channel: this.channel, role: 'mcp' }));
   }
 
+  // ─── Response size limiting ───
+
+  /** Maximum response size in characters. Responses exceeding this are truncated with guidance. */
+  static readonly MAX_RESPONSE_CHARS = 50_000;
+
+  /**
+   * Guard a response against excessive size. If the JSON-serialized result exceeds
+   * MAX_RESPONSE_CHARS, returns a truncated error with hints for the agent to narrow scope.
+   * Otherwise returns the original result unchanged.
+   *
+   * @param result - The raw result from the plugin
+   * @param method - The tool method name (for error context)
+   * @param hints - Optional hints for the agent on how to reduce response size
+   */
+  static guardResponseSize(
+    result: unknown,
+    method: string,
+    hints?: string[],
+  ): unknown {
+    const json = JSON.stringify(result);
+    if (json.length <= Bridge.MAX_RESPONSE_CHARS) return result;
+
+    const sizeKB = Math.round(json.length / 1024);
+    const limitKB = Math.round(Bridge.MAX_RESPONSE_CHARS / 1024);
+    const defaultHints = [
+      'Use maxDepth=1 or maxDepth=2 to limit tree depth',
+      'Use get_node_info on specific nodes instead of fetching the full tree',
+      'Use search_nodes with a query to find specific nodes',
+    ];
+    return {
+      _error: 'response_too_large',
+      _sizeKB: sizeKB,
+      _limitKB: limitKB,
+      method,
+      warning: `Response is ${sizeKB}KB, exceeding the ${limitKB}KB limit. The data was truncated to prevent context overflow.`,
+      hints: hints ?? defaultHints,
+      // Include a truncated preview (first ~10KB) so the agent has some context
+      _preview: json.slice(0, 10_000) + '\n... [truncated]',
+    };
+  }
+
   // ─── Private ───
 
   private startHeartbeat(): void {
+    this.missedPongs = 0;
     this.heartbeatTimer = setInterval(() => {
       if (this.ws && this.connected) {
+        this.missedPongs++;
+        if (this.missedPongs > Bridge.MAX_MISSED_PONGS) {
+          console.error(`[FigCraft bridge] relay unresponsive (${this.missedPongs} missed pongs), forcing reconnect`);
+          this.ws.terminate();
+          return;
+        }
         this.ws.send(JSON.stringify({ type: 'ping', channel: this.channel }));
       }
     }, HEARTBEAT_INTERVAL_MS);

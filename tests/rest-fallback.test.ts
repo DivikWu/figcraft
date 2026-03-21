@@ -97,7 +97,8 @@ describe('file context', () => {
   it('stores and retrieves file context', () => {
     setFileContext('abc123', 'My Design');
     const ctx = getFileContext();
-    expect(ctx).toEqual({ fileKey: 'abc123', documentName: 'My Design' });
+    expect(ctx).toMatchObject({ fileKey: 'abc123', documentName: 'My Design' });
+    expect(ctx?.updatedAt).toBeGreaterThan(0);
   });
 
   it('setFileKey updates existing context', () => {

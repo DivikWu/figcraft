@@ -3,6 +3,7 @@
  */
 
 import { registerHandler } from '../registry.js';
+import { findNodeByIdAsync } from '../utils/node-lookup.js';
 
 type AnnotatedNode = SceneNode & { annotations: Array<{ label: string; properties: Array<{ type: string }> }> };
 
@@ -27,7 +28,7 @@ registerHandler('get_annotations', async (params) => {
   }
 
   if (params.nodeId) {
-    const node = await figma.getNodeByIdAsync(params.nodeId as string);
+    const node = await findNodeByIdAsync(params.nodeId as string);
     if (!node) return { nodes: [], count: 0 };
     if ('children' in node) {
       for (const child of (node as ChildrenMixin).children) {
@@ -47,7 +48,7 @@ registerHandler('get_annotations', async (params) => {
 });
 
 registerHandler('set_annotation', async (params) => {
-  const node = await figma.getNodeByIdAsync(params.nodeId as string);
+  const node = await findNodeByIdAsync(params.nodeId as string);
   if (!node) throw new Error(`Node not found: ${params.nodeId}`);
   if (!hasAnnotations(node as SceneNode)) throw new Error(`Node ${params.nodeId} does not support annotations`);
   const annotated = node as AnnotatedNode;
@@ -60,7 +61,7 @@ registerHandler('set_multiple_annotations', async (params) => {
   const items = params.items as Array<{ nodeId: string; label: string; replace?: boolean }>;
   const results = await Promise.allSettled(
     items.map(async (item) => {
-      const node = await figma.getNodeByIdAsync(item.nodeId);
+      const node = await findNodeByIdAsync(item.nodeId);
       if (!node) throw new Error(`Node ${item.nodeId} not found`);
       if (!hasAnnotations(node as SceneNode)) throw new Error(`Node ${item.nodeId} does not support annotations`);
       const annotated = node as AnnotatedNode;

@@ -4,6 +4,8 @@
 
 import { registerHandler } from '../registry.js';
 import { figmaRgbaToHex } from '../utils/color.js';
+import { findNodeByIdAsync } from '../utils/node-lookup.js';
+import { isVariableAlias, isRgbaLike } from '../utils/type-guards.js';
 
 export function registerVariableHandlers(): void {
 
@@ -74,7 +76,7 @@ registerHandler('list_collections', async () => {
 
 registerHandler('get_node_variables', async (params) => {
   const nodeId = params.nodeId as string;
-  const node = await figma.getNodeByIdAsync(nodeId);
+  const node = await findNodeByIdAsync(nodeId);
   if (!node) return { error: `Node not found: ${nodeId}` };
 
   const sceneNode = node as SceneNode;
@@ -85,7 +87,9 @@ registerHandler('get_node_variables', async (params) => {
   const bindings: Record<string, unknown[]> = {};
 
   for (const [field, value] of Object.entries(sceneNode.boundVariables)) {
-    const aliases: Array<{ id: string }> = Array.isArray(value) ? value : [value];
+    const aliases: Array<{ id: string }> = Array.isArray(value)
+      ? (value as Array<{ id: string }>)
+      : [value as unknown as { id: string }];
     const resolved: unknown[] = [];
     for (const alias of aliases) {
       if (!alias || !alias.id) continue;
@@ -124,17 +128,13 @@ function simplifyValue(value: unknown): unknown {
   if (value === null || value === undefined) return null;
 
   // Variable alias
-  if (typeof value === 'object' && 'type' in (value as Record<string, unknown>)) {
-    const v = value as { type: string; id: string };
-    if (v.type === 'VARIABLE_ALIAS') {
-      return { alias: v.id };
-    }
+  if (isVariableAlias(value)) {
+    return { alias: value.id };
   }
 
   // RGB/RGBA color
-  if (typeof value === 'object' && 'r' in (value as Record<string, unknown>)) {
-    const c = value as RGBA;
-    return figmaRgbaToHex(c);
+  if (isRgbaLike(value)) {
+    return figmaRgbaToHex(value);
   }
 
   return value;

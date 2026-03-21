@@ -6,15 +6,12 @@
 
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { Bridge } from '../bridge.js';
+import { Bridge } from '../bridge.js';
 import {
   requestWithFallback,
-  restGetNodeInfo,
   restGetDocumentInfo,
-  setFileKey,
-  getFileContext,
 } from '../rest-fallback.js';
-import { extractFileKeyFromUrl, extractNodeIdFromUrl } from '../figma-api.js';
+import { getNodeInfoLogic, getCurrentPageLogic, searchNodesLogic } from './logic/node-logic.js';
 
 export function registerNodeTools(server: McpServer, bridge: Bridge): void {
   server.tool(
@@ -25,57 +22,36 @@ export function registerNodeTools(server: McpServer, bridge: Bridge): void {
       nodeId: z.string().describe('The Figma node ID (e.g. "1:23")'),
     },
     async ({ nodeId }) => {
-      // Support Figma URLs: extract fileKey + nodeId automatically
-      let resolvedNodeId = nodeId;
-      if (nodeId.includes('figma.com/')) {
-        const urlFileKey = extractFileKeyFromUrl(nodeId);
-        const urlNodeId = extractNodeIdFromUrl(nodeId);
-        if (urlFileKey) {
-          setFileKey(urlFileKey);
-        }
-        if (urlNodeId) {
-          resolvedNodeId = urlNodeId;
-        } else {
-          return {
-            content: [{ type: 'text' as const, text: 'Could not extract node ID from the Figma URL. Please include ?node-id= in the URL.' }],
-          };
-        }
-      }
-
-      const { result, source } = await requestWithFallback(
-        bridge,
-        'get_node_info',
-        { nodeId: resolvedNodeId },
-        () => restGetNodeInfo(resolvedNodeId),
-      );
-      const text = source === 'rest-api'
-        ? JSON.stringify(result, null, 2) + '\n\n⚠️ Data from REST API (plugin offline). Variable bindings and some properties may be missing.'
-        : JSON.stringify(result, null, 2);
-      return { content: [{ type: 'text' as const, text }] };
+      return getNodeInfoLogic(bridge, { nodeId });
     },
   );
 
   server.tool(
     'get_current_page',
     'Get the current page node tree (compressed). ' +
-      'Returns page info and up to maxNodes top-level children with full style data.',
+      'Returns page info and up to maxNodes top-level children with full style data. ' +
+      'Use maxDepth to control tree traversal depth (default: 10). ' +
+      'For large pages, use maxDepth=1 or 2 for a fast overview, then get_node_info for details.',
     {
       maxNodes: z
         .number()
         .optional()
         .describe('Maximum number of top-level nodes to return (default: 200)'),
+      maxDepth: z
+        .number()
+        .optional()
+        .describe('Maximum tree depth to traverse (default: 10). Use 1-2 for fast overview of large pages.'),
     },
-    async ({ maxNodes }) => {
-      const result = await bridge.request('get_current_page', { maxNodes });
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-      };
+    async ({ maxNodes, maxDepth }) => {
+      return getCurrentPageLogic(bridge, { maxNodes, maxDepth });
     },
   );
 
   server.tool(
     'get_document_info',
-    'Get document overview: name, current page, and list of all pages.',
+    'Get document overview: name, current page, and list of all pages. ' +
+      'NOTE: For most tasks, prefer get_current_page (with maxDepth=1 for overview) instead — it returns actual node data. ' +
+      'Use get_document_info only when you need to list all pages or switch pages.',
     {},
     async () => {
       const { result, source } = await requestWithFallback(
@@ -85,8 +61,8 @@ export function registerNodeTools(server: McpServer, bridge: Bridge): void {
         () => restGetDocumentInfo(),
       );
       const text = source === 'rest-api'
-        ? JSON.stringify(result, null, 2) + '\n\n⚠️ Data from REST API (plugin offline). Current page info unavailable.'
-        : JSON.stringify(result, null, 2);
+        ? JSON.stringify(result, null, 2) + '\n\n⚠️ Data from REST API (plugin offline). Variable bindings and some properties may be missing.'
+        : JSON.stringify(result, null, 2) + '\n\n_hint: Document info loaded. Continue with your task — do NOT stop here.';
       return { content: [{ type: 'text' as const, text }] };
     },
   );
@@ -119,10 +95,7 @@ export function registerNodeTools(server: McpServer, bridge: Bridge): void {
         .describe('Maximum results to return (default: 50)'),
     },
     async ({ query, types, limit }) => {
-      const result = await bridge.request('search_nodes', { query, types, limit });
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-      };
+      return searchNodesLogic(bridge, { query, types, limit });
     },
   );
 
@@ -142,19 +115,4 @@ export function registerNodeTools(server: McpServer, bridge: Bridge): void {
     },
   );
 
-  server.tool(
-    'get_reactions',
-    'Get prototype reactions (interactions) on a specific node or all nodes on the current page. ' +
-      'Returns trigger types (ON_CLICK, ON_HOVER, AFTER_TIMEOUT, etc.) and action types ' +
-      '(NAVIGATE, OVERLAY, SCROLL_TO, etc.). Useful for analyzing prototype flows or generating interaction docs.',
-    {
-      nodeId: z.string().optional().describe('Node ID to inspect; omit to scan the entire current page'),
-    },
-    async ({ nodeId }) => {
-      const result = await bridge.request('get_reactions', { nodeId });
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-      };
-    },
-  );
 }

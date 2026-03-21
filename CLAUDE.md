@@ -93,7 +93,7 @@ figcraft/
 │   │   ├── tools/                  # MCP 工具（每个文件注册一组相关工具）
 │   │   │   ├── ping.ts             # 连通性测试
 │   │   │   ├── nodes.ts            # 节点读取（压缩、搜索）
-│   │   │   ├── write-nodes.ts      # 节点写入（Frame、Text、Rectangle、Ellipse、Line、批量更新、删除）
+│   │   │   ├── write-nodes.ts      # 节点写入（Frame、Text、Rectangle、Ellipse、Line、Vector、批量更新、删除）
 │   │   │   ├── variables.ts        # Variables 读取
 │   │   │   ├── styles.ts           # Styles 读取
 │   │   │   ├── library.ts          # Team Library Variables 读取 + 导入

@@ -44,7 +44,7 @@ export const hardcodedTokenRule: LintRule = {
             rule: 'hardcoded-token',
             severity: 'warning',
             currentValue: `fills: ${colorStr}${opacityStr}`,
-            suggestion: `填充色 ${colorStr}${opacityStr} 未绑定变量，请关联到库`,
+            suggestion: `Fill color ${colorStr}${opacityStr} is not bound to a variable — link it to the library`,
             autoFixable: true,
             fixData: { property: 'fills', hex: fill?.color ?? null, opacity: fill?.opacity ?? 1, nodeType: node.type },
           });
@@ -61,7 +61,7 @@ export const hardcodedTokenRule: LintRule = {
         rule: 'hardcoded-token',
         severity: 'warning',
         currentValue: `cornerRadius: ${radiusVal}`,
-        suggestion: `圆角 ${radiusVal}px 未绑定变量，请关联到库`,
+        suggestion: `Corner radius ${radiusVal}px is not bound to a variable — link it to the library`,
         autoFixable: true,
         fixData: { property: 'cornerRadius', value: node.cornerRadius, nodeName: node.name },
       });

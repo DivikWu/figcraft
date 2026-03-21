@@ -4,6 +4,7 @@
 
 import { registerHandler } from '../registry.js';
 import { figmaRgbaToHex } from '../utils/color.js';
+import { isRgbaLike } from '../utils/type-guards.js';
 
 export function registerScanHandlers(): void {
 
@@ -52,8 +53,8 @@ registerHandler('export_tokens', async () => {
       let value: unknown = rawValue;
 
       // Convert Figma color to hex
-      if (variable.resolvedType === 'COLOR' && rawValue && typeof rawValue === 'object' && 'r' in (rawValue as Record<string, unknown>)) {
-        value = figmaRgbaToHex(rawValue as RGBA);
+      if (variable.resolvedType === 'COLOR' && isRgbaLike(rawValue)) {
+        value = figmaRgbaToHex(rawValue);
       }
 
       tokens[variable.name] = {
@@ -82,8 +83,8 @@ registerHandler('diff_styles', async (params) => {
       if (!variable) continue;
       const modeId = collection.modes[0].modeId;
       let value: unknown = variable.valuesByMode[modeId];
-      if (variable.resolvedType === 'COLOR' && value && typeof value === 'object' && 'r' in (value as Record<string, unknown>)) {
-        value = figmaRgbaToHex(value as RGBA);
+      if (variable.resolvedType === 'COLOR' && isRgbaLike(value)) {
+        value = figmaRgbaToHex(value);
       }
       figmaVars.set(variable.name, { value, type: variable.resolvedType });
     }

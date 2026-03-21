@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { runLint, getAvailableRules } from '../src/plugin/linter/engine.js';
 import type { AbstractNode, LintContext } from '../src/plugin/linter/types.js';
+import { downgradeSeverity } from '../src/plugin/linter/types.js';
 
 const emptyCtx: LintContext = {
   colorTokens: new Map(),
@@ -80,12 +81,86 @@ describe('runLint', () => {
     expect(report.summary.violations).toBeLessThanOrEqual(5);
     expect(report.summary.truncated).toBe(true);
   });
+
+  it('includes bySeverity counts in summary', () => {
+    const node = makeNode({ name: 'Frame 1', type: 'FRAME', children: [] });
+    const report = runLint([node], emptyCtx, { rules: ['default-name'] });
+    expect(report.summary.bySeverity).toBeDefined();
+    expect(typeof report.summary.bySeverity.error).toBe('number');
+    expect(typeof report.summary.bySeverity.warning).toBe('number');
+    expect(typeof report.summary.bySeverity.info).toBe('number');
+    expect(typeof report.summary.bySeverity.hint).toBe('number');
+    // default-name is warning severity
+    expect(report.summary.bySeverity.warning).toBeGreaterThan(0);
+  });
+
+  it('filters by minSeverity', () => {
+    // max-nesting-depth produces hint-level violations
+    const deep = makeNode({
+      name: 'Root', type: 'FRAME', children: [
+        makeNode({ id: '2:1', name: 'L1', type: 'FRAME', children: [
+          makeNode({ id: '3:1', name: 'L2', type: 'FRAME', children: [
+            makeNode({ id: '4:1', name: 'L3', type: 'FRAME', children: [
+              makeNode({ id: '5:1', name: 'L4', type: 'FRAME', children: [
+                makeNode({ id: '6:1', name: 'L5', type: 'FRAME', children: [
+                  makeNode({ id: '7:1', name: 'L6', type: 'FRAME', children: [
+                    makeNode({ id: '8:1', name: 'L7', type: 'FRAME', children: [] }),
+                  ]}),
+                ]}),
+              ]}),
+            ]}),
+          ]}),
+        ]}),
+      ],
+    });
+    const allReport = runLint([deep], emptyCtx, { rules: ['max-nesting-depth'] });
+    const filteredReport = runLint([deep], emptyCtx, { rules: ['max-nesting-depth'], minSeverity: 'info' });
+    // hint violations should be excluded when minSeverity is 'info'
+    expect(allReport.summary.violations).toBeGreaterThan(0);
+    expect(filteredReport.summary.violations).toBe(0);
+  });
+
+  it('downgrades token rule severity when no tokens and no library', () => {
+    // no-text-style is a warning-level token rule that fires regardless of token context
+    // (it checks for missing textStyleId on TEXT nodes)
+    const node = makeNode({
+      type: 'TEXT', name: 'Label', fontSize: 16,
+      // no textStyleId → triggers no-text-style
+    });
+    const ctxWithLibrary: LintContext = {
+      colorTokens: new Map(),
+      spacingTokens: new Map(),
+      radiusTokens: new Map(),
+      typographyTokens: new Map(),
+      variableIds: new Map(),
+      mode: 'library',
+      selectedLibrary: 'MyLib',
+    };
+    // With library: should stay warning (no downgrade)
+    const withLib = runLint([node], ctxWithLibrary, { rules: ['no-text-style'] });
+    expect(withLib.summary.violations).toBe(1);
+    expect(withLib.categories[0].nodes[0].severity).toBe('warning');
+    expect(withLib.categories[0].nodes[0].baseSeverity).toBeUndefined();
+
+    // Without tokens or library: should downgrade warning → info
+    const withoutCtx = runLint([node], emptyCtx, { rules: ['no-text-style'] });
+    expect(withoutCtx.summary.violations).toBe(1);
+    expect(withoutCtx.categories[0].nodes[0].severity).toBe('info');
+    expect(withoutCtx.categories[0].nodes[0].baseSeverity).toBe('warning');
+  });
+});
+
+describe('downgradeSeverity', () => {
+  it('error → warning', () => expect(downgradeSeverity('error')).toBe('warning'));
+  it('warning → info', () => expect(downgradeSeverity('warning')).toBe('info'));
+  it('info → hint', () => expect(downgradeSeverity('info')).toBe('hint'));
+  it('hint → hint (floor)', () => expect(downgradeSeverity('hint')).toBe('hint'));
 });
 
 describe('getAvailableRules', () => {
-  it('returns 15 rules', () => {
+  it('returns 22 rules', () => {
     const rules = getAvailableRules();
-    expect(rules.length).toBe(15);
+    expect(rules.length).toBe(22);
   });
 
   it('each rule has name, description, category, severity', () => {
@@ -94,7 +169,7 @@ describe('getAvailableRules', () => {
       expect(rule.name).toBeTruthy();
       expect(rule.description).toBeTruthy();
       expect(['token', 'layout', 'naming', 'wcag', 'component']).toContain(rule.category);
-      expect(['error', 'warning', 'info']).toContain(rule.severity);
+      expect(['error', 'warning', 'info', 'hint']).toContain(rule.severity);
     }
   });
 

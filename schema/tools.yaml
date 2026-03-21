@@ -1,0 +1,2776 @@
+# FigCraft Tool Schema — Single Source of Truth
+#
+# Defines ALL tools with metadata (toolset, write flag, access level, description, params).
+# Tools with `handler: bridge` get auto-generated TypeScript (Zod + bridge.request).
+# Tools with `handler: custom` keep their hand-written TypeScript but still
+# contribute to the generated registry (CORE_TOOLS, TOOLSETS, WRITE_TOOLS).
+#
+# Run: npm run schema
+#
+# Access levels (3-tier access control via FIGCRAFT_ACCESS env var):
+#   read   — read-only tools (write: false). Always allowed.
+#   create — tools that add NEW content without modifying existing nodes.
+#            Allowed when FIGCRAFT_ACCESS=create or edit (default).
+#   edit   — tools that modify or delete EXISTING content.
+#            Allowed only when FIGCRAFT_ACCESS=edit (default).
+#
+# The `access` field is only meaningful when `write: true`.
+# If `write: true` and `access` is omitted, defaults to `edit` (most restrictive).
+#
+# Param types: string, number, boolean, enum, array, object, record, unknown, tuple
+#   enum   → values: [A, B, C]
+#   array  → items: { type: string }  (or shorthand items: string)
+#   object → fields: { key: { type: ..., description: ... } }
+#   record → valueType: unknown
+#   tuple  → items: [number, number]
+
+# ═══════════════════════════════════════════════════════════════
+# CORE TOOLS (~33 always enabled)
+# ═══════════════════════════════════════════════════════════════
+
+# ─── Connection & Mode ───
+
+ping:
+  description: >-
+    Test connectivity to the Figma plugin through the WebSocket relay.
+    Returns connection status, round-trip latency, and version check.
+  toolset: core
+  write: false
+  handler: custom
+  params:
+    channel:
+      type: string
+      description: Channel ID (defaults to current channel)
+
+get_mode:
+  description: >-
+    Get current mode, selected library, design context, and library components.
+    Also verifies plugin connectivity (built-in ping).
+    IMPORTANT: Call this before creating elements to get available design tokens and components.
+    Returns { connected, mode, selectedLibrary, designContext, libraryComponents? }.
+    designContext contains grouped tokens (text/surface/fill/border) and defaults mapping.
+    libraryComponents (when library file URL is configured) lists available components with keys for create_instance.
+  toolset: core
+  write: false
+  handler: custom
+  params: {}
+
+set_mode:
+  description: >-
+    Switch operation mode between "library" (Figma shared library)
+    and "spec" (DTCG design spec documents). Also updates the Plugin UI toggle.
+    In library mode, optionally specify which library to use.
+  toolset: core
+  write: true
+  access: create
+  handler: custom
+  params:
+    mode:
+      type: enum
+      values: [library, spec]
+      required: true
+      description: Operation mode to switch to
+    library:
+      type: string
+      description: 'Library name to use in library mode (from list_library_collections libraryName). Use "__local__" to select current file local styles/variables.'
+
+join_channel:
+  description: >-
+    Switch to a different Figma plugin channel. Each Figma document runs its
+    own plugin instance with a unique channel ID. Use this to target a specific document.
+  toolset: core
+  write: false
+  handler: custom
+  params:
+    channel:
+      type: string
+      required: true
+      description: The channel ID shown in the Figma plugin UI
+
+get_channel:
+  description: Get the current channel ID that the MCP Server is connected to.
+  toolset: core
+  write: false
+  handler: custom
+  params: {}
+
+# ─── Read Nodes ───
+
+get_node_info:
+  description: >-
+    Get detailed information about a specific Figma node by ID,
+    including layout, styles, variable bindings, and children.
+  toolset: core
+  write: false
+  handler: custom
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: 'The Figma node ID (e.g. "1:23")'
+
+get_current_page:
+  description: >-
+    Get the current page node tree (compressed).
+    Returns page info and up to maxNodes top-level children with full style data.
+    Use maxDepth to control tree traversal depth (default: 10).
+    For large pages, use maxDepth=1 or 2 for a fast overview, then get_node_info for details.
+  toolset: core
+  write: false
+  handler: custom
+  params:
+    maxNodes:
+      type: number
+      description: "Maximum number of top-level nodes to return (default: 200)"
+    maxDepth:
+      type: number
+      description: "Maximum tree depth to traverse (default: 10). Use 1-2 for fast overview of large pages."
+
+get_document_info:
+  description: >-
+    Get document overview: name, current page, and list of all pages.
+    NOTE: For most tasks, prefer get_current_page (with maxDepth=1 for overview) instead — it returns actual node data.
+    Use get_document_info only when you need to list all pages or switch pages.
+  toolset: core
+  write: false
+  handler: custom
+  params: {}
+
+get_selection:
+  description: Get the currently selected nodes in Figma with full compressed data.
+  toolset: core
+  write: false
+  handler: bridge
+  params: {}
+
+search_nodes:
+  description: >-
+    Search for nodes by name on the current page.
+    Optionally filter by node type (FRAME, TEXT, RECTANGLE, etc.).
+  toolset: core
+  write: false
+  handler: custom
+  params:
+    query:
+      type: string
+      required: true
+      description: Search query (matches node name, case-insensitive)
+    types:
+      type: array
+      items: string
+      description: 'Filter by node types (e.g. ["FRAME", "TEXT"])'
+    limit:
+      type: number
+      description: "Maximum results to return (default: 50)"
+
+list_fonts:
+  description: >-
+    List available font families in the Figma environment.
+    Pass family to get all available styles for that family.
+    Use before create_text to ensure the chosen font is available.
+  toolset: core
+  write: false
+  handler: bridge
+  params:
+    family:
+      type: string
+      description: Font family name to get available styles for
+
+# ─── Write Nodes (primary) ───
+
+create_document:
+  description: >-
+    Batch-create a tree of nodes in one call.
+    PREFERRED over multiple create_frame/create_text calls — minimizes round-trips and is much faster.
+    Supports 7 levels of nesting (screen → section → card → row → component → element → content)
+    and 7 node types: frame, text, rectangle, ellipse, line, vector, instance.
+    Use vector type with props.svg to inline SVG icons directly in the batch tree.
+    Use instance type with props.componentKey or props.componentId to inline component instances
+    (supports props.properties for variant overrides).
+    Frame props support layoutSizingHorizontal/layoutSizingVertical (FIXED/HUG/FILL) for intuitive sizing control.
+    PREREQUISITE: You MUST call get_mode first to load design tokens. Without it, elements will lack token bindings.
+  toolset: core
+  write: true
+  access: create
+  handler: custom
+  params:
+    parentId:
+      type: string
+      description: Parent node ID. Omit to add to current page.
+    nodes:
+      type: array
+      required: true
+      items: object
+      description: Array of node specs (supports 7 levels of nesting)
+
+create_frame:
+  description: >-
+    Create a new frame (optionally with auto layout). Returns the created node data.
+    When a design library is selected and fill is not specified, auto-binds the default surface color token.
+  toolset: core
+  write: true
+  access: create
+  handler: bridge
+  params:
+    name:
+      type: string
+      description: Frame name
+    x:
+      type: number
+      description: X position
+    y:
+      type: number
+      description: Y position
+    width:
+      type: number
+      description: "Width in px (default: 100)"
+    height:
+      type: number
+      description: "Height in px (default: 100)"
+    parentId:
+      type: string
+      description: Parent node ID to append to
+    autoLayout:
+      type: boolean
+      description: Enable auto layout
+    layoutDirection:
+      type: enum
+      values: [HORIZONTAL, VERTICAL]
+      description: Auto layout direction
+    itemSpacing:
+      type: number
+      description: Spacing between items
+    padding:
+      type: number
+      description: Uniform padding
+    paddingLeft:
+      type: number
+      description: Left padding (overrides uniform padding)
+    paddingRight:
+      type: number
+      description: Right padding (overrides uniform padding)
+    paddingTop:
+      type: number
+      description: Top padding (overrides uniform padding)
+    paddingBottom:
+      type: number
+      description: Bottom padding (overrides uniform padding)
+    primaryAxisAlignItems:
+      type: enum
+      values: [MIN, CENTER, MAX, SPACE_BETWEEN]
+      description: "Main axis alignment (default: MIN)"
+    counterAxisAlignItems:
+      type: enum
+      values: [MIN, CENTER, MAX]
+      description: "Cross axis alignment (default: MIN). Use CENTER to vertically center children in HORIZONTAL layout."
+    layoutSizingHorizontal:
+      type: enum
+      values: [FIXED, HUG, FILL]
+      description: "Horizontal sizing mode. FIXED=use explicit width, HUG=shrink to content, FILL=expand to fill parent. More intuitive than layoutAlign/layoutGrow. Default: FIXED if width set, HUG otherwise."
+    layoutSizingVertical:
+      type: enum
+      values: [FIXED, HUG, FILL]
+      description: "Vertical sizing mode. FIXED=use explicit height, HUG=shrink to content, FILL=expand to fill parent. More intuitive than layoutAlign/layoutGrow. Default: FIXED if height set, HUG otherwise."
+    fill:
+      type: string
+      description: 'Fill color as hex (e.g. "#FF0000")'
+
+create_text:
+  description: >-
+    Create a text node with specified content and font.
+    When a design library is selected: auto-applies matching Text Style if discovered in current page,
+    falls back to typography variable binding (fontSize/fontFamily/fontWeight/lineHeight),
+    and auto-binds text/primary color if fill not specified.
+  toolset: core
+  write: true
+  access: create
+  handler: bridge
+  params:
+    content:
+      type: string
+      required: true
+      description: Text content
+    name:
+      type: string
+      description: Node name
+    x:
+      type: number
+      description: X position
+    y:
+      type: number
+      description: Y position
+    fontSize:
+      type: number
+      description: "Font size (default: 16)"
+    fontFamily:
+      type: string
+      description: "Font family (default: Inter)"
+    fontStyle:
+      type: string
+      description: "Font style (default: Regular)"
+    fill:
+      type: string
+      description: Text color as hex
+    parentId:
+      type: string
+      description: Parent node ID
+
+patch_nodes:
+  description: >-
+    Update properties on one or more existing nodes.
+    Supports: x, y, name, visible, opacity, cornerRadius, resize, fills (hex string), strokes (hex string), strokeWeight,
+    effects (raw Figma effect array), layoutMode (NONE/HORIZONTAL/VERTICAL), layoutAlign, layoutGrow,
+    primaryAxisAlignItems, counterAxisAlignItems, itemSpacing, paddingLeft/Right/Top/Bottom,
+    layoutSizingHorizontal (FIXED/HUG/FILL), layoutSizingVertical (FIXED/HUG/FILL),
+    fontSize, fontName ({family,style}), rotation, constraints ({horizontal,vertical}),
+    blendMode, isMask (boolean), clipsContent (boolean), minWidth, minHeight.
+  toolset: core
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    patches:
+      type: array
+      required: true
+      items:
+        type: object
+        fields:
+          nodeId:
+            type: string
+            required: true
+            description: Node ID
+          props:
+            type: record
+            required: true
+            valueType: unknown
+            description: Properties to update
+      description: Array of node patches
+
+delete_nodes:
+  description: Delete multiple nodes by ID in one call. Preferred over multiple delete_node calls.
+  toolset: core
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    nodeIds:
+      type: array
+      required: true
+      items: string
+      description: Array of node IDs to delete
+
+set_text_content:
+  description: Update the text content of an existing text node.
+  toolset: core
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: Text node ID
+    content:
+      type: string
+      required: true
+      description: New text content
+
+clone_node:
+  description: Clone a node and return the new copy.
+  toolset: core
+  write: true
+  access: create
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: Node ID to clone
+
+insert_child:
+  description: Move a node into a parent container, optionally at a specific index.
+  toolset: core
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    parentId:
+      type: string
+      required: true
+      description: Parent node ID (must be a container like Frame)
+    childId:
+      type: string
+      required: true
+      description: Child node ID to insert
+    index:
+      type: number
+      description: Insert position (0-based). Omit to append at end.
+
+# ─── Components (read — core) ───
+
+list_components:
+  description: List all components on the current page.
+  toolset: core
+  write: false
+  handler: bridge
+  params: {}
+
+list_library_components:
+  description: >-
+    List published components from a library file via REST API.
+    Returns component key, name, description. Use the key with create_instance.
+    Requires library file URL to be configured in the plugin panel, or provide fileKey directly.
+  toolset: core
+  write: false
+  handler: custom
+  params:
+    fileKey:
+      type: string
+      description: "Figma file key. If omitted, uses the key from the selected library's configured URL."
+
+list_component_properties:
+  description: >-
+    List all properties and variant options exposed by a component or component set.
+    Use this to discover available variant values before calling create_instance with properties.
+  toolset: core
+  write: false
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: Component or ComponentSet node ID
+
+get_component:
+  description: Get full details of a component by node ID.
+  toolset: core
+  write: false
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: Component node ID
+
+create_instance:
+  description: >-
+    Create an instance of a component.
+    Can use either a local component ID or a library component key.
+  toolset: core
+  write: true
+  access: create
+  handler: bridge
+  params:
+    componentId:
+      type: string
+      description: Local component node ID
+    componentKey:
+      type: string
+      description: Library component key (for imports)
+    properties:
+      type: record
+      valueType: string
+      description: Variant/property overrides
+    parentId:
+      type: string
+      description: Parent node ID to append to
+
+# ─── Lint (batch — core) ───
+
+lint_fix_all:
+  description: >-
+    Run lint on the page/selection, then auto-fix all fixable violations in one call.
+    Returns the lint report and fix results. Equivalent to lint_check + lint_fix.
+  toolset: core
+  write: true
+  access: create
+  handler: custom
+  params:
+    nodeIds:
+      type: array
+      items: string
+      description: "Node IDs to lint (default: selection or page)"
+    rules:
+      type: array
+      items: string
+      description: "Rule names to run (default: all)"
+    categories:
+      type: array
+      items: string
+      description: "Rule categories: token, layout, naming, wcag, component"
+    useStoredTokens:
+      type: string
+      description: Name of cached token set to use
+    annotate:
+      type: boolean
+      description: Add annotations to remaining (unfixable) violations
+    maxViolations:
+      type: number
+      description: "Stop collecting after this many violations (performance optimization for large pages)"
+
+# ─── Pages (core) ───
+
+set_current_page:
+  description: >-
+    Switch to a different page by name or ID.
+    Warning: this changes the context for all subsequent operations.
+  toolset: core
+  write: false
+  handler: bridge
+  params:
+    nameOrId:
+      type: string
+      required: true
+      description: Page name or page ID
+
+# ─── Export (core) ───
+
+export_image:
+  description: Export a Figma node as an image. Returns base64-encoded image data.
+  toolset: core
+  write: false
+  handler: custom
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: The node ID to export
+    format:
+      type: enum
+      values: [PNG, SVG, PDF, JPG]
+      description: "Export format (default: PNG)"
+    scale:
+      type: number
+      description: "Export scale for raster formats (default: 2)"
+
+# ─── Version (core) ───
+
+save_version_history:
+  description: >-
+    Save a named version history snapshot of the current Figma file.
+    Use before making significant changes so you can restore if needed.
+  toolset: core
+  write: true
+  access: create
+  handler: bridge
+  params:
+    title:
+      type: string
+      required: true
+      description: 'Snapshot title (e.g. "Before refactor")'
+    description:
+      type: string
+      description: Optional description of what was done
+
+# ─── Selection (core) ───
+
+set_selection:
+  description: >-
+    Set the current selection to specific nodes and optionally scroll them into view.
+    Nodes must be on the current page.
+  toolset: core
+  write: false
+  handler: bridge
+  params:
+    nodeIds:
+      type: array
+      required: true
+      items: string
+      description: Node IDs to select
+    scrollIntoView:
+      type: boolean
+      description: "Scroll viewport to show selected nodes (default: true)"
+
+# ─── Shapes & Vectors (core) ───
+
+create_rectangle:
+  description: Create a rectangle node. Supports fill, corner radius, and stroke.
+  toolset: core
+  write: true
+  access: create
+  handler: bridge
+  params:
+    name:
+      type: string
+      description: Node name
+    x:
+      type: number
+      description: X position
+    y:
+      type: number
+      description: Y position
+    width:
+      type: number
+      description: "Width in px (default: 100)"
+    height:
+      type: number
+      description: "Height in px (default: 100)"
+    parentId:
+      type: string
+      description: Parent node ID
+    fill:
+      type: string
+      description: Fill color as hex
+    cornerRadius:
+      type: number
+      description: Corner radius
+    stroke:
+      type: string
+      description: Stroke color as hex
+    strokeWeight:
+      type: number
+      description: "Stroke weight (default: 1)"
+
+create_ellipse:
+  description: Create an ellipse (circle) node. Supports fill and stroke.
+  toolset: core
+  write: true
+  access: create
+  handler: bridge
+  params:
+    name:
+      type: string
+      description: Node name
+    x:
+      type: number
+      description: X position
+    y:
+      type: number
+      description: Y position
+    width:
+      type: number
+      description: "Width in px (default: 100)"
+    height:
+      type: number
+      description: "Height in px (default: 100, same as width for circle)"
+    parentId:
+      type: string
+      description: Parent node ID
+    fill:
+      type: string
+      description: Fill color as hex
+    stroke:
+      type: string
+      description: Stroke color as hex
+    strokeWeight:
+      type: number
+      description: "Stroke weight (default: 1)"
+
+create_vector:
+  description: >-
+    Create a vector node from an SVG string.
+    Accepts a complete SVG element (e.g. '<svg>...</svg>').
+    The SVG is parsed and converted to Figma vector paths.
+  toolset: core
+  write: true
+  access: create
+  handler: bridge
+  params:
+    svg:
+      type: string
+      required: true
+      description: 'Complete SVG string (e.g. "<svg width=\"24\" height=\"24\">...</svg>")'
+    name:
+      type: string
+      description: 'Node name (default: "Vector")'
+    x:
+      type: number
+      description: X position
+    y:
+      type: number
+      description: Y position
+    resize:
+      type: tuple
+      items: [number, number]
+      description: Resize to [width, height] after creation
+    parentId:
+      type: string
+      description: Parent node ID
+
+set_image_fill:
+  description: >-
+    Set a node's fill to an image. Provide base64-encoded image data (PNG/JPG).
+    Use export_image to get image data from another node, or provide external image data.
+  toolset: core
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: Target node ID
+    imageData:
+      type: string
+      required: true
+      description: Base64-encoded image data (PNG or JPG)
+    scaleMode:
+      type: enum
+      values: [FILL, FIT, CROP, TILE]
+      description: "Image scale mode (default: FILL)"
+
+# ═══════════════════════════════════════════════════════════════
+# TOOLSET: variables (18 tools)
+# ═══════════════════════════════════════════════════════════════
+
+list_variables:
+  description: >-
+    List all local Figma variables, optionally filtered by collection or type.
+    Returns variable name, type, scopes, and values per mode.
+  toolset: variables
+  write: false
+  handler: bridge
+  params:
+    collectionId:
+      type: string
+      description: Filter by variable collection ID
+    type:
+      type: string
+      description: "Filter by resolved type: COLOR, FLOAT, STRING, BOOLEAN"
+
+get_variable:
+  description: >-
+    Get detailed info for a specific variable by ID,
+    including values per mode, scopes, and code syntax.
+  toolset: variables
+  write: false
+  handler: bridge
+  params:
+    variableId:
+      type: string
+      required: true
+      description: The Figma variable ID
+
+list_collections:
+  description: List all local variable collections with their modes and variable counts.
+  toolset: variables
+  write: false
+  handler: bridge
+  params: {}
+
+get_node_variables:
+  description: Get all variable bindings on a node — shows which variables are bound to which properties.
+  toolset: variables
+  write: false
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: Node ID to inspect for variable bindings
+
+set_variable_binding:
+  description: 'Bind a variable to a specific property on a node (e.g. fills, cornerRadius, itemSpacing).'
+  toolset: variables
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: Target node ID
+    field:
+      type: string
+      required: true
+      description: 'Property field to bind (e.g. "fills", "cornerRadius", "itemSpacing")'
+    variableId:
+      type: string
+      required: true
+      description: Variable ID to bind
+
+set_explicit_variable_mode:
+  description: >-
+    Set an explicit variable mode on a node for a specific collection.
+    This overrides the inherited mode.
+  toolset: variables
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: Node ID
+    collectionId:
+      type: string
+      required: true
+      description: Variable collection ID
+    modeId:
+      type: string
+      required: true
+      description: Mode ID to set (get available modes from list_collections)
+
+create_variable:
+  description: Create a new Figma variable in a collection.
+  toolset: variables
+  write: true
+  access: create
+  handler: bridge
+  params:
+    name:
+      type: string
+      required: true
+      description: Variable name
+    collectionId:
+      type: string
+      required: true
+      description: Target variable collection ID
+    resolvedType:
+      type: enum
+      values: [COLOR, FLOAT, STRING, BOOLEAN]
+      required: true
+      description: Variable type
+    value:
+      type: unknown
+      description: Initial value for the default mode
+    modeId:
+      type: string
+      description: Mode ID to set the value for (defaults to first mode)
+    description:
+      type: string
+      description: Variable description
+    scopes:
+      type: array
+      items: string
+      description: "Variable scopes (e.g. ALL_FILLS, CORNER_RADIUS)"
+
+update_variable:
+  description: Update properties of an existing variable (name, description, scopes, value).
+  toolset: variables
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    variableId:
+      type: string
+      required: true
+      description: Variable ID to update
+    name:
+      type: string
+      description: New variable name
+    description:
+      type: string
+      description: New description
+    scopes:
+      type: array
+      items: string
+      description: New scopes array
+    value:
+      type: unknown
+      description: New value (requires modeId)
+    modeId:
+      type: string
+      description: Mode ID for the value update
+
+delete_variable:
+  description: Delete a variable by ID.
+  toolset: variables
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    variableId:
+      type: string
+      required: true
+      description: Variable ID to delete
+
+create_collection:
+  description: Create a new variable collection. Returns the collection ID and default mode.
+  toolset: variables
+  write: true
+  access: create
+  handler: bridge
+  params:
+    name:
+      type: string
+      required: true
+      description: Collection name
+
+delete_collection:
+  description: Delete a variable collection by ID.
+  toolset: variables
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    collectionId:
+      type: string
+      required: true
+      description: Collection ID to delete
+
+rename_collection:
+  description: Rename a variable collection.
+  toolset: variables
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    collectionId:
+      type: string
+      required: true
+      description: Collection ID
+    name:
+      type: string
+      required: true
+      description: New collection name
+
+add_collection_mode:
+  description: Add a new mode to a variable collection. Returns the new mode ID.
+  toolset: variables
+  write: true
+  access: create
+  handler: bridge
+  params:
+    collectionId:
+      type: string
+      required: true
+      description: Collection ID
+    name:
+      type: string
+      required: true
+      description: 'Mode name (e.g. "Dark", "Compact")'
+
+rename_collection_mode:
+  description: Rename an existing mode in a variable collection.
+  toolset: variables
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    collectionId:
+      type: string
+      required: true
+      description: Collection ID
+    modeId:
+      type: string
+      required: true
+      description: Mode ID to rename
+    name:
+      type: string
+      required: true
+      description: New mode name
+
+remove_collection_mode:
+  description: Remove a mode from a variable collection. Cannot remove the last remaining mode.
+  toolset: variables
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    collectionId:
+      type: string
+      required: true
+      description: Collection ID
+    modeId:
+      type: string
+      required: true
+      description: Mode ID to remove
+
+create_variable_alias:
+  description: >-
+    Set a variable's value to reference another variable (alias).
+    Both variables must have the same resolved type.
+    This is how Figma implements semantic tokens (e.g. "text/primary" → "gray/900").
+  toolset: variables
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    variableId:
+      type: string
+      required: true
+      description: Variable ID to set as alias
+    targetVariableId:
+      type: string
+      required: true
+      description: Target variable ID to reference
+    modeId:
+      type: string
+      description: Mode ID (defaults to first mode)
+
+export_variables:
+  description: >-
+    Export all Figma variables as DTCG-compatible flat list.
+    Resolves aliases to {path} references. Use this for reverse sync (Figma → DTCG file).
+  toolset: variables
+  write: false
+  handler: bridge
+  params:
+    collectionId:
+      type: string
+      description: Filter by collection ID. Omit to export all.
+
+batch_create_variables:
+  description: >-
+    Create multiple variables at once from an in-memory array.
+    Faster than calling create_variable repeatedly.
+    Automatically creates the collection if it doesn't exist.
+  toolset: variables
+  write: true
+  access: create
+  handler: bridge
+  params:
+    collectionName:
+      type: string
+      required: true
+      description: Collection name (created if not exists)
+    modeName:
+      type: string
+      description: 'Mode name (default: "Default")'
+    variables:
+      type: array
+      required: true
+      items:
+        type: object
+        fields:
+          name:
+            type: string
+            required: true
+            description: 'Variable name (slash-separated path, e.g. "color/brand/primary")'
+          type:
+            type: enum
+            values: [COLOR, FLOAT, STRING, BOOLEAN]
+            required: true
+            description: Variable type
+          value:
+            type: unknown
+            required: true
+            description: Variable value
+          description:
+            type: string
+          scopes:
+            type: array
+            items: string
+      description: Array of variables to create
+
+# ═══════════════════════════════════════════════════════════════
+# TOOLSET: tokens (11 tools)
+# ═══════════════════════════════════════════════════════════════
+
+list_tokens:
+  description: >-
+    Parse a DTCG JSON file and list all design tokens.
+    Resolves aliases and returns flat token list.
+  toolset: tokens
+  write: false
+  handler: custom
+  params:
+    filePath:
+      type: string
+      required: true
+      description: Path to DTCG JSON file
+    type:
+      type: string
+      description: 'Filter by token type (e.g. "color", "typography")'
+
+sync_tokens:
+  description: >-
+    Sync DTCG tokens to Figma — creates/updates Variables for atomic tokens
+    and Styles for composite types (typography, shadow). Idempotent.
+  toolset: tokens
+  write: true
+  access: create
+  handler: custom
+  params:
+    filePath:
+      type: string
+      required: true
+      description: Path to DTCG JSON file
+    collectionName:
+      type: string
+      description: 'Figma collection name (default: "Design Tokens")'
+    modeName:
+      type: string
+      description: 'Mode name (default: "Default")'
+
+sync_tokens_multi_mode:
+  description: >-
+    Sync DTCG tokens from multiple files into different modes of the same collection.
+    Each entry maps a mode name to a DTCG file path.
+    Modes are created automatically if they don't exist.
+  toolset: tokens
+  write: true
+  access: create
+  handler: custom
+  params:
+    modes:
+      type: record
+      required: true
+      valueType: string
+      description: Map of mode name → DTCG file path
+    collectionName:
+      type: string
+      description: 'Collection name (default: "Design Tokens")'
+
+diff_tokens:
+  description: >-
+    Compare DTCG tokens against current Figma variables.
+    Shows which tokens are in-sync, ahead, behind, or missing.
+  toolset: tokens
+  write: false
+  handler: custom
+  params:
+    filePath:
+      type: string
+      required: true
+      description: Path to DTCG JSON file
+    collectionName:
+      type: string
+      description: Collection to compare against
+
+reverse_sync_tokens:
+  description: >-
+    Export Figma variables to a DTCG JSON file (reverse sync).
+    Reads all variables from Figma, converts to W3C DTCG format with nested groups,
+    and writes to the specified file path.
+  toolset: tokens
+  write: false
+  handler: custom
+  params:
+    filePath:
+      type: string
+      required: true
+      description: Output file path for DTCG JSON
+    collectionId:
+      type: string
+      description: Export only this collection. Omit for all.
+    modeName:
+      type: string
+      description: "Mode to export values from (default: first mode)"
+
+cache_tokens:
+  description: >-
+    Parse a DTCG file and cache the tokens in Figma clientStorage.
+    Cached tokens can be used by lint and generate tools without re-reading the file.
+  toolset: tokens
+  write: true
+  access: create
+  handler: custom
+  params:
+    filePath:
+      type: string
+      required: true
+      description: Path to DTCG JSON file
+    name:
+      type: string
+      description: "Cache entry name (default: file basename)"
+
+list_cached_tokens:
+  description: List all cached token entries in Figma clientStorage.
+  toolset: tokens
+  write: false
+  handler: bridge
+  bridgeMethod: list_spec_tokens
+  params: {}
+
+delete_cached_tokens:
+  description: Delete a cached token entry from Figma clientStorage.
+  toolset: tokens
+  write: true
+  access: edit
+  handler: bridge
+  bridgeMethod: delete_spec_tokens
+  params:
+    name:
+      type: string
+      required: true
+      description: Cache entry name to delete
+
+scan_styles:
+  description: Scan all local styles (paint, text, effect) and return a summary with counts and details.
+  toolset: tokens
+  write: false
+  handler: bridge
+  params: {}
+
+export_tokens:
+  description: Export all local Figma variables as DTCG-format tokens, grouped by collection.
+  toolset: tokens
+  write: false
+  handler: bridge
+  params: {}
+
+diff_styles:
+  description: >-
+    Compare DTCG tokens against current Figma variables.
+    Shows in-sync, value-mismatch, and missing tokens in both directions.
+  toolset: tokens
+  write: false
+  handler: bridge
+  params:
+    tokens:
+      type: array
+      required: true
+      items:
+        type: object
+        fields:
+          path:
+            type: string
+            required: true
+            description: Token path
+          type:
+            type: string
+            required: true
+            description: Token type
+          value:
+            type: unknown
+            required: true
+            description: Token value
+      description: DTCG tokens to compare against Figma variables
+
+# ═══════════════════════════════════════════════════════════════
+# TOOLSET: styles (10 tools)
+# ═══════════════════════════════════════════════════════════════
+
+list_styles:
+  description: >-
+    List all local Figma styles (paint, text, effect, grid).
+    Optionally filter by type.
+  toolset: styles
+  write: false
+  handler: bridge
+  params:
+    type:
+      type: string
+      description: "Filter by style type: PAINT, TEXT, EFFECT, GRID"
+
+get_style:
+  description: Get detailed info for a specific style by ID.
+  toolset: styles
+  write: false
+  handler: bridge
+  params:
+    styleId:
+      type: string
+      required: true
+      description: The Figma style ID
+
+sync_styles:
+  description: >-
+    Sync composite design tokens (typography, shadow) to Figma Styles.
+    For atomic tokens (color, number, etc.), use sync_tokens instead.
+  toolset: styles
+  write: true
+  access: create
+  handler: bridge
+  params:
+    tokens:
+      type: array
+      required: true
+      items:
+        type: object
+        fields:
+          path:
+            type: string
+            required: true
+            description: 'Token path (e.g. "heading/h1")'
+          type:
+            type: string
+            required: true
+            description: 'Token type: "typography" or "shadow"'
+          value:
+            type: unknown
+            required: true
+            description: Token value object
+          description:
+            type: string
+            description: Token description
+      description: Array of composite design tokens to sync
+
+create_paint_style:
+  description: Create a new paint style with a solid color fill.
+  toolset: styles
+  write: true
+  access: create
+  handler: bridge
+  params:
+    name:
+      type: string
+      required: true
+      description: Style name
+    color:
+      type: string
+      required: true
+      description: 'Hex color (e.g. "#FF0000")'
+    description:
+      type: string
+      description: Style description
+
+delete_style:
+  description: Delete a style by ID.
+  toolset: styles
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    styleId:
+      type: string
+      required: true
+      description: Style ID to delete
+
+update_paint_style:
+  description: "Update an existing paint style. Can change name, description, and/or color."
+  toolset: styles
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    styleId:
+      type: string
+      required: true
+      description: Paint style ID
+    name:
+      type: string
+      description: New name
+    description:
+      type: string
+      description: New description
+    color:
+      type: string
+      description: 'New hex color (e.g. "#FF0000")'
+
+update_text_style:
+  description: "Update an existing text style. Can change name, description, font, size, line height, letter spacing."
+  toolset: styles
+  write: true
+  access: edit
+  handler: custom
+  params:
+    styleId:
+      type: string
+      required: true
+      description: Text style ID
+    name:
+      type: string
+      description: New name
+    description:
+      type: string
+      description: New description
+    fontFamily:
+      type: string
+      description: Font family
+    fontStyle:
+      type: string
+      description: 'Font style (e.g. "Bold")'
+    fontSize:
+      type: number
+      description: Font size in px
+    lineHeight:
+      type: unknown
+      description: 'Line height: number (px), "AUTO", or {value, unit}'
+    letterSpacing:
+      type: unknown
+      description: "Letter spacing: number (px) or {value, unit}"
+
+update_effect_style:
+  description: "Update an existing effect style. Can change name, description, and effects array."
+  toolset: styles
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    styleId:
+      type: string
+      required: true
+      description: Effect style ID
+    name:
+      type: string
+      description: New name
+    description:
+      type: string
+      description: New description
+    effects:
+      type: array
+      items:
+        type: record
+        valueType: unknown
+      description: New effects array (raw Figma effect objects)
+
+register_library_styles:
+  description: >-
+    Register Text/Paint/Effect styles from a library for auto-application to new elements.
+    Stored per-library in clientStorage, persists across sessions.
+    create_text will auto-apply matching Text Style by fontSize.
+  toolset: styles
+  write: true
+  access: create
+  handler: custom
+  params:
+    library:
+      type: string
+      required: true
+      description: Library name (must match the selected library name)
+    styles:
+      type: object
+      required: true
+      description: Style data with textStyles, paintStyles, effectStyles arrays
+
+get_registered_styles:
+  description: Get previously registered styles for a library. Returns null if not registered.
+  toolset: styles
+  write: false
+  handler: bridge
+  params:
+    library:
+      type: string
+      required: true
+      description: Library name
+
+# ═══════════════════════════════════════════════════════════════
+# TOOLSET: components-advanced (13 tools)
+# ═══════════════════════════════════════════════════════════════
+
+create_component:
+  description: Create a new component with specified dimensions.
+  toolset: components-advanced
+  write: true
+  access: create
+  handler: bridge
+  params:
+    name:
+      type: string
+      description: 'Component name (default: "Component")'
+    width:
+      type: number
+      description: "Width in px (default: 100)"
+    height:
+      type: number
+      description: "Height in px (default: 100)"
+    description:
+      type: string
+      description: Component description
+
+create_component_set:
+  description: Combine multiple existing components into a variant set (ComponentSet).
+  toolset: components-advanced
+  write: true
+  access: create
+  handler: bridge
+  params:
+    componentIds:
+      type: array
+      required: true
+      items: string
+      description: Component node IDs to combine into a variant set
+    name:
+      type: string
+      description: Name for the variant set
+
+update_component:
+  description: "Update a component's name, description, or size."
+  toolset: components-advanced
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: Component node ID
+    name:
+      type: string
+      description: New component name
+    description:
+      type: string
+      description: New component description
+    width:
+      type: number
+      description: New width in px
+    height:
+      type: number
+      description: New height in px
+
+delete_component:
+  description: Delete a component node.
+  toolset: components-advanced
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: Component node ID to delete
+
+swap_instance:
+  description: Swap an existing instance to a different component.
+  toolset: components-advanced
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    instanceId:
+      type: string
+      required: true
+      description: Instance node ID
+    componentKey:
+      type: string
+      required: true
+      description: New component key to swap to
+
+detach_instance:
+  description: Detach an instance from its component, converting it to a frame.
+  toolset: components-advanced
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    instanceId:
+      type: string
+      required: true
+      description: Instance node ID
+
+reset_instance_overrides:
+  description: Reset all overrides on an instance back to the component defaults.
+  toolset: components-advanced
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    instanceId:
+      type: string
+      required: true
+      description: Instance node ID
+
+get_instance_overrides:
+  description: Get the current override properties of a component instance (values that differ from component defaults).
+  toolset: components-advanced
+  write: false
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: Instance node ID
+
+set_instance_overrides:
+  description: >-
+    Copy override properties from a source instance to one or more target instances.
+    Use get_instance_overrides first to inspect the source, then propagate to targets.
+  toolset: components-advanced
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    sourceId:
+      type: string
+      required: true
+      description: Source instance node ID to copy overrides from
+    targetIds:
+      type: array
+      required: true
+      items: string
+      description: Target instance node IDs to apply overrides to
+
+add_component_property:
+  description: >-
+    Add a new property to a component or component set.
+    Supported types: BOOLEAN, TEXT, INSTANCE_SWAP, VARIANT.
+  toolset: components-advanced
+  write: true
+  access: create
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: Component or ComponentSet node ID
+    propertyName:
+      type: string
+      required: true
+      description: Property name
+    type:
+      type: enum
+      values: [BOOLEAN, TEXT, INSTANCE_SWAP, VARIANT]
+      required: true
+      description: Property type
+    defaultValue:
+      type: unknown
+      required: true
+      description: Default value
+
+update_component_property:
+  description: Update an existing component property (rename or change default value).
+  toolset: components-advanced
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: Component or ComponentSet node ID
+    propertyName:
+      type: string
+      required: true
+      description: Current property name
+    newName:
+      type: string
+      description: New property name
+    defaultValue:
+      type: unknown
+      description: New default value
+
+delete_component_property:
+  description: Remove a property from a component or component set.
+  toolset: components-advanced
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: Component or ComponentSet node ID
+    propertyName:
+      type: string
+      required: true
+      description: Property name to delete
+
+audit_components:
+  description: >-
+    Audit all components on the current page for structural health.
+    Reports: missing descriptions, unexposed text nodes, empty components,
+    single-variant sets, and property counts. Use for design system maintenance.
+  toolset: components-advanced
+  write: false
+  handler: bridge
+  params:
+    nodeIds:
+      type: array
+      items: string
+      description: "Specific node IDs to audit (default: entire page)"
+
+# ═══════════════════════════════════════════════════════════════
+# TOOLSET: library (7 tools)
+# ═══════════════════════════════════════════════════════════════
+
+list_library_collections:
+  description: >-
+    List all available team library variable collections.
+    Returns collection key, name, and library name.
+  toolset: library
+  write: false
+  handler: bridge
+  params: {}
+
+list_library_variables:
+  description: List all variables in a specific team library collection.
+  toolset: library
+  write: false
+  handler: bridge
+  params:
+    collectionKey:
+      type: string
+      required: true
+      description: The library collection key
+
+import_library_variable:
+  description: >-
+    Import a team library variable into the current file by key.
+    Returns the imported variable details.
+  toolset: library
+  write: true
+  access: create
+  handler: bridge
+  params:
+    variableKey:
+      type: string
+      required: true
+      description: The library variable key to import
+
+list_library_styles:
+  description: >-
+    List published styles (TEXT, FILL, EFFECT, GRID) from a Figma library file via REST API.
+    Returns metadata only (name, key, type, description).
+    Requires Figma OAuth authentication (run figma_login first).
+  toolset: library
+  write: false
+  handler: custom
+  params:
+    fileKey:
+      type: string
+      required: true
+      description: "Figma file key of the library file (from URL: figma.com/design/<fileKey>/...)"
+    styleType:
+      type: enum
+      values: [TEXT, FILL, EFFECT, GRID]
+      description: Filter by style type. Omit to return all types.
+
+get_library_style_details:
+  description: >-
+    Fetch full properties (font, color, effects) for specific library styles via REST API.
+    Use after list_library_styles.
+  toolset: library
+  write: false
+  handler: custom
+  params:
+    fileKey:
+      type: string
+      required: true
+      description: Figma file key
+    styles:
+      type: array
+      required: true
+      items: object
+      description: Style entries from list_library_styles
+
+sync_library_styles:
+  description: >-
+    One-step sync: discover all published styles from a Figma library file, fetch their full properties,
+    and register them for auto-application. Combines list + detail + register into a single call.
+  toolset: library
+  write: true
+  access: create
+  handler: custom
+  params:
+    fileKey:
+      type: string
+      required: true
+      description: Figma file key of the library file
+    library:
+      type: string
+      required: true
+      description: Library name for registration
+
+import_library_style:
+  description: >-
+    Import a published library style into the current file by key.
+    Works for TEXT, PAINT, and EFFECT styles.
+  toolset: library
+  write: true
+  access: create
+  handler: custom
+  params:
+    styleKey:
+      type: string
+      required: true
+      description: The style key (from list_library_styles)
+
+# ═══════════════════════════════════════════════════════════════
+# TOOLSET: shapes-vectors (6 tools)
+# ═══════════════════════════════════════════════════════════════
+
+create_line:
+  description: Create a line node. Specify length and optional rotation.
+  toolset: shapes-vectors
+  write: true
+  access: create
+  handler: bridge
+  params:
+    name:
+      type: string
+      description: Node name
+    x:
+      type: number
+      description: X position
+    y:
+      type: number
+      description: Y position
+    length:
+      type: number
+      description: "Line length in px (default: 100)"
+    rotation:
+      type: number
+      description: "Rotation in degrees (0 = horizontal)"
+    parentId:
+      type: string
+      description: Parent node ID
+    stroke:
+      type: string
+      description: "Stroke color as hex (default: #000000)"
+    strokeWeight:
+      type: number
+      description: "Stroke weight (default: 1)"
+
+create_star:
+  description: Create a star shape node.
+  toolset: shapes-vectors
+  write: true
+  access: create
+  handler: bridge
+  params:
+    name:
+      type: string
+      description: Node name
+    x:
+      type: number
+      description: X position
+    y:
+      type: number
+      description: Y position
+    width:
+      type: number
+      description: "Width (default: 100)"
+    height:
+      type: number
+      description: "Height (default: 100)"
+    pointCount:
+      type: number
+      description: "Number of points (default: 5)"
+    innerRadius:
+      type: number
+      description: "Inner radius ratio 0-1 (default: 0.382)"
+    fill:
+      type: string
+      description: Fill color as hex
+    parentId:
+      type: string
+      description: Parent node ID
+
+create_polygon:
+  description: Create a regular polygon shape node.
+  toolset: shapes-vectors
+  write: true
+  access: create
+  handler: bridge
+  params:
+    name:
+      type: string
+      description: Node name
+    x:
+      type: number
+      description: X position
+    y:
+      type: number
+      description: Y position
+    width:
+      type: number
+      description: "Width (default: 100)"
+    height:
+      type: number
+      description: "Height (default: 100)"
+    pointCount:
+      type: number
+      description: "Number of sides (default: 3 = triangle)"
+    fill:
+      type: string
+      description: Fill color as hex
+    parentId:
+      type: string
+      description: Parent node ID
+
+create_section:
+  description: >-
+    Create a Figma Section node for organizing canvas content.
+    Sections group frames without clipping and can be collapsed in Figma.
+    Optionally move existing nodes inside by providing childIds.
+  toolset: shapes-vectors
+  write: true
+  access: create
+  handler: bridge
+  params:
+    name:
+      type: string
+      description: 'Section name (default: "Section")'
+    x:
+      type: number
+      description: X position
+    y:
+      type: number
+      description: Y position
+    childIds:
+      type: array
+      items: string
+      description: Node IDs to move inside the section
+
+flatten_node:
+  description: >-
+    Flatten a node (or group) into a single vector.
+    Useful for converting complex shapes into a single editable path.
+  toolset: shapes-vectors
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: Node ID to flatten
+
+boolean_operation:
+  description: >-
+    Apply a boolean operation to two or more vector/shape nodes.
+    UNION merges shapes, SUBTRACT removes overlap from the first shape,
+    INTERSECT keeps only the overlapping area, EXCLUDE keeps non-overlapping areas.
+    All nodes must share the same parent. Returns the resulting BooleanOperation node.
+  toolset: shapes-vectors
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    nodeIds:
+      type: array
+      required: true
+      items: string
+      description: Node IDs to combine (at least 2, order matters for SUBTRACT)
+    operation:
+      type: enum
+      values: [UNION, SUBTRACT, INTERSECT, EXCLUDE]
+      required: true
+      description: Boolean operation type
+    name:
+      type: string
+      description: Name for the resulting node
+
+# ═══════════════════════════════════════════════════════════════
+# TOOLSET: annotations (6 tools)
+# ═══════════════════════════════════════════════════════════════
+
+get_annotations:
+  description: >-
+    Get all annotations on the current page or a specific node.
+    Returns each annotated node with its annotation labels.
+  toolset: annotations
+  write: false
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      description: Node ID to inspect; omit to scan the entire current page
+
+set_annotation:
+  description: >-
+    Add or replace an annotation on a node.
+    Use replace=true to overwrite existing annotations; omit or set false to append.
+  toolset: annotations
+  write: true
+  access: create
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: Target node ID
+    label:
+      type: string
+      required: true
+      description: Annotation text (Markdown supported)
+    replace:
+      type: boolean
+      description: "If true, replaces all existing annotations on the node (default: false = append)"
+
+set_multiple_annotations:
+  description: Batch annotate multiple nodes in a single call. Each item can independently append or replace.
+  toolset: annotations
+  write: true
+  access: create
+  handler: bridge
+  params:
+    items:
+      type: array
+      required: true
+      items:
+        type: object
+        fields:
+          nodeId:
+            type: string
+            required: true
+            description: Target node ID
+          label:
+            type: string
+            required: true
+            description: Annotation text
+          replace:
+            type: boolean
+            description: If true, replaces existing annotations on this node
+      description: List of annotation operations
+
+clear_annotations:
+  description: Remove all figcraft lint annotations from specified nodes or the whole page.
+  toolset: annotations
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    nodeIds:
+      type: array
+      items: string
+      description: "Node IDs to clear (default: all on page)"
+
+get_reactions:
+  description: >-
+    Get prototype reactions (interactions) on a specific node or all nodes on the current page.
+    Returns trigger types and action types. Useful for analyzing prototype flows.
+  toolset: annotations
+  write: false
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      description: Node ID to inspect; omit to scan the entire current page
+
+analyze_prototype_flow:
+  description: >-
+    Analyze prototype interactions on the current page (or a subtree) and produce a structured flow graph.
+    Returns: directed graph, entry points, dead ends, loops, trigger/action stats, Mermaid diagram, and Markdown docs.
+  toolset: annotations
+  write: false
+  handler: custom
+  params:
+    nodeId:
+      type: string
+      description: Root node ID to analyze; omit to scan the entire current page
+    format:
+      type: enum
+      values: [graph, mermaid, markdown, all]
+      description: 'Output format (default: "all")'
+
+# ═══════════════════════════════════════════════════════════════
+# TOOLSET: lint (4 tools)
+# ═══════════════════════════════════════════════════════════════
+
+lint_check:
+  description: >-
+    Run design lint rules on selected nodes or the current page.
+    Checks colors, typography, spacing, border radius against tokens,
+    and WCAG contrast/target-size compliance.
+    TIP: For a one-step check+fix, use lint_fix_all instead.
+  toolset: lint
+  write: false
+  handler: custom
+  params:
+    nodeIds:
+      type: array
+      items: string
+      description: "Node IDs to lint (default: selection or page)"
+    rules:
+      type: array
+      items: string
+      description: "Rule names to run (default: all)"
+    categories:
+      type: array
+      items: string
+      description: "Rule categories to run: token, layout, naming, wcag, component"
+    offset:
+      type: number
+      description: Pagination offset
+    limit:
+      type: number
+      description: Pagination limit
+    maxViolations:
+      type: number
+      description: Stop after collecting this many violations
+    annotate:
+      type: boolean
+      description: Add annotations to violated nodes in Figma
+    useStoredTokens:
+      type: string
+      description: Name of cached token set to use
+    minSeverity:
+      type: enum
+      values: [error, warning, info, hint]
+      description: "Minimum severity to include (default: all). Use 'warning' to hide hints/info."
+
+lint_fix:
+  description: >-
+    Auto-fix lint violations that are marked as autoFixable.
+    Pass the violations array from a lint_check result.
+  toolset: lint
+  write: true
+  access: edit
+  handler: custom
+  params:
+    violations:
+      type: array
+      required: true
+      items: object
+      description: Violations to fix (from lint_check result)
+
+lint_rules:
+  description: List all available lint rules with descriptions.
+  toolset: lint
+  write: false
+  handler: bridge
+  params: {}
+
+compliance_report:
+  description: >-
+    Generate a comprehensive design system compliance report.
+    Combines lint results, component audit, and token coverage into a single report.
+  toolset: lint
+  write: false
+  handler: custom
+  params:
+    nodeIds:
+      type: array
+      items: string
+      description: "Scope to specific nodes (default: entire page)"
+    useStoredTokens:
+      type: string
+      description: Name of cached token set for lint
+
+# ═══════════════════════════════════════════════════════════════
+# TOOLSET: auth (3 tools)
+# ═══════════════════════════════════════════════════════════════
+
+figma_login:
+  description: >-
+    Start Figma OAuth 2.0 login. Returns an authorization URL for the user to open in their browser.
+    Requires FIGMA_CLIENT_ID env var.
+  toolset: auth
+  write: false
+  handler: custom
+  params: {}
+
+figma_logout:
+  description: Clear stored Figma OAuth credentials.
+  toolset: auth
+  write: false
+  handler: custom
+  params: {}
+
+figma_auth_status:
+  description: >-
+    Check current Figma authentication status (pat, oauth, or none).
+    NOTE: Auth status is NOT required before most operations — the plugin handles auth.
+  toolset: auth
+  write: false
+  handler: custom
+  params: {}
+
+# ═══════════════════════════════════════════════════════════════
+# TOOLSET: pages (3 tools)
+# ═══════════════════════════════════════════════════════════════
+
+create_page:
+  description: Create a new page in the document.
+  toolset: pages
+  write: true
+  access: create
+  handler: bridge
+  params:
+    name:
+      type: string
+      required: true
+      description: Page name
+
+rename_page:
+  description: Rename an existing page.
+  toolset: pages
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    pageId:
+      type: string
+      required: true
+      description: Page ID
+    name:
+      type: string
+      required: true
+      description: New page name
+
+delete_node:
+  description: Delete a node by ID.
+  toolset: pages
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: Node ID to delete
+
+# ═══════════════════════════════════════════════════════════════
+# ENDPOINT TOOLS (resource-oriented API with method dispatch)
+# ═══════════════════════════════════════════════════════════════
+
+nodes:
+  description: >-
+    Node operations — get, list, update, delete, clone, insert_child.
+    For creating nodes, use create_document (batch) or shapes/text endpoints.
+  toolset: core
+  handler: endpoint
+  methods:
+    get:
+      description: Get detailed node info by ID (supports Figma URLs)
+      maps_to: get_node_info
+      write: false
+      params:
+        nodeId:
+          type: string
+          required: true
+          description: 'Node ID or Figma URL'
+    list:
+      description: Search nodes by name, optionally filter by type
+      maps_to: search_nodes
+      write: false
+      params:
+        query:
+          type: string
+          required: true
+          description: Search query
+        types:
+          type: array
+          items: string
+          description: Filter by node types
+        limit:
+          type: number
+          description: Max results (default 50)
+    update:
+      description: Update properties on one or more nodes
+      maps_to: patch_nodes
+      write: true
+      access: edit
+      params:
+        patches:
+          type: array
+          required: true
+          items:
+            type: object
+            fields:
+              nodeId:
+                type: string
+                required: true
+              props:
+                type: record
+                required: true
+                valueType: unknown
+    delete:
+      description: Delete nodes by ID
+      maps_to: delete_nodes
+      write: true
+      access: edit
+      params:
+        nodeIds:
+          type: array
+          required: true
+          items: string
+    clone:
+      description: Clone a node
+      maps_to: clone_node
+      write: true
+      access: create
+      params:
+        nodeId:
+          type: string
+          required: true
+    insert_child:
+      description: Move a node into a parent container
+      maps_to: insert_child
+      write: true
+      access: edit
+      params:
+        parentId:
+          type: string
+          required: true
+        childId:
+          type: string
+          required: true
+        index:
+          type: number
+
+text:
+  description: >-
+    Text node operations — create text nodes and update text content.
+  toolset: core
+  handler: endpoint
+  methods:
+    create:
+      description: Create a text node with specified content and font
+      maps_to: create_text
+      write: true
+      access: create
+      params:
+        content:
+          type: string
+          required: true
+          description: Text content
+        name:
+          type: string
+          description: Node name
+        x:
+          type: number
+          description: X position
+        y:
+          type: number
+          description: Y position
+        fontSize:
+          type: number
+          description: 'Font size (default: 16)'
+        fontFamily:
+          type: string
+          description: 'Font family (default: Inter)'
+        fontStyle:
+          type: string
+          description: 'Font style (default: Regular)'
+        fill:
+          type: string
+          description: Text color as hex
+        parentId:
+          type: string
+          description: Parent node ID
+    set_content:
+      description: Update the text content of an existing text node
+      maps_to: set_text_content
+      write: true
+      access: edit
+      params:
+        nodeId:
+          type: string
+          required: true
+          description: Text node ID
+        content:
+          type: string
+          required: true
+          description: New text content
+
+shapes:
+  description: >-
+    Shape creation operations — create frames, rectangles, ellipses, and vectors.
+  toolset: core
+  handler: endpoint
+  methods:
+    create_frame:
+      description: Create a new frame (optionally with auto layout)
+      maps_to: create_frame
+      write: true
+      access: create
+      params:
+        name:
+          type: string
+          description: Frame name
+        x:
+          type: number
+        y:
+          type: number
+        width:
+          type: number
+        height:
+          type: number
+        parentId:
+          type: string
+        autoLayout:
+          type: boolean
+        layoutDirection:
+          type: enum
+          values: [HORIZONTAL, VERTICAL]
+        itemSpacing:
+          type: number
+        padding:
+          type: number
+        paddingLeft:
+          type: number
+        paddingRight:
+          type: number
+        paddingTop:
+          type: number
+        paddingBottom:
+          type: number
+        primaryAxisAlignItems:
+          type: enum
+          values: [MIN, CENTER, MAX, SPACE_BETWEEN]
+        counterAxisAlignItems:
+          type: enum
+          values: [MIN, CENTER, MAX]
+        fill:
+          type: string
+          description: 'Fill color as hex'
+    create_rectangle:
+      description: Create a rectangle node
+      maps_to: create_rectangle
+      write: true
+      access: create
+      params:
+        name:
+          type: string
+        x:
+          type: number
+        y:
+          type: number
+        width:
+          type: number
+        height:
+          type: number
+        parentId:
+          type: string
+        fill:
+          type: string
+        cornerRadius:
+          type: number
+        stroke:
+          type: string
+        strokeWeight:
+          type: number
+    create_ellipse:
+      description: Create an ellipse (circle) node
+      maps_to: create_ellipse
+      write: true
+      access: create
+      params:
+        name:
+          type: string
+        x:
+          type: number
+        y:
+          type: number
+        width:
+          type: number
+        height:
+          type: number
+        parentId:
+          type: string
+        fill:
+          type: string
+        stroke:
+          type: string
+        strokeWeight:
+          type: number
+    create_vector:
+      description: Create a vector node from an SVG string
+      maps_to: create_vector
+      write: true
+      access: create
+      params:
+        svg:
+          type: string
+          required: true
+          description: Complete SVG string
+        name:
+          type: string
+        x:
+          type: number
+        y:
+          type: number
+        resize:
+          type: tuple
+          items: [number, number]
+        parentId:
+          type: string
+
+components:
+  description: >-
+    Component operations — list, get, create instances, and manage properties.
+    Core methods are always available. Advanced methods require load_toolset("components-advanced").
+  toolset: core
+  handler: endpoint
+  methods:
+    list:
+      description: List all components on the current page
+      maps_to: list_components
+      write: false
+      params: {}
+    list_library:
+      description: List published components from a library file via REST API
+      maps_to: list_library_components
+      write: false
+      params:
+        fileKey:
+          type: string
+          description: Figma file key
+    get:
+      description: Get full details of a component by node ID
+      maps_to: get_component
+      write: false
+      params:
+        nodeId:
+          type: string
+          required: true
+          description: Component node ID
+    create_instance:
+      description: Create an instance of a component
+      maps_to: create_instance
+      write: true
+      access: create
+      params:
+        componentId:
+          type: string
+          description: Local component node ID
+        componentKey:
+          type: string
+          description: Library component key
+        properties:
+          type: record
+          valueType: string
+          description: Variant/property overrides
+        parentId:
+          type: string
+          description: Parent node ID
+    list_properties:
+      description: List all properties and variant options of a component
+      maps_to: list_component_properties
+      write: false
+      params:
+        nodeId:
+          type: string
+          required: true
+          description: Component or ComponentSet node ID
+
+variables_ep:
+  description: >-
+    Variable operations — list, get, create, update, delete variables, collections, and modes.
+  toolset: variables
+  handler: endpoint
+  methods:
+    list:
+      description: List all local Figma variables
+      maps_to: list_variables
+      write: false
+      params:
+        collectionId:
+          type: string
+          description: Filter by collection ID
+        type:
+          type: string
+          description: 'Filter by type: COLOR, FLOAT, STRING, BOOLEAN'
+    get:
+      description: Get detailed info for a specific variable
+      maps_to: get_variable
+      write: false
+      params:
+        variableId:
+          type: string
+          required: true
+    list_collections:
+      description: List all local variable collections
+      maps_to: list_collections
+      write: false
+      params: {}
+    get_bindings:
+      description: Get all variable bindings on a node
+      maps_to: get_node_variables
+      write: false
+      params:
+        nodeId:
+          type: string
+          required: true
+    set_binding:
+      description: Bind a variable to a node property
+      maps_to: set_variable_binding
+      write: true
+      access: edit
+      params:
+        nodeId:
+          type: string
+          required: true
+        field:
+          type: string
+          required: true
+        variableId:
+          type: string
+          required: true
+    create:
+      description: Create a new Figma variable
+      maps_to: create_variable
+      write: true
+      access: create
+      params:
+        name:
+          type: string
+          required: true
+        collectionId:
+          type: string
+          required: true
+        resolvedType:
+          type: enum
+          values: [COLOR, FLOAT, STRING, BOOLEAN]
+          required: true
+        value:
+          type: unknown
+        modeId:
+          type: string
+        description:
+          type: string
+        scopes:
+          type: array
+          items: string
+    update:
+      description: Update an existing variable
+      maps_to: update_variable
+      write: true
+      access: edit
+      params:
+        variableId:
+          type: string
+          required: true
+        name:
+          type: string
+        description:
+          type: string
+        scopes:
+          type: array
+          items: string
+        value:
+          type: unknown
+        modeId:
+          type: string
+    delete:
+      description: Delete a variable by ID
+      maps_to: delete_variable
+      write: true
+      access: edit
+      params:
+        variableId:
+          type: string
+          required: true
+    create_collection:
+      description: Create a new variable collection
+      maps_to: create_collection
+      write: true
+      access: create
+      params:
+        name:
+          type: string
+          required: true
+    delete_collection:
+      description: Delete a variable collection
+      maps_to: delete_collection
+      write: true
+      access: edit
+      params:
+        collectionId:
+          type: string
+          required: true
+    batch_create:
+      description: Create multiple variables at once
+      maps_to: batch_create_variables
+      write: true
+      access: create
+      params:
+        collectionName:
+          type: string
+          required: true
+        modeName:
+          type: string
+        variables:
+          type: array
+          required: true
+          items: object
+    export:
+      description: Export all Figma variables as DTCG-compatible flat list
+      maps_to: export_variables
+      write: false
+      params:
+        collectionId:
+          type: string
+
+styles_ep:
+  description: >-
+    Style operations — list, get, create, update, delete, and sync styles.
+  toolset: styles
+  handler: endpoint
+  methods:
+    list:
+      description: List all local Figma styles
+      maps_to: list_styles
+      write: false
+      params:
+        type:
+          type: string
+          description: 'Filter by style type: PAINT, TEXT, EFFECT, GRID'
+    get:
+      description: Get detailed info for a specific style
+      maps_to: get_style
+      write: false
+      params:
+        styleId:
+          type: string
+          required: true
+    create_paint:
+      description: Create a new paint style
+      maps_to: create_paint_style
+      write: true
+      access: create
+      params:
+        name:
+          type: string
+          required: true
+        color:
+          type: string
+          required: true
+        description:
+          type: string
+    update_paint:
+      description: Update an existing paint style
+      maps_to: update_paint_style
+      write: true
+      access: edit
+      params:
+        styleId:
+          type: string
+          required: true
+        name:
+          type: string
+        description:
+          type: string
+        color:
+          type: string
+    update_text:
+      description: Update an existing text style
+      maps_to: update_text_style
+      write: true
+      access: edit
+      params:
+        styleId:
+          type: string
+          required: true
+        name:
+          type: string
+        description:
+          type: string
+        fontFamily:
+          type: string
+        fontStyle:
+          type: string
+        fontSize:
+          type: number
+        lineHeight:
+          type: unknown
+        letterSpacing:
+          type: unknown
+    update_effect:
+      description: Update an existing effect style
+      maps_to: update_effect_style
+      write: true
+      access: edit
+      params:
+        styleId:
+          type: string
+          required: true
+        name:
+          type: string
+        description:
+          type: string
+        effects:
+          type: array
+          items:
+            type: record
+            valueType: unknown
+    delete:
+      description: Delete a style by ID
+      maps_to: delete_style
+      write: true
+      access: edit
+      params:
+        styleId:
+          type: string
+          required: true
+    sync:
+      description: Sync composite design tokens to Figma Styles
+      maps_to: sync_styles
+      write: true
+      access: create
+      params:
+        tokens:
+          type: array
+          required: true
+          items: object
+
+# ═══════════════════════════════════════════════════════════════
+# TOOLSET DESCRIPTIONS (for list_toolsets display)
+# ═══════════════════════════════════════════════════════════════
+
+_toolset_descriptions:
+  variables: "Variable & collection management — create, update, delete variables, collections, modes, aliases, bindings."
+  tokens: "DTCG token sync — parse, diff, sync, reverse-sync design tokens between JSON files and Figma."
+  styles: "Style management — create, update, delete paint/text/effect styles, sync composite tokens."
+  components-advanced: "Advanced component ops — create components, manage variants/properties/overrides, audit."
+  library: "Library operations — browse and import library variables, styles, and components from shared libraries."
+  shapes-vectors: "Shape primitives & vectors — stars, polygons, sections, boolean ops, flatten. Note: create_rectangle, create_ellipse, create_vector, set_image_fill are always available as core tools."
+  annotations: "Annotations & prototype analysis — add/read annotations, analyze prototype flows."
+  lint: "Granular lint — individual check, fix, rules list, compliance report (beyond lint_fix_all)."
+  auth: "Figma OAuth — login, logout, check auth status."
+  pages: "Page management — create and rename pages."

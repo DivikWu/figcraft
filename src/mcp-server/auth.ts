@@ -300,8 +300,8 @@ export function startOAuthFlow(): { url: string; completion: Promise<{ ok: true 
       }
     });
 
-    server.listen(OAUTH_PORT, () => {
-      console.error(`[FigCraft auth] OAuth callback server listening on :${OAUTH_PORT}`);
+    server.listen(OAUTH_PORT, '127.0.0.1', () => {
+      console.error(`[FigCraft auth] OAuth callback server listening on 127.0.0.1:${OAUTH_PORT}`);
     });
 
     server.on('error', (err) => {

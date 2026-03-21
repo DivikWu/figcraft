@@ -72,7 +72,7 @@ export function inferScopes(path: string, dtcgType: string): VariableScope[] {
       return ['STROKE_COLOR'];
     }
     if (lower.includes('text') || lower.includes('font')) {
-      return ['FRAME_FILL', 'SHAPE_FILL', 'TEXT_FILL'];
+      return ['TEXT_FILL'];
     }
     return ['ALL_FILLS', 'STROKE_COLOR', 'EFFECT_COLOR'];
   }
@@ -164,7 +164,13 @@ function valuesEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (typeof a !== typeof b) return false;
   if (typeof a === 'object' && a !== null && b !== null) {
-    return JSON.stringify(a) === JSON.stringify(b);
+    // Deep comparison that is order-insensitive for object keys
+    const aObj = a as Record<string, unknown>;
+    const bObj = b as Record<string, unknown>;
+    const aKeys = Object.keys(aObj);
+    const bKeys = Object.keys(bObj);
+    if (aKeys.length !== bKeys.length) return false;
+    return aKeys.every((k) => k in bObj && valuesEqual(aObj[k], bObj[k]));
   }
   return false;
 }

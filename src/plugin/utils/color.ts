@@ -2,9 +2,19 @@
  * Color conversion utilities — hex ↔ Figma RGBA, contrast calculation.
  */
 
-/** Parse hex color string to Figma RGBA (0–1 range). */
+const HEX_RE = /^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+
+/** Validate a hex color string. Returns true for valid 6 or 8 char hex (with or without #). */
+export function isValidHex(hex: string): boolean {
+  return HEX_RE.test(hex);
+}
+
+/** Parse hex color string to Figma RGBA (0–1 range). Returns opaque black for invalid input. */
 export function hexToFigmaRgba(hex: string): RGBA {
   const clean = hex.replace('#', '');
+  if (clean.length < 6 || !/^[0-9a-fA-F]+$/.test(clean)) {
+    return { r: 0, g: 0, b: 0, a: 1 };
+  }
   const r = parseInt(clean.slice(0, 2), 16) / 255;
   const g = parseInt(clean.slice(2, 4), 16) / 255;
   const b = parseInt(clean.slice(4, 6), 16) / 255;
@@ -12,9 +22,12 @@ export function hexToFigmaRgba(hex: string): RGBA {
   return { r, g, b, a };
 }
 
-/** Parse hex color string to Figma RGB (0–1 range, no alpha). For use in fills[].color. */
+/** Parse hex color string to Figma RGB (0–1 range, no alpha). Returns black for invalid input. */
 export function hexToFigmaRgb(hex: string): RGB {
   const clean = hex.replace('#', '');
+  if (clean.length < 6 || !/^[0-9a-fA-F]+$/.test(clean)) {
+    return { r: 0, g: 0, b: 0 };
+  }
   const r = parseInt(clean.slice(0, 2), 16) / 255;
   const g = parseInt(clean.slice(2, 4), 16) / 255;
   const b = parseInt(clean.slice(4, 6), 16) / 255;

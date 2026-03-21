@@ -3,6 +3,7 @@
  */
 
 import { registerHandler } from '../registry.js';
+import { findNodeByIdAsync } from '../utils/node-lookup.js';
 
 export function registerSelectionHandlers(): void {
 
@@ -14,7 +15,7 @@ registerHandler('set_selection', async (params) => {
   const notFound: string[] = [];
 
   for (const id of nodeIds) {
-    const node = await figma.getNodeByIdAsync(id);
+    const node = await findNodeByIdAsync(id);
     if (
       node &&
       node.type !== 'DOCUMENT' &&

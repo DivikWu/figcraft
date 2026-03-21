@@ -4,6 +4,7 @@
 
 import { registerHandler } from '../registry.js';
 import { simplifyNode } from '../adapters/node-simplifier.js';
+import { findNodeByIdAsync } from '../utils/node-lookup.js';
 
 export function registerComponentHandlers(): void {
 
@@ -35,7 +36,7 @@ registerHandler('list_components', async () => {
 
 registerHandler('get_component', async (params) => {
   const nodeId = params.nodeId as string;
-  const node = await figma.getNodeByIdAsync(nodeId);
+  const node = await findNodeByIdAsync(nodeId);
   if (!node || node.type !== 'COMPONENT') {
     return { error: `Component not found: ${nodeId}` };
   }
@@ -74,7 +75,7 @@ registerHandler('create_instance', async (params) => {
     const imported = await figma.importComponentByKeyAsync(componentKey);
     component = imported;
   } else {
-    const node = await figma.getNodeByIdAsync(componentId);
+    const node = await findNodeByIdAsync(componentId);
     if (node && node.type === 'COMPONENT') {
       component = node as ComponentNode;
     }
@@ -98,7 +99,7 @@ registerHandler('create_instance', async (params) => {
   }
 
   if (params.parentId) {
-    const parent = await figma.getNodeByIdAsync(params.parentId as string);
+    const parent = await findNodeByIdAsync(params.parentId as string);
     if (parent && 'appendChild' in parent) {
       (parent as FrameNode).appendChild(instance);
     }
@@ -111,7 +112,7 @@ registerHandler('swap_instance', async (params) => {
   const instanceId = params.instanceId as string;
   const newComponentKey = params.componentKey as string;
 
-  const node = await figma.getNodeByIdAsync(instanceId);
+  const node = await findNodeByIdAsync(instanceId);
   if (!node || node.type !== 'INSTANCE') {
     return { error: `Instance not found: ${instanceId}` };
   }
@@ -124,7 +125,7 @@ registerHandler('swap_instance', async (params) => {
 
 registerHandler('detach_instance', async (params) => {
   const instanceId = params.instanceId as string;
-  const node = await figma.getNodeByIdAsync(instanceId);
+  const node = await findNodeByIdAsync(instanceId);
   if (!node || node.type !== 'INSTANCE') {
     return { error: `Instance not found: ${instanceId}` };
   }
@@ -134,7 +135,7 @@ registerHandler('detach_instance', async (params) => {
 
 registerHandler('reset_instance_overrides', async (params) => {
   const instanceId = params.instanceId as string;
-  const node = await figma.getNodeByIdAsync(instanceId);
+  const node = await findNodeByIdAsync(instanceId);
   if (!node || node.type !== 'INSTANCE') {
     return { error: `Instance not found: ${instanceId}` };
   }
@@ -143,7 +144,7 @@ registerHandler('reset_instance_overrides', async (params) => {
 });
 
 registerHandler('update_component', async (params) => {
-  const node = await figma.getNodeByIdAsync(params.nodeId as string);
+  const node = await findNodeByIdAsync(params.nodeId as string);
   if (!node || node.type !== 'COMPONENT') throw new Error(`Component not found: ${params.nodeId}`);
   const comp = node as ComponentNode;
   if (params.name != null) comp.name = params.name as string;
@@ -158,14 +159,14 @@ registerHandler('update_component', async (params) => {
 });
 
 registerHandler('delete_component', async (params) => {
-  const node = await figma.getNodeByIdAsync(params.nodeId as string);
+  const node = await findNodeByIdAsync(params.nodeId as string);
   if (!node || node.type !== 'COMPONENT') throw new Error(`Component not found: ${params.nodeId}`);
   node.remove();
   return { ok: true };
 });
 
 registerHandler('list_component_properties', async (params) => {
-  const node = await figma.getNodeByIdAsync(params.nodeId as string);
+  const node = await findNodeByIdAsync(params.nodeId as string);
   if (!node || (node.type !== 'COMPONENT' && node.type !== 'COMPONENT_SET'))
     throw new Error(`Component not found: ${params.nodeId}`);
   const comp = node as ComponentNode | ComponentSetNode;
@@ -181,7 +182,7 @@ registerHandler('list_component_properties', async (params) => {
 
 registerHandler('create_component_set', async (params) => {
   const ids = params.componentIds as string[];
-  const nodes = await Promise.all(ids.map((id) => figma.getNodeByIdAsync(id)));
+  const nodes = await Promise.all(ids.map((id) => findNodeByIdAsync(id)));
   const components = nodes.filter((n): n is ComponentNode => n?.type === 'COMPONENT');
   if (components.length === 0) throw new Error('No valid components found');
   const set = figma.combineAsVariants(components, figma.currentPage);
@@ -190,7 +191,7 @@ registerHandler('create_component_set', async (params) => {
 });
 
 registerHandler('get_instance_overrides', async (params) => {
-  const node = await figma.getNodeByIdAsync(params.nodeId as string);
+  const node = await findNodeByIdAsync(params.nodeId as string);
   if (!node || node.type !== 'INSTANCE') throw new Error(`Instance not found: ${params.nodeId}`);
   const instance = node as InstanceNode;
   const props = instance.componentProperties;
@@ -206,7 +207,7 @@ registerHandler('get_instance_overrides', async (params) => {
 });
 
 registerHandler('set_instance_overrides', async (params) => {
-  const source = await figma.getNodeByIdAsync(params.sourceId as string);
+  const source = await findNodeByIdAsync(params.sourceId as string);
   if (!source || source.type !== 'INSTANCE') throw new Error(`Source instance not found: ${params.sourceId}`);
   const sourceProps = (source as InstanceNode).componentProperties;
   const propValues = Object.fromEntries(Object.entries(sourceProps).map(([k, v]) => [k, v.value]));
@@ -214,7 +215,7 @@ registerHandler('set_instance_overrides', async (params) => {
   const targetIds = params.targetIds as string[];
   const results = await Promise.allSettled(
     targetIds.map(async (id) => {
-      const target = await figma.getNodeByIdAsync(id);
+      const target = await findNodeByIdAsync(id);
       if (!target || target.type !== 'INSTANCE') throw new Error(`Instance ${id} not found`);
       (target as InstanceNode).setProperties(propValues as Record<string, string | boolean>);
       return { nodeId: id, ok: true };
@@ -235,7 +236,7 @@ registerHandler('audit_components', async (params) => {
 
   let targets: SceneNode[];
   if (nodeIds && nodeIds.length > 0) {
-    const resolved = await Promise.all(nodeIds.map((id) => figma.getNodeByIdAsync(id)));
+    const resolved = await Promise.all(nodeIds.map((id) => findNodeByIdAsync(id)));
     targets = resolved.filter((n): n is SceneNode => n !== null && 'type' in n);
   } else {
     targets = [...figma.currentPage.children];
@@ -332,7 +333,7 @@ registerHandler('add_component_property', async (params) => {
   const propertyType = params.type as 'BOOLEAN' | 'TEXT' | 'INSTANCE_SWAP' | 'VARIANT';
   const defaultValue = params.defaultValue as string | boolean;
 
-  const node = await figma.getNodeByIdAsync(nodeId);
+  const node = await findNodeByIdAsync(nodeId);
   if (!node || (node.type !== 'COMPONENT' && node.type !== 'COMPONENT_SET')) {
     return { error: `Component not found: ${nodeId}` };
   }
@@ -355,7 +356,7 @@ registerHandler('update_component_property', async (params) => {
   const nodeId = params.nodeId as string;
   const propertyName = params.propertyName as string;
 
-  const node = await figma.getNodeByIdAsync(nodeId);
+  const node = await findNodeByIdAsync(nodeId);
   if (!node || (node.type !== 'COMPONENT' && node.type !== 'COMPONENT_SET')) {
     return { error: `Component not found: ${nodeId}` };
   }
@@ -380,7 +381,7 @@ registerHandler('delete_component_property', async (params) => {
   const nodeId = params.nodeId as string;
   const propertyName = params.propertyName as string;
 
-  const node = await figma.getNodeByIdAsync(nodeId);
+  const node = await findNodeByIdAsync(nodeId);
   if (!node || (node.type !== 'COMPONENT' && node.type !== 'COMPONENT_SET')) {
     return { error: `Component not found: ${nodeId}` };
   }

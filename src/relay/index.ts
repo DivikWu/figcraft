@@ -13,6 +13,13 @@ import { isJoinMessage, isPingMessage, HEARTBEAT_INTERVAL_MS } from '../shared/p
 
 const PORT_RANGE = [3055, 3056, 3057, 3058, 3059, 3060];
 
+// When true, allow multiple connections with the same role on a channel (e.g. two IDEs).
+// Default: false (evict stale same-role connections to prevent zombie peers).
+const ALLOW_MULTI = process.env.FIGCRAFT_RELAY_ALLOW_MULTI === 'true' || process.env.FIGCRAFT_RELAY_ALLOW_MULTI === '1';
+
+/** Maximum concurrent WebSocket connections to prevent resource exhaustion. */
+const MAX_CONNECTIONS = parseInt(process.env.FIGCRAFT_RELAY_MAX_CONNECTIONS ?? '50', 10);
+
 interface ChannelMember {
   ws: WebSocket;
   role: 'mcp' | 'plugin';
@@ -22,7 +29,18 @@ function setupRelay(wss: WebSocketServer): void {
   const channels = new Map<ChannelId, Set<ChannelMember>>();
 
   wss.on('connection', (ws) => {
-    let memberRef: { channel: ChannelId; member: ChannelMember } | null = null;
+    // Reject connections that exceed the limit.
+    // Note: wss.clients already includes this socket at the time of the 'connection' event,
+    // so we use >= to enforce the limit correctly.
+    if (wss.clients.size >= MAX_CONNECTIONS) {
+      console.error(`[FigCraft relay] connection rejected — limit of ${MAX_CONNECTIONS} reached`);
+      ws.close(4002, 'Too many connections');
+      return;
+    }
+
+    // Track ALL channels this socket has joined (fixes zombie member bug
+    // where only the last-joined channel was cleaned up on disconnect)
+    const memberRefs: Array<{ channel: ChannelId; member: ChannelMember }> = [];
 
     // Heartbeat
     let alive = true;
@@ -53,8 +71,22 @@ function setupRelay(wss: WebSocketServer): void {
           members = new Set();
           channels.set(msg.channel, members);
         }
+
+        // Role isolation: only one member per role per channel (unless ALLOW_MULTI).
+        // If a new mcp/plugin joins the same channel, evict the previous one.
+        if (!ALLOW_MULTI) {
+          for (const existing of members) {
+            if (existing.role === msg.role && existing.ws !== ws) {
+              console.error(`[FigCraft relay] evicting stale ${msg.role} from channel ${msg.channel}`);
+              members.delete(existing);
+              try { existing.ws.close(4001, `Replaced by new ${msg.role}`); } catch { /* already closed */ }
+              break;
+            }
+          }
+        }
+
         members.add(member);
-        memberRef = { channel: msg.channel, member };
+        memberRefs.push({ channel: msg.channel, member });
         console.error(`[FigCraft relay] ${msg.role} joined channel ${msg.channel}`);
         return;
       }
@@ -69,26 +101,52 @@ function setupRelay(wss: WebSocketServer): void {
       if ('channel' in msg && msg.channel) {
         const members = channels.get(msg.channel);
         if (!members) return;
-        const data = JSON.stringify(msg);
+        const data = raw.toString();
+        let forwarded = 0;
         for (const m of members) {
           if (m.ws !== ws && m.ws.readyState === WebSocket.OPEN) {
-            m.ws.send(data);
+            try {
+              m.ws.send(data);
+              forwarded++;
+            } catch {
+              // Peer socket died between readyState check and send — skip
+            }
           }
+        }
+
+        // Send NO_PEER error back to sender when a request has no target
+        const msgAny = msg as unknown as Record<string, unknown>;
+        if (msgAny.type === 'request' && forwarded === 0) {
+          try {
+            const errPayload = JSON.stringify({
+              id: msgAny.id,
+              type: 'error',
+              channel: msg.channel,
+              error: { code: 'NO_PEER', message: `No peer connected on channel "${msg.channel}" to handle ${msgAny.method}` },
+            });
+            ws.send(errPayload);
+          } catch { /* socket may have closed between receive and send */ }
+          console.error(`[FigCraft relay] → ${msgAny.method} — no peer on channel "${msg.channel}"`);
+        } else if (msgAny.type === 'request') {
+          console.error(`[FigCraft relay] → ${msgAny.method} forwarded to ${forwarded} peer(s)`);
+        } else if (msgAny.type === 'response' || msgAny.type === 'error') {
+          const payloadKB = (data.length / 1024).toFixed(1);
+          console.error(`[FigCraft relay] ← ${msgAny.type} (${payloadKB}KB) forwarded to ${forwarded} peer(s)`);
         }
       }
     });
 
     ws.on('close', () => {
       clearInterval(heartbeat);
-      if (memberRef) {
-        const members = channels.get(memberRef.channel);
+      for (const ref of memberRefs) {
+        const members = channels.get(ref.channel);
         if (members) {
-          members.delete(memberRef.member);
+          members.delete(ref.member);
           if (members.size === 0) {
-            channels.delete(memberRef.channel);
+            channels.delete(ref.channel);
           }
         }
-        console.error(`[FigCraft relay] ${memberRef.member.role} left channel ${memberRef.channel}`);
+        console.error(`[FigCraft relay] ${ref.member.role} left channel ${ref.channel}`);
       }
     });
 
@@ -144,7 +202,11 @@ export async function startRelay(preferredPort?: number): Promise<{ wss: WebSock
 
 // ─── Direct execution (npm run dev:relay) ───
 
-const isDirectRun = !process.argv[1] || process.argv[1].includes('relay');
+import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
+
+const __filename = fileURLToPath(import.meta.url);
+const isDirectRun = !process.argv[1] || resolve(process.argv[1]) === __filename;
 if (isDirectRun) {
   startRelay().then(({ wss }) => {
     process.on('SIGINT', () => {

@@ -4,12 +4,13 @@
 
 import { registerHandler } from '../registry.js';
 import { simplifyNode, simplifyPage } from '../adapters/node-simplifier.js';
+import { findNodeByIdAsync } from '../utils/node-lookup.js';
 
 export function registerNodeHandlers(): void {
 
 registerHandler('get_node_info', async (params) => {
   const nodeId = params.nodeId as string;
-  const node = await figma.getNodeByIdAsync(nodeId);
+  const node = await findNodeByIdAsync(nodeId);
   if (!node || !('type' in node) || node.type === 'PAGE' || node.type === 'DOCUMENT') {
     return { error: `Node not found: ${nodeId}` };
   }
@@ -18,12 +19,16 @@ registerHandler('get_node_info', async (params) => {
 
 registerHandler('get_current_page', async (params) => {
   const maxNodes = (params.maxNodes as number) ?? 200;
+  const maxDepth = (params.maxDepth as number | undefined) ?? 3;
   const page = figma.currentPage;
+  const nodes = simplifyPage(page, maxNodes, maxDepth);
   return {
     id: page.id,
     name: page.name,
     childCount: page.children.length,
-    nodes: simplifyPage(page, maxNodes),
+    returnedNodes: nodes.length,
+    ...(nodes.length < page.children.length ? { truncated: true } : {}),
+    nodes,
   };
 });
 
@@ -111,7 +116,7 @@ registerHandler('get_reactions', async (params) => {
   }
 
   if (params.nodeId) {
-    const node = await figma.getNodeByIdAsync(params.nodeId as string);
+    const node = await findNodeByIdAsync(params.nodeId as string);
     if (!node) return { nodes: [], count: 0 };
     walk(node as SceneNode);
   } else {

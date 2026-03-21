@@ -78,7 +78,7 @@ async function figmaFetch(path: string, token: string, attempt = 0): Promise<unk
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     if (res.status === 429 && attempt < 3) {
-      const retryAfter = Math.max(parseInt(res.headers.get('retry-after') ?? '5', 10), 1);
+      const retryAfter = Math.min(Math.max(parseInt(res.headers.get('retry-after') ?? '5', 10), 1), 60);
       await new Promise((r) => setTimeout(r, retryAfter * 1000));
       return figmaFetch(path, token, attempt + 1);
     }
@@ -263,7 +263,7 @@ export function extractNodeIdFromUrl(url: string): string | null {
   const match = url.match(/node-id=([^&]+)/);
   if (!match) return null;
   // URL-encoded "705-60" → "705:60"
-  return decodeURIComponent(match[1]).replace('-', ':');
+  return decodeURIComponent(match[1]).replaceAll('-', ':');
 }
 
 // ─── Property extraction ───

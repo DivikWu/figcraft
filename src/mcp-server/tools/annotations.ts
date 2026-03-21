@@ -52,4 +52,7 @@ export function registerAnnotationTools(server: McpServer, bridge: Bridge): void
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+
+  // get_reactions is registered via _generated.ts (handler: bridge in YAML).
+  // It was moved from nodes.ts to the annotations toolset in schema/tools.yaml.
 }

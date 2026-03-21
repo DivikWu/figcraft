@@ -3,44 +3,30 @@
  *
  * Registers tools and connects via stdio transport.
  * Bridges to Figma Plugin through WebSocket relay.
+ *
+ * Uses dynamic toolset manager: only ~30 core tools are enabled by default.
+ * Agent can load additional toolsets on demand via load_toolset.
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { Bridge } from './bridge.js';
-import { registerPing } from './tools/ping.js';
-import { registerNodeTools } from './tools/nodes.js';
-import { registerVariableTools } from './tools/variables.js';
-import { registerStyleTools } from './tools/styles.js';
-import { registerLibraryTools } from './tools/library.js';
-import { registerLibraryStyleTools } from './tools/library-styles.js';
-import { registerExportTools } from './tools/export.js';
-import { registerWriteNodeTools } from './tools/write-nodes.js';
-import { registerTokenTools } from './tools/tokens.js';
-import { registerComponentTools } from './tools/components.js';
-import { registerStorageTools } from './tools/storage.js';
-import { registerLintTools } from './tools/lint.js';
-import { registerAnnotationTools } from './tools/annotations.js';
-import { registerModeTools } from './tools/mode.js';
-import { registerChannelTools } from './tools/channel.js';
-import { registerWriteVariableTools } from './tools/write-variables.js';
-import { registerWriteStyleTools } from './tools/write-styles.js';
-import { registerScanTools } from './tools/scan.js';
-import { registerPageTools } from './tools/pages.js';
-import { registerPrototypeTools } from './tools/prototype.js';
-import { registerImageVectorTools } from './tools/image-vector.js';
-import { registerSelectionTools } from './tools/selection.js';
 import { registerPrompts } from './prompts/index.js';
-import { registerAuthTools } from './tools/auth.js';
 import { setBridgeTokenProvider } from './auth.js';
 import { startRelay } from '../relay/index.js';
+import {
+  registerAllTools,
+  registerToolsetMetaTools,
+  disableNonCoreTools,
+} from './tools/toolset-manager.js';
+import { VERSION } from '../shared/version.js';
 
 const RELAY_URL = process.env.FIGCRAFT_RELAY_URL ?? 'ws://localhost:3055';
 const CHANNEL = process.env.FIGCRAFT_CHANNEL ?? 'design-1';
 
 const server = new McpServer({
   name: 'FigCraft',
-  version: '0.1.0',
+  version: VERSION,
 });
 
 const bridge = new Bridge(RELAY_URL, CHANNEL);
@@ -48,37 +34,16 @@ setBridgeTokenProvider(() => bridge.getApiToken());
 
 // ─── Register tools ───
 
-registerPing(server, bridge);
-registerAuthTools(server);
+// 1. Register ALL tools (captures handles for enable/disable)
+registerAllTools(server, bridge);
 
-// P1: read tools
-registerNodeTools(server, bridge);
-registerVariableTools(server, bridge);
-registerStyleTools(server, bridge);
-registerLibraryTools(server, bridge);
-registerLibraryStyleTools(server, bridge);
-registerExportTools(server, bridge);
+// 2. Register meta tools (load_toolset, unload_toolset, list_toolsets)
+registerToolsetMetaTools(server);
 
-// P2: write tools
-registerWriteNodeTools(server, bridge);
-registerTokenTools(server, bridge);
-registerComponentTools(server, bridge);
-registerStorageTools(server, bridge);
-registerWriteVariableTools(server, bridge);
-registerWriteStyleTools(server, bridge);
-registerPageTools(server, bridge);
-registerSelectionTools(server, bridge);
+// 3. Disable non-core tools (keeps only ~30 active)
+disableNonCoreTools(server);
 
-// P3: lint tools
-registerLintTools(server, bridge);
-registerAnnotationTools(server, bridge);
-
-// P4: mode + channel + scan + prompts
-registerModeTools(server, bridge);
-registerChannelTools(server, bridge);
-registerScanTools(server, bridge);
-registerPrototypeTools(server, bridge);
-registerImageVectorTools(server, bridge);
+// 4. Register prompts
 registerPrompts(server);
 
 // ─── Start ───
@@ -117,7 +82,11 @@ main().catch((err) => {
 });
 
 // Graceful shutdown
-process.on('SIGINT', () => {
+function shutdown(): void {
+  console.error('[FigCraft mcp] shutting down...');
   bridge.disconnect();
+  server.close().catch(() => {});
   process.exit(0);
-});
+}
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

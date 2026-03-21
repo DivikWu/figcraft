@@ -87,6 +87,17 @@ export interface ChannelAnnounceMessage {
   designChannel: ChannelId; // the actual channel the plugin joined
 }
 
+/** Progress message sent by the plugin during long-running operations (e.g. create_document). */
+export interface CommandProgressMessage {
+  type: 'command_progress';
+  channel: ChannelId;
+  /** The request ID this progress belongs to — used to extend the pending request timeout. */
+  commandId: RequestId;
+  current: number;
+  total: number;
+  name?: string;
+}
+
 export type WireMessage =
   | RequestMessage
   | ResponseMessage
@@ -98,7 +109,8 @@ export type WireMessage =
   | SetLibraryFileKeyMessage
   | ResolveFileNameMessage
   | FileNameResolvedMessage
-  | ChannelAnnounceMessage;
+  | ChannelAnnounceMessage
+  | CommandProgressMessage;
 
 // ─── Helpers ───
 
@@ -140,6 +152,10 @@ export function isResolveFileNameMessage(msg: unknown): msg is ResolveFileNameMe
 
 export function isChannelAnnounceMessage(msg: unknown): msg is ChannelAnnounceMessage {
   return isObject(msg) && msg.type === 'channel-announce';
+}
+
+export function isCommandProgressMessage(msg: unknown): msg is CommandProgressMessage {
+  return isObject(msg) && msg.type === 'command_progress';
 }
 
 /** Fixed control channel for cross-channel coordination. */

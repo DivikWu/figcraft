@@ -49,7 +49,7 @@ describe('inferScopes', () => {
   });
 
   it('infers text fill scopes for text color', () => {
-    expect(inferScopes('color.text.primary', 'color')).toEqual(['FRAME_FILL', 'SHAPE_FILL', 'TEXT_FILL']);
+    expect(inferScopes('color.text.primary', 'color')).toEqual(['TEXT_FILL']);
   });
 
   it('infers CORNER_RADIUS for radius dimension', () => {

@@ -39,8 +39,22 @@ export interface AbstractNode {
   // Component
   componentPropertyDefinitions?: Record<string, { type: string; defaultValue?: unknown; variantOptions?: string[] }>;
   componentPropertyReferences?: Record<string, string>;
+  // Layout alignment
+  primaryAxisAlignItems?: string;
+  counterAxisAlignItems?: string;
+  clipsContent?: boolean;
+  strokeWeight?: number;
+  layoutAlign?: string;
+  // Text layout
+  textAutoResize?: string;
   // Children
   children?: AbstractNode[];
+  // Parent background color (hex, propagated during lint traversal for contrast checks)
+  parentBgColor?: string;
+  // Parent width (propagated during lint traversal for overflow checks)
+  parentWidth?: number;
+  // Parent layout mode (propagated during lint traversal for overflow fix strategy)
+  parentLayoutMode?: string;
 }
 
 export interface LintContext {
@@ -60,14 +74,28 @@ export interface LintContext {
   selectedLibrary?: string | null;
 }
 
-export type LintSeverity = 'error' | 'warning' | 'info';
+export type LintSeverity = 'error' | 'warning' | 'info' | 'hint';
 export type LintCategory = 'token' | 'layout' | 'naming' | 'wcag' | 'component';
+
+/** Severity ordering from most to least severe (used for downgrade logic). */
+export const SEVERITY_ORDER: readonly LintSeverity[] = ['error', 'warning', 'info', 'hint'] as const;
+
+/**
+ * Downgrade a severity by one level.
+ * error → warning, warning → info, info → hint, hint → hint (floor).
+ */
+export function downgradeSeverity(severity: LintSeverity): LintSeverity {
+  const idx = SEVERITY_ORDER.indexOf(severity);
+  return SEVERITY_ORDER[Math.min(idx + 1, SEVERITY_ORDER.length - 1)];
+}
 
 export interface LintViolation {
   nodeId: string;
   nodeName: string;
   rule: string;
   severity: LintSeverity;
+  /** Original severity before context downgrade (omitted when no downgrade occurred). */
+  baseSeverity?: LintSeverity;
   currentValue: unknown;
   expectedValue?: unknown;
   suggestion: string;

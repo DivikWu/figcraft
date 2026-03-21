@@ -36,8 +36,10 @@ export interface RegisteredStyles {
 
 // ─── In-memory maps (built on register/restore, queried on create) ───
 
-const textStyleMap = new Map<number, { id: string; name: string }>();
-const paintStyleMap = new Map<string, { id: string; name: string }>();
+/** Text styles keyed by fontSize. Multiple styles can share the same fontSize (e.g. Body/Regular vs Body/Bold). */
+const textStyleMap = new Map<number, Array<{ id: string; name: string; fontFamily: string; fontWeight: string }>>();
+/** Paint styles keyed by hex. Multiple styles can share the same hex (e.g. Primary/500 vs Info/Default). */
+const paintStyleMap = new Map<string, Array<{ id: string; name: string }>>();
 const effectStyleMap = new Map<string, { id: string; name: string }>();
 let loadedLibrary: string | null = null;
 
@@ -71,7 +73,7 @@ export async function registerStyles(
     Promise.allSettled(
       styles.textStyles.map(async (ts) => {
         const imported = await importWithTimeout(ts.key);
-        return { fontSize: ts.fontSize, id: imported.id, name: ts.name };
+        return { fontSize: ts.fontSize, id: imported.id, name: ts.name, fontFamily: ts.fontFamily, fontWeight: ts.fontWeight };
       }),
     ),
     Promise.allSettled(
@@ -89,10 +91,18 @@ export async function registerStyles(
   ]);
 
   for (const r of textResults) {
-    if (r.status === 'fulfilled') textStyleMap.set(r.value.fontSize, { id: r.value.id, name: r.value.name });
+    if (r.status === 'fulfilled') {
+      const existing = textStyleMap.get(r.value.fontSize) ?? [];
+      existing.push({ id: r.value.id, name: r.value.name, fontFamily: r.value.fontFamily, fontWeight: r.value.fontWeight });
+      textStyleMap.set(r.value.fontSize, existing);
+    }
   }
   for (const r of paintResults) {
-    if (r.status === 'fulfilled') paintStyleMap.set(r.value.hex, { id: r.value.id, name: r.value.name });
+    if (r.status === 'fulfilled') {
+      const existing = paintStyleMap.get(r.value.hex) ?? [];
+      existing.push({ id: r.value.id, name: r.value.name });
+      paintStyleMap.set(r.value.hex, existing);
+    }
   }
   for (const r of effectResults) {
     if (r.status === 'fulfilled') effectStyleMap.set(r.value.effectType, { id: r.value.id, name: r.value.name });
@@ -102,9 +112,15 @@ export async function registerStyles(
   await figma.clientStorage.setAsync(storageKey(library), JSON.stringify(styles));
   loadedLibrary = library;
 
+  // Count total entries across all array values
+  let textCount = 0;
+  for (const arr of textStyleMap.values()) textCount += arr.length;
+  let paintCount = 0;
+  for (const arr of paintStyleMap.values()) paintCount += arr.length;
+
   return {
-    textStyles: textStyleMap.size,
-    paintStyles: paintStyleMap.size,
+    textStyles: textCount,
+    paintStyles: paintCount,
     effectStyles: effectStyleMap.size,
   };
 }
@@ -122,7 +138,19 @@ export async function ensureLoaded(library: string): Promise<void> {
 
   try {
     const styles = JSON.parse(json) as RegisteredStyles;
-    await registerStyles(library, styles);
+    // Race against a 6s timeout to prevent blocking node creation
+    // Clean up timer on resolve to avoid leaks
+    let timer: ReturnType<typeof setTimeout>;
+    await Promise.race([
+      registerStyles(library, styles).finally(() => clearTimeout(timer)),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(() => {
+          console.warn('[figcraft] ensureLoaded timed out after 6s, proceeding without styles');
+          loadedLibrary = library;
+          resolve();
+        }, 6_000);
+      }),
+    ]);
   } catch {
     loadedLibrary = library;
   }
@@ -130,12 +158,61 @@ export async function ensureLoaded(library: string): Promise<void> {
 
 // ─── Query (pure memory, 0ms) ───
 
-export function getTextStyleId(fontSize: number): { id: string; name: string } | null {
-  return textStyleMap.get(fontSize) ?? null;
+/**
+ * Get a text style matching the given fontSize.
+ * When multiple styles share the same fontSize, optionally match by fontFamily/fontWeight.
+ * Falls back to the first registered style at that size.
+ */
+export function getTextStyleId(
+  fontSize: number,
+  hints?: { fontFamily?: string; fontWeight?: string },
+): { id: string; name: string } | null {
+  const entries = textStyleMap.get(fontSize);
+  if (!entries || entries.length === 0) return null;
+  if (entries.length === 1 || !hints) return entries[0];
+
+  // Try to match by fontFamily + fontWeight for best precision
+  if (hints.fontFamily && hints.fontWeight) {
+    const exact = entries.find(
+      (e) => e.fontFamily === hints.fontFamily && e.fontWeight === hints.fontWeight,
+    );
+    if (exact) return exact;
+  }
+  // Fall back to fontWeight match only
+  if (hints.fontWeight) {
+    const byWeight = entries.find((e) => e.fontWeight === hints.fontWeight);
+    if (byWeight) return byWeight;
+  }
+  // Fall back to fontFamily match only
+  if (hints.fontFamily) {
+    const byFamily = entries.find((e) => e.fontFamily === hints.fontFamily);
+    if (byFamily) return byFamily;
+  }
+  return entries[0];
 }
 
-export function getPaintStyleId(hex: string): { id: string; name: string } | null {
-  return paintStyleMap.get(hex.toLowerCase()) ?? null;
+/**
+ * Get a paint style matching the given hex color.
+ * When multiple styles share the same hex, returns the first registered one.
+ */
+export function getPaintStyleId(hex: string): { id: string; name: string } | null;
+export function getPaintStyleId(hex: string | undefined, name: string): { id: string; name: string } | null;
+export function getPaintStyleId(hex: string | undefined, name?: string): { id: string; name: string } | null {
+  // Name-based lookup: scan all entries for a matching name
+  if (name) {
+    const lowerName = name.toLowerCase();
+    for (const entries of paintStyleMap.values()) {
+      for (const entry of entries) {
+        if (entry.name.toLowerCase() === lowerName) return entry;
+      }
+    }
+    return null;
+  }
+  // Hex-based lookup (original behavior)
+  if (!hex) return null;
+  const entries = paintStyleMap.get(hex.toLowerCase());
+  if (!entries || entries.length === 0) return null;
+  return entries[0];
 }
 
 export function getEffectStyleId(effectType: string): { id: string; name: string } | null {
@@ -154,9 +231,14 @@ export async function getRegisteredStylesSummary(
     const styles = JSON.parse(json) as RegisteredStyles;
     // Include actual in-memory counts so AI can detect import failures
     if (loadedLibrary === library) {
+      // Count total entries across all array values
+      let textCount = 0;
+      for (const arr of textStyleMap.values()) textCount += arr.length;
+      let paintCount = 0;
+      for (const arr of paintStyleMap.values()) paintCount += arr.length;
       (styles as any)._loaded = {
-        text: textStyleMap.size,
-        paint: paintStyleMap.size,
+        text: textCount,
+        paint: paintCount,
         effect: effectStyleMap.size,
       };
     }
@@ -186,10 +268,24 @@ export async function registerStylesIncremental(
     if (storedJson) {
       const stored = JSON.parse(storedJson) as RegisteredStyles;
       for (const ts of stored.textStyles) {
-        if (removedSet.has(ts.key)) textStyleMap.delete(ts.fontSize);
+        if (removedSet.has(ts.key)) {
+          const arr = textStyleMap.get(ts.fontSize);
+          if (arr) {
+            const filtered = arr.filter((e) => e.name !== ts.name);
+            if (filtered.length === 0) textStyleMap.delete(ts.fontSize);
+            else textStyleMap.set(ts.fontSize, filtered);
+          }
+        }
       }
       for (const ps of stored.paintStyles) {
-        if (removedSet.has(ps.key)) paintStyleMap.delete(ps.hex.toLowerCase());
+        if (removedSet.has(ps.key)) {
+          const arr = paintStyleMap.get(ps.hex.toLowerCase());
+          if (arr) {
+            const filtered = arr.filter((e) => e.name !== ps.name);
+            if (filtered.length === 0) paintStyleMap.delete(ps.hex.toLowerCase());
+            else paintStyleMap.set(ps.hex.toLowerCase(), filtered);
+          }
+        }
       }
       for (const es of stored.effectStyles) {
         if (removedSet.has(es.key)) effectStyleMap.delete(es.effectType);
@@ -203,7 +299,7 @@ export async function registerStylesIncremental(
     Promise.allSettled(
       changedStyles.textStyles.map(async (ts) => {
         const style = await importWithTimeout(ts.key);
-        return { fontSize: ts.fontSize, id: style.id, name: ts.name };
+        return { fontSize: ts.fontSize, id: style.id, name: ts.name, fontFamily: ts.fontFamily, fontWeight: ts.fontWeight };
       }),
     ),
     Promise.allSettled(
@@ -222,13 +318,24 @@ export async function registerStylesIncremental(
 
   for (const r of textResults) {
     if (r.status === 'fulfilled') {
-      textStyleMap.set(r.value.fontSize, { id: r.value.id, name: r.value.name });
+      const existing = textStyleMap.get(r.value.fontSize) ?? [];
+      // Replace existing entry with same name, or append
+      const idx = existing.findIndex((e) => e.name === r.value.name);
+      const entry = { id: r.value.id, name: r.value.name, fontFamily: r.value.fontFamily, fontWeight: r.value.fontWeight };
+      if (idx >= 0) existing[idx] = entry;
+      else existing.push(entry);
+      textStyleMap.set(r.value.fontSize, existing);
       imported++;
     }
   }
   for (const r of paintResults) {
     if (r.status === 'fulfilled') {
-      paintStyleMap.set(r.value.hex, { id: r.value.id, name: r.value.name });
+      const existing = paintStyleMap.get(r.value.hex) ?? [];
+      const idx = existing.findIndex((e) => e.name === r.value.name);
+      const entry = { id: r.value.id, name: r.value.name };
+      if (idx >= 0) existing[idx] = entry;
+      else existing.push(entry);
+      paintStyleMap.set(r.value.hex, existing);
       imported++;
     }
   }
@@ -243,11 +350,130 @@ export async function registerStylesIncremental(
   await figma.clientStorage.setAsync(storageKey(library), JSON.stringify(fullStyles));
   loadedLibrary = library;
 
+  // Count total entries across all array values
+  let textCount = 0;
+  for (const arr of textStyleMap.values()) textCount += arr.length;
+  let paintCount = 0;
+  for (const arr of paintStyleMap.values()) paintCount += arr.length;
+
   return {
-    textStyles: textStyleMap.size,
-    paintStyles: paintStyleMap.size,
+    textStyles: textCount,
+    paintStyles: paintCount,
     effectStyles: effectStyleMap.size,
   };
+}
+
+// ─── Available paint style names (for error self-correction) ───
+
+/**
+ * Return a list of available paint style names (up to `limit`).
+ * Used when a hardcoded color has no match — the agent can self-correct
+ * by picking from the available list.
+ */
+export function getAvailablePaintStyleNames(limit = 20): string[] {
+  const names: string[] = [];
+  for (const entries of paintStyleMap.values()) {
+    for (const entry of entries) {
+      names.push(entry.name);
+      if (names.length >= limit) return names;
+    }
+  }
+  return names;
+}
+
+/**
+ * Search paint styles by hex value (case-insensitive).
+ * Returns the closest match info or null.
+ */
+export function findClosestPaintStyle(hex: string): { name: string; hex: string } | null {
+  const target = hex.toLowerCase().replace('#', '');
+  if (target.length < 6) return null;
+
+  const tr = parseInt(target.slice(0, 2), 16);
+  const tg = parseInt(target.slice(2, 4), 16);
+  const tb = parseInt(target.slice(4, 6), 16);
+  if (isNaN(tr) || isNaN(tg) || isNaN(tb)) return null;
+
+  let bestDist = Infinity;
+  let bestName = '';
+  let bestHex = '';
+
+  for (const [styleHex, entries] of paintStyleMap) {
+    const h = styleHex.replace('#', '');
+    if (h.length < 6) continue;
+    const sr = parseInt(h.slice(0, 2), 16);
+    const sg = parseInt(h.slice(2, 4), 16);
+    const sb = parseInt(h.slice(4, 6), 16);
+    if (isNaN(sr)) continue;
+    // Weighted Euclidean distance — human vision is most sensitive to green, least to blue.
+    // Weights from "redmean" approximation (low-cost perceptual color distance).
+    const rmean = (tr + sr) / 2;
+    const dr = tr - sr;
+    const dg = tg - sg;
+    const db = tb - sb;
+    const dist = Math.sqrt((2 + rmean / 256) * dr * dr + 4 * dg * dg + (2 + (255 - rmean) / 256) * db * db);
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestName = entries[0].name;
+      bestHex = styleHex;
+    }
+  }
+
+  // Only suggest if reasonably close (distance < 80 in weighted RGB space ≈ visually similar)
+  if (bestDist < 80 && bestName) {
+    return { name: bestName, hex: bestHex };
+  }
+  return null;
+}
+
+// ─── Text style suggestion ───
+
+/**
+ * Suggest a matching text style for manually specified font properties.
+ * When the agent sets fontSize/fontFamily/fontWeight manually instead of using a text style,
+ * this function finds the closest registered text style and returns a suggestion hint.
+ *
+ * Surpasses Vibma: returns both exact and fuzzy matches with actionable hints.
+ *
+ * @param fontSize - The font size to match
+ * @param fontFamily - Optional font family hint
+ * @param fontWeight - Optional font weight hint
+ * @returns Suggestion with style name and match quality, or null
+ */
+export function suggestTextStyle(
+  fontSize: number,
+  fontFamily?: string,
+  fontWeight?: string,
+): { name: string; exact: boolean; hint: string } | null {
+  const entries = textStyleMap.get(fontSize);
+  if (entries && entries.length > 0) {
+    // Exact fontSize match — check if family/weight also match
+    if (fontFamily && fontWeight) {
+      const exact = entries.find(
+        (e) => e.fontFamily === fontFamily && e.fontWeight === fontWeight,
+      );
+      if (exact) return { name: exact.name, exact: true, hint: `Text style "${exact.name}" matches exactly. Consider using it for consistency.` };
+    }
+    // Partial match
+    return { name: entries[0].name, exact: false, hint: `Text style "${entries[0].name}" has the same fontSize (${fontSize}px). Consider using it.` };
+  }
+
+  // No exact fontSize match — find closest
+  let bestDiff = Infinity;
+  let bestName = '';
+  let bestSize = 0;
+  for (const [size, styleEntries] of textStyleMap) {
+    const diff = Math.abs(size - fontSize);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      bestName = styleEntries[0].name;
+      bestSize = size;
+    }
+  }
+  if (bestName && bestDiff <= 4) {
+    return { name: bestName, exact: false, hint: `No text style at ${fontSize}px. Closest: "${bestName}" (${bestSize}px, ${bestDiff}px away).` };
+  }
+  return null;
 }
 
 // ─── Clear (on library switch) ───

@@ -11,7 +11,9 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
     'lint_check',
     'Run design lint rules on selected nodes or the current page. ' +
       'Checks colors, typography, spacing, border radius against tokens, ' +
-      'and WCAG contrast/target-size compliance.',
+      'and WCAG contrast/target-size compliance. ' +
+      'TIP: For a one-step check+fix, use lint_fix_all instead. ' +
+      'If using lint_check separately, call lint_fix next with the autoFixable violations.',
     {
       nodeIds: z.array(z.string()).optional().describe('Node IDs to lint (default: selection or page)'),
       rules: z.array(z.string()).optional().describe('Rule names to run (default: all)'),
@@ -21,8 +23,9 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
       maxViolations: z.number().optional().describe('Stop after collecting this many violations (performance optimization for large pages)'),
       annotate: z.boolean().optional().describe('Add annotations to violated nodes in Figma'),
       useStoredTokens: z.string().optional().describe('Name of cached token set to use'),
+      minSeverity: z.enum(['error', 'warning', 'info', 'hint']).optional().describe('Minimum severity to include (default: all). Use "warning" to hide hints/info.'),
     },
-    async ({ nodeIds, rules, categories, offset, limit, maxViolations, annotate, useStoredTokens }) => {
+    async ({ nodeIds, rules, categories, offset, limit, maxViolations, annotate, useStoredTokens, minSeverity }) => {
       // Load cached tokens if requested
       let tokenContext: Record<string, unknown> | undefined;
       if (useStoredTokens) {
@@ -44,6 +47,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         maxViolations,
         annotate,
         tokenContext,
+        minSeverity,
       });
 
       return {
@@ -61,6 +65,8 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         nodeId: z.string(),
         nodeName: z.string(),
         rule: z.string(),
+        severity: z.enum(['error', 'warning', 'info', 'hint']).optional(),
+        baseSeverity: z.enum(['error', 'warning', 'info', 'hint']).optional(),
         currentValue: z.unknown(),
         expectedValue: z.unknown().optional(),
         suggestion: z.string(),
@@ -113,8 +119,9 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
       categories: z.array(z.string()).optional().describe('Rule categories: token, layout, naming, wcag, component'),
       useStoredTokens: z.string().optional().describe('Name of cached token set to use'),
       annotate: z.boolean().optional().describe('Add annotations to remaining (unfixable) violations'),
+      maxViolations: z.number().optional().describe('Stop collecting after this many violations (performance optimization for large pages)'),
     },
-    async ({ nodeIds, rules, categories, useStoredTokens, annotate }) => {
+    async ({ nodeIds, rules, categories, useStoredTokens, annotate, maxViolations }) => {
       // Load cached tokens if requested
       let tokenContext: Record<string, unknown> | undefined;
       if (useStoredTokens) {
@@ -129,9 +136,9 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
 
       // Step 1: lint_check
       const report = await bridge.request('lint_check', {
-        nodeIds, rules, categories, tokenContext,
+        nodeIds, rules, categories, tokenContext, maxViolations,
       }) as {
-        summary: { total: number; pass: number; violations: number };
+        summary: { total: number; pass: number; violations: number; bySeverity?: Record<string, number> };
         categories: Array<{ rule: string; nodes: Array<Record<string, unknown>> }>;
       };
 
@@ -195,7 +202,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
       const lintReport = await bridge.request('lint_check', {
         nodeIds, tokenContext,
       }) as {
-        summary: { total: number; pass: number; violations: number };
+        summary: { total: number; pass: number; violations: number; bySeverity?: Record<string, number> };
         categories: Array<{ rule: string; description: string; count: number; nodes: Array<{ severity?: string }> }>;
       };
 
@@ -234,6 +241,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
           nodesChecked: lintReport.summary.total,
           passed: lintReport.summary.pass,
           violations: lintReport.summary.violations,
+          bySeverity: lintReport.summary.bySeverity,
           byCategory: lintByCategory,
         },
         components: {

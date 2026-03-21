@@ -1,0 +1,56 @@
+/**
+ * Spacer frame rule — detect empty frames used as spacing hacks.
+ *
+ * Flags frames that:
+ * - Have no visible children (or no children at all)
+ * - Have a name matching "Spacer" pattern (e.g. "Spacer 1", "Spacer", "spacer-2")
+ * - OR have no fill and one dimension is very small (≤4px width or height)
+ *
+ * These are anti-patterns in Figma. Use semantic grouping with
+ * auto-layout itemSpacing instead.
+ */
+
+import type { AbstractNode, LintContext, LintViolation, LintRule } from '../types.js';
+
+const SPACER_NAME_RE = /^spacer[\s_-]*\d*$/i;
+
+function isEmptyOrInvisible(node: AbstractNode): boolean {
+  if (!node.children || node.children.length === 0) return true;
+  return !node.children.some((c) => c.type !== 'VECTOR' || c.width !== 0);
+}
+
+function hasNoVisibleFill(node: AbstractNode): boolean {
+  if (!node.fills || node.fills.length === 0) return true;
+  return node.fills.every((f) => f.visible === false || f.opacity === 0);
+}
+
+export const spacerFrameRule: LintRule = {
+  name: 'spacer-frame',
+  description: 'Detect empty frames used as spacing hacks. Use auto-layout itemSpacing with semantic grouping instead.',
+  category: 'layout',
+  severity: 'warning',
+
+  check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
+    if (node.type !== 'FRAME') return [];
+    if (!isEmptyOrInvisible(node)) return [];
+
+    // Check 1: Name matches spacer pattern
+    const nameMatch = SPACER_NAME_RE.test(node.name);
+
+    // Check 2: Invisible thin frame (no fill, one dimension ≤ 4px)
+    const thinSpacer = hasNoVisibleFill(node) &&
+      ((node.width != null && node.width <= 4) || (node.height != null && node.height <= 4));
+
+    if (!nameMatch && !thinSpacer) return [];
+
+    return [{
+      nodeId: node.id,
+      nodeName: node.name,
+      rule: 'spacer-frame',
+      severity: 'warning',
+      currentValue: `${node.width ?? '?'}×${node.height ?? '?'} empty frame`,
+      suggestion: `"${node.name}" looks like a spacing hack. Group related elements into semantic auto-layout frames with itemSpacing instead.`,
+      autoFixable: false,
+    }];
+  },
+};

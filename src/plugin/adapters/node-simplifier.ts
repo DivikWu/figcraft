@@ -2,21 +2,58 @@
  * Node simplifier — Framelink-style ~90% compression.
  *
  * Strips Figma node data to only layout + style + token binding essentials.
+ * Supports configurable depth limits and time budgets to prevent timeouts
+ * on large pages.
  */
 
 import type { CompressedNode } from '../../shared/types.js';
 import { figmaRgbaToHex } from '../utils/color.js';
 
-/** Maximum tree depth to prevent excessive payloads. */
-const MAX_DEPTH = 10;
+/** Default maximum tree depth to prevent excessive payloads. */
+const DEFAULT_MAX_DEPTH = 10;
 
 /** Maximum total nodes in a single simplifyNode call. */
 const MAX_NODES = 2000;
 
+/** Default time budget for simplifyPage (ms). */
+const DEFAULT_TIME_BUDGET_MS = 15_000;
+
+/** Traversal context shared across recursive calls. */
+export interface SimplifyContext {
+  count: number;
+  maxDepth: number;
+  startTime: number;
+  timeBudgetMs: number;
+  timedOut: boolean;
+}
+
+function createContext(maxDepth?: number, timeBudgetMs?: number): SimplifyContext {
+  return {
+    count: 0,
+    maxDepth: maxDepth ?? DEFAULT_MAX_DEPTH,
+    startTime: Date.now(),
+    timeBudgetMs: timeBudgetMs ?? DEFAULT_TIME_BUDGET_MS,
+    timedOut: false,
+  };
+}
+
+function isOverBudget(ctx: SimplifyContext): boolean {
+  if (ctx.timedOut) return true;
+  // Check time every 50 nodes to avoid excessive Date.now() calls
+  if (ctx.count % 50 === 0 && Date.now() - ctx.startTime > ctx.timeBudgetMs) {
+    ctx.timedOut = true;
+    return true;
+  }
+  return false;
+}
+
 /** Simplify a Figma node tree into compressed JSON. */
-export function simplifyNode(node: SceneNode, depth = 0, counter?: { count: number }): CompressedNode {
-  const c = counter ?? { count: 0 };
-  c.count++;
+export function simplifyNode(node: SceneNode, depth = 0, counter?: { count: number }, ctx?: SimplifyContext): CompressedNode {
+  // Legacy counter support for backward compatibility
+  const context = ctx ?? (counter ? { count: counter.count, maxDepth: DEFAULT_MAX_DEPTH, startTime: Date.now(), timeBudgetMs: DEFAULT_TIME_BUDGET_MS, timedOut: false } : createContext());
+  context.count++;
+  // Sync legacy counter if provided
+  if (counter) counter.count = context.count;
 
   const base: CompressedNode = {
     id: node.id,
@@ -75,13 +112,33 @@ export function simplifyNode(node: SceneNode, depth = 0, counter?: { count: numb
   if ('layoutMode' in node) {
     const frame = node as FrameNode;
     if (frame.layoutMode !== 'NONE') {
-      base.layoutMode = frame.layoutMode;
+      base.layoutMode = frame.layoutMode as 'HORIZONTAL' | 'VERTICAL';
       base.itemSpacing = frame.itemSpacing;
       base.paddingLeft = frame.paddingLeft;
       base.paddingRight = frame.paddingRight;
       base.paddingTop = frame.paddingTop;
       base.paddingBottom = frame.paddingBottom;
+      if (frame.primaryAxisAlignItems) base.primaryAxisAlignItems = frame.primaryAxisAlignItems;
+      if (frame.counterAxisAlignItems) base.counterAxisAlignItems = frame.counterAxisAlignItems;
     }
+  }
+
+  // Clip content
+  if ('clipsContent' in node) {
+    const frame = node as FrameNode;
+    if (frame.clipsContent) base.clipsContent = true;
+  }
+
+  // Stroke weight
+  if ('strokeWeight' in node) {
+    const sw = (node as GeometryMixin).strokeWeight;
+    if (typeof sw === 'number' && sw > 0) base.strokeWeight = sw;
+  }
+
+  // Layout align (for children of auto-layout frames)
+  if ('layoutAlign' in node) {
+    const la = (node as SceneNode & { layoutAlign: string }).layoutAlign;
+    if (la && la !== 'INHERIT') base.layoutAlign = la;
   }
 
   // Layout positioning (for children of auto-layout frames)
@@ -107,6 +164,9 @@ export function simplifyNode(node: SceneNode, depth = 0, counter?: { count: numb
     }
     if (text.letterSpacing !== figma.mixed) {
       base.letterSpacing = text.letterSpacing;
+    }
+    if (text.textAutoResize) {
+      base.textAutoResize = text.textAutoResize;
     }
   }
 
@@ -157,30 +217,37 @@ export function simplifyNode(node: SceneNode, depth = 0, counter?: { count: numb
     }
   }
 
-  // Children (respect depth limit and node count limit)
-  if ('children' in node && depth < MAX_DEPTH && c.count < MAX_NODES) {
+  // Children (respect depth limit, node count limit, and time budget)
+  if ('children' in node && depth < context.maxDepth && context.count < MAX_NODES && !isOverBudget(context)) {
     const children = (node as ChildrenMixin).children;
     if (children.length > 0) {
       base.children = [];
       for (const child of children) {
-        if (c.count >= MAX_NODES) {
-          (base as Record<string, unknown>).truncated = true;
+        if (context.count >= MAX_NODES || isOverBudget(context)) {
+          base.truncated = true;
+          base.truncatedChildCount = children.length - base.children.length;
           break;
         }
-        base.children.push(simplifyNode(child, depth + 1, c));
+        base.children.push(simplifyNode(child, depth + 1, counter, context));
       }
     }
+  } else if ('children' in node && (node as ChildrenMixin).children.length > 0) {
+    // At depth/count/time limit but has children — mark as truncated
+    base.truncated = true;
+    base.truncatedChildCount = (node as ChildrenMixin).children.length;
   }
 
   return base;
 }
 
 /** Simplify a page to compressed node list. */
-export function simplifyPage(page: PageNode, maxNodes = 200): CompressedNode[] {
+export function simplifyPage(page: PageNode, maxNodes = 200, maxDepth?: number, timeBudgetMs?: number): CompressedNode[] {
   const results: CompressedNode[] = [];
+  const ctx = createContext(maxDepth, timeBudgetMs);
   for (const child of page.children) {
     if (results.length >= maxNodes) break;
-    results.push(simplifyNode(child));
+    if (isOverBudget(ctx)) break;
+    results.push(simplifyNode(child, 0, undefined, ctx));
   }
   return results;
 }
@@ -223,12 +290,28 @@ function simplifyEffect(effect: Effect): unknown {
 function simplifyBoundVariables(bv: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(bv)) {
-    if (val && typeof val === 'object' && 'id' in (val as Record<string, unknown>)) {
+    if (val && typeof val === 'object' && !Array.isArray(val) && 'id' in (val as Record<string, unknown>)) {
       result[key] = { id: (val as Record<string, unknown>).id };
     } else if (Array.isArray(val)) {
-      result[key] = val.map((v) =>
-        v && typeof v === 'object' && 'id' in v ? { id: v.id } : v,
-      );
+      result[key] = val.map((v) => {
+        if (v && typeof v === 'object' && 'id' in v) return { id: v.id };
+        // Handle nested objects within arrays (e.g. fills array with bound variables)
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          const nested = v as Record<string, unknown>;
+          if ('id' in nested) return { id: nested.id };
+          // Recursively simplify nested bound variable objects
+          const simplified: Record<string, unknown> = {};
+          for (const [nk, nv] of Object.entries(nested)) {
+            if (nv && typeof nv === 'object' && !Array.isArray(nv) && 'id' in (nv as Record<string, unknown>)) {
+              simplified[nk] = { id: (nv as Record<string, unknown>).id };
+            } else {
+              simplified[nk] = nv;
+            }
+          }
+          return simplified;
+        }
+        return v;
+      });
     } else {
       result[key] = val;
     }

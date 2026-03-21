@@ -28,26 +28,29 @@
   "scripts": {
     "dev:relay": "tsx src/relay/index.ts",
     "dev:mcp": "tsx src/mcp-server/index.ts",
-    "build": "tsup",
+    "schema": "tsx scripts/compile-schema.ts",
+    "build": "npm run schema && tsup",
     "build:plugin": "node build.plugin.mjs",
     "build:server": "tsup --config tsup.server.config.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.plugin.json",
     "test": "vitest --run",
     "test:watch": "vitest",
     "prepublishOnly": "npm run typecheck && npm run test && npm run build"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1",
-    "ws": "^8",
+    "@modelcontextprotocol/sdk": "^1.27",
+    "ws": "^8.18",
     "zod": "^3.23"
   },
   "devDependencies": {
     "@figma/plugin-typings": "^1",
     "@types/ws": "^8",
     "esbuild": "^0.27.4",
+    "fast-check": "^4.6.0",
     "tsup": "^8",
     "tsx": "^4",
     "typescript": "^5.9",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.0",
+    "yaml": "^2.8.2"
   }
 }

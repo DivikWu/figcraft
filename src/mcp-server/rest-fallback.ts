@@ -17,7 +17,12 @@ import { join } from 'node:path';
 interface FileContext {
   fileKey: string;
   documentName: string;
+  /** Timestamp when the context was last updated (ms since epoch). */
+  updatedAt: number;
 }
+
+/** Maximum age for persisted file context before it's considered stale (4 hours). */
+const FILE_CONTEXT_TTL_MS = 4 * 60 * 60 * 1000;
 
 let cachedFileContext: FileContext | null = null;
 
@@ -41,7 +46,11 @@ function loadPersistedFileContext(): FileContext | null {
   try {
     const raw = readFileSync(contextPath(), 'utf-8');
     const data = JSON.parse(raw) as FileContext;
-    return data.fileKey ? data : null;
+    if (!data.fileKey) return null;
+    // Reject stale context (e.g. user switched Figma files since last session)
+    const age = Date.now() - (data.updatedAt ?? 0);
+    if (age > FILE_CONTEXT_TTL_MS) return null;
+    return data;
   } catch {
     return null;
   }
@@ -49,7 +58,7 @@ function loadPersistedFileContext(): FileContext | null {
 
 /** Update file context (called after a successful ping or get_document_info). */
 export function setFileContext(fileKey: string, documentName: string): void {
-  cachedFileContext = { fileKey, documentName };
+  cachedFileContext = { fileKey, documentName, updatedAt: Date.now() };
   persistFileContext(cachedFileContext);
 }
 
@@ -57,8 +66,9 @@ export function setFileContext(fileKey: string, documentName: string): void {
 export function setFileKey(fileKey: string): void {
   if (cachedFileContext) {
     cachedFileContext.fileKey = fileKey;
+    cachedFileContext.updatedAt = Date.now();
   } else {
-    cachedFileContext = { fileKey, documentName: '' };
+    cachedFileContext = { fileKey, documentName: '', updatedAt: Date.now() };
   }
   persistFileContext(cachedFileContext);
 }

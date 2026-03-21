@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Bridge } from '../bridge.js';
+import { createDocumentLogic } from './logic/write-node-logic.js';
 
 export function registerWriteNodeTools(server: McpServer, bridge: Bridge): void {
   server.tool(
@@ -22,6 +23,10 @@ export function registerWriteNodeTools(server: McpServer, bridge: Bridge): void 
       layoutDirection: z.enum(['HORIZONTAL', 'VERTICAL']).optional().describe('Auto layout direction'),
       itemSpacing: z.number().optional().describe('Spacing between items'),
       padding: z.number().optional().describe('Uniform padding'),
+      paddingLeft: z.number().optional().describe('Left padding (overrides uniform padding)'),
+      paddingRight: z.number().optional().describe('Right padding (overrides uniform padding)'),
+      paddingTop: z.number().optional().describe('Top padding (overrides uniform padding)'),
+      paddingBottom: z.number().optional().describe('Bottom padding (overrides uniform padding)'),
       primaryAxisAlignItems: z.enum(['MIN', 'CENTER', 'MAX', 'SPACE_BETWEEN']).optional().describe('Main axis alignment (default: MIN)'),
       counterAxisAlignItems: z.enum(['MIN', 'CENTER', 'MAX']).optional().describe('Cross axis alignment (default: MIN). Use CENTER to vertically center children in HORIZONTAL layout.'),
       fill: z.string().optional().describe('Fill color as hex (e.g. "#FF0000")'),
@@ -62,7 +67,7 @@ export function registerWriteNodeTools(server: McpServer, bridge: Bridge): void 
       'effects (raw Figma effect array), layoutMode (NONE/HORIZONTAL/VERTICAL), layoutAlign, layoutGrow, ' +
       'primaryAxisAlignItems, counterAxisAlignItems, itemSpacing, paddingLeft/Right/Top/Bottom, ' +
       'fontSize, fontName ({family,style}), rotation, constraints ({horizontal,vertical}), ' +
-      'blendMode, isMask (boolean), clipsContent (boolean).',
+      'blendMode, isMask (boolean), clipsContent (boolean), minWidth, minHeight.',
     {
       patches: z.array(z.object({
         nodeId: z.string().describe('Node ID'),
@@ -83,6 +88,18 @@ export function registerWriteNodeTools(server: McpServer, bridge: Bridge): void 
     },
     async ({ nodeId }) => {
       const result = await bridge.request('delete_node', { nodeId });
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.tool(
+    'delete_nodes',
+    'Delete multiple nodes by ID in one call. Preferred over multiple delete_node calls.',
+    {
+      nodeIds: z.array(z.string()).describe('Array of node IDs to delete'),
+    },
+    async ({ nodeIds }) => {
+      const result = await bridge.request('delete_nodes', { nodeIds });
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -112,41 +129,42 @@ export function registerWriteNodeTools(server: McpServer, bridge: Bridge): void 
     },
   );
 
-  // Fixed-depth schema (3 levels) to avoid z.lazy() recursive reference issues
-  // with zod-to-json-schema. Plugin handler supports arbitrary depth natively.
-  const propsDesc =
-    'frame: width, height, x, y, fill, cornerRadius, autoLayout, layoutDirection, itemSpacing, padding. ' +
-    'text: content, fontSize, fontFamily, fontStyle, fill. ' +
-    'rectangle: width, height, x, y, fill, cornerRadius, stroke, strokeWeight. ' +
-    'ellipse: width, height, x, y, fill, stroke, strokeWeight. ' +
-    'line: length, x, y, rotation, stroke, strokeWeight.';
-
-  const leafNode = z.object({
-    type: z.enum(['frame', 'text', 'rectangle', 'ellipse', 'line']),
-    name: z.string().optional(),
-    props: z.record(z.unknown()).optional().describe(propsDesc),
-  });
-
-  const level2Node = leafNode.extend({
-    children: z.array(leafNode).optional(),
-  });
-
-  const level1Node = leafNode.extend({
-    children: z.array(level2Node).optional(),
-  });
+  // Vibma-style flat schema: nodes as untyped object array.
+  // JSON Schema structure: ~108 tokens (vs original 7-level nested: ~1860 tokens).
+  // The nodesDesc description adds ~250 tokens of prop documentation.
+  // Total: ~360 tokens — still ~80% smaller than the original ~1860.
+  // Structure info is conveyed via description text; the plugin handler
+  // (createNodeFromSpec) validates at runtime and reports per-node errors.
+  // MCP handler adds a pre-flight recursive type check for fast error feedback.
+  const nodesDesc =
+    'Array of node specs. Each node: {type, name?, props?, children?}. ' +
+    'type: frame | text | rectangle | ellipse | line | vector | instance. ' +
+    'children: recursive same shape, up to 7 levels. ' +
+    'Props by type — ' +
+    'frame: width, height, x, y, fill, cornerRadius, autoLayout, layoutDirection, itemSpacing, padding, paddingLeft, paddingRight, paddingTop, paddingBottom, primaryAxisAlignItems, counterAxisAlignItems, minWidth, minHeight, layoutAlign (STRETCH/INHERIT), layoutGrow (0 or 1). ' +
+    'text: content, fontSize, fontFamily, fontStyle, fill, layoutAlign, layoutGrow. ' +
+    'rectangle: width, height, x, y, fill, cornerRadius, stroke, strokeWeight, layoutAlign, layoutGrow. ' +
+    'ellipse: width, height, x, y, fill, stroke, strokeWeight, layoutAlign, layoutGrow. ' +
+    'line: length, x, y, rotation, stroke, strokeWeight, layoutAlign, layoutGrow. ' +
+    'vector: svg (required), width, height, x, y, resize ([w,h]), layoutAlign, layoutGrow. ' +
+    'instance: componentKey (library) OR componentId (local), properties (variant overrides as Record<string,string>), layoutAlign, layoutGrow.';
 
   server.tool(
     'create_document',
-    'Batch-create a tree of frames and text nodes in one call. ' +
-      'Use this instead of multiple create_frame/create_text calls to minimize round-trips. ' +
-      'Supports 3 levels of nesting (root → card → leaf).',
+    'Batch-create a tree of nodes in one call. ' +
+      'PREFERRED over multiple create_frame/create_text calls — minimizes round-trips and is much faster. ' +
+      'Supports 7 levels of nesting (screen → section → card → row → component → element → content) ' +
+      'and 7 node types: frame, text, rectangle, ellipse, line, vector, instance. ' +
+      'Use vector type with props.svg to inline SVG icons directly in the batch tree. ' +
+      'Use instance type with props.componentKey or props.componentId to inline component instances. ' +
+      'IMPORTANT: Create ONE screen per call. For multi-screen designs, call create_document once per screen sequentially. ' +
+      'PREREQUISITE: You MUST call get_mode first to load design tokens. Without it, elements will lack token bindings.',
     {
       parentId: z.string().optional().describe('Parent node ID. Omit to add to current page.'),
-      nodes: z.array(level1Node).describe('Array of node specs (supports 3 levels of nesting)'),
+      nodes: z.array(z.record(z.unknown())).describe(nodesDesc),
     },
-    async ({ parentId, nodes }) => {
-      const result = await bridge.request('create_document', { parentId, nodes }, 120_000);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    async ({ parentId, nodes }, extra) => {
+      return createDocumentLogic(bridge, { parentId, nodes: nodes as Array<Record<string, unknown>> }, extra as unknown as import('./logic/write-node-logic.js').CreateDocumentExtra);
     },
   );
 

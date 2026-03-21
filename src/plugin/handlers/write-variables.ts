@@ -10,6 +10,8 @@ import {
 } from '../adapters/variable-mapper.js';
 import { processBatch } from '../utils/batch.js';
 import { hexToFigmaRgba } from '../utils/color.js';
+import { findNodeByIdAsync } from '../utils/node-lookup.js';
+import { isVariableAlias, isRgbaLike } from '../utils/type-guards.js';
 
 export function registerWriteVariableHandlers(): void {
 
@@ -186,7 +188,7 @@ registerHandler('set_variable_binding', async (params) => {
   const field = params.field as string;
   const variableId = params.variableId as string;
 
-  const node = await figma.getNodeByIdAsync(nodeId);
+  const node = await findNodeByIdAsync(nodeId);
   if (!node || !('setBoundVariable' in node)) {
     return { error: `Node not found or does not support variable binding: ${nodeId}` };
   }
@@ -219,7 +221,7 @@ registerHandler('set_explicit_variable_mode', async (params) => {
   const collectionId = params.collectionId as string;
   const modeId = params.modeId as string;
 
-  const node = await figma.getNodeByIdAsync(nodeId);
+  const node = await findNodeByIdAsync(nodeId);
   if (!node || !('setExplicitVariableModeForCollection' in node)) {
     return { error: `Node not found or does not support variable modes: ${nodeId}` };
   }
@@ -384,21 +386,17 @@ registerHandler('export_variables', async (params) => {
 
       for (const mode of collection.modes) {
         const raw = variable.valuesByMode[mode.modeId];
-        if (raw && typeof raw === 'object' && 'type' in (raw as Record<string, unknown>)) {
-          const alias = raw as { type: string; id: string };
-          if (alias.type === 'VARIABLE_ALIAS') {
-            const ref = await figma.variables.getVariableByIdAsync(alias.id);
-            aliasOf[mode.name] = ref ? ref.name.replace(/\//g, '.') : alias.id;
-            valuesByMode[mode.name] = `{${ref ? ref.name.replace(/\//g, '.') : alias.id}}`;
-            continue;
-          }
+        if (isVariableAlias(raw)) {
+          const ref = await figma.variables.getVariableByIdAsync(raw.id);
+          aliasOf[mode.name] = ref ? ref.name.replace(/\//g, '.') : raw.id;
+          valuesByMode[mode.name] = `{${ref ? ref.name.replace(/\//g, '.') : raw.id}}`;
+          continue;
         }
         // Color → hex
-        if (raw && typeof raw === 'object' && 'r' in (raw as Record<string, unknown>)) {
-          const c = raw as RGBA;
-          const r = Math.round(c.r * 255);
-          const g = Math.round(c.g * 255);
-          const b = Math.round(c.b * 255);
+        if (isRgbaLike(raw)) {
+          const r = Math.round(raw.r * 255);
+          const g = Math.round(raw.g * 255);
+          const b = Math.round(raw.b * 255);
           valuesByMode[mode.name] = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
         } else {
           valuesByMode[mode.name] = raw;

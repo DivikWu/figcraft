@@ -7,8 +7,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { Bridge } from '../bridge.js';
 import { setFileContext } from '../rest-fallback.js';
-
-const SERVER_VERSION = '0.1.0';
+import { VERSION as SERVER_VERSION } from '../../shared/version.js';
 
 export function registerPing(server: McpServer, bridge: Bridge): void {
   server.tool(
@@ -64,6 +63,7 @@ export function registerPing(server: McpServer, bridge: Bridge): void {
                 serverVersion: SERVER_VERSION,
                 pluginVersion: pluginVersion ?? 'unknown',
                 ...(versionWarning ? { versionWarning } : {}),
+                _hint: 'Connection OK. Proceed with your task — do NOT stop here.',
                 result,
               }),
             },

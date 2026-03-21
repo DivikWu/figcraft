@@ -1083,6 +1083,37 @@
     let libraryEntries = {};  // { fileKey: { name, url } } — synced from plugin sandbox
     let logCount = 0;
 
+    // ─── Pending response queue ───
+    // When WS disconnects while sandbox is processing a request,
+    // queue responses and flush when reconnected (within 10s TTL).
+    var pendingResponses = [];
+    var PENDING_RESPONSE_TTL = 10000; // 10s — discard stale responses
+
+    function queueResponse(payload) {
+      pendingResponses.push({ payload: payload, ts: Date.now() });
+    }
+
+    function flushPendingResponses() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      var now = Date.now();
+      var kept = [];
+      for (var i = 0; i < pendingResponses.length; i++) {
+        var entry = pendingResponses[i];
+        if (now - entry.ts > PENDING_RESPONSE_TTL) {
+          log('\u2192 stale response discarded (age=' + (now - entry.ts) + 'ms)', 'error');
+          continue;
+        }
+        try {
+          ws.send(entry.payload);
+          log('\u2192 queued response flushed', 'success');
+        } catch (e) {
+          log('\u2192 flush failed: ' + e.message, 'error');
+          kept.push(entry);
+        }
+      }
+      pendingResponses = kept;
+    }
+
     // ─── i18n ───
     let currentLang = 'en';
     const TRANSLATIONS = {
@@ -1120,6 +1151,7 @@
         'error.notconnected.lint': 'Connect to relay first to run lint checks.',
         'error.relay.unavailable': 'Cannot connect to relay. Make sure your IDE has FigCraft running.',
         'error.relay.suggestion': 'Try restarting your IDE or check if another process is using the port.',
+        'status.retrying': 'Retrying automatically...',
       },
       zh: {
         'tab.activity': '日志', 'tab.lint': '设计审查', 'tab.spec': '规范配置', 'tab.settings': '设置',
@@ -1155,6 +1187,7 @@
         'error.notconnected.lint': '请先连接中继服务后再运行审查。',
         'error.relay.unavailable': '无法连接到中继服务，请确认 IDE 已启动 FigCraft。',
         'error.relay.suggestion': '请尝试重启 IDE，或检查端口是否被占用。',
+        'status.retrying': '正在自动重试...',
       }
     };
     // Designer-friendly rule display names
@@ -1446,6 +1479,9 @@
         if (!silent) {
           log(t('error.relay.unavailable'), 'error');
           log(t('error.relay.suggestion'), 'info');
+        } else if (reconnectAttempt === 1) {
+          // First silent retry — show one brief notice
+          log(t('error.relay.unavailable') + ' ' + t('status.retrying'), 'error');
         }
         scheduleReconnect();
         return;
@@ -1477,17 +1513,33 @@
           }
         });
         setStatus('connected', 'Online');
+        // Clear stale error entries from failed reconnect attempts
+        var staleErrors = logEl.querySelectorAll('.log-entry.error');
+        staleErrors.forEach(function(el) { el.remove(); logCount = Math.max(0, logCount - 1); });
+        if (logCount > 0) { activityCount.textContent = logCount + ' events'; }
         log('Connected on port ' + port, 'success');
         connected = true;
+        reconnectAttempt = 0;
         updateFixBtnTitle();
         document.getElementById('info-port').textContent = String(port);
+        flushPendingResponses();
 
         ws.onmessage = function(event) {
-          let msg;
+          var msg;
           try { msg = JSON.parse(event.data); } catch(e) { return; }
           if (msg.type === 'ping') { ws.send(JSON.stringify({ type: 'pong', channel: channelId })); return; }
           if (msg.type === 'file-name-resolved') { handleFileNameResolved(msg); return; }
-          if (msg.type === 'request') { log('\u2190 ' + msg.method); parent.postMessage({ pluginMessage: msg }, '*'); return; }
+          if (msg.type === 'request') {
+            log('\u2190 ' + msg.method + ' (id=' + msg.id + ')');
+            try {
+              parent.postMessage({ pluginMessage: msg }, '*');
+            } catch (postErr) {
+              log('\u2190 postMessage to sandbox failed: ' + postErr.message, 'error');
+              // Send error back so bridge doesn't hang
+              ws.send(JSON.stringify({ id: msg.id, type: 'error', channel: channelId, error: { code: 'POST_MESSAGE_FAILED', message: 'Failed to forward to plugin sandbox: ' + postErr.message } }));
+            }
+            return;
+          }
         };
 
         ws.onclose = function() {
@@ -1514,9 +1566,13 @@
       log('Disconnected by user', 'info');
     }
 
+    let reconnectAttempt = 0;
     function scheduleReconnect() {
       if (reconnectTimer) return;
-      reconnectTimer = setTimeout(function() { reconnectTimer = null; connect(true); }, 3000);
+      // Exponential backoff: 2s, 4s, 8s, 16s, capped at 30s
+      var delay = Math.min(2000 * Math.pow(2, reconnectAttempt), 30000);
+      reconnectAttempt++;
+      reconnectTimer = setTimeout(function() { reconnectTimer = null; connect(true); }, delay);
     }
 
     // ─── Plugin sandbox messages ───
@@ -1583,9 +1639,25 @@
 
       if (msg.type === 'response' || msg.type === 'error') {
         log('\u2192 ' + (msg.type === 'error' ? 'ERR: ' + msg.error.message : 'OK'), msg.type === 'error' ? 'error' : 'success');
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify(Object.assign({}, msg, { channel: channelId })));
+        var payload;
+        try {
+          payload = JSON.stringify(Object.assign({}, msg, { channel: channelId }));
+        } catch (serErr) {
+          log('\u2192 JSON.stringify failed: ' + serErr.message, 'error');
+          return;
         }
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          try {
+            ws.send(payload);
+          } catch (sendErr) {
+            log('\u2192 ws.send failed, queuing: ' + sendErr.message, 'error');
+            queueResponse(payload);
+          }
+        } else {
+          log('\u2192 ws not open, queuing response (id=' + msg.id + ')', 'error');
+          queueResponse(payload);
+        }
+        return;
       }
 
       if (msg.type === 'lint-result' && msg.report) {

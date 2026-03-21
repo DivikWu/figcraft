@@ -4,6 +4,7 @@
 
 import { registerHandler } from '../registry.js';
 import { simplifyNode } from '../adapters/node-simplifier.js';
+import { findNodeByIdAsync } from '../utils/node-lookup.js';
 
 export function registerImageVectorHandlers(): void {
 
@@ -12,7 +13,7 @@ registerHandler('set_image_fill', async (params) => {
   const imageData = params.imageData as string; // base64-encoded image
   const scaleMode = ((params.scaleMode as string) ?? 'FILL').toUpperCase() as 'FILL' | 'FIT' | 'CROP' | 'TILE';
 
-  const node = await figma.getNodeByIdAsync(nodeId);
+  const node = await findNodeByIdAsync(nodeId);
   if (!node || !('fills' in node)) {
     return { error: `Node not found or does not support fills: ${nodeId}` };
   }
@@ -35,7 +36,12 @@ registerHandler('create_vector', async (params) => {
   const name = (params.name as string) ?? 'Vector';
   const parentId = params.parentId as string | undefined;
 
-  const vectorNode = figma.createNodeFromSvg(svgString);
+  let vectorNode: FrameNode;
+  try {
+    vectorNode = figma.createNodeFromSvg(svgString);
+  } catch (err) {
+    return { error: `Failed to parse SVG: ${err instanceof Error ? err.message : String(err)}` };
+  }
   vectorNode.name = name;
 
   if (params.x != null) vectorNode.x = params.x as number;
@@ -46,7 +52,7 @@ registerHandler('create_vector', async (params) => {
   }
 
   if (parentId) {
-    const parent = await figma.getNodeByIdAsync(parentId);
+    const parent = await findNodeByIdAsync(parentId);
     if (parent && 'appendChild' in parent) {
       (parent as FrameNode).appendChild(vectorNode);
     }
@@ -57,7 +63,7 @@ registerHandler('create_vector', async (params) => {
 
 registerHandler('flatten_node', async (params) => {
   const nodeId = params.nodeId as string;
-  const node = await figma.getNodeByIdAsync(nodeId);
+  const node = await findNodeByIdAsync(nodeId);
   if (!node || !('type' in node)) {
     return { error: `Node not found: ${nodeId}` };
   }
@@ -82,7 +88,7 @@ registerHandler('create_star', async (params) => {
   }
 
   if (params.parentId) {
-    const parent = await figma.getNodeByIdAsync(params.parentId as string);
+    const parent = await findNodeByIdAsync(params.parentId as string);
     if (parent && 'appendChild' in parent) (parent as FrameNode).appendChild(star);
   }
 
@@ -103,7 +109,7 @@ registerHandler('create_polygon', async (params) => {
   }
 
   if (params.parentId) {
-    const parent = await figma.getNodeByIdAsync(params.parentId as string);
+    const parent = await findNodeByIdAsync(params.parentId as string);
     if (parent && 'appendChild' in parent) (parent as FrameNode).appendChild(polygon);
   }
 

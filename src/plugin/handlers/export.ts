@@ -3,6 +3,7 @@
  */
 
 import { registerHandler } from '../registry.js';
+import { findNodeByIdAsync } from '../utils/node-lookup.js';
 
 export function registerExportHandlers(): void {
 
@@ -15,7 +16,7 @@ registerHandler('export_image', async (params) => {
     | 'JPG';
   const scale = (params.scale as number) ?? 2;
 
-  const node = await figma.getNodeByIdAsync(nodeId);
+  const node = await findNodeByIdAsync(nodeId);
   if (!node || !('exportAsync' in node)) {
     return { error: `Node not found or not exportable: ${nodeId}` };
   }

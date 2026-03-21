@@ -4,7 +4,7 @@
  * Deep nesting makes designs hard to maintain and often indicates
  * unnecessary wrapper frames that should be flattened.
  *
- * Category: layout | Severity: info
+ * Category: layout | Severity: hint
  */
 
 import type { AbstractNode, LintContext, LintViolation, LintRule } from '../types.js';
@@ -15,7 +15,7 @@ export const maxNestingDepthRule: LintRule = {
   name: 'max-nesting-depth',
   description: `Detect layers nested more than ${MAX_DEPTH} levels deep — simplifying the hierarchy makes designs easier to maintain.`,
   category: 'layout',
-  severity: 'info',
+  severity: 'hint',
 
   check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
     // Only check from container nodes
@@ -38,7 +38,7 @@ function measureDepth(node: AbstractNode, currentDepth: number, violations: Lint
           nodeId: child.id,
           nodeName: child.name,
           rule: 'max-nesting-depth',
-          severity: 'info',
+          severity: 'hint',
           currentValue: `depth ${childDepth}`,
           expectedValue: `<= ${MAX_DEPTH}`,
           suggestion: `"${child.name}" is nested ${childDepth} levels deep — try flattening the layer structure for easier editing`,
