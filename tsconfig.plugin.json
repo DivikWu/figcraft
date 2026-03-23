@@ -1,16 +1,12 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
     "outDir": "dist/plugin",
-    "rootDir": "src",
+    "rootDir": ".",
     "typeRoots": ["node_modules/@figma"]
   },
-  "include": ["src/plugin/**/*.ts", "src/shared/**/*.ts"],
+  "include": ["packages/shared/src/**/*.ts", "packages/adapter-figma/src/**/*.ts", "packages/quality-engine/src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

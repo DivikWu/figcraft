@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-AI 驱动的 Figma 插件，提供 65+ MCP 工具。让 AI IDE 与 Figma 双向联动——用自然语言完成设计创建、Token 同步、规范检查与自动修复。
+AI 驱动的 Figma 插件，提供 100+ MCP 工具。让 AI IDE 与 Figma 双向联动——用自然语言完成设计创建、Token 同步、规范检查与自动修复。
 
 ## 它能做什么？
 
@@ -148,15 +148,23 @@ Figma Plugin (code.js 沙箱 + UI iframe)
 
 通过 `set_mode` 工具或插件 UI 切换模式。
 
-## 检查规则（15 条）
+## 整屏创建质量
 
-| 类别 | 规则 |
-|------|------|
-| Token 合规 | `spec-color`、`spec-typography`、`spec-spacing`、`spec-border-radius`、`hardcoded-token`、`no-text-style` |
-| WCAG 无障碍 | `wcag-contrast`、`wcag-target-size`、`wcag-text-size`、`wcag-line-height` |
-| 布局 | `fixed-in-autolayout`、`empty-container`、`max-nesting-depth` |
-| 命名 | `default-name` |
-| 组件 | `component-bindings` |
+- 完整页面优先使用 `create_screen`。它会先创建 screen shell，再按 section 逐步追加内容，并在结尾自动做 scoped lint/fix。
+- `create_document` 定位为 raw tree path，更适合局部子树插入，或你确实需要更底层的批量节点控制时使用。
+- 建议在主要 frame 上显式提供 `role`：`screen`、`header`、`hero`、`nav`、`content`、`list`、`row`、`stats`、`card`、`form`、`input`、`button`、`footer`、`actions`、`social_row`、`system_bar`。
+- 显式 `role` 默认值与 `marginHorizontal` / `marginLeft` / `marginRight` inset wrapper 规范，现在会在 `create_screen` 和 raw `create_document` 两条路径上保持一致。
+- 如果带背景填充的子节点需要真实外边距，可以使用 `marginHorizontal`、`marginLeft`、`marginRight`。FigCraft 会自动把它转换成透明 inset wrapper。
+
+## 检查规则（30 条）
+
+当前规则集已经覆盖 Token 合规、WCAG 无障碍、布局结构、命名、组件健康度，以及整屏质量检查。
+
+- Token 合规：颜色、字体、间距、圆角、硬编码 token、缺失文字样式
+- WCAG 无障碍：对比度、点击区域、字号、行高
+- 布局结构：auto-layout 误用、Spacer frame、嵌套深度、溢出、按钮/输入框/表单一致性
+- 整屏质量：header 碎片化、header 位置异常、CTA 宽度不一致、section spacing 塌缩、底部溢出、social/nav/stats 拥挤
+- 命名与组件：默认命名检查、组件绑定检查
 
 ## 环境变量
 
@@ -175,8 +183,17 @@ npm install
 npm run build          # 构建全部（MCP Server + Relay + Plugin）
 npm run build:plugin   # 仅构建 Figma 插件
 npm run typecheck      # TypeScript 类型检查
+npm run bench:quality  # 运行整屏质量基准报告
+npm run bench:quality:save           # 保存 reports/benchmarks/latest.json 与历史快照
+npm run bench:dashboard:from-latest  # 用最新产物生成 reports/benchmarks/dashboard.md
+npm run bench:gate:from-latest       # 基于最新保存产物执行发布门槛检查
 npm run test           # 运行单元测试 (vitest)
 ```
+
+Benchmark 产物：
+- `reports/benchmarks/latest.json` — 最新一次保存的 benchmark payload
+- `reports/benchmarks/history/*.json` — 可用于历史对比的快照
+- `reports/benchmarks/dashboard.md` — 同时展示规则回归指标与 generation-quality / release-gate 指标的 dashboard
 
 <details>
 <summary><strong>从源码运行 MCP Server（开发用）</strong></summary>
@@ -188,7 +205,7 @@ npm run test           # 运行单元测试 (vitest)
   "mcpServers": {
     "figcraft": {
       "command": "npx",
-      "args": ["tsx", "src/mcp-server/index.ts"],
+      "args": ["tsx", "packages/figcraft-design/src/index.ts"],
       "cwd": "/path/to/figcraft"
     }
   }
@@ -204,6 +221,9 @@ npm run test           # 运行单元测试 (vitest)
 
 ```bash
 npm run typecheck      # 类型检查通过
+npm run bench:quality:save           # 保存 benchmark 产物与历史
+npm run bench:dashboard:from-latest  # 根据最新产物刷新 dashboard
+npm run bench:gate:from-latest       # clean benchmark case 通过发布门槛
 npm run test           # 测试通过
 ```
 

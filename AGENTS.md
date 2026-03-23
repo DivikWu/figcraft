@@ -27,7 +27,7 @@ In endpoint mode, related operations are grouped under resource endpoints:
 
 Endpoint call syntax: `nodes({ method: "get", nodeId: "1:23" })`
 
-Standalone tools (not grouped into endpoints): `ping`, `get_mode`, `set_mode`, `create_document`, `join_channel`, `get_channel`, `export_image`, `lint_fix_all`, `set_current_page`, `save_version_history`, `set_selection`, `get_selection`, `get_current_page`, `get_document_info`, `list_fonts`, `set_image_fill`
+Standalone tools (not grouped into endpoints): `ping`, `get_mode`, `set_mode`, `create_document`, `create_screen`, `join_channel`, `get_channel`, `export_image`, `lint_fix_all`, `set_current_page`, `save_version_history`, `set_selection`, `get_selection`, `get_current_page`, `get_document_info`, `list_fonts`, `set_image_fill`
 
 Note: `nodes` endpoint does NOT include a `create` method — use `create_document` (batch) or `shapes`/`text` endpoints for node creation.
 
@@ -57,7 +57,7 @@ Load multiple at once: `load_toolset({ names: "tokens,variables" })`
 
 1. **Always `ping` first** — every Figma task starts with `ping`. If it fails, tell user to open the plugin. Do NOT call `figma_auth_status` or `get_document_info` as a first step. Exception: in the Create workflow, call `get_mode` instead (it includes a built-in ping) — if `connected: false`, stop and tell user to open the plugin.
 2. **Complete the workflow in one turn** — chain all tool calls sequentially until you reach a `⛔ HARD STOP` checkpoint or the workflow ends. At `⛔ HARD STOP` you MUST output a text response and wait for the user's reply before proceeding — do NOT call any more tools. Violating a HARD STOP is a critical error.
-3. **Prefer batch tools** — use `create_document` over multiple `create_frame`/`create_text`. Use `lint_fix_all` over `lint_check` + `lint_fix`. Use `delete_nodes` over multiple `delete_node`. When creating multiple screens, use **one `create_document` call per screen** — do NOT pack all screens into a single call's `nodes` array. Large node trees in a single call risk generation timeouts. Call them sequentially, one screen at a time.
+3. **Prefer batch tools** — use `create_document` over multiple `create_frame`/`create_text` for subtree creation, and prefer `create_screen` for complete screens. Use `lint_fix_all` over `lint_check` + `lint_fix`. Use `delete_nodes` over multiple `delete_node`. When creating multiple screens, use **one `create_screen` or `create_document` call per screen** — do NOT pack all screens into a single call's `nodes` array. Large node trees in a single call risk generation timeouts. Call them sequentially, one screen at a time.
 4. **Parallelize independent calls** — when multiple tool calls have no data dependency on each other, call them in the same turn (e.g. multiple `list_component_properties` calls). This cuts total latency significantly.
 5. **`create_document` supports 7 levels of nesting** (screen → section → card → row → component → element → content) and 7 node types: `frame`, `text`, `rectangle`, `ellipse`, `line`, `vector`, `instance`. Use `vector` type with `props.svg` to inline SVG icons directly in the batch tree. Use `instance` type with `props.componentKey` (library) or `props.componentId` (local) to inline component instances, with optional `props.properties` for variant overrides. This covers virtually all real-world UI patterns. If your design exceeds 7 levels, split into multiple `create_document` calls using `parentId` to attach deeper children.
 6. **`get_node_info` accepts Figma URLs** — no need to call `get_document_info` first when user provides a URL.
@@ -126,8 +126,8 @@ Steps 1–4 are shared. Steps 5–7 diverge by mode.
 #### Library Mode (steps 5–7)
 
 5. **Query**: Identify components needed from the plan. For library components, use the cached `libraryComponents` descriptions — only call `create_instance` to probe variant properties if the description is insufficient. For local components, call `list_component_properties` for ALL needed components in parallel.
-6. **Create (Sectional)**: Build each screen section-by-section for higher quality. **One `create_document` call per screen**, but structure the node tree in logical sections. After each screen is created:
-   - **Inspect warnings**: Check the `warnings` array in the `create_document` response. If warnings mention hardcoded fills, missing auto-layout, or structural issues, fix them with `patch_nodes` immediately.
+6. **Create (Sectional)**: Build each complete screen with **`create_screen` first** — it creates the shell, adds sections progressively, and runs scoped lint/fix automatically. Use raw `create_document` only for smaller subtree inserts or when you need low-level control. After each screen is created:
+   - **Inspect warnings**: Check the response warnings and `postCreateLint` / `finalLint` summaries. If warnings mention hardcoded fills, missing auto-layout, or structural issues, fix them with `patch_nodes` immediately.
    - **Run scoped lint**: Call `lint_fix_all` with `nodeIds` set to the just-created screen's root node ID. This catches layout issues (button structure, text overflow, spacing) while the screen is fresh.
    - **Fix violations**: Apply `patch_nodes` for any remaining issues before creating the next screen.
    - Only call `get_current_page(maxDepth=1)` first if you need to position new frames relative to existing content (e.g. user said "add next to the existing screen"). Otherwise skip it.
@@ -151,8 +151,8 @@ Steps 1–4 are shared. Steps 5–7 diverge by mode.
 #### Design Creator Mode (steps 5–7)
 
 5. **Query**: Skip — no components or tokens to query.
-6. **Create (Sectional)**: Same sectional approach as Library Mode. Call `create_document` one screen at a time. After each screen:
-   - **Inspect warnings**: Check `warnings` in response — especially "no fill in Design Creator mode" warnings.
+6. **Create (Sectional)**: Same sectional approach as Library Mode. Prefer `create_screen` one screen at a time; use `create_document` for partial inserts. After each screen:
+   - **Inspect warnings**: Check response warnings — especially "no fill in Design Creator mode" warnings.
    - **Run scoped lint**: Call `lint_fix_all` with `nodeIds` = [created screen root ID].
    - **Fix violations**: Apply `patch_nodes` before next screen.
    - **Important**: always specify `props.fill` for top-level frames that need a visible background — in Design Creator mode, frames without fill are transparent (no auto-bind).
@@ -220,37 +220,47 @@ npm run build          # Build all (runs schema compiler first)
 npm run build:plugin   # Build Figma plugin only
 npm run schema         # Regenerate tool registry from YAML
 npm run typecheck      # TypeScript type check
+npm run bench:quality  # Run screen-level quality benchmark report
+npm run bench:quality:save         # Save reports/benchmarks/latest.json + history snapshot
+npm run bench:dashboard:from-latest  # Render reports/benchmarks/dashboard.md from latest artifact
+npm run bench:gate:from-latest       # Enforce release gate against latest saved artifact
 npm run test           # Run unit tests (vitest)
 ```
 
+Benchmark artifacts live under `reports/benchmarks/`:
+- `latest.json` — latest saved payload
+- `history/*.json` — historical snapshots
+- `dashboard.md` — all-case and clean-only quality summary
+
 ## Tool Schema (Single Source of Truth)
 
-All tool definitions live in `schema/tools.yaml`. The schema compiler (`scripts/compile-schema.ts`) generates:
-- `src/mcp-server/tools/_registry.ts` — CORE_TOOLS, TOOLSETS, WRITE_TOOLS, CREATE_TOOLS, EDIT_TOOLS, ENDPOINT_TOOLS, ENDPOINT_METHOD_ACCESS, ENDPOINT_REPLACES sets
-- `src/mcp-server/tools/_generated.ts` — bridge tool registrations with Zod schemas + endpoint Zod schemas
+All tool definitions live in `schema/tools.yaml`. Shared recursive param definitions can be declared under `_param_definitions` and referenced with `type: ref`. The schema compiler (`scripts/compile-schema.ts`) generates:
+- `packages/core-mcp/src/tools/_registry.ts` — package-owned generated registry (authoritative runtime copy)
+- `packages/core-mcp/src/tools/_generated.ts` — package-owned generated bridge/endpoint schemas (authoritative runtime copy)
 
 Endpoint tools use `handler: endpoint` in the YAML with a `methods` map. Each method specifies `maps_to` (the flat tool it replaces), `write`, `access`, and `params`.
 
 Run `npm run schema` after editing `schema/tools.yaml`. The `build` script runs it automatically.
+New tool work should target `packages/core-mcp/src/tools/` and `packages/adapter-figma/src/handlers/`.
 
 ## Adding New Tools
 
-1. Handler in `src/plugin/handlers/` → import in `src/plugin/code.ts`
+1. Handler in `packages/adapter-figma/src/handlers/` → import in `packages/adapter-figma/src/code.ts`
 2. Add tool definition to `schema/tools.yaml` (toolset, write flag, access level, handler type, params)
-3. If `handler: custom` — write MCP wrapper in `src/mcp-server/tools/`, register in `toolset-manager.ts`
+3. If `handler: custom` — write MCP wrapper in `packages/core-mcp/src/tools/`, register in `packages/core-mcp/src/tools/toolset-manager.ts`
 4. If `handler: bridge` — tool is auto-generated; just add the YAML entry
-5. If `handler: endpoint` — add method definitions with `maps_to`, implement dispatch in `endpoints.ts`
+5. If `handler: endpoint` — add method definitions with `maps_to`, implement dispatch in `packages/core-mcp/src/tools/endpoints.ts`
 6. Run `npm run schema` to regenerate registry
 
 ## Adding New Lint Rules
 
-1. Rule in `src/plugin/linter/rules/` implementing `LintRule`
-2. Register in `src/plugin/linter/engine.ts` `ALL_RULES`
-3. Fix logic in `src/plugin/handlers/lint.ts` if `autoFixable`
+1. Rule in `packages/quality-engine/src/rules/` implementing `LintRule`
+2. Register in `packages/quality-engine/src/engine.ts` `ALL_RULES`
+3. Fix logic in `packages/adapter-figma/src/handlers/lint.ts` if `autoFixable`
 
 ## Constraints
 
-- Plugin UI: pure HTML/CSS in `src/plugin/ui.html` — no frameworks
+- Plugin UI: pure HTML/CSS in `packages/adapter-figma/src/ui.html` — no frameworks
 - Linter runs in Plugin sandbox, not MCP Server
 - DTCG parsing runs only on MCP Server
 - Composite tokens (typography/shadow) → Figma Styles, not Variables

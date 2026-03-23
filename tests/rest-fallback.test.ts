@@ -23,8 +23,8 @@ import {
   setFileContext,
   getFileContext,
   setFileKey,
-} from '../src/mcp-server/rest-fallback.js';
-import type { Bridge } from '../src/mcp-server/bridge.js';
+} from '../packages/core-mcp/src/rest-fallback.js';
+import type { Bridge } from '../packages/core-mcp/src/bridge.js';
 
 // ─── Helpers ───
 

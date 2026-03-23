@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { inferStructure, inferChildSizing } from '../src/plugin/utils/inline-tree.js';
+import { inferStructure, inferChildSizing } from '../packages/adapter-figma/src/utils/inline-tree.js';
 
 // ─── FILL without auto-layout parent (Fix 2b) ───
 

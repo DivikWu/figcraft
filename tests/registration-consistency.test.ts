@@ -13,7 +13,8 @@ import {
   GENERATED_TOOLSETS,
   GENERATED_ENDPOINT_TOOLS,
   GENERATED_ENDPOINT_REPLACES,
-} from '../src/mcp-server/tools/_registry.js';
+  GENERATED_FLAT_TOOL_MIGRATIONS,
+} from '../packages/core-mcp/src/tools/_registry.js';
 
 // ─── 1. get_reactions belongs to annotations toolset (not core / nodes) ───
 
@@ -124,6 +125,27 @@ describe('endpoint replaces mapping validity', () => {
         GENERATED_ENDPOINT_REPLACES,
         `Endpoint "${ep}" should have an entry in GENERATED_ENDPOINT_REPLACES`,
       ).toHaveProperty(ep);
+    }
+  });
+
+  it('every replaced flat tool has a reverse migration entry', () => {
+    for (const [endpoint, replacedTools] of Object.entries(GENERATED_ENDPOINT_REPLACES)) {
+      for (const flatTool of replacedTools) {
+        expect(
+          GENERATED_FLAT_TOOL_MIGRATIONS,
+          `Flat tool "${flatTool}" should have a reverse migration entry for endpoint "${endpoint}"`,
+        ).toHaveProperty(flatTool);
+        expect(GENERATED_FLAT_TOOL_MIGRATIONS[flatTool]?.endpoint).toBe(endpoint);
+      }
+    }
+  });
+
+  it('reverse migration entries point back to a valid endpoint replacement', () => {
+    for (const [flatTool, migration] of Object.entries(GENERATED_FLAT_TOOL_MIGRATIONS)) {
+      expect(GENERATED_ENDPOINT_TOOLS.has(migration.endpoint)).toBe(true);
+      expect(GENERATED_ENDPOINT_REPLACES[migration.endpoint]).toContain(flatTool);
+      expect(typeof migration.method).toBe('string');
+      expect(migration.method.length).toBeGreaterThan(0);
     }
   });
 });

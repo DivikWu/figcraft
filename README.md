@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-AI-powered Figma plugin with 65+ MCP tools. Two-way bridge between AI IDEs and Figma — design creation, token sync, compliance linting, and auto-fix, all via natural language.
+AI-powered Figma plugin with 100+ MCP tools. Two-way bridge between AI IDEs and Figma — design creation, token sync, compliance linting, and auto-fix, all via natural language.
 
 ## What can you do with it?
 
@@ -148,15 +148,23 @@ Figma Plugin (code.js sandbox + UI iframe)
 
 Switch modes via `set_mode` tool or the plugin UI.
 
-## Lint Rules (15)
+## Screen Creation Quality
 
-| Category | Rules |
-|----------|-------|
-| Token compliance | `spec-color`, `spec-typography`, `spec-spacing`, `spec-border-radius`, `hardcoded-token`, `no-text-style` |
-| WCAG accessibility | `wcag-contrast`, `wcag-target-size`, `wcag-text-size`, `wcag-line-height` |
-| Layout | `fixed-in-autolayout`, `empty-container`, `max-nesting-depth` |
-| Naming | `default-name` |
-| Component | `component-bindings` |
+- Use `create_screen` for complete screens. It builds the shell first, then appends sections progressively, and finishes with scoped lint/fix.
+- Treat `create_document` as the raw tree path. Use it for smaller subtree inserts or when you need lower-level control over a batch node tree.
+- Add semantic `role` fields on major frames when possible: `screen`, `header`, `hero`, `nav`, `content`, `list`, `row`, `stats`, `card`, `form`, `input`, `button`, `footer`, `actions`, `social_row`, `system_bar`.
+- Explicit `role` defaults and `marginHorizontal` / `marginLeft` / `marginRight` inset wrappers are normalized consistently across both `create_screen` and raw `create_document`.
+- When a filled child needs real outer margin, use `marginHorizontal`, `marginLeft`, or `marginRight`. FigCraft converts them into transparent inset wrappers automatically.
+
+## Lint Rules (30)
+
+Current lint coverage spans token compliance, WCAG accessibility, layout structure, naming, component health, and screen-level quality checks.
+
+- Token compliance: color, typography, spacing, radius, hardcoded token usage, missing text style
+- WCAG accessibility: contrast, target size, text size, line height
+- Layout structure: auto-layout misuse, spacer frames, nesting depth, overflow, button/input/form consistency
+- Screen quality: header fragmentation, header placement, CTA width consistency, section spacing collapse, bottom overflow, social/nav/stats crowding
+- Naming and component health: default names, component binding checks
 
 ## Environment Variables
 
@@ -175,8 +183,17 @@ npm install
 npm run build          # Build all (MCP server + relay + plugin)
 npm run build:plugin   # Build Figma plugin only
 npm run typecheck      # TypeScript type check
+npm run bench:quality  # Run screen-level quality benchmark report
+npm run bench:quality:save         # Save reports/benchmarks/latest.json + history snapshot
+npm run bench:dashboard:from-latest  # Render reports/benchmarks/dashboard.md from latest artifact
+npm run bench:gate:from-latest       # Enforce release gate against latest saved artifact
 npm run test           # Run unit tests (vitest)
 ```
+
+Benchmark artifacts:
+- `reports/benchmarks/latest.json` — latest saved benchmark payload
+- `reports/benchmarks/history/*.json` — historical snapshots for comparison
+- `reports/benchmarks/dashboard.md` — dashboard with rule-regression metrics plus generation-quality / release-gate metrics
 
 <details>
 <summary><strong>Run MCP server from source (for development)</strong></summary>
@@ -188,7 +205,7 @@ Instead of `npx figcraft-design`, point your IDE to the local source:
   "mcpServers": {
     "figcraft": {
       "command": "npx",
-      "args": ["tsx", "src/mcp-server/index.ts"],
+      "args": ["tsx", "packages/figcraft-design/src/index.ts"],
       "cwd": "/path/to/figcraft"
     }
   }
@@ -204,6 +221,9 @@ Before submitting, make sure:
 
 ```bash
 npm run typecheck      # Type check passes
+npm run bench:quality:save         # Save benchmark artifact + history
+npm run bench:dashboard:from-latest  # Refresh dashboard from saved artifact
+npm run bench:gate:from-latest       # Release gate passes on clean benchmark cases
 npm run test           # Tests pass
 ```
 

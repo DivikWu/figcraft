@@ -3,8 +3,8 @@
  * FigCraft Schema Compiler
  *
  * Reads schema/tools.yaml and generates:
- *   1. src/mcp-server/tools/_generated.ts  — bridge tool registrations (Zod + handler)
- *   2. src/mcp-server/tools/_registry.ts   — CORE_TOOLS, TOOLSETS, WRITE_TOOLS, CREATE_TOOLS, EDIT_TOOLS, TOOLSET_DESCRIPTIONS
+ *   1. packages/core-mcp/src/tools/_generated.ts  — bridge tool registrations (Zod + handler)
+ *   2. packages/core-mcp/src/tools/_registry.ts   — CORE_TOOLS, TOOLSETS, WRITE_TOOLS, CREATE_TOOLS, EDIT_TOOLS, TOOLSET_DESCRIPTIONS
  *
  * Simple bridge tools (handler: bridge) get fully generated TypeScript.
  * Custom tools (handler: custom) only contribute to the registry.
@@ -15,6 +15,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { parse as parseYaml } from 'yaml';
+import { mkdirSync } from 'node:fs';
 
 // ─── Types ───
 
@@ -22,6 +23,7 @@ interface ParamDef {
   type: string;
   required?: boolean;
   description?: string;
+  ref?: string;
   values?: string[];       // for enum
   items?: string | ParamDef; // for array
   fields?: Record<string, ParamDef>; // for object
@@ -36,6 +38,8 @@ interface ToolDef {
   handler: 'bridge' | 'custom';
   bridgeMethod?: string;   // override bridge method name
   params: Record<string, ParamDef> | {};
+  response?: ParamDef;
+  examples?: unknown[];
   response_guard?: boolean;
   guard_hints?: string[];
   deprecated?: boolean;
@@ -48,6 +52,8 @@ interface EndpointMethodDef {
   write: boolean;
   access?: 'create' | 'edit';
   params: Record<string, ParamDef>;
+  response?: ParamDef;
+  examples?: unknown[];
 }
 
 interface EndpointToolDef {
@@ -62,15 +68,21 @@ interface EndpointToolDef {
 type AnyToolDef = ToolDef | EndpointToolDef;
 
 interface Schema {
-  [key: string]: AnyToolDef | Record<string, string>;
+  [key: string]: AnyToolDef | Record<string, string> | Record<string, ParamDef>;
 }
 
 // ─── YAML Loading ───
 
 const ROOT = resolve(dirname(new URL(import.meta.url).pathname), '..');
 const SCHEMA_PATH = resolve(ROOT, 'schema/tools.yaml');
-const GEN_PATH = resolve(ROOT, 'src/mcp-server/tools/_generated.ts');
-const REG_PATH = resolve(ROOT, 'src/mcp-server/tools/_registry.ts');
+const GENERATED_TARGETS = [
+  {
+    name: 'core-mcp',
+    genPath: resolve(ROOT, 'packages/core-mcp/src/tools/_generated.ts'),
+    regPath: resolve(ROOT, 'packages/core-mcp/src/tools/_registry.ts'),
+    contractPath: resolve(ROOT, 'packages/core-mcp/src/tools/_contracts.ts'),
+  },
+] as const;
 
 const raw = readFileSync(SCHEMA_PATH, 'utf-8');
 const schema = parseYaml(raw) as Schema;
@@ -79,10 +91,13 @@ const schema = parseYaml(raw) as Schema;
 const toolDefs: Record<string, ToolDef> = {};
 const endpointDefs: Record<string, EndpointToolDef> = {};
 const toolsetDescriptions: Record<string, string> = {};
+const paramDefinitions: Record<string, ParamDef> = {};
 
 for (const [key, value] of Object.entries(schema)) {
   if (key === '_toolset_descriptions') {
     Object.assign(toolsetDescriptions, value);
+  } else if (key === '_param_definitions') {
+    Object.assign(paramDefinitions, value);
   } else if (value && typeof value === 'object' && 'handler' in value) {
     const v = value as AnyToolDef;
     if (v.handler === 'endpoint') {
@@ -114,12 +129,23 @@ for (const [key, value] of Object.entries(schema)) {
 
 // ─── Deep param validation ───
 
-const VALID_PARAM_TYPES = new Set(['string', 'number', 'boolean', 'enum', 'array', 'object', 'record', 'unknown', 'tuple']);
+const VALID_PARAM_TYPES = new Set(['string', 'number', 'boolean', 'enum', 'array', 'object', 'record', 'unknown', 'tuple', 'ref']);
 
 function validateParamDef(toolName: string, paramName: string, def: ParamDef, path: string): void {
   if (!VALID_PARAM_TYPES.has(def.type)) {
     console.error(`ERROR: ${path} in tool "${toolName}" has invalid type "${def.type}". Valid types: ${[...VALID_PARAM_TYPES].join(', ')}`);
     process.exit(1);
+  }
+  if (def.type === 'ref') {
+    if (!def.ref) {
+      console.error(`ERROR: ${path} in tool "${toolName}" is ref but has no "ref" target`);
+      process.exit(1);
+    }
+    if (!paramDefinitions[def.ref]) {
+      console.error(`ERROR: ${path} in tool "${toolName}" references unknown shared param definition "${def.ref}"`);
+      process.exit(1);
+    }
+    return;
   }
   if (def.type === 'enum' && (!def.values || def.values.length === 0)) {
     console.error(`ERROR: ${path} in tool "${toolName}" is enum but has no values`);
@@ -135,12 +161,19 @@ function validateParamDef(toolName: string, paramName: string, def: ParamDef, pa
   }
 }
 
+for (const [defName, def] of Object.entries(paramDefinitions)) {
+  validateParamDef('_param_definitions', defName, def, `_param_definitions.${defName}`);
+}
+
 // Validate all tool params at compile time
 for (const [toolName, def] of Object.entries(toolDefs)) {
   if (def.params) {
     for (const [pName, pDef] of Object.entries(def.params as Record<string, ParamDef>)) {
       validateParamDef(toolName, pName, pDef, `${toolName}.params.${pName}`);
     }
+  }
+  if (def.response) {
+    validateParamDef(toolName, 'response', def.response, `${toolName}.response`);
   }
 }
 for (const [epName, ep] of Object.entries(endpointDefs)) {
@@ -150,12 +183,24 @@ for (const [epName, ep] of Object.entries(endpointDefs)) {
         validateParamDef(epName, pName, pDef, `${epName}.methods.${mName}.params.${pName}`);
       }
     }
+    if (mDef.response) {
+      validateParamDef(epName, 'response', mDef.response, `${epName}.methods.${mName}.response`);
+    }
   }
 }
 
 // ─── Zod Code Generation ───
 
-function paramToZod(name: string, def: ParamDef, indent: string): string {
+function sharedSchemaConstName(name: string): string {
+  const safe = name
+    .split(/[^a-zA-Z0-9]+/)
+    .filter(Boolean)
+    .map((part) => part[0]!.toUpperCase() + part.slice(1))
+    .join('');
+  return `${safe}SharedSchema`;
+}
+
+function buildZodExpr(name: string, def: ParamDef, indent: string, applyOptional = true): string {
   let zodExpr: string;
 
   switch (def.type) {
@@ -174,6 +219,10 @@ function paramToZod(name: string, def: ParamDef, indent: string): string {
     case 'enum':
       if (!def.values?.length) throw new Error(`Enum param "${name}" has no values`);
       zodExpr = `z.enum([${def.values.map(v => `'${v}'`).join(', ')}])`;
+      break;
+    case 'ref':
+      if (!def.ref) throw new Error(`Ref param "${name}" has no target`);
+      zodExpr = sharedSchemaConstName(def.ref);
       break;
     case 'array': {
       const itemsZod = resolveArrayItems(name, def);
@@ -204,10 +253,14 @@ function paramToZod(name: string, def: ParamDef, indent: string): string {
       zodExpr = 'z.unknown()';
   }
 
-  if (!def.required) zodExpr += '.optional()';
+  if (applyOptional && !def.required) zodExpr += '.optional()';
   if (def.description) zodExpr += `.describe(${JSON.stringify(def.description)})`;
 
   return zodExpr;
+}
+
+function paramToZod(name: string, def: ParamDef, indent: string): string {
+  return buildZodExpr(name, def, indent, true);
 }
 
 function resolveArrayItems(name: string, def: ParamDef): string {
@@ -224,6 +277,28 @@ function resolveArrayItems(name: string, def: ParamDef): string {
   // Nested object definition — force required: true (array items are never optional)
   const itemDef = { ...def.items, required: true };
   return paramToZod(name + '_item', itemDef, '      ');
+}
+
+function generateSharedSchemaDecls(): string {
+  if (Object.keys(paramDefinitions).length === 0) return '';
+  const sharedSchemas = Object.entries(paramDefinitions).map(([name, def]) => {
+    const requiredDef = { ...def, required: true };
+    return `const ${sharedSchemaConstName(name)}: z.ZodTypeAny = z.lazy(() => ${buildZodExpr(name, requiredDef, '  ', false)});`;
+  });
+  return `${sharedSchemas.join('\n')}\n\n`;
+}
+
+function indentBlock(text: string, spaces: number): string {
+  const indent = ' '.repeat(spaces);
+  return text
+    .split('\n')
+    .map((line) => `${indent}${line}`)
+    .join('\n');
+}
+
+function generateResponseSchemaExpr(name: string, def: ParamDef): string {
+  const requiredDef = { ...def, required: true };
+  return buildZodExpr(name, requiredDef, '  ', false);
 }
 
 // ─── Generate _generated.ts ───
@@ -243,6 +318,11 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Bridge } from '../bridge.js';
 
+`;
+
+genCode += generateSharedSchemaDecls();
+
+genCode += `
 export function registerGeneratedTools(server: McpServer, bridge: Bridge): void {
 `;
 
@@ -399,6 +479,79 @@ if (Object.keys(endpointDefs).length > 0) {
   }
 }
 
+// ─── Generate _contracts.ts ───
+
+const toolResponseDefs = Object.entries(toolDefs)
+  .filter(([, def]) => def.response);
+const endpointResponseDefs = Object.entries(endpointDefs)
+  .map(([epName, ep]) => {
+    const methods = Object.entries(ep.methods).filter(([, mDef]) => mDef.response);
+    return [epName, methods] as const;
+  })
+  .filter(([, methods]) => methods.length > 0);
+
+let contractCode = `/**
+ * AUTO-GENERATED by scripts/compile-schema.ts — DO NOT EDIT
+ *
+ * Tool response contracts and example payloads derived from schema/tools.yaml.
+ * These are intended for docs, tests, and future prompt/runtime validation work.
+ *
+ * Re-generate: npm run schema
+ */
+
+import { z } from 'zod';
+
+`;
+
+contractCode += generateSharedSchemaDecls();
+
+contractCode += `export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
+`;
+
+for (const [toolName, def] of toolResponseDefs) {
+  contractCode += `  '${toolName}': ${generateResponseSchemaExpr(`${toolName}Response`, def.response!)},\n`;
+}
+
+contractCode += `};
+
+export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
+`;
+
+for (const [toolName, def] of toolResponseDefs) {
+  const examples = def.examples ?? [];
+  contractCode += `  '${toolName}': ${indentBlock(JSON.stringify(examples, null, 2), 2).trimStart()},\n`;
+}
+
+contractCode += `};
+
+export const GENERATED_ENDPOINT_METHOD_RESPONSE_SCHEMAS: Record<string, Record<string, z.ZodTypeAny>> = {
+`;
+
+for (const [epName, methods] of endpointResponseDefs) {
+  contractCode += `  '${epName}': {\n`;
+  for (const [methodName, methodDef] of methods) {
+    contractCode += `    '${methodName}': ${generateResponseSchemaExpr(`${epName}_${methodName}Response`, methodDef.response!)},\n`;
+  }
+  contractCode += `  },\n`;
+}
+
+contractCode += `};
+
+export const GENERATED_ENDPOINT_METHOD_RESPONSE_EXAMPLES: Record<string, Record<string, unknown[]>> = {
+`;
+
+for (const [epName, methods] of endpointResponseDefs) {
+  contractCode += `  '${epName}': {\n`;
+  for (const [methodName, methodDef] of methods) {
+    const examples = methodDef.examples ?? [];
+    contractCode += `    '${methodName}': ${indentBlock(JSON.stringify(examples, null, 2), 4).trimStart()},\n`;
+  }
+  contractCode += `  },\n`;
+}
+
+contractCode += `};
+`;
+
 // ─── Generate _registry.ts ───
 
 const coreTools: string[] = [];
@@ -430,6 +583,7 @@ for (const [name, def] of Object.entries(toolDefs)) {
 const endpointTools: string[] = [];
 const endpointReplaces: Record<string, string[]> = {};
 const endpointMethodAccess: Record<string, Record<string, { write: boolean; access?: string }>> = {};
+const flatToolMigrations: Record<string, { endpoint: string; method: string; toolset: string; write: boolean; access?: string }> = {};
 
 for (const [name, ep] of Object.entries(endpointDefs)) {
   endpointTools.push(name);
@@ -449,7 +603,23 @@ for (const [name, ep] of Object.entries(endpointDefs)) {
     const entry: { write: boolean; access?: string } = { write: mDef.write };
     if (mDef.access) entry.access = mDef.access;
     methodAccess[mName] = entry;
-    if (mDef.maps_to) replaces.push(mDef.maps_to);
+    if (mDef.maps_to) {
+      replaces.push(mDef.maps_to);
+      if (flatToolMigrations[mDef.maps_to]) {
+        console.error(
+          `ERROR: flat tool "${mDef.maps_to}" is mapped more than once: ` +
+          `${flatToolMigrations[mDef.maps_to].endpoint}.${flatToolMigrations[mDef.maps_to].method} and ${name}.${mName}`,
+        );
+        process.exit(1);
+      }
+      flatToolMigrations[mDef.maps_to] = {
+        endpoint: name,
+        method: mName,
+        toolset: ep.toolset,
+        write: mDef.write,
+        ...(mDef.access ? { access: mDef.access } : {}),
+      };
+    }
   }
 
   endpointMethodAccess[name] = methodAccess;
@@ -554,6 +724,20 @@ for (const [epName, replaces] of Object.entries(endpointReplaces)) {
 
 regCode += `};
 
+/** Flat tool → endpoint.method migration map */
+export const GENERATED_FLAT_TOOL_MIGRATIONS: Record<
+  string,
+  { endpoint: string; method: string; toolset: string; write: boolean; access?: 'create' | 'edit' }
+> = {
+`;
+
+for (const [flatTool, migration] of Object.entries(flatToolMigrations)) {
+  const accessStr = migration.access ? `, access: '${migration.access}'` : '';
+  regCode += `  '${flatTool}': { endpoint: '${migration.endpoint}', method: '${migration.method}', toolset: '${migration.toolset}', write: ${migration.write}${accessStr} },\n`;
+}
+
+regCode += `};
+
 /** Deprecated tools → replacement endpoint.method */
 export const GENERATED_DEPRECATED_TOOLS: Record<string, { replacedBy: string }> = {
 `;
@@ -585,12 +769,18 @@ regCode += `};
 
 // ─── Write files ───
 
-writeFileSync(GEN_PATH, genCode, 'utf-8');
-writeFileSync(REG_PATH, regCode, 'utf-8');
+for (const target of GENERATED_TARGETS) {
+  mkdirSync(dirname(target.genPath), { recursive: true });
+  mkdirSync(dirname(target.regPath), { recursive: true });
+  mkdirSync(dirname(target.contractPath), { recursive: true });
+  writeFileSync(target.genPath, genCode, 'utf-8');
+  writeFileSync(target.regPath, regCode, 'utf-8');
+  writeFileSync(target.contractPath, contractCode, 'utf-8');
+}
 
 // ─── Auto-sync version.ts from package.json ───
 
-const VERSION_PATH = resolve(ROOT, 'src/shared/version.ts');
+const VERSION_PATH = resolve(ROOT, 'packages/shared/src/version.ts');
 const pkgJson = JSON.parse(readFileSync(resolve(ROOT, 'package.json'), 'utf-8')) as { version: string };
 const currentVersionTs = readFileSync(VERSION_PATH, 'utf-8');
 const versionRegex = /export const VERSION = '([^']+)'/;
@@ -615,5 +805,8 @@ if (endpointCount > 0) {
   const totalMethods = Object.values(endpointDefs).reduce((sum, ep) => sum + Object.keys(ep.methods).length, 0);
   console.log(`   ${endpointCount} endpoints with ${totalMethods} total methods`);
 }
-console.log(`   → ${GEN_PATH}`);
-console.log(`   → ${REG_PATH}`);
+for (const target of GENERATED_TARGETS) {
+  console.log(`   [${target.name}] → ${target.genPath}`);
+  console.log(`   [${target.name}] → ${target.regPath}`);
+  console.log(`   [${target.name}] → ${target.contractPath}`);
+}

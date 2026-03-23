@@ -12,7 +12,7 @@ import {
   colorsEqual,
   hexContrastRatio,
   hexToRgbTuple,
-} from '../src/plugin/utils/color.js';
+} from '../packages/adapter-figma/src/utils/color.js';
 
 describe('hexToFigmaRgba', () => {
   it('converts 6-digit hex', () => {

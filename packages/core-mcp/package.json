@@ -1,0 +1,22 @@
+{
+  "name": "@figcraft/core-mcp",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./prompts/*": "./src/prompts/*"
+  },
+  "scripts": {
+    "build": "tsup --config tsup.config.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@figcraft/relay": "0.1.0",
+    "@figcraft/shared": "0.1.0",
+    "@modelcontextprotocol/sdk": "^1.27",
+    "ws": "^8.18",
+    "zod": "^3.23"
+  }
+}

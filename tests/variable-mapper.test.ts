@@ -7,7 +7,7 @@ import {
   dtcgTypeToFigmaType,
   inferScopes,
   tokenPathToVariableName,
-} from '../src/plugin/adapters/variable-mapper.js';
+} from '../packages/adapter-figma/src/adapters/variable-mapper.js';
 
 describe('dtcgTypeToFigmaType', () => {
   it('maps color → COLOR', () => {

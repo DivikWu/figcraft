@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { AbstractNode, LintContext } from '../src/plugin/linter/types.js';
-import { wcagContrastRule } from '../src/plugin/linter/rules/wcag-contrast.js';
+import type { AbstractNode, LintContext } from '../packages/quality-engine/src/types.js';
+import { wcagContrastRule } from '../packages/quality-engine/src/rules/wcag-contrast.js';
 
 const emptyCtx: LintContext = {
   colorTokens: new Map(),

@@ -17,12 +17,41 @@
 # The `access` field is only meaningful when `write: true`.
 # If `write: true` and `access` is omitted, defaults to `edit` (most restrictive).
 #
-# Param types: string, number, boolean, enum, array, object, record, unknown, tuple
+# Param types: string, number, boolean, enum, array, object, record, unknown, tuple, ref
 #   enum   → values: [A, B, C]
 #   array  → items: { type: string }  (or shorthand items: string)
 #   object → fields: { key: { type: ..., description: ... } }
 #   record → valueType: unknown
 #   tuple  → items: [number, number]
+#   ref    → ref: shared_definition_name
+
+_param_definitions:
+  node_role:
+    type: enum
+    values: [screen, header, hero, nav, content, list, row, stats, card, form, field, input, button, footer, actions, social_row, system_bar]
+  node_type:
+    type: enum
+    values: [frame, text, rectangle, ellipse, line, vector, instance]
+  node_spec:
+    type: object
+    fields:
+      type:
+        type: ref
+        ref: node_type
+        required: true
+      name:
+        type: string
+      role:
+        type: ref
+        ref: node_role
+      props:
+        type: record
+        valueType: unknown
+      children:
+        type: array
+        items:
+          type: ref
+          ref: node_spec
 
 # ═══════════════════════════════════════════════════════════════
 # CORE TOOLS (~33 always enabled)
@@ -41,6 +70,38 @@ ping:
     channel:
       type: string
       description: Channel ID (defaults to current channel)
+  response:
+    type: object
+    fields:
+      connected:
+        type: boolean
+        required: true
+      latency:
+        type: string
+      serverVersion:
+        type: string
+      pluginVersion:
+        type: string
+      versionWarning:
+        type: string
+      error:
+        type: string
+      _hint:
+        type: string
+      result:
+        type: record
+        valueType: unknown
+  examples:
+    - connected: true
+      latency: "18ms"
+      serverVersion: "0.1.0"
+      pluginVersion: "0.1.0"
+      _hint: "Connection OK. Proceed with your task — do NOT stop here."
+      result:
+        ok: true
+        channel: "design-1"
+    - connected: false
+      error: "Not connected to relay. Start the relay (npm run dev:relay) and open the Figma plugin."
 
 get_mode:
   description: >-
@@ -54,6 +115,63 @@ get_mode:
   write: false
   handler: custom
   params: {}
+  response:
+    type: object
+    fields:
+      connected:
+        type: boolean
+        required: true
+      latency:
+        type: string
+      versionWarning:
+        type: string
+      mode:
+        type: enum
+        values: [library, spec]
+      selectedLibrary:
+        type: string
+      designContext:
+        type: record
+        valueType: unknown
+      libraryComponents:
+        type: array
+        items:
+          type: object
+          fields:
+            key:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            description:
+              type: string
+              required: true
+      libraryComponentsError:
+        type: string
+      libraryComponentsUnavailable:
+        type: boolean
+      _hint:
+        type: string
+      error:
+        type: string
+  examples:
+    - connected: true
+      latency: "24ms"
+      mode: "library"
+      selectedLibrary: "Acme DS"
+      designContext:
+        source: "library"
+        collections:
+          - name: "Color"
+            key: "VariableCollectionId:1:2"
+      libraryComponents:
+        - key: "component-key"
+          name: "Button / Primary"
+          description: "Primary CTA button"
+      _hint: "Library mode — tokens and components loaded. NEXT: Reply to user to gather missing preferences (UI type, platform). Do NOT call any more tools. If user provided everything, reply with design proposal instead."
+    - connected: false
+      error: "Not connected to Figma. Open the FigCraft plugin in Figma and try again."
 
 set_mode:
   description: >-
@@ -73,6 +191,19 @@ set_mode:
     library:
       type: string
       description: 'Library name to use in library mode (from list_library_collections libraryName). Use "__local__" to select current file local styles/variables.'
+  response:
+    type: object
+    fields:
+      mode:
+        type: enum
+        values: [library, spec]
+        required: true
+      description:
+        type: string
+        required: true
+  examples:
+    - mode: "library"
+      description: "Using Figma shared library as token source. Lint checks variable/style bindings."
 
 join_channel:
   description: >-
@@ -86,6 +217,22 @@ join_channel:
       type: string
       required: true
       description: The channel ID shown in the Figma plugin UI
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      channel:
+        type: string
+      message:
+        type: string
+      error:
+        type: string
+  examples:
+    - ok: true
+      channel: "design-1"
+      message: "Joined channel \"design-1\". Commands will now target this document."
 
 get_channel:
   description: Get the current channel ID that the MCP Server is connected to.
@@ -93,6 +240,18 @@ get_channel:
   write: false
   handler: custom
   params: {}
+  response:
+    type: object
+    fields:
+      channel:
+        type: string
+        required: true
+      connected:
+        type: boolean
+        required: true
+  examples:
+    - channel: "design-1"
+      connected: true
 
 # ─── Read Nodes ───
 
@@ -108,6 +267,65 @@ get_node_info:
       type: string
       required: true
       description: 'The Figma node ID (e.g. "1:23")'
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      type:
+        type: string
+        required: true
+      x:
+        type: number
+      y:
+        type: number
+      width:
+        type: number
+      height:
+        type: number
+      children:
+        type: array
+        items:
+          type: object
+          fields:
+            id:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            type:
+              type: string
+              required: true
+      _error:
+        type: string
+      _sizeKB:
+        type: number
+      _limitKB:
+        type: number
+      method:
+        type: string
+      warning:
+        type: string
+      hints:
+        type: array
+        items: string
+      _preview:
+        type: string
+  examples:
+    - id: "1:23"
+      name: "Login Screen"
+      type: "FRAME"
+      width: 402
+      height: 874
+      children:
+        - id: "1:24"
+          name: "Login Form"
+          type: "FRAME"
 
 get_current_page:
   description: >-
@@ -125,6 +343,66 @@ get_current_page:
     maxDepth:
       type: number
       description: "Maximum tree depth to traverse (default: 10). Use 1-2 for fast overview of large pages."
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      childCount:
+        type: number
+        required: true
+      returnedNodes:
+        type: number
+        required: true
+      truncated:
+        type: boolean
+      nodes:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            id:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            type:
+              type: string
+              required: true
+      _error:
+        type: string
+      _sizeKB:
+        type: number
+      _limitKB:
+        type: number
+      method:
+        type: string
+      warning:
+        type: string
+      hints:
+        type: array
+        items: string
+      _preview:
+        type: string
+  examples:
+    - id: "0:1"
+      name: "Page 1"
+      childCount: 3
+      returnedNodes: 2
+      truncated: true
+      nodes:
+        - id: "1:10"
+          name: "Dashboard"
+          type: "FRAME"
+        - id: "1:20"
+          name: "Settings"
+          type: "FRAME"
 
 get_document_info:
   description: >-
@@ -135,6 +413,40 @@ get_document_info:
   write: false
   handler: custom
   params: {}
+  response:
+    type: object
+    fields:
+      name:
+        type: string
+        required: true
+      currentPage:
+        type: string
+        required: true
+      pages:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            id:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            childCount:
+              type: number
+              required: true
+  examples:
+    - name: "Acme Product"
+      currentPage: "Page 1"
+      pages:
+        - id: "0:1"
+          name: "Page 1"
+          childCount: 12
+        - id: "0:2"
+          name: "Components"
+          childCount: 48
 
 get_selection:
   description: Get the currently selected nodes in Figma with full compressed data.
@@ -142,6 +454,36 @@ get_selection:
   write: false
   handler: bridge
   params: {}
+  response:
+    type: object
+    fields:
+      count:
+        type: number
+        required: true
+      nodes:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            id:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            type:
+              type: string
+              required: true
+  examples:
+    - count: 2
+      nodes:
+        - id: "1:10"
+          name: "CTA Button"
+          type: "FRAME"
+        - id: "1:11"
+          name: "Headline"
+          type: "TEXT"
 
 search_nodes:
   description: >-
@@ -162,6 +504,51 @@ search_nodes:
     limit:
       type: number
       description: "Maximum results to return (default: 50)"
+  response:
+    type: object
+    fields:
+      count:
+        type: number
+        required: true
+      nodes:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            id:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            type:
+              type: string
+              required: true
+      _error:
+        type: string
+      _sizeKB:
+        type: number
+      _limitKB:
+        type: number
+      method:
+        type: string
+      warning:
+        type: string
+      hints:
+        type: array
+        items: string
+      _preview:
+        type: string
+  examples:
+    - count: 2
+      nodes:
+        - id: "1:10"
+          name: "Login Button"
+          type: "FRAME"
+        - id: "1:11"
+          name: "Login Title"
+          type: "TEXT"
 
 list_fonts:
   description: >-
@@ -175,6 +562,33 @@ list_fonts:
     family:
       type: string
       description: Font family name to get available styles for
+  response:
+    type: object
+    fields:
+      family:
+        type: string
+      styles:
+        type: array
+        items: string
+      count:
+        type: number
+      families:
+        type: array
+        items: string
+      total:
+        type: number
+  examples:
+    - families:
+        - "Inter"
+        - "SF Pro Display"
+        - "JetBrains Mono"
+      total: 3
+    - family: "Inter"
+      styles:
+        - "Regular"
+        - "Medium"
+        - "Bold"
+      count: 3
 
 # ─── Write Nodes (primary) ───
 
@@ -188,6 +602,12 @@ create_document:
     Use instance type with props.componentKey or props.componentId to inline component instances
     (supports props.properties for variant overrides).
     Frame props support layoutSizingHorizontal/layoutSizingVertical (FIXED/HUG/FILL) for intuitive sizing control.
+    Use role on semantic frames (screen/header/hero/nav/content/list/row/stats/card/form/button/input/footer/etc.) to reduce name-based misclassification.
+    Explicit roles apply the same shared safety defaults used by create_screen, and marginHorizontal / marginLeft / marginRight
+    are converted into transparent inset wrappers automatically.
+    By default, FigCraft runs a scoped post-create lint/fix pass on the newly created root nodes.
+    Treat this as the raw tree path. For complete screens, prefer create_screen; use create_document for partial inserts or
+    low-level control.
     PREREQUISITE: You MUST call get_mode first to load design tokens. Without it, elements will lack token bindings.
   toolset: core
   write: true
@@ -200,8 +620,247 @@ create_document:
     nodes:
       type: array
       required: true
-      items: object
+      items:
+        type: ref
+        ref: node_spec
       description: Array of node specs (supports 7 levels of nesting)
+    autoLint:
+      type: boolean
+      description: Run scoped post-create lint/fix on the created root nodes (default true)
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      error:
+        type: string
+      created:
+        type: array
+        items:
+          type: object
+          fields:
+            id:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            type:
+              type: string
+              required: true
+      truncated:
+        type: boolean
+      warnings:
+        type: array
+        items: string
+      errors:
+        type: array
+        items:
+          type: object
+          fields:
+            index:
+              type: number
+              required: true
+            name:
+              type: string
+            type:
+              type: string
+              required: true
+            error:
+              type: string
+              required: true
+      postCreateLint:
+        type: record
+        valueType: unknown
+  examples:
+    - ok: true
+      created:
+        - id: "12:34"
+          name: "Auth Screen"
+          type: "FRAME"
+      postCreateLint:
+        scopedNodeIds: ["12:34"]
+        initial:
+          violations: 0
+        final:
+          violations: 0
+    - ok: false
+      error: "nodes array must not be empty"
+
+create_screen:
+  description: >-
+    Create a full screen progressively: first the screen shell, then each section,
+    then a final scoped lint/fix pass.
+    Preferred for complete screens when quality matters more than a single raw tree call.
+    The shell defaults to role=screen and gets platform size presets when width/height are omitted.
+    Supports semantic sections like hero/content/card and inset wrapper helpers for filled children.
+    This is the default high-level screen workflow used by the generation benchmark and release gate.
+  toolset: core
+  write: true
+  access: create
+  handler: custom
+  params:
+    name:
+      type: string
+      description: 'Screen name (default: "Screen")'
+    parentId:
+      type: string
+      description: Parent node ID. Omit to add to current page.
+    platform:
+      type: enum
+      values: [ios, android, web]
+      description: Platform preset for the screen shell
+    hasSystemBar:
+      type: boolean
+      description: Apply full-bleed system bar shell defaults
+    wrapInSection:
+      type: boolean
+      description: Create a Figma Section around the finished screen
+    shell:
+      type: ref
+      ref: node_spec
+      description: Root screen node spec. Defaults to a frame with role=screen if omitted.
+    sections:
+      type: array
+      items:
+        type: ref
+        ref: node_spec
+      description: Section node specs appended to the screen root one by one
+    autoLint:
+      type: boolean
+      description: Run scoped lint/fix after shell and each section (default true)
+    finalLint:
+      type: boolean
+      description: Run one final scoped lint/fix pass on the complete screen root (default true)
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      error:
+        type: string
+      failedStage:
+        type: string
+      screenRootId:
+        type: string
+      screen:
+        type: record
+        valueType: unknown
+      canvasSection:
+        type: record
+        valueType: unknown
+      sections:
+        type: array
+        items:
+          type: object
+          fields:
+            index:
+              type: number
+              required: true
+            name:
+              type: string
+            ok:
+              type: boolean
+              required: true
+            result:
+              type: record
+              valueType: unknown
+      pipelineStages:
+        type: array
+        items:
+          type: object
+          fields:
+            stage:
+              type: string
+              required: true
+            ok:
+              type: boolean
+              required: true
+            createdCount:
+              type: number
+              required: true
+            nodeIds:
+              type: array
+              items: string
+            lint:
+              type: record
+              valueType: unknown
+            warningCount:
+              type: number
+            patchCallCount:
+              type: number
+            patchNodeCount:
+              type: number
+            patchRules:
+              type: array
+              items: string
+            structuralErrors:
+              type: array
+              items: object
+            debugStats:
+              type: record
+              valueType: unknown
+      pipelineSummary:
+        type: record
+        valueType: unknown
+      finalLint:
+        type: record
+        valueType: unknown
+  examples:
+    - ok: true
+      screenRootId: "20:1"
+      screen:
+        ok: true
+        created:
+          - id: "20:1"
+            name: "Marketing Hero"
+            type: "FRAME"
+      sections:
+        - index: 0
+          name: "Hero Section"
+          ok: true
+          result:
+            ok: true
+            created:
+              - id: "20:2"
+                name: "Hero Content"
+                type: "FRAME"
+      pipelineStages:
+        - stage: "shell"
+          ok: true
+          createdCount: 1
+          nodeIds:
+            - "20:1"
+          warningCount: 0
+          patchCallCount: 0
+          patchNodeCount: 0
+          patchRules: []
+          structuralErrors: []
+          debugStats: {}
+        - stage: "section:1"
+          ok: true
+          createdCount: 1
+          nodeIds:
+            - "20:2"
+          warningCount: 0
+          patchCallCount: 0
+          patchNodeCount: 0
+          patchRules: []
+          structuralErrors: []
+          debugStats: {}
+      pipelineSummary:
+        stageCount: 2
+        createdCount: 2
+        warningCount: 0
+        remaining: 0
+      finalLint:
+        scopedNodeIds:
+          - "20:1"
+        remaining: 0
+    - ok: false
+      error: "create_screen could not determine the created screen root"
 
 create_frame:
   description: >-
@@ -274,6 +933,48 @@ create_frame:
     fill:
       type: string
       description: 'Fill color as hex (e.g. "#FF0000")'
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      type:
+        type: string
+        required: true
+      x:
+        type: number
+      y:
+        type: number
+      width:
+        type: number
+      height:
+        type: number
+      layoutMode:
+        type: string
+      itemSpacing:
+        type: number
+      autoBound:
+        type: string
+      colorHint:
+        type: string
+      warnings:
+        type: array
+        items: string
+  examples:
+    - id: "30:1"
+      name: "Card Frame"
+      type: "FRAME"
+      x: 64
+      y: 120
+      width: 320
+      height: 180
+      layoutMode: "VERTICAL"
+      itemSpacing: 16
+      autoBound: "surface/default"
 
 create_text:
   description: >-
@@ -314,6 +1015,53 @@ create_text:
     parentId:
       type: string
       description: Parent node ID
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      type:
+        type: string
+        required: true
+      x:
+        type: number
+      y:
+        type: number
+      width:
+        type: number
+      height:
+        type: number
+      characters:
+        type: string
+      fontSize:
+        type: number
+      autoBound:
+        type: record
+        valueType: unknown
+      colorHint:
+        type: string
+  examples:
+    - id: "30:2"
+      name: "Hero Title"
+      type: "TEXT"
+      x: 88
+      y: 164
+      width: 220
+      height: 40
+      characters: "Ship Faster"
+      fontSize: 32
+      autoBound:
+        color: "text/primary"
+        typography: "style:Heading/L"
+    - id: "30:3"
+      name: "Body Copy"
+      type: "TEXT"
+      characters: "Build polished screens with AI."
+      fontSize: 16
 
 patch_nodes:
   description: >-
@@ -345,6 +1093,30 @@ patch_nodes:
             valueType: unknown
             description: Properties to update
       description: Array of node patches
+  response:
+    type: object
+    fields:
+      results:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            nodeId:
+              type: string
+              required: true
+            ok:
+              type: boolean
+              required: true
+            error:
+              type: string
+  examples:
+    - results:
+        - nodeId: "30:1"
+          ok: true
+        - nodeId: "30:2"
+          ok: false
+          error: "Node not found"
 
 delete_nodes:
   description: Delete multiple nodes by ID in one call. Preferred over multiple delete_node calls.
@@ -358,6 +1130,30 @@ delete_nodes:
       required: true
       items: string
       description: Array of node IDs to delete
+  response:
+    type: object
+    fields:
+      results:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            nodeId:
+              type: string
+              required: true
+            ok:
+              type: boolean
+              required: true
+            error:
+              type: string
+  examples:
+    - results:
+        - nodeId: "30:1"
+          ok: true
+        - nodeId: "999:1"
+          ok: false
+          error: "Node not found"
 
 set_text_content:
   description: Update the text content of an existing text node.
@@ -374,6 +1170,16 @@ set_text_content:
       type: string
       required: true
       description: New text content
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      error:
+        type: string
+  examples:
+    - ok: true
 
 clone_node:
   description: Clone a node and return the new copy.
@@ -386,6 +1192,32 @@ clone_node:
       type: string
       required: true
       description: Node ID to clone
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      type:
+        type: string
+        required: true
+      x:
+        type: number
+      y:
+        type: number
+      width:
+        type: number
+      height:
+        type: number
+  examples:
+    - id: "60:1"
+      name: "Cloned Card"
+      type: "FRAME"
+      width: 320
+      height: 180
 
 insert_child:
   description: Move a node into a parent container, optionally at a specific index.
@@ -405,6 +1237,16 @@ insert_child:
     index:
       type: number
       description: Insert position (0-based). Omit to append at end.
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      error:
+        type: string
+  examples:
+    - ok: true
 
 # ─── Components (read — core) ───
 
@@ -414,6 +1256,38 @@ list_components:
   write: false
   handler: bridge
   params: {}
+  response:
+    type: object
+    fields:
+      count:
+        type: number
+        required: true
+      components:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            id:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            description:
+              type: string
+            key:
+              type: string
+  examples:
+    - count: 2
+      components:
+        - id: "12:1"
+          name: "Button / Primary"
+          description: "Main call-to-action button"
+          key: "button-primary-key"
+        - id: "12:2"
+          name: "Input / Default"
+          key: "input-default-key"
 
 list_library_components:
   description: >-
@@ -427,6 +1301,35 @@ list_library_components:
     fileKey:
       type: string
       description: "Figma file key. If omitted, uses the key from the selected library's configured URL."
+  response:
+    type: object
+    fields:
+      count:
+        type: number
+        required: true
+      components:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            key:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            description:
+              type: string
+  examples:
+    - count: 2
+      components:
+        - key: "library-button-primary"
+          name: "Button / Primary"
+          description: "Primary CTA button"
+        - key: "library-input-default"
+          name: "Input / Default"
+          description: "Default text field"
 
 list_component_properties:
   description: >-
@@ -440,6 +1343,35 @@ list_component_properties:
       type: string
       required: true
       description: Component or ComponentSet node ID
+  response:
+    type: object
+    fields:
+      properties:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            key:
+              type: string
+              required: true
+            type:
+              type: string
+              required: true
+            defaultValue:
+              type: unknown
+            variantOptions:
+              type: array
+              items: string
+  examples:
+    - properties:
+        - key: "State"
+          type: "VARIANT"
+          defaultValue: "Default"
+          variantOptions: ["Default", "Pressed", "Disabled"]
+        - key: "Has Icon"
+          type: "BOOLEAN"
+          defaultValue: false
 
 get_component:
   description: Get full details of a component by node ID.
@@ -451,6 +1383,55 @@ get_component:
       type: string
       required: true
       description: Component node ID
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      type:
+        type: string
+        required: true
+      width:
+        type: number
+      height:
+        type: number
+      description:
+        type: string
+      key:
+        type: string
+      children:
+        type: array
+        items:
+          type: object
+          fields:
+            id:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            type:
+              type: string
+              required: true
+      componentPropertyDefinitions:
+        type: record
+        valueType: unknown
+  examples:
+    - id: "12:1"
+      name: "Button / Primary"
+      type: "COMPONENT"
+      width: 160
+      height: 48
+      description: "Main call-to-action button"
+      key: "button-primary-key"
+      componentPropertyDefinitions:
+        State#1:
+          type: "VARIANT"
+          defaultValue: "Default"
 
 create_instance:
   description: >-
@@ -474,6 +1455,37 @@ create_instance:
     parentId:
       type: string
       description: Parent node ID to append to
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      type:
+        type: string
+        required: true
+      x:
+        type: number
+      y:
+        type: number
+      width:
+        type: number
+      height:
+        type: number
+      componentPropertyReferences:
+        type: record
+        valueType: string
+      error:
+        type: string
+  examples:
+    - id: "40:1"
+      name: "Button / Primary"
+      type: "INSTANCE"
+      width: 160
+      height: 48
 
 # ─── Lint (batch — core) ───
 
@@ -507,6 +1519,49 @@ lint_fix_all:
     maxViolations:
       type: number
       description: "Stop collecting after this many violations (performance optimization for large pages)"
+  response:
+    type: object
+    fields:
+      lint:
+        type: object
+        required: true
+        fields:
+          total:
+            type: number
+            required: true
+          pass:
+            type: number
+            required: true
+          violations:
+            type: number
+            required: true
+          bySeverity:
+            type: record
+            valueType: unknown
+      fixable:
+        type: number
+        required: true
+      fixed:
+        type: number
+        required: true
+      fixFailed:
+        type: number
+        required: true
+      remaining:
+        type: number
+        required: true
+  examples:
+    - lint:
+        total: 24
+        pass: 20
+        violations: 4
+        bySeverity:
+          warning: 3
+          error: 1
+      fixable: 3
+      fixed: 3
+      fixFailed: 0
+      remaining: 1
 
 # ─── Pages (core) ───
 
@@ -522,6 +1577,22 @@ set_current_page:
       type: string
       required: true
       description: Page name or page ID
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      pageId:
+        type: string
+      pageName:
+        type: string
+      error:
+        type: string
+  examples:
+    - ok: true
+      pageId: "0:2"
+      pageName: "Components"
 
 # ─── Export (core) ───
 
@@ -542,6 +1613,22 @@ export_image:
     scale:
       type: number
       description: "Export scale for raster formats (default: 2)"
+  response:
+    type: object
+    fields:
+      format:
+        type: string
+        required: true
+      size:
+        type: number
+        required: true
+      base64:
+        type: string
+        required: true
+  examples:
+    - format: "PNG"
+      size: 18432
+      base64: "iVBORw0KGgoAAAANSUhEUgAAAAUA"
 
 # ─── Version (core) ───
 
@@ -561,6 +1648,22 @@ save_version_history:
     description:
       type: string
       description: Optional description of what was done
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      title:
+        type: string
+        required: true
+      description:
+        type: string
+        required: true
+  examples:
+    - ok: true
+      title: "Before refactor"
+      description: "Checkpoint before layout cleanup"
 
 # ─── Selection (core) ───
 
@@ -580,6 +1683,27 @@ set_selection:
     scrollIntoView:
       type: boolean
       description: "Scroll viewport to show selected nodes (default: true)"
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      selectedCount:
+        type: number
+        required: true
+      notFound:
+        type: array
+        required: true
+        items: string
+  examples:
+    - ok: true
+      selectedCount: 2
+      notFound: []
+    - ok: true
+      selectedCount: 1
+      notFound:
+        - "999:1"
 
 # ─── Shapes & Vectors (core) ───
 
@@ -620,6 +1744,40 @@ create_rectangle:
     strokeWeight:
       type: number
       description: "Stroke weight (default: 1)"
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      type:
+        type: string
+        required: true
+      x:
+        type: number
+      y:
+        type: number
+      width:
+        type: number
+      height:
+        type: number
+      cornerRadius:
+        type: unknown
+      autoBound:
+        type: string
+      colorHint:
+        type: string
+  examples:
+    - id: "50:1"
+      name: "Card Background"
+      type: "RECTANGLE"
+      width: 320
+      height: 180
+      cornerRadius: 24
+      autoBound: "surface/default"
 
 create_ellipse:
   description: Create an ellipse (circle) node. Supports fill and stroke.
@@ -655,6 +1813,37 @@ create_ellipse:
     strokeWeight:
       type: number
       description: "Stroke weight (default: 1)"
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      type:
+        type: string
+        required: true
+      x:
+        type: number
+      y:
+        type: number
+      width:
+        type: number
+      height:
+        type: number
+      autoBound:
+        type: string
+      colorHint:
+        type: string
+  examples:
+    - id: "50:2"
+      name: "Avatar Dot"
+      type: "ELLIPSE"
+      width: 40
+      height: 40
+      autoBound: "surface/accent"
 
 create_vector:
   description: >-
@@ -686,6 +1875,32 @@ create_vector:
     parentId:
       type: string
       description: Parent node ID
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      type:
+        type: string
+        required: true
+      x:
+        type: number
+      y:
+        type: number
+      width:
+        type: number
+      height:
+        type: number
+  examples:
+    - id: "70:1"
+      name: "Arrow Icon"
+      type: "FRAME"
+      width: 24
+      height: 24
 
 set_image_fill:
   description: >-
@@ -708,6 +1923,19 @@ set_image_fill:
       type: enum
       values: [FILL, FIT, CROP, TILE]
       description: "Image scale mode (default: FILL)"
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      imageHash:
+        type: string
+      error:
+        type: string
+  examples:
+    - ok: true
+      imageHash: "b2f7c1d4a9"
 
 # ═══════════════════════════════════════════════════════════════
 # TOOLSET: variables (18 tools)
@@ -727,6 +1955,55 @@ list_variables:
     type:
       type: string
       description: "Filter by resolved type: COLOR, FLOAT, STRING, BOOLEAN"
+  response:
+    type: object
+    fields:
+      count:
+        type: number
+        required: true
+      variables:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            id:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            resolvedType:
+              type: string
+              required: true
+            description:
+              type: string
+            collectionId:
+              type: string
+              required: true
+            collectionName:
+              type: string
+              required: true
+            scopes:
+              type: array
+              required: true
+              items: string
+            valuesByMode:
+              type: record
+              required: true
+              valueType: unknown
+  examples:
+    - count: 1
+      variables:
+        - id: "VariableID:1:12"
+          name: "color/brand/primary"
+          resolvedType: "COLOR"
+          description: "Primary brand color"
+          collectionId: "VariableCollectionId:1:2"
+          collectionName: "Primitives"
+          scopes: ["ALL_FILLS"]
+          valuesByMode:
+            Default: "#7c3aed"
 
 get_variable:
   description: >-
@@ -740,6 +2017,49 @@ get_variable:
       type: string
       required: true
       description: The Figma variable ID
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      resolvedType:
+        type: string
+        required: true
+      description:
+        type: string
+      collectionId:
+        type: string
+        required: true
+      collectionName:
+        type: string
+      scopes:
+        type: array
+        required: true
+        items: string
+      codeSyntax:
+        type: unknown
+      valuesByMode:
+        type: record
+        required: true
+        valueType: unknown
+      error:
+        type: string
+  examples:
+    - id: "VariableID:1:12"
+      name: "color/brand/primary"
+      resolvedType: "COLOR"
+      description: "Primary brand color"
+      collectionId: "VariableCollectionId:1:2"
+      collectionName: "Primitives"
+      scopes: ["ALL_FILLS"]
+      codeSyntax:
+        WEB: "var(--color-brand-primary)"
+      valuesByMode:
+        Default: "#7c3aed"
 
 list_collections:
   description: List all local variable collections with their modes and variable counts.
@@ -747,6 +2067,39 @@ list_collections:
   write: false
   handler: bridge
   params: {}
+  response:
+    type: array
+    items:
+      type: object
+      fields:
+        id:
+          type: string
+          required: true
+        name:
+          type: string
+          required: true
+        modes:
+          type: array
+          required: true
+          items:
+            type: object
+            fields:
+              modeId:
+                type: string
+                required: true
+              name:
+                type: string
+                required: true
+        variableCount:
+          type: number
+          required: true
+  examples:
+    - - id: "VariableCollectionId:1:2"
+        name: "Primitives"
+        modes:
+          - modeId: "1:0"
+            name: "Default"
+        variableCount: 12
 
 get_node_variables:
   description: Get all variable bindings on a node — shows which variables are bound to which properties.
@@ -758,6 +2111,24 @@ get_node_variables:
       type: string
       required: true
       description: Node ID to inspect for variable bindings
+  response:
+    type: object
+    fields:
+      nodeId:
+        type: string
+        required: true
+      bindings:
+        type: object
+        required: true
+      error:
+        type: string
+  examples:
+    - nodeId: "1:24"
+      bindings:
+        fills:
+          - variableId: "VariableID:1:12"
+            variableName: "color/brand/primary"
+            collectionId: "VariableCollectionId:1:2"
 
 set_variable_binding:
   description: 'Bind a variable to a specific property on a node (e.g. fills, cornerRadius, itemSpacing).'
@@ -778,6 +2149,16 @@ set_variable_binding:
       type: string
       required: true
       description: Variable ID to bind
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      error:
+        type: string
+  examples:
+    - ok: true
 
 set_explicit_variable_mode:
   description: >-
@@ -800,6 +2181,16 @@ set_explicit_variable_mode:
       type: string
       required: true
       description: Mode ID to set (get available modes from list_collections)
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      error:
+        type: string
+  examples:
+    - ok: true
 
 create_variable:
   description: Create a new Figma variable in a collection.
@@ -834,6 +2225,24 @@ create_variable:
       type: array
       items: string
       description: "Variable scopes (e.g. ALL_FILLS, CORNER_RADIUS)"
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      resolvedType:
+        type: string
+        required: true
+      error:
+        type: string
+  examples:
+    - id: "VariableID:1:30"
+      name: "spacing/md"
+      resolvedType: "FLOAT"
 
 update_variable:
   description: Update properties of an existing variable (name, description, scopes, value).
@@ -862,6 +2271,19 @@ update_variable:
     modeId:
       type: string
       description: Mode ID for the value update
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      id:
+        type: string
+      error:
+        type: string
+  examples:
+    - ok: true
+      id: "VariableID:1:30"
 
 delete_variable:
   description: Delete a variable by ID.
@@ -874,6 +2296,16 @@ delete_variable:
       type: string
       required: true
       description: Variable ID to delete
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      error:
+        type: string
+  examples:
+    - ok: true
 
 create_collection:
   description: Create a new variable collection. Returns the collection ID and default mode.
@@ -886,6 +2318,33 @@ create_collection:
       type: string
       required: true
       description: Collection name
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      modes:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            modeId:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+  examples:
+    - id: "VariableCollectionId:1:2"
+      name: "Semantic"
+      modes:
+        - modeId: "1:0"
+          name: "Mode 1"
 
 delete_collection:
   description: Delete a variable collection by ID.
@@ -898,6 +2357,16 @@ delete_collection:
       type: string
       required: true
       description: Collection ID to delete
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      error:
+        type: string
+  examples:
+    - ok: true
 
 rename_collection:
   description: Rename a variable collection.
@@ -914,6 +2383,22 @@ rename_collection:
       type: string
       required: true
       description: New collection name
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      id:
+        type: string
+      name:
+        type: string
+      error:
+        type: string
+  examples:
+    - ok: true
+      id: "VariableCollectionId:1:2"
+      name: "Semantic"
 
 add_collection_mode:
   description: Add a new mode to a variable collection. Returns the new mode ID.
@@ -930,6 +2415,22 @@ add_collection_mode:
       type: string
       required: true
       description: 'Mode name (e.g. "Dark", "Compact")'
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      modeId:
+        type: string
+      name:
+        type: string
+      error:
+        type: string
+  examples:
+    - ok: true
+      modeId: "1:1"
+      name: "Dark"
 
 rename_collection_mode:
   description: Rename an existing mode in a variable collection.
@@ -950,6 +2451,16 @@ rename_collection_mode:
       type: string
       required: true
       description: New mode name
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      error:
+        type: string
+  examples:
+    - ok: true
 
 remove_collection_mode:
   description: Remove a mode from a variable collection. Cannot remove the last remaining mode.
@@ -966,6 +2477,16 @@ remove_collection_mode:
       type: string
       required: true
       description: Mode ID to remove
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      error:
+        type: string
+  examples:
+    - ok: true
 
 create_variable_alias:
   description: >-
@@ -988,6 +2509,22 @@ create_variable_alias:
     modeId:
       type: string
       description: Mode ID (defaults to first mode)
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      variableId:
+        type: string
+      aliasTo:
+        type: string
+      error:
+        type: string
+  examples:
+    - ok: true
+      variableId: "VariableID:1:40"
+      aliasTo: "color/brand/primary"
 
 export_variables:
   description: >-
@@ -1000,6 +2537,45 @@ export_variables:
     collectionId:
       type: string
       description: Filter by collection ID. Omit to export all.
+  response:
+    type: object
+    fields:
+      count:
+        type: number
+        required: true
+      variables:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            path:
+              type: string
+              required: true
+            type:
+              type: string
+              required: true
+            valuesByMode:
+              type: record
+              required: true
+              valueType: unknown
+            description:
+              type: string
+            scopes:
+              type: array
+              items: string
+            aliasOf:
+              type: record
+              valueType: string
+  examples:
+    - count: 1
+      variables:
+        - path: "color.brand.primary"
+          type: "color"
+          valuesByMode:
+            Default: "#7c3aed"
+          description: "Primary brand color"
+          scopes: ["ALL_FILLS"]
 
 batch_create_variables:
   description: >-
@@ -1042,6 +2618,39 @@ batch_create_variables:
           scopes:
             type: array
             items: string
+  response:
+    type: object
+    fields:
+      created:
+        type: number
+        required: true
+      skipped:
+        type: number
+        required: true
+      failed:
+        type: number
+        required: true
+      errors:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            name:
+              type: string
+              required: true
+            error:
+              type: string
+              required: true
+      collectionId:
+        type: string
+        required: true
+  examples:
+    - created: 2
+      skipped: 0
+      failed: 0
+      errors: []
+      collectionId: "VariableCollectionId:1:2"
       description: Array of variables to create
 
 # ═══════════════════════════════════════════════════════════════
@@ -1063,6 +2672,48 @@ list_tokens:
     type:
       type: string
       description: 'Filter by token type (e.g. "color", "typography")'
+  response:
+    type: object
+    fields:
+      total:
+        type: number
+        required: true
+      showing:
+        type: number
+        required: true
+      tokens:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            path:
+              type: string
+              required: true
+            type:
+              type: string
+              required: true
+            value:
+              type: unknown
+              required: true
+            description:
+              type: string
+            extensions:
+              type: object
+  examples:
+    - total: 2
+      showing: 2
+      tokens:
+        - path: "color.brand.primary"
+          type: "color"
+          value: "#7c3aed"
+          description: "Primary brand color"
+        - path: "text.heading.l"
+          type: "typography"
+          value:
+            fontFamily: "Inter"
+            fontWeight: 700
+            fontSize: 32
 
 sync_tokens:
   description: >-
@@ -1083,6 +2734,66 @@ sync_tokens:
     modeName:
       type: string
       description: 'Mode name (default: "Default")'
+  response:
+    type: object
+    fields:
+      variables:
+        type: object
+        required: true
+        fields:
+          created:
+            type: number
+            required: true
+          updated:
+            type: number
+            required: true
+          skipped:
+            type: number
+            required: true
+          failed:
+            type: number
+            required: true
+          failures:
+            type: array
+            required: true
+            items: object
+      styles:
+        type: object
+        required: true
+        fields:
+          created:
+            type: number
+            required: true
+          updated:
+            type: number
+            required: true
+          skipped:
+            type: number
+            required: true
+          failed:
+            type: number
+            required: true
+          failures:
+            type: array
+            required: true
+            items: object
+      totalTokens:
+        type: number
+        required: true
+  examples:
+    - variables:
+        created: 10
+        updated: 2
+        skipped: 1
+        failed: 0
+        failures: []
+      styles:
+        created: 2
+        updated: 0
+        skipped: 0
+        failed: 0
+        failures: []
+      totalTokens: 15
 
 sync_tokens_multi_mode:
   description: >-
@@ -1102,6 +2813,49 @@ sync_tokens_multi_mode:
     collectionName:
       type: string
       description: 'Collection name (default: "Design Tokens")'
+  response:
+    type: object
+    fields:
+      collectionId:
+        type: string
+        required: true
+      modes:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            modeId:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+      results:
+        type: object
+        required: true
+  examples:
+    - collectionId: "VariableCollectionId:1:2"
+      modes:
+        - modeId: "1:0"
+          name: "Light"
+        - modeId: "1:1"
+          name: "Dark"
+      results:
+        Light:
+          variables:
+            created: 8
+            updated: 0
+            skipped: 0
+            failed: 0
+            failures: []
+          styles:
+            created: 2
+            updated: 0
+            skipped: 0
+            failed: 0
+            failures: []
+          totalTokens: 10
 
 diff_tokens:
   description: >-
@@ -1118,6 +2872,55 @@ diff_tokens:
     collectionName:
       type: string
       description: Collection to compare against
+  response:
+    type: object
+    fields:
+      summary:
+        type: object
+        required: true
+        fields:
+          inSync:
+            type: number
+            required: true
+          dtcgAhead:
+            type: number
+            required: true
+          missingInFigma:
+            type: number
+            required: true
+          missingInDtcg:
+            type: number
+            required: true
+      diff:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            path:
+              type: string
+              required: true
+            status:
+              type: string
+              required: true
+            dtcgValue:
+              type: unknown
+            figmaValue:
+              type: unknown
+  examples:
+    - summary:
+        inSync: 8
+        dtcgAhead: 1
+        missingInFigma: 2
+        missingInDtcg: 0
+      diff:
+        - path: "color.brand.primary"
+          status: "in-sync"
+          dtcgValue: "#7c3aed"
+          figmaValue: "#7c3aed"
+        - path: "spacing.lg"
+          status: "missing-in-figma"
+          dtcgValue: 24
 
 reverse_sync_tokens:
   description: >-
@@ -1138,6 +2941,22 @@ reverse_sync_tokens:
     modeName:
       type: string
       description: "Mode to export values from (default: first mode)"
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      filePath:
+        type: string
+        required: true
+      tokenCount:
+        type: number
+        required: true
+  examples:
+    - ok: true
+      filePath: "/tmp/tokens.json"
+      tokenCount: 24
 
 cache_tokens:
   description: >-
@@ -1155,6 +2974,18 @@ cache_tokens:
     name:
       type: string
       description: "Cache entry name (default: file basename)"
+  response:
+    type: object
+    fields:
+      cached:
+        type: number
+        required: true
+      name:
+        type: string
+        required: true
+  examples:
+    - cached: 24
+      name: "tokens-light"
 
 list_cached_tokens:
   description: List all cached token entries in Figma clientStorage.
@@ -1163,6 +2994,17 @@ list_cached_tokens:
   handler: bridge
   bridgeMethod: list_spec_tokens
   params: {}
+  response:
+    type: object
+    fields:
+      entries:
+        type: array
+        required: true
+        items: string
+  examples:
+    - entries:
+        - "tokens-light"
+        - "tokens-dark"
 
 delete_cached_tokens:
   description: Delete a cached token entry from Figma clientStorage.
@@ -1176,6 +3018,14 @@ delete_cached_tokens:
       type: string
       required: true
       description: Cache entry name to delete
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+  examples:
+    - ok: true
 
 scan_styles:
   description: Scan all local styles (paint, text, effect) and return a summary with counts and details.
@@ -1183,6 +3033,89 @@ scan_styles:
   write: false
   handler: bridge
   params: {}
+  response:
+    type: object
+    fields:
+      paint:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            id:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            paints:
+              type: number
+              required: true
+      text:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            id:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            fontSize:
+              type: number
+              required: true
+            fontName:
+              type: unknown
+      effect:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            id:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            effects:
+              type: number
+              required: true
+      summary:
+        type: object
+        required: true
+        fields:
+          paintCount:
+            type: number
+            required: true
+          textCount:
+            type: number
+            required: true
+          effectCount:
+            type: number
+            required: true
+  examples:
+    - paint:
+        - id: "Style:1"
+          name: "Color/Brand/Primary"
+          paints: 1
+      text:
+        - id: "Style:2"
+          name: "Text/Heading/L"
+          fontSize: 32
+          fontName:
+            family: "Inter"
+            style: "Bold"
+      effect:
+        - id: "Style:3"
+          name: "Shadow/Card/Default"
+          effects: 1
+      summary:
+        paintCount: 1
+        textCount: 1
+        effectCount: 1
 
 export_tokens:
   description: Export all local Figma variables as DTCG-format tokens, grouped by collection.
@@ -1190,6 +3123,14 @@ export_tokens:
   write: false
   handler: bridge
   params: {}
+  response:
+    type: object
+  examples:
+    - Design Tokens:
+        color/brand/primary:
+          $value: "#7c3aed"
+          $type: "color"
+          $description: "Primary brand color"
 
 diff_styles:
   description: >-
@@ -1218,6 +3159,37 @@ diff_styles:
             required: true
             description: Token value
       description: DTCG tokens to compare against Figma variables
+  response:
+    type: object
+    fields:
+      diff:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            path:
+              type: string
+              required: true
+            status:
+              type: string
+              required: true
+            dtcgValue:
+              type: unknown
+            figmaValue:
+              type: unknown
+      total:
+        type: number
+        required: true
+      error:
+        type: string
+  examples:
+    - diff:
+        - path: "color.brand.primary"
+          status: "in-sync"
+          dtcgValue: "#7c3aed"
+          figmaValue: "#7c3aed"
+      total: 1
 
 # ═══════════════════════════════════════════════════════════════
 # TOOLSET: styles (10 tools)
@@ -1234,6 +3206,66 @@ list_styles:
     type:
       type: string
       description: "Filter by style type: PAINT, TEXT, EFFECT, GRID"
+  response:
+    type: object
+    fields:
+      count:
+        type: number
+        required: true
+      styles:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            id:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            type:
+              type: string
+              required: true
+            description:
+              type: string
+            paints:
+              type: array
+              items: object
+            fontName:
+              type: unknown
+            fontSize:
+              type: number
+            letterSpacing:
+              type: unknown
+            lineHeight:
+              type: unknown
+            textCase:
+              type: string
+            textDecoration:
+              type: string
+            effects:
+              type: array
+              items: object
+  examples:
+    - count: 2
+      styles:
+        - id: "Style:1"
+          name: "Color/Brand/Primary"
+          type: "PAINT"
+          description: "Primary brand color"
+          paints:
+            - type: "SOLID"
+              visible: true
+              opacity: 1
+              color: "#7c3aed"
+        - id: "Style:2"
+          name: "Text/Heading/L"
+          type: "TEXT"
+          fontName:
+            family: "Inter"
+            style: "Bold"
+          fontSize: 32
 
 get_style:
   description: Get detailed info for a specific style by ID.
@@ -1245,6 +3277,50 @@ get_style:
       type: string
       required: true
       description: The Figma style ID
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      type:
+        type: string
+        required: true
+      description:
+        type: string
+      paints:
+        type: array
+        items: object
+      fontName:
+        type: unknown
+      fontSize:
+        type: number
+      letterSpacing:
+        type: unknown
+      lineHeight:
+        type: unknown
+      textCase:
+        type: string
+      textDecoration:
+        type: string
+      effects:
+        type: array
+        items: object
+      error:
+        type: string
+  examples:
+    - id: "Style:1"
+      name: "Color/Brand/Primary"
+      type: "PAINT"
+      description: "Primary brand color"
+      paints:
+        - type: "SOLID"
+          visible: true
+          opacity: 1
+          color: "#7c3aed"
 
 sync_styles:
   description: >-
@@ -1277,6 +3353,39 @@ sync_styles:
             type: string
             description: Token description
       description: Array of composite design tokens to sync
+  response:
+    type: object
+    fields:
+      created:
+        type: number
+        required: true
+      updated:
+        type: number
+        required: true
+      skipped:
+        type: number
+        required: true
+      failed:
+        type: number
+        required: true
+      failures:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            path:
+              type: string
+              required: true
+            error:
+              type: string
+              required: true
+  examples:
+    - created: 2
+      updated: 1
+      skipped: 0
+      failed: 0
+      failures: []
 
 create_paint_style:
   description: Create a new paint style with a solid color fill.
@@ -1296,6 +3405,18 @@ create_paint_style:
     description:
       type: string
       description: Style description
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+  examples:
+    - id: "Style:10"
+      name: "Color/Brand/Primary"
 
 delete_style:
   description: Delete a style by ID.
@@ -1308,6 +3429,16 @@ delete_style:
       type: string
       required: true
       description: Style ID to delete
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      error:
+        type: string
+  examples:
+    - ok: true
 
 update_paint_style:
   description: "Update an existing paint style. Can change name, description, and/or color."
@@ -1329,6 +3460,20 @@ update_paint_style:
     color:
       type: string
       description: 'New hex color (e.g. "#FF0000")'
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      error:
+        type: string
+  examples:
+    - id: "Style:10"
+      name: "Color/Brand/Accent"
 
 update_text_style:
   description: "Update an existing text style. Can change name, description, font, size, line height, letter spacing."
@@ -1362,6 +3507,23 @@ update_text_style:
     letterSpacing:
       type: unknown
       description: "Letter spacing: number (px) or {value, unit}"
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      fontSize:
+        type: number
+      error:
+        type: string
+  examples:
+    - id: "Style:11"
+      name: "Text/Heading/L"
+      fontSize: 32
 
 update_effect_style:
   description: "Update an existing effect style. Can change name, description, and effects array."
@@ -1386,6 +3548,20 @@ update_effect_style:
         type: record
         valueType: unknown
       description: New effects array (raw Figma effect objects)
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      error:
+        type: string
+  examples:
+    - id: "Style:12"
+      name: "Shadow/Card/Default"
 
 register_library_styles:
   description: >-
@@ -1405,6 +3581,31 @@ register_library_styles:
       type: object
       required: true
       description: Style data with textStyles, paintStyles, effectStyles arrays
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      registered:
+        type: object
+        required: true
+        fields:
+          textStyles:
+            type: number
+            required: true
+          paintStyles:
+            type: number
+            required: true
+          effectStyles:
+            type: number
+            required: true
+  examples:
+    - ok: true
+      registered:
+        textStyles: 8
+        paintStyles: 12
+        effectStyles: 3
 
 get_registered_styles:
   description: Get previously registered styles for a library. Returns null if not registered.
@@ -1416,6 +3617,91 @@ get_registered_styles:
       type: string
       required: true
       description: Library name
+  response:
+    type: object
+    fields:
+      textStyles:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            key:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            fontSize:
+              type: number
+              required: true
+            fontFamily:
+              type: string
+              required: true
+            fontWeight:
+              type: string
+              required: true
+      paintStyles:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            key:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            hex:
+              type: string
+              required: true
+      effectStyles:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            key:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            effectType:
+              type: string
+              required: true
+      _loaded:
+        type: object
+        fields:
+          text:
+            type: number
+            required: true
+          paint:
+            type: number
+            required: true
+          effect:
+            type: number
+            required: true
+  examples:
+    - textStyles:
+        - key: "S:1"
+          name: "Text/Heading/L"
+          fontSize: 32
+          fontFamily: "Inter"
+          fontWeight: "Bold"
+      paintStyles:
+        - key: "S:2"
+          name: "Color/Brand/Primary"
+          hex: "#7c3aed"
+      effectStyles:
+        - key: "S:3"
+          name: "Shadow/Card/Default"
+          effectType: "DROP_SHADOW"
+      _loaded:
+        text: 1
+        paint: 1
+        effect: 1
 
 # ═══════════════════════════════════════════════════════════════
 # TOOLSET: components-advanced (13 tools)
@@ -1440,6 +3726,34 @@ create_component:
     description:
       type: string
       description: Component description
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      type:
+        type: string
+        required: true
+      width:
+        type: number
+        required: true
+      height:
+        type: number
+        required: true
+      visible:
+        type: boolean
+        required: true
+  examples:
+    - id: "80:1"
+      name: "Button / Primary"
+      type: "COMPONENT"
+      width: 160
+      height: 48
+      visible: true
 
 create_component_set:
   description: Combine multiple existing components into a variant set (ComponentSet).
@@ -1456,6 +3770,34 @@ create_component_set:
     name:
       type: string
       description: Name for the variant set
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      type:
+        type: string
+        required: true
+      width:
+        type: number
+        required: true
+      height:
+        type: number
+        required: true
+      visible:
+        type: boolean
+        required: true
+  examples:
+    - id: "81:1"
+      name: "Button"
+      type: "COMPONENT_SET"
+      width: 320
+      height: 48
+      visible: true
 
 update_component:
   description: "Update a component's name, description, or size."
@@ -1480,6 +3822,34 @@ update_component:
     height:
       type: number
       description: New height in px
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      type:
+        type: string
+        required: true
+      width:
+        type: number
+        required: true
+      height:
+        type: number
+        required: true
+      visible:
+        type: boolean
+        required: true
+  examples:
+    - id: "80:1"
+      name: "Button / Secondary"
+      type: "COMPONENT"
+      width: 160
+      height: 48
+      visible: true
 
 delete_component:
   description: Delete a component node.
@@ -1492,6 +3862,14 @@ delete_component:
       type: string
       required: true
       description: Component node ID to delete
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+  examples:
+    - ok: true
 
 swap_instance:
   description: Swap an existing instance to a different component.
@@ -1508,6 +3886,36 @@ swap_instance:
       type: string
       required: true
       description: New component key to swap to
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      type:
+        type: string
+        required: true
+      width:
+        type: number
+        required: true
+      height:
+        type: number
+        required: true
+      visible:
+        type: boolean
+        required: true
+      error:
+        type: string
+  examples:
+    - id: "82:1"
+      name: "Button / Primary"
+      type: "INSTANCE"
+      width: 160
+      height: 48
+      visible: true
 
 detach_instance:
   description: Detach an instance from its component, converting it to a frame.
@@ -1520,6 +3928,36 @@ detach_instance:
       type: string
       required: true
       description: Instance node ID
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      type:
+        type: string
+        required: true
+      width:
+        type: number
+        required: true
+      height:
+        type: number
+        required: true
+      visible:
+        type: boolean
+        required: true
+      error:
+        type: string
+  examples:
+    - id: "83:1"
+      name: "Button / Primary"
+      type: "FRAME"
+      width: 160
+      height: 48
+      visible: true
 
 reset_instance_overrides:
   description: Reset all overrides on an instance back to the component defaults.
@@ -1532,6 +3970,14 @@ reset_instance_overrides:
       type: string
       required: true
       description: Instance node ID
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+  examples:
+    - ok: true
 
 get_instance_overrides:
   description: Get the current override properties of a component instance (values that differ from component defaults).
@@ -1543,6 +3989,36 @@ get_instance_overrides:
       type: string
       required: true
       description: Instance node ID
+  response:
+    type: object
+    fields:
+      nodeId:
+        type: string
+        required: true
+      nodeName:
+        type: string
+        required: true
+      properties:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            key:
+              type: string
+              required: true
+            type:
+              type: string
+              required: true
+            value:
+              type: unknown
+  examples:
+    - nodeId: "82:1"
+      nodeName: "Button / Primary"
+      properties:
+        - key: "State"
+          type: "VARIANT"
+          value: "Default"
 
 set_instance_overrides:
   description: >-
@@ -1562,6 +4038,18 @@ set_instance_overrides:
       required: true
       items: string
       description: Target instance node IDs to apply overrides to
+  response:
+    type: object
+    fields:
+      succeeded:
+        type: number
+        required: true
+      failed:
+        type: number
+        required: true
+  examples:
+    - succeeded: 3
+      failed: 0
 
 add_component_property:
   description: >-
@@ -1589,6 +4077,20 @@ add_component_property:
       type: unknown
       required: true
       description: Default value
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      properties:
+        type: array
+        items: string
+      error:
+        type: string
+  examples:
+    - ok: true
+      properties: ["State", "Label"]
 
 update_component_property:
   description: Update an existing component property (rename or change default value).
@@ -1611,6 +4113,20 @@ update_component_property:
     defaultValue:
       type: unknown
       description: New default value
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      properties:
+        type: array
+        items: string
+      error:
+        type: string
+  examples:
+    - ok: true
+      properties: ["State", "Label"]
 
 delete_component_property:
   description: Remove a property from a component or component set.
@@ -1627,6 +4143,20 @@ delete_component_property:
       type: string
       required: true
       description: Property name to delete
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      properties:
+        type: array
+        items: string
+      error:
+        type: string
+  examples:
+    - ok: true
+      properties: ["State"]
 
 audit_components:
   description: >-
@@ -1641,6 +4171,50 @@ audit_components:
       type: array
       items: string
       description: "Specific node IDs to audit (default: entire page)"
+  response:
+    type: object
+    fields:
+      summary:
+        type: object
+        required: true
+        fields:
+          totalComponents:
+            type: number
+            required: true
+          totalIssues:
+            type: number
+            required: true
+      components:
+        type: array
+        required: true
+        items: object
+      issues:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            nodeId:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            issue:
+              type: string
+              required: true
+  examples:
+    - summary:
+        totalComponents: 4
+        totalIssues: 1
+      components:
+        - id: "80:1"
+          name: "Button / Primary"
+          propertyCount: 2
+      issues:
+        - nodeId: "80:1"
+          name: "Button / Primary"
+          issue: "Missing description"
 
 # ═══════════════════════════════════════════════════════════════
 # TOOLSET: library (7 tools)
@@ -1654,6 +4228,24 @@ list_library_collections:
   write: false
   handler: bridge
   params: {}
+  response:
+    type: array
+    items:
+      type: object
+      fields:
+        key:
+          type: string
+          required: true
+        name:
+          type: string
+          required: true
+        libraryName:
+          type: string
+          required: true
+  examples:
+    - - key: "VarCollectionKey:1"
+        name: "Color"
+        libraryName: "Acme DS"
 
 list_library_variables:
   description: List all variables in a specific team library collection.
@@ -1665,6 +4257,33 @@ list_library_variables:
       type: string
       required: true
       description: The library collection key
+  response:
+    type: object
+    fields:
+      count:
+        type: number
+        required: true
+      variables:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            key:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            resolvedType:
+              type: string
+              required: true
+  examples:
+    - count: 1
+      variables:
+        - key: "VariableKey:1"
+          name: "color/brand/primary"
+          resolvedType: "COLOR"
 
 import_library_variable:
   description: >-
@@ -1679,6 +4298,29 @@ import_library_variable:
       type: string
       required: true
       description: The library variable key to import
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      resolvedType:
+        type: string
+        required: true
+      description:
+        type: string
+      key:
+        type: string
+        required: true
+  examples:
+    - id: "VariableID:9:1"
+      name: "color/brand/primary"
+      resolvedType: "COLOR"
+      description: "Primary brand color"
+      key: "VariableKey:1"
 
 list_library_styles:
   description: >-
@@ -1697,6 +4339,44 @@ list_library_styles:
       type: enum
       values: [TEXT, FILL, EFFECT, GRID]
       description: Filter by style type. Omit to return all types.
+  response:
+    type: object
+    fields:
+      count:
+        type: number
+        required: true
+      styles:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            key:
+              type: string
+              required: true
+            file_key:
+              type: string
+              required: true
+            node_id:
+              type: string
+              required: true
+            style_type:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            description:
+              type: string
+  examples:
+    - count: 1
+      styles:
+        - key: "StyleKey:1"
+          file_key: "abc123"
+          node_id: "1:2"
+          style_type: "TEXT"
+          name: "Text/Heading/L"
+          description: "Display heading"
 
 get_library_style_details:
   description: >-
@@ -1715,6 +4395,50 @@ get_library_style_details:
       required: true
       items: object
       description: Style entries from list_library_styles
+  response:
+    type: object
+    fields:
+      count:
+        type: number
+        required: true
+      styles:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            key:
+              type: string
+              required: true
+            file_key:
+              type: string
+              required: true
+            node_id:
+              type: string
+              required: true
+            style_type:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            description:
+              type: string
+            properties:
+              type: object
+              required: true
+  examples:
+    - count: 1
+      styles:
+        - key: "StyleKey:1"
+          file_key: "abc123"
+          node_id: "1:2"
+          style_type: "TEXT"
+          name: "Text/Heading/L"
+          description: "Display heading"
+          properties:
+            fontFamily: "Inter"
+            fontSize: 32
 
 sync_library_styles:
   description: >-
@@ -1733,6 +4457,52 @@ sync_library_styles:
       type: string
       required: true
       description: Library name for registration
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      discovered:
+        type: object
+        required: true
+        fields:
+          total:
+            type: number
+            required: true
+          text:
+            type: number
+            required: true
+          fill:
+            type: number
+            required: true
+          effect:
+            type: number
+            required: true
+      diff:
+        type: object
+        required: true
+      registered:
+        type: unknown
+        required: true
+  examples:
+    - ok: true
+      discovered:
+        total: 12
+        text: 4
+        fill: 6
+        effect: 2
+      diff:
+        added: []
+        removed: []
+        modified: []
+        unchanged: 12
+      registered:
+        ok: true
+        registered:
+          textStyles: 4
+          paintStyles: 6
+          effectStyles: 2
 
 import_library_style:
   description: >-
@@ -1747,6 +4517,29 @@ import_library_style:
       type: string
       required: true
       description: The style key (from list_library_styles)
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      type:
+        type: string
+        required: true
+      key:
+        type: string
+        required: true
+      description:
+        type: string
+  examples:
+    - id: "Style:21"
+      name: "Text/Heading/L"
+      type: "TEXT"
+      key: "StyleKey:1"
+      description: "Display heading"
 
 # ═══════════════════════════════════════════════════════════════
 # TOOLSET: shapes-vectors (6 tools)
@@ -1783,6 +4576,34 @@ create_line:
     strokeWeight:
       type: number
       description: "Stroke weight (default: 1)"
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      type:
+        type: string
+        required: true
+      width:
+        type: number
+        required: true
+      height:
+        type: number
+        required: true
+      visible:
+        type: boolean
+        required: true
+  examples:
+    - id: "90:1"
+      name: "Divider"
+      type: "LINE"
+      width: 320
+      height: 0
+      visible: true
 
 create_star:
   description: Create a star shape node.
@@ -1818,6 +4639,34 @@ create_star:
     parentId:
       type: string
       description: Parent node ID
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      type:
+        type: string
+        required: true
+      width:
+        type: number
+        required: true
+      height:
+        type: number
+        required: true
+      visible:
+        type: boolean
+        required: true
+  examples:
+    - id: "90:2"
+      name: "Star"
+      type: "STAR"
+      width: 100
+      height: 100
+      visible: true
 
 create_polygon:
   description: Create a regular polygon shape node.
@@ -1850,6 +4699,34 @@ create_polygon:
     parentId:
       type: string
       description: Parent node ID
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      type:
+        type: string
+        required: true
+      width:
+        type: number
+        required: true
+      height:
+        type: number
+        required: true
+      visible:
+        type: boolean
+        required: true
+  examples:
+    - id: "90:3"
+      name: "Triangle"
+      type: "POLYGON"
+      width: 100
+      height: 100
+      visible: true
 
 create_section:
   description: >-
@@ -1874,6 +4751,26 @@ create_section:
       type: array
       items: string
       description: Node IDs to move inside the section
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      x:
+        type: number
+        required: true
+      y:
+        type: number
+        required: true
+  examples:
+    - id: "91:1"
+      name: "Onboarding"
+      x: 0
+      y: 0
 
 flatten_node:
   description: >-
@@ -1888,6 +4785,36 @@ flatten_node:
       type: string
       required: true
       description: Node ID to flatten
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      type:
+        type: string
+        required: true
+      width:
+        type: number
+        required: true
+      height:
+        type: number
+        required: true
+      visible:
+        type: boolean
+        required: true
+      error:
+        type: string
+  examples:
+    - id: "92:1"
+      name: "Flattened Shape"
+      type: "VECTOR"
+      width: 120
+      height: 120
+      visible: true
 
 boolean_operation:
   description: >-
@@ -1913,6 +4840,34 @@ boolean_operation:
     name:
       type: string
       description: Name for the resulting node
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      type:
+        type: string
+        required: true
+      width:
+        type: number
+        required: true
+      height:
+        type: number
+        required: true
+      visible:
+        type: boolean
+        required: true
+  examples:
+    - id: "93:1"
+      name: "Merged Shape"
+      type: "BOOLEAN_OPERATION"
+      width: 160
+      height: 120
+      visible: true
 
 # ═══════════════════════════════════════════════════════════════
 # TOOLSET: annotations (6 tools)
@@ -1929,6 +4884,37 @@ get_annotations:
     nodeId:
       type: string
       description: Node ID to inspect; omit to scan the entire current page
+  response:
+    type: object
+    fields:
+      nodes:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            nodeId:
+              type: string
+              required: true
+            nodeName:
+              type: string
+              required: true
+            annotations:
+              type: array
+              required: true
+              items: object
+      count:
+        type: number
+        required: true
+  examples:
+    - nodes:
+        - nodeId: "100:1"
+          nodeName: "Login Form"
+          annotations:
+            - label: "Check spacing"
+              properties:
+                - type: "design"
+      count: 1
 
 set_annotation:
   description: >-
@@ -1950,6 +4936,22 @@ set_annotation:
     replace:
       type: boolean
       description: "If true, replaces all existing annotations on the node (default: false = append)"
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      nodeId:
+        type: string
+        required: true
+      count:
+        type: number
+        required: true
+  examples:
+    - ok: true
+      nodeId: "100:1"
+      count: 2
 
 set_multiple_annotations:
   description: Batch annotate multiple nodes in a single call. Each item can independently append or replace.
@@ -1976,6 +4978,27 @@ set_multiple_annotations:
             type: boolean
             description: If true, replaces existing annotations on this node
       description: List of annotation operations
+  response:
+    type: object
+    fields:
+      succeeded:
+        type: number
+        required: true
+      failed:
+        type: number
+        required: true
+      results:
+        type: array
+        required: true
+        items: object
+  examples:
+    - succeeded: 2
+      failed: 0
+      results:
+        - nodeId: "100:1"
+          ok: true
+        - nodeId: "100:2"
+          ok: true
 
 clear_annotations:
   description: Remove all figcraft lint annotations from specified nodes or the whole page.
@@ -1988,6 +5011,14 @@ clear_annotations:
       type: array
       items: string
       description: "Node IDs to clear (default: all on page)"
+  response:
+    type: object
+    fields:
+      cleared:
+        type: number
+        required: true
+  examples:
+    - cleared: 3
 
 get_reactions:
   description: >-
@@ -2000,6 +5031,39 @@ get_reactions:
     nodeId:
       type: string
       description: Node ID to inspect; omit to scan the entire current page
+  response:
+    type: object
+    fields:
+      nodes:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            nodeId:
+              type: string
+              required: true
+            nodeName:
+              type: string
+              required: true
+            reactions:
+              type: array
+              required: true
+              items: object
+      count:
+        type: number
+        required: true
+  examples:
+    - nodes:
+        - nodeId: "101:1"
+          nodeName: "CTA Button"
+          reactions:
+            - trigger:
+                type: "ON_CLICK"
+              actions:
+                - type: "NODE"
+                  destinationId: "101:2"
+      count: 1
 
 analyze_prototype_flow:
   description: >-
@@ -2016,6 +5080,28 @@ analyze_prototype_flow:
       type: enum
       values: [graph, mermaid, markdown, all]
       description: 'Output format (default: "all")'
+  response:
+    type: object
+    fields:
+      graph:
+        type: object
+      mermaid:
+        type: string
+      markdown:
+        type: string
+      message:
+        type: string
+      hint:
+        type: string
+  examples:
+    - graph:
+        stats:
+          totalScreens: 2
+          totalInteractions: 1
+        nodes: []
+        edges: []
+      mermaid: "graph TD\n  A --> B"
+      markdown: "# Prototype Flow Documentation"
 
 # ═══════════════════════════════════════════════════════════════
 # TOOLSET: lint (4 tools)
@@ -2062,6 +5148,59 @@ lint_check:
       type: enum
       values: [error, warning, info, hint]
       description: "Minimum severity to include (default: all). Use 'warning' to hide hints/info."
+  response:
+    type: object
+    fields:
+      summary:
+        type: object
+        required: true
+        fields:
+          total:
+            type: number
+            required: true
+          pass:
+            type: number
+            required: true
+          violations:
+            type: number
+            required: true
+      categories:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            rule:
+              type: string
+              required: true
+            count:
+              type: number
+              required: true
+            nodes:
+              type: array
+              required: true
+              items: object
+      pagination:
+        type: object
+      scope:
+        type: object
+  examples:
+    - summary:
+        total: 10
+        pass: 8
+        violations: 2
+      categories:
+        - rule: "default-name"
+          count: 1
+          nodes:
+            - nodeId: "1:2"
+              nodeName: "Frame 1"
+              suggestion: "Rename the frame semantically."
+              autoFixable: false
+      scope:
+        type: "page"
+        count: 1
+        pageName: "Page 1"
 
 lint_fix:
   description: >-
@@ -2077,6 +5216,31 @@ lint_fix:
       required: true
       items: object
       description: Violations to fix (from lint_check result)
+  response:
+    type: object
+    fields:
+      fixed:
+        type: number
+        required: true
+      failed:
+        type: number
+        required: true
+      errors:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            nodeId:
+              type: string
+              required: true
+            error:
+              type: string
+              required: true
+  examples:
+    - fixed: 2
+      failed: 0
+      errors: []
 
 lint_rules:
   description: List all available lint rules with descriptions.
@@ -2084,6 +5248,33 @@ lint_rules:
   write: false
   handler: bridge
   params: {}
+  response:
+    type: object
+    fields:
+      rules:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            name:
+              type: string
+              required: true
+            description:
+              type: string
+              required: true
+            category:
+              type: string
+              required: true
+            severity:
+              type: string
+              required: true
+  examples:
+    - rules:
+        - name: "default-name"
+          description: "Flags default Figma layer names."
+          category: "naming"
+          severity: "warning"
 
 compliance_report:
   description: >-
@@ -2100,6 +5291,29 @@ compliance_report:
     useStoredTokens:
       type: string
       description: Name of cached token set for lint
+  response:
+    type: object
+    fields:
+      overallScore:
+        type: number
+        required: true
+      lint:
+        type: object
+        required: true
+      components:
+        type: object
+        required: true
+  examples:
+    - overallScore: 92
+      lint:
+        score: 95
+        nodesChecked: 20
+        passed: 19
+        violations: 1
+      components:
+        score: 89
+        total: 8
+        issues: 1
 
 # ═══════════════════════════════════════════════════════════════
 # TOOLSET: auth (3 tools)
@@ -2113,6 +5327,22 @@ figma_login:
   write: false
   handler: custom
   params: {}
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      url:
+        type: string
+        required: true
+      message:
+        type: string
+        required: true
+  examples:
+    - ok: true
+      url: "https://www.figma.com/oauth?client_id=example"
+      message: "Please open this URL in your browser to authorize figcraft with Figma."
 
 figma_logout:
   description: Clear stored Figma OAuth credentials.
@@ -2120,6 +5350,18 @@ figma_logout:
   write: false
   handler: custom
   params: {}
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      message:
+        type: string
+        required: true
+  examples:
+    - ok: true
+      message: "Figma credentials cleared."
 
 figma_auth_status:
   description: >-
@@ -2129,6 +5371,17 @@ figma_auth_status:
   write: false
   handler: custom
   params: {}
+  response:
+    type: object
+    fields:
+      method:
+        type: string
+        required: true
+      expiresAt:
+        type: number
+  examples:
+    - method: "oauth"
+      expiresAt: 1893456000000
 
 # ═══════════════════════════════════════════════════════════════
 # TOOLSET: pages (3 tools)
@@ -2145,6 +5398,18 @@ create_page:
       type: string
       required: true
       description: Page name
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+  examples:
+    - id: "0:3"
+      name: "Marketing"
 
 rename_page:
   description: Rename an existing page.
@@ -2161,6 +5426,22 @@ rename_page:
       type: string
       required: true
       description: New page name
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      id:
+        type: string
+      name:
+        type: string
+      error:
+        type: string
+  examples:
+    - ok: true
+      id: "0:3"
+      name: "Marketing"
 
 delete_node:
   description: Delete a node by ID.
@@ -2173,6 +5454,16 @@ delete_node:
       type: string
       required: true
       description: Node ID to delete
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      error:
+        type: string
+  examples:
+    - ok: true
 
 # ═══════════════════════════════════════════════════════════════
 # ENDPOINT TOOLS (resource-oriented API with method dispatch)
@@ -2189,6 +5480,46 @@ nodes:
       description: Get detailed node info by ID (supports Figma URLs)
       maps_to: get_node_info
       write: false
+      response:
+        type: object
+        fields:
+          id:
+            type: string
+            required: true
+          name:
+            type: string
+            required: true
+          type:
+            type: string
+            required: true
+          width:
+            type: number
+          height:
+            type: number
+          children:
+            type: array
+            items:
+              type: object
+              fields:
+                id:
+                  type: string
+                  required: true
+                name:
+                  type: string
+                  required: true
+                type:
+                  type: string
+                  required: true
+      examples:
+        - id: "1:23"
+          name: "Auth Screen"
+          type: "FRAME"
+          width: 402
+          height: 874
+          children:
+            - id: "1:24"
+              name: "Login Form"
+              type: "FRAME"
       params:
         nodeId:
           type: string
@@ -2198,6 +5529,48 @@ nodes:
       description: Search nodes by name, optionally filter by type
       maps_to: search_nodes
       write: false
+      response:
+        type: object
+        fields:
+          count:
+            type: number
+            required: true
+          nodes:
+            type: array
+            required: true
+            items:
+              type: object
+              fields:
+                id:
+                  type: string
+                  required: true
+                name:
+                  type: string
+                  required: true
+                type:
+                  type: string
+                  required: true
+          _error:
+            type: string
+          _sizeKB:
+            type: number
+          _limitKB:
+            type: number
+          method:
+            type: string
+          warning:
+            type: string
+          hints:
+            type: array
+            items: string
+          _preview:
+            type: string
+      examples:
+        - count: 1
+          nodes:
+            - id: "1:10"
+              name: "Login Button"
+              type: "FRAME"
       params:
         query:
           type: string
@@ -2215,6 +5588,27 @@ nodes:
       maps_to: patch_nodes
       write: true
       access: edit
+      response:
+        type: object
+        fields:
+          results:
+            type: array
+            required: true
+            items:
+              type: object
+              fields:
+                nodeId:
+                  type: string
+                  required: true
+                ok:
+                  type: boolean
+                  required: true
+                error:
+                  type: string
+      examples:
+        - results:
+            - nodeId: "30:1"
+              ok: true
       params:
         patches:
           type: array
@@ -2234,6 +5628,27 @@ nodes:
       maps_to: delete_nodes
       write: true
       access: edit
+      response:
+        type: object
+        fields:
+          results:
+            type: array
+            required: true
+            items:
+              type: object
+              fields:
+                nodeId:
+                  type: string
+                  required: true
+                ok:
+                  type: boolean
+                  required: true
+                error:
+                  type: string
+      examples:
+        - results:
+            - nodeId: "30:1"
+              ok: true
       params:
         nodeIds:
           type: array
@@ -2244,6 +5659,28 @@ nodes:
       maps_to: clone_node
       write: true
       access: create
+      response:
+        type: object
+        fields:
+          id:
+            type: string
+            required: true
+          name:
+            type: string
+            required: true
+          type:
+            type: string
+            required: true
+          width:
+            type: number
+          height:
+            type: number
+      examples:
+        - id: "60:1"
+          name: "Cloned Card"
+          type: "FRAME"
+          width: 320
+          height: 180
       params:
         nodeId:
           type: string
@@ -2253,6 +5690,16 @@ nodes:
       maps_to: insert_child
       write: true
       access: edit
+      response:
+        type: object
+        fields:
+          ok:
+            type: boolean
+            required: true
+          error:
+            type: string
+      examples:
+        - ok: true
       params:
         parentId:
           type: string
@@ -2274,6 +5721,33 @@ text:
       maps_to: create_text
       write: true
       access: create
+      response:
+        type: object
+        fields:
+          id:
+            type: string
+            required: true
+          name:
+            type: string
+            required: true
+          type:
+            type: string
+            required: true
+          characters:
+            type: string
+          fontSize:
+            type: number
+          autoBound:
+            type: record
+            valueType: unknown
+      examples:
+        - id: "30:2"
+          name: "Hero Title"
+          type: "TEXT"
+          characters: "Ship Faster"
+          fontSize: 32
+          autoBound:
+            color: "text/primary"
       params:
         content:
           type: string
@@ -2308,6 +5782,16 @@ text:
       maps_to: set_text_content
       write: true
       access: edit
+      response:
+        type: object
+        fields:
+          ok:
+            type: boolean
+            required: true
+          error:
+            type: string
+      examples:
+        - ok: true
       params:
         nodeId:
           type: string
@@ -2329,6 +5813,34 @@ shapes:
       maps_to: create_frame
       write: true
       access: create
+      response:
+        type: object
+        fields:
+          id:
+            type: string
+            required: true
+          name:
+            type: string
+            required: true
+          type:
+            type: string
+            required: true
+          width:
+            type: number
+          height:
+            type: number
+          layoutMode:
+            type: string
+          autoBound:
+            type: string
+      examples:
+        - id: "30:1"
+          name: "Card Frame"
+          type: "FRAME"
+          width: 320
+          height: 180
+          layoutMode: "VERTICAL"
+          autoBound: "surface/default"
       params:
         name:
           type: string
@@ -2374,6 +5886,33 @@ shapes:
       maps_to: create_rectangle
       write: true
       access: create
+      response:
+        type: object
+        fields:
+          id:
+            type: string
+            required: true
+          name:
+            type: string
+            required: true
+          type:
+            type: string
+            required: true
+          width:
+            type: number
+          height:
+            type: number
+          cornerRadius:
+            type: unknown
+          autoBound:
+            type: string
+      examples:
+        - id: "50:1"
+          name: "Card Background"
+          type: "RECTANGLE"
+          width: 320
+          height: 180
+          cornerRadius: 24
       params:
         name:
           type: string
@@ -2400,6 +5939,30 @@ shapes:
       maps_to: create_ellipse
       write: true
       access: create
+      response:
+        type: object
+        fields:
+          id:
+            type: string
+            required: true
+          name:
+            type: string
+            required: true
+          type:
+            type: string
+            required: true
+          width:
+            type: number
+          height:
+            type: number
+          autoBound:
+            type: string
+      examples:
+        - id: "50:2"
+          name: "Avatar Dot"
+          type: "ELLIPSE"
+          width: 40
+          height: 40
       params:
         name:
           type: string
@@ -2424,6 +5987,28 @@ shapes:
       maps_to: create_vector
       write: true
       access: create
+      response:
+        type: object
+        fields:
+          id:
+            type: string
+            required: true
+          name:
+            type: string
+            required: true
+          type:
+            type: string
+            required: true
+          width:
+            type: number
+          height:
+            type: number
+      examples:
+        - id: "70:1"
+          name: "Arrow Icon"
+          type: "FRAME"
+          width: 24
+          height: 24
       params:
         svg:
           type: string
@@ -2452,11 +6037,65 @@ components:
       description: List all components on the current page
       maps_to: list_components
       write: false
+      response:
+        type: object
+        fields:
+          count:
+            type: number
+            required: true
+          components:
+            type: array
+            required: true
+            items:
+              type: object
+              fields:
+                id:
+                  type: string
+                  required: true
+                name:
+                  type: string
+                  required: true
+                description:
+                  type: string
+                key:
+                  type: string
+      examples:
+        - count: 1
+          components:
+            - id: "12:1"
+              name: "Button / Primary"
+              key: "button-primary-key"
       params: {}
     list_library:
       description: List published components from a library file via REST API
       maps_to: list_library_components
       write: false
+      response:
+        type: object
+        fields:
+          count:
+            type: number
+            required: true
+          components:
+            type: array
+            required: true
+            items:
+              type: object
+              fields:
+                key:
+                  type: string
+                  required: true
+                name:
+                  type: string
+                  required: true
+                description:
+                  type: string
+      examples:
+        - count: 1
+          components:
+            - key: "library-button-primary"
+              name: "Button / Primary"
+              description: "Primary CTA button"
       params:
         fileKey:
           type: string
@@ -2465,6 +6104,31 @@ components:
       description: Get full details of a component by node ID
       maps_to: get_component
       write: false
+      response:
+        type: object
+        fields:
+          id:
+            type: string
+            required: true
+          name:
+            type: string
+            required: true
+          type:
+            type: string
+            required: true
+          description:
+            type: string
+          key:
+            type: string
+          componentPropertyDefinitions:
+            type: record
+            valueType: unknown
+      examples:
+        - id: "12:1"
+          name: "Button / Primary"
+          type: "COMPONENT"
+          description: "Main call-to-action button"
+          key: "button-primary-key"
       params:
         nodeId:
           type: string
@@ -2475,6 +6139,30 @@ components:
       maps_to: create_instance
       write: true
       access: create
+      response:
+        type: object
+        fields:
+          id:
+            type: string
+            required: true
+          name:
+            type: string
+            required: true
+          type:
+            type: string
+            required: true
+          width:
+            type: number
+          height:
+            type: number
+          error:
+            type: string
+      examples:
+        - id: "40:1"
+          name: "Button / Primary"
+          type: "INSTANCE"
+          width: 160
+          height: 48
       params:
         componentId:
           type: string
@@ -2493,6 +6181,32 @@ components:
       description: List all properties and variant options of a component
       maps_to: list_component_properties
       write: false
+      response:
+        type: object
+        fields:
+          properties:
+            type: array
+            required: true
+            items:
+              type: object
+              fields:
+                key:
+                  type: string
+                  required: true
+                type:
+                  type: string
+                  required: true
+                defaultValue:
+                  type: unknown
+                variantOptions:
+                  type: array
+                  items: string
+      examples:
+        - properties:
+            - key: "State"
+              type: "VARIANT"
+              defaultValue: "Default"
+              variantOptions: ["Default", "Pressed"]
       params:
         nodeId:
           type: string
@@ -2509,6 +6223,55 @@ variables_ep:
       description: List all local Figma variables
       maps_to: list_variables
       write: false
+      response:
+        type: object
+        fields:
+          count:
+            type: number
+            required: true
+          variables:
+            type: array
+            required: true
+            items:
+              type: object
+              fields:
+                id:
+                  type: string
+                  required: true
+                name:
+                  type: string
+                  required: true
+                resolvedType:
+                  type: string
+                  required: true
+                description:
+                  type: string
+                collectionId:
+                  type: string
+                  required: true
+                collectionName:
+                  type: string
+                  required: true
+                scopes:
+                  type: array
+                  required: true
+                  items: string
+                valuesByMode:
+                  type: record
+                  required: true
+                  valueType: unknown
+      examples:
+        - count: 1
+          variables:
+            - id: "VariableID:1:12"
+              name: "color/brand/primary"
+              resolvedType: "COLOR"
+              description: "Primary brand color"
+              collectionId: "VariableCollectionId:1:2"
+              collectionName: "Primitives"
+              scopes: ["ALL_FILLS"]
+              valuesByMode:
+                Default: "#7c3aed"
       params:
         collectionId:
           type: string
@@ -2520,6 +6283,49 @@ variables_ep:
       description: Get detailed info for a specific variable
       maps_to: get_variable
       write: false
+      response:
+        type: object
+        fields:
+          id:
+            type: string
+            required: true
+          name:
+            type: string
+            required: true
+          resolvedType:
+            type: string
+            required: true
+          description:
+            type: string
+          collectionId:
+            type: string
+            required: true
+          collectionName:
+            type: string
+          scopes:
+            type: array
+            required: true
+            items: string
+          codeSyntax:
+            type: unknown
+          valuesByMode:
+            type: record
+            required: true
+            valueType: unknown
+          error:
+            type: string
+      examples:
+        - id: "VariableID:1:12"
+          name: "color/brand/primary"
+          resolvedType: "COLOR"
+          description: "Primary brand color"
+          collectionId: "VariableCollectionId:1:2"
+          collectionName: "Primitives"
+          scopes: ["ALL_FILLS"]
+          codeSyntax:
+            WEB: "var(--color-brand-primary)"
+          valuesByMode:
+            Default: "#7c3aed"
       params:
         variableId:
           type: string
@@ -2528,11 +6334,62 @@ variables_ep:
       description: List all local variable collections
       maps_to: list_collections
       write: false
+      response:
+        type: array
+        items:
+          type: object
+          fields:
+            id:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            modes:
+              type: array
+              required: true
+              items:
+                type: object
+                fields:
+                  modeId:
+                    type: string
+                    required: true
+                  name:
+                    type: string
+                    required: true
+            variableCount:
+              type: number
+              required: true
+      examples:
+        - - id: "VariableCollectionId:1:2"
+            name: "Primitives"
+            modes:
+              - modeId: "1:0"
+                name: "Default"
+            variableCount: 12
       params: {}
     get_bindings:
       description: Get all variable bindings on a node
       maps_to: get_node_variables
       write: false
+      response:
+        type: object
+        fields:
+          nodeId:
+            type: string
+            required: true
+          bindings:
+            type: object
+            required: true
+          error:
+            type: string
+      examples:
+        - nodeId: "1:24"
+          bindings:
+            fills:
+              - variableId: "VariableID:1:12"
+                variableName: "color/brand/primary"
+                collectionId: "VariableCollectionId:1:2"
       params:
         nodeId:
           type: string
@@ -2542,6 +6399,16 @@ variables_ep:
       maps_to: set_variable_binding
       write: true
       access: edit
+      response:
+        type: object
+        fields:
+          ok:
+            type: boolean
+            required: true
+          error:
+            type: string
+      examples:
+        - ok: true
       params:
         nodeId:
           type: string
@@ -2557,6 +6424,24 @@ variables_ep:
       maps_to: create_variable
       write: true
       access: create
+      response:
+        type: object
+        fields:
+          id:
+            type: string
+            required: true
+          name:
+            type: string
+            required: true
+          resolvedType:
+            type: string
+            required: true
+          error:
+            type: string
+      examples:
+        - id: "VariableID:1:30"
+          name: "spacing/md"
+          resolvedType: "FLOAT"
       params:
         name:
           type: string
@@ -2582,6 +6467,19 @@ variables_ep:
       maps_to: update_variable
       write: true
       access: edit
+      response:
+        type: object
+        fields:
+          ok:
+            type: boolean
+            required: true
+          id:
+            type: string
+          error:
+            type: string
+      examples:
+        - ok: true
+          id: "VariableID:1:30"
       params:
         variableId:
           type: string
@@ -2602,6 +6500,16 @@ variables_ep:
       maps_to: delete_variable
       write: true
       access: edit
+      response:
+        type: object
+        fields:
+          ok:
+            type: boolean
+            required: true
+          error:
+            type: string
+      examples:
+        - ok: true
       params:
         variableId:
           type: string
@@ -2611,6 +6519,33 @@ variables_ep:
       maps_to: create_collection
       write: true
       access: create
+      response:
+        type: object
+        fields:
+          id:
+            type: string
+            required: true
+          name:
+            type: string
+            required: true
+          modes:
+            type: array
+            required: true
+            items:
+              type: object
+              fields:
+                modeId:
+                  type: string
+                  required: true
+                name:
+                  type: string
+                  required: true
+      examples:
+        - id: "VariableCollectionId:1:2"
+          name: "Semantic"
+          modes:
+            - modeId: "1:0"
+              name: "Mode 1"
       params:
         name:
           type: string
@@ -2620,6 +6555,16 @@ variables_ep:
       maps_to: delete_collection
       write: true
       access: edit
+      response:
+        type: object
+        fields:
+          ok:
+            type: boolean
+            required: true
+          error:
+            type: string
+      examples:
+        - ok: true
       params:
         collectionId:
           type: string
@@ -2629,6 +6574,39 @@ variables_ep:
       maps_to: batch_create_variables
       write: true
       access: create
+      response:
+        type: object
+        fields:
+          created:
+            type: number
+            required: true
+          skipped:
+            type: number
+            required: true
+          failed:
+            type: number
+            required: true
+          errors:
+            type: array
+            required: true
+            items:
+              type: object
+              fields:
+                name:
+                  type: string
+                  required: true
+                error:
+                  type: string
+                  required: true
+          collectionId:
+            type: string
+            required: true
+      examples:
+        - created: 2
+          skipped: 0
+          failed: 0
+          errors: []
+          collectionId: "VariableCollectionId:1:2"
       params:
         collectionName:
           type: string
@@ -2643,6 +6621,45 @@ variables_ep:
       description: Export all Figma variables as DTCG-compatible flat list
       maps_to: export_variables
       write: false
+      response:
+        type: object
+        fields:
+          count:
+            type: number
+            required: true
+          variables:
+            type: array
+            required: true
+            items:
+              type: object
+              fields:
+                path:
+                  type: string
+                  required: true
+                type:
+                  type: string
+                  required: true
+                valuesByMode:
+                  type: record
+                  required: true
+                  valueType: unknown
+                description:
+                  type: string
+                scopes:
+                  type: array
+                  items: string
+                aliasOf:
+                  type: record
+                  valueType: string
+      examples:
+        - count: 1
+          variables:
+            - path: "color.brand.primary"
+              type: "color"
+              valuesByMode:
+                Default: "#7c3aed"
+              description: "Primary brand color"
+              scopes: ["ALL_FILLS"]
       params:
         collectionId:
           type: string
@@ -2657,6 +6674,66 @@ styles_ep:
       description: List all local Figma styles
       maps_to: list_styles
       write: false
+      response:
+        type: object
+        fields:
+          count:
+            type: number
+            required: true
+          styles:
+            type: array
+            required: true
+            items:
+              type: object
+              fields:
+                id:
+                  type: string
+                  required: true
+                name:
+                  type: string
+                  required: true
+                type:
+                  type: string
+                  required: true
+                description:
+                  type: string
+                paints:
+                  type: array
+                  items: object
+                fontName:
+                  type: unknown
+                fontSize:
+                  type: number
+                letterSpacing:
+                  type: unknown
+                lineHeight:
+                  type: unknown
+                textCase:
+                  type: string
+                textDecoration:
+                  type: string
+                effects:
+                  type: array
+                  items: object
+      examples:
+        - count: 2
+          styles:
+            - id: "Style:1"
+              name: "Color/Brand/Primary"
+              type: "PAINT"
+              description: "Primary brand color"
+              paints:
+                - type: "SOLID"
+                  visible: true
+                  opacity: 1
+                  color: "#7c3aed"
+            - id: "Style:2"
+              name: "Text/Heading/L"
+              type: "TEXT"
+              fontName:
+                family: "Inter"
+                style: "Bold"
+              fontSize: 32
       params:
         type:
           type: string
@@ -2665,6 +6742,50 @@ styles_ep:
       description: Get detailed info for a specific style
       maps_to: get_style
       write: false
+      response:
+        type: object
+        fields:
+          id:
+            type: string
+            required: true
+          name:
+            type: string
+            required: true
+          type:
+            type: string
+            required: true
+          description:
+            type: string
+          paints:
+            type: array
+            items: object
+          fontName:
+            type: unknown
+          fontSize:
+            type: number
+          letterSpacing:
+            type: unknown
+          lineHeight:
+            type: unknown
+          textCase:
+            type: string
+          textDecoration:
+            type: string
+          effects:
+            type: array
+            items: object
+          error:
+            type: string
+      examples:
+        - id: "Style:1"
+          name: "Color/Brand/Primary"
+          type: "PAINT"
+          description: "Primary brand color"
+          paints:
+            - type: "SOLID"
+              visible: true
+              opacity: 1
+              color: "#7c3aed"
       params:
         styleId:
           type: string
@@ -2674,6 +6795,18 @@ styles_ep:
       maps_to: create_paint_style
       write: true
       access: create
+      response:
+        type: object
+        fields:
+          id:
+            type: string
+            required: true
+          name:
+            type: string
+            required: true
+      examples:
+        - id: "Style:10"
+          name: "Color/Brand/Primary"
       params:
         name:
           type: string
@@ -2688,6 +6821,20 @@ styles_ep:
       maps_to: update_paint_style
       write: true
       access: edit
+      response:
+        type: object
+        fields:
+          id:
+            type: string
+            required: true
+          name:
+            type: string
+            required: true
+          error:
+            type: string
+      examples:
+        - id: "Style:10"
+          name: "Color/Brand/Accent"
       params:
         styleId:
           type: string
@@ -2703,6 +6850,23 @@ styles_ep:
       maps_to: update_text_style
       write: true
       access: edit
+      response:
+        type: object
+        fields:
+          id:
+            type: string
+            required: true
+          name:
+            type: string
+            required: true
+          fontSize:
+            type: number
+          error:
+            type: string
+      examples:
+        - id: "Style:11"
+          name: "Text/Heading/L"
+          fontSize: 32
       params:
         styleId:
           type: string
@@ -2726,6 +6890,20 @@ styles_ep:
       maps_to: update_effect_style
       write: true
       access: edit
+      response:
+        type: object
+        fields:
+          id:
+            type: string
+            required: true
+          name:
+            type: string
+            required: true
+          error:
+            type: string
+      examples:
+        - id: "Style:12"
+          name: "Shadow/Card/Default"
       params:
         styleId:
           type: string
@@ -2744,6 +6922,16 @@ styles_ep:
       maps_to: delete_style
       write: true
       access: edit
+      response:
+        type: object
+        fields:
+          ok:
+            type: boolean
+            required: true
+          error:
+            type: string
+      examples:
+        - ok: true
       params:
         styleId:
           type: string
@@ -2753,6 +6941,39 @@ styles_ep:
       maps_to: sync_styles
       write: true
       access: create
+      response:
+        type: object
+        fields:
+          created:
+            type: number
+            required: true
+          updated:
+            type: number
+            required: true
+          skipped:
+            type: number
+            required: true
+          failed:
+            type: number
+            required: true
+          failures:
+            type: array
+            required: true
+            items:
+              type: object
+              fields:
+                path:
+                  type: string
+                  required: true
+                error:
+                  type: string
+                  required: true
+      examples:
+        - created: 2
+          updated: 1
+          skipped: 0
+          failed: 0
+          failures: []
       params:
         tokens:
           type: array

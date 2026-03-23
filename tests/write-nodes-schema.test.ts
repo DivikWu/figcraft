@@ -1,25 +1,57 @@
 /**
- * Tests for create_document — validates the flat Zod schema accepts valid
- * node specs, and the MCP-side runtime validation catches invalid input.
+ * Tests for create_document — validates the recursive node-spec Zod schema
+ * and the MCP-side runtime validation catches invalid semantic input.
  */
 
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 
+const VALID_TYPES = new Set(['frame', 'text', 'rectangle', 'ellipse', 'line', 'vector', 'instance']);
+const VALID_ROLES = new Set([
+  'screen', 'header', 'hero', 'nav', 'content', 'list', 'row', 'stats', 'card',
+  'form', 'field', 'input', 'button', 'footer', 'actions', 'social_row', 'system_bar',
+]);
+
 // ─── Schema (mirrors src/mcp-server/tools/write-nodes.ts) ───
+const nodeRoleSchema = z.enum([
+  'screen', 'header', 'hero', 'nav', 'content', 'list', 'row', 'stats', 'card',
+  'form', 'field', 'input', 'button', 'footer', 'actions', 'social_row', 'system_bar',
+]);
+
+const nodeTypeSchema = z.enum(['frame', 'text', 'rectangle', 'ellipse', 'line', 'vector', 'instance']);
+
+const nodeSpecSchema: z.ZodType<Record<string, unknown>> = z.lazy(() =>
+  z.object({
+    type: nodeTypeSchema,
+    name: z.string().optional(),
+    role: nodeRoleSchema.optional(),
+    props: z.record(z.unknown()).optional(),
+    children: z.array(nodeSpecSchema).optional(),
+  }),
+);
+
 const createDocumentSchema = z.object({
   parentId: z.string().optional(),
-  nodes: z.array(z.record(z.unknown())),
+  nodes: z.array(nodeSpecSchema),
 });
 
 // ─── Runtime validation (mirrors the handler's validateTypes) ───
-const VALID_TYPES = new Set(['frame', 'text', 'rectangle', 'ellipse', 'line', 'vector', 'instance']);
+
+function normalizeRole(role: string): string {
+  return role.trim().toLowerCase().replace(/[\s-]+/g, '_');
+}
 
 function validateTypes(specs: Array<Record<string, unknown>>, path: string): string | null {
   for (let i = 0; i < specs.length; i++) {
     const t = specs[i].type;
     if (!t || !VALID_TYPES.has(t as string)) {
       return `${path}[${i}].type is ${t === undefined ? 'missing' : `"${t}" (invalid)`}. Must be one of: ${[...VALID_TYPES].join(', ')}`;
+    }
+    const role = specs[i].role;
+    if (role != null) {
+      if (typeof role !== 'string' || !VALID_ROLES.has(normalizeRole(role))) {
+        return `${path}[${i}].role is ${typeof role === 'string' ? `"${role}" (invalid)` : `${String(role)} (invalid)`}. Must be one of: ${[...VALID_ROLES].join(', ')}`;
+      }
     }
     if (Array.isArray(specs[i].children)) {
       const childErr = validateTypes(specs[i].children as Array<Record<string, unknown>>, `${path}[${i}].children`);
@@ -51,6 +83,13 @@ describe('create_document schema + runtime validation', () => {
           { type: 'text', name: 'Title', props: { content: 'Hello', fontSize: 18 } },
         ],
       }],
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it('accepts canonical role values like social_row', () => {
+    const r = validate({
+      nodes: [{ type: 'frame', role: 'social_row', name: 'Social Row' }],
     });
     expect(r.ok).toBe(true);
   });
@@ -92,7 +131,7 @@ describe('create_document schema + runtime validation', () => {
     expect(r.ok).toBe(true);
   });
 
-  it('accepts deeply nested children (flat schema allows any depth)', () => {
+  it('accepts deeply nested children', () => {
     const r = validate({
       nodes: [{
         type: 'frame', children: [{
@@ -119,43 +158,38 @@ describe('create_document schema + runtime validation', () => {
   });
 
   it('rejects unknown top-level type', () => {
-    const r = validate({ nodes: [{ type: 'component', name: 'Bad' }] });
-    expect(r.ok).toBe(false);
-    expect(r.error).toContain('nodes[0].type');
-    expect(r.error).toContain('invalid');
+    const parsed = createDocumentSchema.safeParse({ nodes: [{ type: 'component', name: 'Bad' }] });
+    expect(parsed.success).toBe(false);
   });
 
   it('rejects missing type on top-level node', () => {
-    const r = validate({ nodes: [{ name: 'NoType' }] });
-    expect(r.ok).toBe(false);
-    expect(r.error).toContain('nodes[0].type');
-    expect(r.error).toContain('missing');
+    const parsed = createDocumentSchema.safeParse({ nodes: [{ name: 'NoType' }] });
+    expect(parsed.success).toBe(false);
   });
 
-  it('rejects invalid type in nested children', () => {
-    const r = validate({
+  it('rejects invalid direct role values at schema level', () => {
+    const parsed = createDocumentSchema.safeParse({ nodes: [{ type: 'frame', role: 'banana' }] });
+    expect(parsed.success).toBe(false);
+  });
+
+  it('rejects invalid nested type at schema level', () => {
+    const parsed = createDocumentSchema.safeParse({
       nodes: [{
-        type: 'frame', children: [
-          { type: 'text', props: { content: 'ok' } },
-          { type: 'div', props: {} },
-        ],
+        type: 'frame',
+        children: [{ type: 'div', props: {} }],
       }],
     });
-    expect(r.ok).toBe(false);
-    expect(r.error).toContain('nodes[0].children[1].type');
-    expect(r.error).toContain('"div"');
+    expect(parsed.success).toBe(false);
   });
 
-  it('rejects missing type in deeply nested children', () => {
-    const r = validate({
+  it('rejects missing type in deeply nested children at schema level', () => {
+    const parsed = createDocumentSchema.safeParse({
       nodes: [{
         type: 'frame', children: [{
           type: 'frame', children: [{ name: 'oops' }],
         }],
       }],
     });
-    expect(r.ok).toBe(false);
-    expect(r.error).toContain('nodes[0].children[0].children[0].type');
-    expect(r.error).toContain('missing');
+    expect(parsed.success).toBe(false);
   });
 });

@@ -1,0 +1,486 @@
+/**
+ * Style registry — register, persist, and match library styles for auto-application.
+ *
+ * No scanning. AI registers styles via register_library_styles (data from official Figma MCP).
+ * Styles are imported via importStyleByKeyAsync and mapped in memory for O(1) lookup.
+ * Keys persisted in clientStorage for lazy recovery after plugin restart.
+ */
+
+// ─── Types ───
+
+export interface RegisteredTextStyle {
+  key: string;
+  name: string;
+  fontSize: number;
+  fontFamily: string;
+  fontWeight: string;
+}
+
+export interface RegisteredPaintStyle {
+  key: string;
+  name: string;
+  hex: string;
+}
+
+export interface RegisteredEffectStyle {
+  key: string;
+  name: string;
+  effectType: string;
+}
+
+export interface RegisteredStyles {
+  textStyles: RegisteredTextStyle[];
+  paintStyles: RegisteredPaintStyle[];
+  effectStyles: RegisteredEffectStyle[];
+}
+
+// ─── In-memory maps (built on register/restore, queried on create) ───
+
+/** Text styles keyed by fontSize. Multiple styles can share the same fontSize (e.g. Body/Regular vs Body/Bold). */
+const textStyleMap = new Map<number, Array<{ id: string; name: string; fontFamily: string; fontWeight: string }>>();
+/** Paint styles keyed by hex. Multiple styles can share the same hex (e.g. Primary/500 vs Info/Default). */
+const paintStyleMap = new Map<string, Array<{ id: string; name: string }>>();
+const effectStyleMap = new Map<string, { id: string; name: string }>();
+let loadedLibrary: string | null = null;
+
+function storageKey(library: string): string {
+  return `figcraft_styles_${library}`;
+}
+
+/** Import a style by key with a timeout to avoid hanging on deleted keys. */
+function importWithTimeout(key: string, timeoutMs = 5000): Promise<{ id: string }> {
+  return Promise.race([
+    figma.importStyleByKeyAsync(key),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Import timeout: ${key}`)), timeoutMs),
+    ),
+  ]);
+}
+
+// ─── Register (one-time, AI-driven) ───
+
+export async function registerStyles(
+  library: string,
+  styles: RegisteredStyles,
+): Promise<{ textStyles: number; paintStyles: number; effectStyles: number }> {
+  // Clear previous maps
+  textStyleMap.clear();
+  paintStyleMap.clear();
+  effectStyleMap.clear();
+
+  // Import all styles in parallel for speed
+  const [textResults, paintResults, effectResults] = await Promise.all([
+    Promise.allSettled(
+      styles.textStyles.map(async (ts) => {
+        const imported = await importWithTimeout(ts.key);
+        return { fontSize: ts.fontSize, id: imported.id, name: ts.name, fontFamily: ts.fontFamily, fontWeight: ts.fontWeight };
+      }),
+    ),
+    Promise.allSettled(
+      styles.paintStyles.map(async (ps) => {
+        const imported = await importWithTimeout(ps.key);
+        return { hex: ps.hex.toLowerCase(), id: imported.id, name: ps.name };
+      }),
+    ),
+    Promise.allSettled(
+      styles.effectStyles.map(async (es) => {
+        const imported = await importWithTimeout(es.key);
+        return { effectType: es.effectType, id: imported.id, name: es.name };
+      }),
+    ),
+  ]);
+
+  for (const r of textResults) {
+    if (r.status === 'fulfilled') {
+      const existing = textStyleMap.get(r.value.fontSize) ?? [];
+      existing.push({ id: r.value.id, name: r.value.name, fontFamily: r.value.fontFamily, fontWeight: r.value.fontWeight });
+      textStyleMap.set(r.value.fontSize, existing);
+    }
+  }
+  for (const r of paintResults) {
+    if (r.status === 'fulfilled') {
+      const existing = paintStyleMap.get(r.value.hex) ?? [];
+      existing.push({ id: r.value.id, name: r.value.name });
+      paintStyleMap.set(r.value.hex, existing);
+    }
+  }
+  for (const r of effectResults) {
+    if (r.status === 'fulfilled') effectStyleMap.set(r.value.effectType, { id: r.value.id, name: r.value.name });
+  }
+
+  // Persist to clientStorage
+  await figma.clientStorage.setAsync(storageKey(library), JSON.stringify(styles));
+  loadedLibrary = library;
+
+  // Count total entries across all array values
+  let textCount = 0;
+  for (const arr of textStyleMap.values()) textCount += arr.length;
+  let paintCount = 0;
+  for (const arr of paintStyleMap.values()) paintCount += arr.length;
+
+  return {
+    textStyles: textCount,
+    paintStyles: paintCount,
+    effectStyles: effectStyleMap.size,
+  };
+}
+
+// ─── Lazy restore (after plugin restart) ───
+
+export async function ensureLoaded(library: string): Promise<void> {
+  if (loadedLibrary === library) return;
+
+  const json = await figma.clientStorage.getAsync(storageKey(library)) as string | undefined;
+  if (!json) {
+    loadedLibrary = library;
+    return;
+  }
+
+  try {
+    const styles = JSON.parse(json) as RegisteredStyles;
+    // Race against a 6s timeout to prevent blocking node creation
+    // Clean up timer on resolve to avoid leaks
+    let timer: ReturnType<typeof setTimeout>;
+    await Promise.race([
+      registerStyles(library, styles).finally(() => clearTimeout(timer)),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(() => {
+          console.warn('[figcraft] ensureLoaded timed out after 6s, proceeding without styles');
+          loadedLibrary = library;
+          resolve();
+        }, 6_000);
+      }),
+    ]);
+  } catch {
+    loadedLibrary = library;
+  }
+}
+
+// ─── Query (pure memory, 0ms) ───
+
+/**
+ * Get a text style matching the given fontSize.
+ * When multiple styles share the same fontSize, optionally match by fontFamily/fontWeight.
+ * Falls back to the first registered style at that size.
+ */
+export function getTextStyleId(
+  fontSize: number,
+  hints?: { fontFamily?: string; fontWeight?: string },
+): { id: string; name: string } | null {
+  const entries = textStyleMap.get(fontSize);
+  if (!entries || entries.length === 0) return null;
+  if (entries.length === 1 || !hints) return entries[0];
+
+  // Try to match by fontFamily + fontWeight for best precision
+  if (hints.fontFamily && hints.fontWeight) {
+    const exact = entries.find(
+      (e) => e.fontFamily === hints.fontFamily && e.fontWeight === hints.fontWeight,
+    );
+    if (exact) return exact;
+  }
+  // Fall back to fontWeight match only
+  if (hints.fontWeight) {
+    const byWeight = entries.find((e) => e.fontWeight === hints.fontWeight);
+    if (byWeight) return byWeight;
+  }
+  // Fall back to fontFamily match only
+  if (hints.fontFamily) {
+    const byFamily = entries.find((e) => e.fontFamily === hints.fontFamily);
+    if (byFamily) return byFamily;
+  }
+  return entries[0];
+}
+
+/**
+ * Get a paint style matching the given hex color.
+ * When multiple styles share the same hex, returns the first registered one.
+ */
+export function getPaintStyleId(hex: string): { id: string; name: string } | null;
+export function getPaintStyleId(hex: string | undefined, name: string): { id: string; name: string } | null;
+export function getPaintStyleId(hex: string | undefined, name?: string): { id: string; name: string } | null {
+  // Name-based lookup: scan all entries for a matching name
+  if (name) {
+    const lowerName = name.toLowerCase();
+    for (const entries of paintStyleMap.values()) {
+      for (const entry of entries) {
+        if (entry.name.toLowerCase() === lowerName) return entry;
+      }
+    }
+    return null;
+  }
+  // Hex-based lookup (original behavior)
+  if (!hex) return null;
+  const entries = paintStyleMap.get(hex.toLowerCase());
+  if (!entries || entries.length === 0) return null;
+  return entries[0];
+}
+
+export function getEffectStyleId(effectType: string): { id: string; name: string } | null {
+  return effectStyleMap.get(effectType) ?? null;
+}
+
+// ─── Get registered styles summary (for get_mode response) ───
+
+export async function getRegisteredStylesSummary(
+  library: string,
+): Promise<(RegisteredStyles & { _loaded?: { text: number; paint: number; effect: number } }) | null> {
+  // Read from storage (source of truth for full registered list)
+  const json = await figma.clientStorage.getAsync(storageKey(library)) as string | undefined;
+  if (!json) return null;
+  try {
+    const styles = JSON.parse(json) as RegisteredStyles;
+    // Include actual in-memory counts so AI can detect import failures
+    if (loadedLibrary === library) {
+      // Count total entries across all array values
+      let textCount = 0;
+      for (const arr of textStyleMap.values()) textCount += arr.length;
+      let paintCount = 0;
+      for (const arr of paintStyleMap.values()) paintCount += arr.length;
+      (styles as any)._loaded = {
+        text: textCount,
+        paint: paintCount,
+        effect: effectStyleMap.size,
+      };
+    }
+    return styles;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Incremental register (only import changed styles, preserve unchanged) ───
+
+export async function registerStylesIncremental(
+  library: string,
+  fullStyles: RegisteredStyles,
+  changedStyles: RegisteredStyles,
+  removedKeys: string[],
+): Promise<{ textStyles: number; paintStyles: number; effectStyles: number }> {
+  // Ensure current maps are loaded
+  await ensureLoaded(library);
+
+  // Remove deleted styles from maps.
+  // In-memory maps are keyed by value (fontSize/hex/effectType), not by style key,
+  // so we look up stored data to find which value keys to delete.
+  if (removedKeys.length > 0) {
+    const removedSet = new Set(removedKeys);
+    const storedJson = await figma.clientStorage.getAsync(storageKey(library)) as string | undefined;
+    if (storedJson) {
+      const stored = JSON.parse(storedJson) as RegisteredStyles;
+      for (const ts of stored.textStyles) {
+        if (removedSet.has(ts.key)) {
+          const arr = textStyleMap.get(ts.fontSize);
+          if (arr) {
+            const filtered = arr.filter((e) => e.name !== ts.name);
+            if (filtered.length === 0) textStyleMap.delete(ts.fontSize);
+            else textStyleMap.set(ts.fontSize, filtered);
+          }
+        }
+      }
+      for (const ps of stored.paintStyles) {
+        if (removedSet.has(ps.key)) {
+          const arr = paintStyleMap.get(ps.hex.toLowerCase());
+          if (arr) {
+            const filtered = arr.filter((e) => e.name !== ps.name);
+            if (filtered.length === 0) paintStyleMap.delete(ps.hex.toLowerCase());
+            else paintStyleMap.set(ps.hex.toLowerCase(), filtered);
+          }
+        }
+      }
+      for (const es of stored.effectStyles) {
+        if (removedSet.has(es.key)) effectStyleMap.delete(es.effectType);
+      }
+    }
+  }
+
+  // Import only changed styles (added + modified) in parallel
+  let imported = 0;
+  const [textResults, paintResults, effectResults] = await Promise.all([
+    Promise.allSettled(
+      changedStyles.textStyles.map(async (ts) => {
+        const style = await importWithTimeout(ts.key);
+        return { fontSize: ts.fontSize, id: style.id, name: ts.name, fontFamily: ts.fontFamily, fontWeight: ts.fontWeight };
+      }),
+    ),
+    Promise.allSettled(
+      changedStyles.paintStyles.map(async (ps) => {
+        const style = await importWithTimeout(ps.key);
+        return { hex: ps.hex.toLowerCase(), id: style.id, name: ps.name };
+      }),
+    ),
+    Promise.allSettled(
+      changedStyles.effectStyles.map(async (es) => {
+        const style = await importWithTimeout(es.key);
+        return { effectType: es.effectType, id: style.id, name: es.name };
+      }),
+    ),
+  ]);
+
+  for (const r of textResults) {
+    if (r.status === 'fulfilled') {
+      const existing = textStyleMap.get(r.value.fontSize) ?? [];
+      // Replace existing entry with same name, or append
+      const idx = existing.findIndex((e) => e.name === r.value.name);
+      const entry = { id: r.value.id, name: r.value.name, fontFamily: r.value.fontFamily, fontWeight: r.value.fontWeight };
+      if (idx >= 0) existing[idx] = entry;
+      else existing.push(entry);
+      textStyleMap.set(r.value.fontSize, existing);
+      imported++;
+    }
+  }
+  for (const r of paintResults) {
+    if (r.status === 'fulfilled') {
+      const existing = paintStyleMap.get(r.value.hex) ?? [];
+      const idx = existing.findIndex((e) => e.name === r.value.name);
+      const entry = { id: r.value.id, name: r.value.name };
+      if (idx >= 0) existing[idx] = entry;
+      else existing.push(entry);
+      paintStyleMap.set(r.value.hex, existing);
+      imported++;
+    }
+  }
+  for (const r of effectResults) {
+    if (r.status === 'fulfilled') {
+      effectStyleMap.set(r.value.effectType, { id: r.value.id, name: r.value.name });
+      imported++;
+    }
+  }
+
+  // Persist full styles to clientStorage (source of truth)
+  await figma.clientStorage.setAsync(storageKey(library), JSON.stringify(fullStyles));
+  loadedLibrary = library;
+
+  // Count total entries across all array values
+  let textCount = 0;
+  for (const arr of textStyleMap.values()) textCount += arr.length;
+  let paintCount = 0;
+  for (const arr of paintStyleMap.values()) paintCount += arr.length;
+
+  return {
+    textStyles: textCount,
+    paintStyles: paintCount,
+    effectStyles: effectStyleMap.size,
+  };
+}
+
+// ─── Available paint style names (for error self-correction) ───
+
+/**
+ * Return a list of available paint style names (up to `limit`).
+ * Used when a hardcoded color has no match — the agent can self-correct
+ * by picking from the available list.
+ */
+export function getAvailablePaintStyleNames(limit = 20): string[] {
+  const names: string[] = [];
+  for (const entries of paintStyleMap.values()) {
+    for (const entry of entries) {
+      names.push(entry.name);
+      if (names.length >= limit) return names;
+    }
+  }
+  return names;
+}
+
+/**
+ * Search paint styles by hex value (case-insensitive).
+ * Returns the closest match info or null.
+ */
+export function findClosestPaintStyle(hex: string): { name: string; hex: string } | null {
+  const target = hex.toLowerCase().replace('#', '');
+  if (target.length < 6) return null;
+
+  const tr = parseInt(target.slice(0, 2), 16);
+  const tg = parseInt(target.slice(2, 4), 16);
+  const tb = parseInt(target.slice(4, 6), 16);
+  if (isNaN(tr) || isNaN(tg) || isNaN(tb)) return null;
+
+  let bestDist = Infinity;
+  let bestName = '';
+  let bestHex = '';
+
+  for (const [styleHex, entries] of paintStyleMap) {
+    const h = styleHex.replace('#', '');
+    if (h.length < 6) continue;
+    const sr = parseInt(h.slice(0, 2), 16);
+    const sg = parseInt(h.slice(2, 4), 16);
+    const sb = parseInt(h.slice(4, 6), 16);
+    if (isNaN(sr)) continue;
+    // Weighted Euclidean distance — human vision is most sensitive to green, least to blue.
+    // Weights from "redmean" approximation (low-cost perceptual color distance).
+    const rmean = (tr + sr) / 2;
+    const dr = tr - sr;
+    const dg = tg - sg;
+    const db = tb - sb;
+    const dist = Math.sqrt((2 + rmean / 256) * dr * dr + 4 * dg * dg + (2 + (255 - rmean) / 256) * db * db);
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestName = entries[0].name;
+      bestHex = styleHex;
+    }
+  }
+
+  // Only suggest if reasonably close (distance < 80 in weighted RGB space ≈ visually similar)
+  if (bestDist < 80 && bestName) {
+    return { name: bestName, hex: bestHex };
+  }
+  return null;
+}
+
+// ─── Text style suggestion ───
+
+/**
+ * Suggest a matching text style for manually specified font properties.
+ * When the agent sets fontSize/fontFamily/fontWeight manually instead of using a text style,
+ * this function finds the closest registered text style and returns a suggestion hint.
+ *
+ * Returns both exact and fuzzy matches with actionable hints.
+ *
+ * @param fontSize - The font size to match
+ * @param fontFamily - Optional font family hint
+ * @param fontWeight - Optional font weight hint
+ * @returns Suggestion with style name and match quality, or null
+ */
+export function suggestTextStyle(
+  fontSize: number,
+  fontFamily?: string,
+  fontWeight?: string,
+): { name: string; exact: boolean; hint: string } | null {
+  const entries = textStyleMap.get(fontSize);
+  if (entries && entries.length > 0) {
+    // Exact fontSize match — check if family/weight also match
+    if (fontFamily && fontWeight) {
+      const exact = entries.find(
+        (e) => e.fontFamily === fontFamily && e.fontWeight === fontWeight,
+      );
+      if (exact) return { name: exact.name, exact: true, hint: `Text style "${exact.name}" matches exactly. Consider using it for consistency.` };
+    }
+    // Partial match
+    return { name: entries[0].name, exact: false, hint: `Text style "${entries[0].name}" has the same fontSize (${fontSize}px). Consider using it.` };
+  }
+
+  // No exact fontSize match — find closest
+  let bestDiff = Infinity;
+  let bestName = '';
+  let bestSize = 0;
+  for (const [size, styleEntries] of textStyleMap) {
+    const diff = Math.abs(size - fontSize);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      bestName = styleEntries[0].name;
+      bestSize = size;
+    }
+  }
+  if (bestName && bestDiff <= 4) {
+    return { name: bestName, exact: false, hint: `No text style at ${fontSize}px. Closest: "${bestName}" (${bestSize}px, ${bestDiff}px away).` };
+  }
+  return null;
+}
+
+// ─── Clear (on library switch) ───
+
+export function clearStyleRegistry(): void {
+  textStyleMap.clear();
+  paintStyleMap.clear();
+  effectStyleMap.clear();
+  loadedLibrary = null;
+}

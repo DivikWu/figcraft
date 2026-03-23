@@ -2,7 +2,7 @@
  * Tests for layoutSizingHorizontal / layoutSizingVertical translation.
  */
 import { describe, it, expect } from 'vitest';
-import { translateLayoutSizing, translateSingleSizing, type AutoLayoutProps } from '../src/plugin/utils/node-helpers.js';
+import { translateLayoutSizing, translateSingleSizing, type AutoLayoutProps } from '../packages/adapter-figma/src/utils/node-helpers.js';
 
 describe('translateLayoutSizing', () => {
   // ─── VERTICAL layout direction ───

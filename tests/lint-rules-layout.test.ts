@@ -3,10 +3,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { AbstractNode, LintContext } from '../src/plugin/linter/types.js';
-import { overflowParentRule } from '../src/plugin/linter/rules/overflow-parent.js';
-import { unboundedHugRule } from '../src/plugin/linter/rules/unbounded-hug.js';
-import { noAutolayoutRule } from '../src/plugin/linter/rules/no-autolayout.js';
+import type { AbstractNode, LintContext } from '../packages/quality-engine/src/types.js';
+import { overflowParentRule } from '../packages/quality-engine/src/rules/overflow-parent.js';
+import { unboundedHugRule } from '../packages/quality-engine/src/rules/unbounded-hug.js';
+import { noAutolayoutRule } from '../packages/quality-engine/src/rules/no-autolayout.js';
 
 const emptyCtx: LintContext = {
   colorTokens: new Map(),

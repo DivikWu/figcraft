@@ -12,14 +12,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // ─── Mock setup ───
 
 // Mock toolset-manager to control access level
-vi.mock('../src/mcp-server/tools/toolset-manager.js', () => ({
+vi.mock('../packages/core-mcp/src/tools/toolset-manager.js', () => ({
   getAccessLevel: vi.fn(() => 'edit'),
   isToolBlocked: vi.fn(() => null),
   getApiMode: vi.fn(() => 'both'),
 }));
 
 // Mock node-logic functions
-vi.mock('../src/mcp-server/tools/logic/node-logic.js', () => ({
+vi.mock('../packages/core-mcp/src/tools/logic/node-logic.js', () => ({
   getNodeInfoLogic: vi.fn().mockResolvedValue({
     content: [{ type: 'text', text: '{"id":"1:23"}' }],
   }),
@@ -32,14 +32,14 @@ vi.mock('../src/mcp-server/tools/logic/node-logic.js', () => ({
 }));
 
 // Mock component-logic (listLibraryComponentsLogic used by components endpoint)
-vi.mock('../src/mcp-server/tools/logic/component-logic.js', () => ({
+vi.mock('../packages/core-mcp/src/tools/logic/component-logic.js', () => ({
   listLibraryComponentsLogic: vi.fn().mockResolvedValue({
     content: [{ type: 'text', text: '{"count":0,"components":[]}' }],
   }),
 }));
 
 // Mock rest-fallback (needed by node-logic imports)
-vi.mock('../src/mcp-server/rest-fallback.js', () => ({
+vi.mock('../packages/core-mcp/src/rest-fallback.js', () => ({
   requestWithFallback: vi.fn(),
   restGetNodeInfo: vi.fn(),
   restExportImage: vi.fn(),
@@ -47,14 +47,14 @@ vi.mock('../src/mcp-server/rest-fallback.js', () => ({
   setFileContext: vi.fn(),
 }));
 
-vi.mock('../src/mcp-server/figma-api.js', () => ({
+vi.mock('../packages/core-mcp/src/figma-api.js', () => ({
   extractFileKeyFromUrl: vi.fn(),
   extractNodeIdFromUrl: vi.fn(),
 }));
 
-import { registerEndpointTools, bridgeRequestLogic } from '../src/mcp-server/tools/endpoints.js';
-import { getNodeInfoLogic, searchNodesLogic } from '../src/mcp-server/tools/logic/node-logic.js';
-import { listLibraryComponentsLogic } from '../src/mcp-server/tools/logic/component-logic.js';
+import { registerEndpointTools, bridgeRequestLogic } from '../packages/core-mcp/src/tools/endpoints.js';
+import { getNodeInfoLogic, searchNodesLogic } from '../packages/core-mcp/src/tools/logic/node-logic.js';
+import { listLibraryComponentsLogic } from '../packages/core-mcp/src/tools/logic/component-logic.js';
 
 const mockGetNodeInfoLogic = vi.mocked(getNodeInfoLogic);
 const mockSearchNodesLogic = vi.mocked(searchNodesLogic);
@@ -580,7 +580,7 @@ describe('bridgeRequestLogic', () => {
 // ── Property-Based Tests: Method_Dispatcher routing & rejection ──
 
 import fc from 'fast-check';
-import { GENERATED_ENDPOINT_METHOD_ACCESS } from '../src/mcp-server/tools/_registry.js';
+import { GENERATED_ENDPOINT_METHOD_ACCESS } from '../packages/core-mcp/src/tools/_registry.js';
 import { buildMinimalParams } from './helpers/endpoint-test-utils.js';
 
 /**
