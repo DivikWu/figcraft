@@ -1,0 +1,11 @@
+{
+  "name": "FigCraft",
+  "id": "figcraft-plugin",
+  "api": "1.0.0",
+  "editorType": ["figma"],
+  "permissions": ["teamlibrary"],
+  "networkAccess": {
+    "allowedDomains": ["ws://localhost:3055", "ws://localhost:3056", "ws://localhost:3057", "ws://localhost:3058", "ws://localhost:3059", "ws://localhost:3060"],
+    "reasoning": "WebSocket connection to MCP bridge relay"
+  }
+}

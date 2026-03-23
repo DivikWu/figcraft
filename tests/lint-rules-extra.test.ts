@@ -3,13 +3,24 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { AbstractNode, LintContext } from '../src/plugin/linter/types.js';
-import { fixedInAutolayoutRule } from '../src/plugin/linter/rules/fixed-in-autolayout.js';
-import { hardcodedTokenRule } from '../src/plugin/linter/rules/hardcoded-token.js';
-import { wcagTargetSizeRule } from '../src/plugin/linter/rules/wcag-target-size.js';
-import { wcagLineHeightRule } from '../src/plugin/linter/rules/wcag-line-height.js';
-import { maxNestingDepthRule } from '../src/plugin/linter/rules/max-nesting-depth.js';
-import { formConsistencyRule } from '../src/plugin/linter/rules/form-consistency.js';
+import type { AbstractNode, LintContext } from '../packages/quality-engine/src/types.js';
+import { fixedInAutolayoutRule } from '../packages/quality-engine/src/rules/fixed-in-autolayout.js';
+import { hardcodedTokenRule } from '../packages/quality-engine/src/rules/hardcoded-token.js';
+import { wcagTargetSizeRule } from '../packages/quality-engine/src/rules/wcag-target-size.js';
+import { wcagLineHeightRule } from '../packages/quality-engine/src/rules/wcag-line-height.js';
+import { maxNestingDepthRule } from '../packages/quality-engine/src/rules/max-nesting-depth.js';
+import { formConsistencyRule } from '../packages/quality-engine/src/rules/form-consistency.js';
+import { headerFragmentedRule } from '../packages/quality-engine/src/rules/header-fragmented.js';
+import { ctaWidthInconsistentRule } from '../packages/quality-engine/src/rules/cta-width-inconsistent.js';
+import { sectionSpacingCollapseRule } from '../packages/quality-engine/src/rules/section-spacing-collapse.js';
+import { headerOutOfBandRule } from '../packages/quality-engine/src/rules/header-out-of-band.js';
+import { screenBottomOverflowRule } from '../packages/quality-engine/src/rules/screen-bottom-overflow.js';
+import { socialRowCrampedRule } from '../packages/quality-engine/src/rules/social-row-cramped.js';
+import { navOvercrowdedRule } from '../packages/quality-engine/src/rules/nav-overcrowded.js';
+import { statsRowCrampedRule } from '../packages/quality-engine/src/rules/stats-row-cramped.js';
+import { rootMisclassifiedInteractiveRule } from '../packages/quality-engine/src/rules/root-misclassified-interactive.js';
+import { nestedInteractiveShellRule } from '../packages/quality-engine/src/rules/nested-interactive-shell.js';
+import { screenShellInvalidRule } from '../packages/quality-engine/src/rules/screen-shell-invalid.js';
 
 const emptyCtx: LintContext = {
   colorTokens: new Map(),
@@ -192,8 +203,8 @@ describe('max-nesting-depth', () => {
 
 // ─── button-structure (enhanced) ───
 
-import { buttonStructureRule } from '../src/plugin/linter/rules/button-structure.js';
-import { textOverflowRule } from '../src/plugin/linter/rules/text-overflow.js';
+import { buttonStructureRule } from '../packages/quality-engine/src/rules/button-structure.js';
+import { textOverflowRule } from '../packages/quality-engine/src/rules/text-overflow.js';
 
 describe('button-structure', () => {
   it('flags non-frame button', () => {
@@ -493,6 +504,440 @@ describe('form-consistency', () => {
           makeNode({ id: '2:2', name: 'Login Button', type: 'FRAME', width: 100,
             fills: [{ type: 'SOLID', color: '#0066FF', visible: true }] }),
         ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(0);
+  });
+});
+
+describe('cta-width-inconsistent', () => {
+  it('flags CTA buttons that are noticeably narrower than form fields', () => {
+    const v = ctaWidthInconsistentRule.check(
+      makeNode({
+        name: 'Login Form',
+        role: 'form',
+        type: 'FRAME',
+        layoutMode: 'VERTICAL',
+        width: 350,
+        children: [
+          makeNode({ id: '2:1', name: 'Email Input', role: 'input', type: 'FRAME', width: 350 }),
+          makeNode({ id: '2:2', name: 'Password Input', role: 'input', type: 'FRAME', width: 350 }),
+          makeNode({ id: '2:3', name: 'Sign In Button', role: 'button', type: 'FRAME', width: 220 }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(1);
+    expect(v[0].rule).toBe('cta-width-inconsistent');
+    expect(v[0].fixData?.fix).toBe('stretch');
+  });
+
+  it('passes when CTA width matches the field width', () => {
+    const v = ctaWidthInconsistentRule.check(
+      makeNode({
+        name: 'Login Form',
+        role: 'form',
+        type: 'FRAME',
+        layoutMode: 'VERTICAL',
+        width: 350,
+        children: [
+          makeNode({ id: '2:1', name: 'Email Input', role: 'input', type: 'FRAME', width: 350 }),
+          makeNode({ id: '2:2', name: 'Sign In Button', role: 'button', type: 'FRAME', width: 350 }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(0);
+  });
+});
+
+describe('header-fragmented', () => {
+  it('flags screens with floating top-level title and back control', () => {
+    const v = headerFragmentedRule.check(
+      makeNode({
+        name: 'Sign In',
+        role: 'screen',
+        type: 'FRAME',
+        children: [
+          makeNode({ id: '2:1', name: 'Back Arrow', type: 'VECTOR', width: 24, y: 80 }),
+          makeNode({ id: '2:2', name: 'Sign In Title', type: 'TEXT', y: 96 }),
+          makeNode({ id: '2:3', name: 'Form', role: 'form', type: 'FRAME', y: 180 }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(1);
+    expect(v[0].autoFixable).toBe(false);
+  });
+
+  it('passes when a dedicated header container already exists', () => {
+    const v = headerFragmentedRule.check(
+      makeNode({
+        name: 'Sign In',
+        role: 'screen',
+        type: 'FRAME',
+        children: [
+          makeNode({ id: '2:1', name: 'Header', role: 'header', type: 'FRAME', y: 80 }),
+          makeNode({ id: '2:2', name: 'Form', role: 'form', type: 'FRAME', y: 180 }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(0);
+  });
+});
+
+describe('section-spacing-collapse', () => {
+  it('flags tight section stacks on screen containers', () => {
+    const v = sectionSpacingCollapseRule.check(
+      makeNode({
+        name: 'Auth Screen',
+        role: 'screen',
+        type: 'FRAME',
+        layoutMode: 'VERTICAL',
+        itemSpacing: 8,
+        children: [
+          makeNode({ id: '2:1', name: 'Header', type: 'FRAME' }),
+          makeNode({ id: '2:2', name: 'Form', type: 'FRAME' }),
+          makeNode({ id: '2:3', name: 'Footer', type: 'FRAME' }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(1);
+    expect(v[0].fixData?.fix).toBe('item-spacing');
+    expect(v[0].fixData?.itemSpacing).toBe(16);
+  });
+
+  it('passes when section rhythm is already healthy', () => {
+    const v = sectionSpacingCollapseRule.check(
+      makeNode({
+        name: 'Auth Screen',
+        role: 'screen',
+        type: 'FRAME',
+        layoutMode: 'VERTICAL',
+        itemSpacing: 20,
+        children: [
+          makeNode({ id: '2:1', name: 'Header', type: 'FRAME' }),
+          makeNode({ id: '2:2', name: 'Form', type: 'FRAME' }),
+          makeNode({ id: '2:3', name: 'Footer', type: 'FRAME' }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(0);
+  });
+});
+
+describe('header-out-of-band', () => {
+  it('flags header containers that start too low in the screen', () => {
+    const v = headerOutOfBandRule.check(
+      makeNode({
+        name: 'Sign In',
+        role: 'screen',
+        type: 'FRAME',
+        height: 874,
+        children: [
+          makeNode({ id: '2:1', name: 'Header', role: 'header', type: 'FRAME', y: 220, height: 72 }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(1);
+    expect(v[0].rule).toBe('header-out-of-band');
+  });
+
+  it('passes when the header is near the top', () => {
+    const v = headerOutOfBandRule.check(
+      makeNode({
+        name: 'Sign In',
+        role: 'screen',
+        type: 'FRAME',
+        height: 874,
+        children: [
+          makeNode({ id: '2:1', name: 'Header', role: 'header', type: 'FRAME', y: 80, height: 72 }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(0);
+  });
+});
+
+describe('screen-bottom-overflow', () => {
+  it('flags sections that extend past the bottom of the screen', () => {
+    const v = screenBottomOverflowRule.check(
+      makeNode({
+        name: 'Forgot Password',
+        role: 'screen',
+        type: 'FRAME',
+        height: 874,
+        children: [
+          makeNode({ id: '2:1', name: 'Footer', role: 'footer', type: 'FRAME', y: 820, height: 100 }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(1);
+    expect(v[0].rule).toBe('screen-bottom-overflow');
+  });
+
+  it('passes when all sections stay within the viewport', () => {
+    const v = screenBottomOverflowRule.check(
+      makeNode({
+        name: 'Forgot Password',
+        role: 'screen',
+        type: 'FRAME',
+        height: 874,
+        children: [
+          makeNode({ id: '2:1', name: 'Footer', role: 'footer', type: 'FRAME', y: 720, height: 100 }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(0);
+  });
+});
+
+describe('social-row-cramped', () => {
+  it('flags social rows whose children do not fit horizontally', () => {
+    const v = socialRowCrampedRule.check(
+      makeNode({
+        name: 'Social Login Row',
+        role: 'social_row',
+        type: 'FRAME',
+        width: 260,
+        layoutMode: 'HORIZONTAL',
+        itemSpacing: 16,
+        children: [
+          makeNode({ id: '2:1', name: 'Apple Button', role: 'button', width: 96, height: 48 }),
+          makeNode({ id: '2:2', name: 'Google Button', role: 'button', width: 96, height: 48 }),
+          makeNode({ id: '2:3', name: 'Facebook Button', role: 'button', width: 96, height: 48 }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(1);
+    expect(v[0].rule).toBe('social-row-cramped');
+  });
+
+  it('passes social rows with enough space', () => {
+    const v = socialRowCrampedRule.check(
+      makeNode({
+        name: 'Social Login Row',
+        role: 'social_row',
+        type: 'FRAME',
+        width: 340,
+        layoutMode: 'HORIZONTAL',
+        itemSpacing: 12,
+        children: [
+          makeNode({ id: '2:1', name: 'Apple Button', role: 'button', width: 96, height: 48 }),
+          makeNode({ id: '2:2', name: 'Google Button', role: 'button', width: 96, height: 48 }),
+          makeNode({ id: '2:3', name: 'Facebook Button', role: 'button', width: 96, height: 48 }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(0);
+  });
+});
+
+describe('nav-overcrowded', () => {
+  it('flags nav rows that cannot fit all items', () => {
+    const v = navOvercrowdedRule.check(
+      makeNode({
+        name: 'Primary Nav',
+        role: 'nav',
+        type: 'FRAME',
+        width: 240,
+        layoutMode: 'HORIZONTAL',
+        itemSpacing: 16,
+        children: [
+          makeNode({ id: '2:1', name: 'Overview', width: 80, height: 40 }),
+          makeNode({ id: '2:2', name: 'Reports', width: 80, height: 40 }),
+          makeNode({ id: '2:3', name: 'Customers', width: 96, height: 40 }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(1);
+    expect(v[0].rule).toBe('nav-overcrowded');
+  });
+
+  it('passes nav rows with enough width', () => {
+    const v = navOvercrowdedRule.check(
+      makeNode({
+        name: 'Primary Nav',
+        role: 'nav',
+        type: 'FRAME',
+        width: 360,
+        layoutMode: 'HORIZONTAL',
+        itemSpacing: 12,
+        children: [
+          makeNode({ id: '2:1', name: 'Overview', width: 80, height: 40 }),
+          makeNode({ id: '2:2', name: 'Reports', width: 80, height: 40 }),
+          makeNode({ id: '2:3', name: 'Customers', width: 96, height: 40 }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(0);
+  });
+});
+
+describe('stats-row-cramped', () => {
+  it('flags stats rows that cannot fit all cards', () => {
+    const v = statsRowCrampedRule.check(
+      makeNode({
+        name: 'Metrics',
+        role: 'stats',
+        type: 'FRAME',
+        width: 640,
+        layoutMode: 'HORIZONTAL',
+        itemSpacing: 24,
+        paddingLeft: 24,
+        paddingRight: 24,
+        children: [
+          makeNode({ id: '2:1', name: 'Revenue Card', role: 'card', width: 220, height: 120 }),
+          makeNode({ id: '2:2', name: 'MRR Card', role: 'card', width: 220, height: 120 }),
+          makeNode({ id: '2:3', name: 'Churn Card', role: 'card', width: 220, height: 120 }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(1);
+    expect(v[0].rule).toBe('stats-row-cramped');
+  });
+
+  it('passes stats rows with enough width', () => {
+    const v = statsRowCrampedRule.check(
+      makeNode({
+        name: 'Metrics',
+        role: 'stats',
+        type: 'FRAME',
+        width: 960,
+        layoutMode: 'HORIZONTAL',
+        itemSpacing: 16,
+        paddingLeft: 24,
+        paddingRight: 24,
+        children: [
+          makeNode({ id: '2:1', name: 'Revenue Card', role: 'card', width: 220, height: 120 }),
+          makeNode({ id: '2:2', name: 'MRR Card', role: 'card', width: 220, height: 120 }),
+          makeNode({ id: '2:3', name: 'Churn Card', role: 'card', width: 220, height: 120 }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(0);
+  });
+});
+
+describe('root-misclassified-interactive', () => {
+  it('flags screen-sized roots that carry button semantics', () => {
+    const v = rootMisclassifiedInteractiveRule.check(
+      makeNode({
+        name: 'Sign In',
+        role: 'button',
+        type: 'FRAME',
+        width: 402,
+        height: 874,
+        children: [
+          makeNode({ id: '2:1', name: 'Header', type: 'FRAME', height: 88 }),
+          makeNode({ id: '2:2', name: 'Form', type: 'FRAME', height: 320 }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(1);
+    expect(v[0].rule).toBe('root-misclassified-interactive');
+    expect(v[0].severity).toBe('error');
+  });
+
+  it('passes normal screen roots', () => {
+    const v = rootMisclassifiedInteractiveRule.check(
+      makeNode({
+        name: 'Sign In',
+        role: 'screen',
+        type: 'FRAME',
+        width: 402,
+        height: 874,
+        children: [
+          makeNode({ id: '2:1', name: 'Header', type: 'FRAME', height: 88 }),
+          makeNode({ id: '2:2', name: 'Form', type: 'FRAME', height: 320 }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(0);
+  });
+});
+
+describe('nested-interactive-shell', () => {
+  it('flags interactive shells nested inside interactive parents', () => {
+    const v = nestedInteractiveShellRule.check(
+      makeNode({
+        name: 'Email Input',
+        role: 'input',
+        type: 'FRAME',
+        width: 354,
+        height: 48,
+        children: [
+          makeNode({ id: '2:1', name: 'Inner Input', role: 'input', type: 'FRAME', width: 320, height: 48 }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(1);
+    expect(v[0].rule).toBe('nested-interactive-shell');
+    expect(v[0].severity).toBe('error');
+  });
+
+  it('passes when interactive parents only contain text/content children', () => {
+    const v = nestedInteractiveShellRule.check(
+      makeNode({
+        name: 'Email Input',
+        role: 'input',
+        type: 'FRAME',
+        width: 354,
+        height: 48,
+        children: [
+          makeNode({ id: '2:1', name: 'Placeholder', type: 'TEXT', characters: 'Email' }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(0);
+  });
+});
+
+describe('screen-shell-invalid', () => {
+  it('flags screen roots without vertical auto-layout', () => {
+    const v = screenShellInvalidRule.check(
+      makeNode({
+        name: 'Checkout',
+        role: 'screen',
+        type: 'FRAME',
+        width: 402,
+        height: 874,
+        layoutMode: 'HORIZONTAL',
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(1);
+    expect(v[0].rule).toBe('screen-shell-invalid');
+    expect(v[0].severity).toBe('error');
+  });
+
+  it('passes stable screen shells', () => {
+    const v = screenShellInvalidRule.check(
+      makeNode({
+        name: 'Checkout',
+        role: 'screen',
+        type: 'FRAME',
+        width: 402,
+        height: 874,
+        layoutMode: 'VERTICAL',
       }),
       emptyCtx,
     );

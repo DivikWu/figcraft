@@ -17,13 +17,13 @@ import {
   componentsEndpointSchema,
   variables_epEndpointSchema,
   styles_epEndpointSchema,
-} from '../src/mcp-server/tools/_generated.js';
+} from '../packages/core-mcp/src/tools/_generated.js';
 import {
   GENERATED_ENDPOINT_METHOD_ACCESS,
   GENERATED_ENDPOINT_TOOLS,
   GENERATED_ENDPOINT_REPLACES,
   GENERATED_WRITE_TOOLS,
-} from '../src/mcp-server/tools/_registry.js';
+} from '../packages/core-mcp/src/tools/_registry.js';
 
 // ─── Helpers ───
 
@@ -189,7 +189,7 @@ import fc from 'fast-check';
 import {
   GENERATED_CORE_TOOLS,
   GENERATED_TOOLSETS,
-} from '../src/mcp-server/tools/_registry.js';
+} from '../packages/core-mcp/src/tools/_registry.js';
 
 // ─── Helpers ───
 

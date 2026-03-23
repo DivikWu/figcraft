@@ -3,12 +3,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { AbstractNode, LintContext } from '../src/plugin/linter/types.js';
-import { defaultNameRule } from '../src/plugin/linter/rules/default-name.js';
-import { emptyContainerRule } from '../src/plugin/linter/rules/empty-container.js';
-import { wcagTextSizeRule } from '../src/plugin/linter/rules/wcag-text-size.js';
-import { noTextStyleRule } from '../src/plugin/linter/rules/no-text-style.js';
-import { componentBindingsRule } from '../src/plugin/linter/rules/component-bindings.js';
+import type { AbstractNode, LintContext } from '../packages/quality-engine/src/types.js';
+import { defaultNameRule } from '../packages/quality-engine/src/rules/default-name.js';
+import { emptyContainerRule } from '../packages/quality-engine/src/rules/empty-container.js';
+import { wcagTextSizeRule } from '../packages/quality-engine/src/rules/wcag-text-size.js';
+import { noTextStyleRule } from '../packages/quality-engine/src/rules/no-text-style.js';
+import { componentBindingsRule } from '../packages/quality-engine/src/rules/component-bindings.js';
 
 const emptyCtx: LintContext = {
   colorTokens: new Map(),

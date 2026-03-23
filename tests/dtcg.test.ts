@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { parseDtcg } from '../src/mcp-server/dtcg.js';
+import { parseDtcg } from '../packages/core-mcp/src/dtcg.js';
 
 describe('parseDtcg', () => {
   it('parses a flat token', () => {

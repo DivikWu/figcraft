@@ -3,11 +3,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { AbstractNode, LintContext } from '../src/plugin/linter/types.js';
-import { specColorRule } from '../src/plugin/linter/rules/spec-color.js';
-import { specTypographyRule } from '../src/plugin/linter/rules/spec-typography.js';
-import { specSpacingRule } from '../src/plugin/linter/rules/spec-spacing.js';
-import { specBorderRadiusRule } from '../src/plugin/linter/rules/spec-border-radius.js';
+import type { AbstractNode, LintContext } from '../packages/quality-engine/src/types.js';
+import { specColorRule } from '../packages/quality-engine/src/rules/spec-color.js';
+import { specTypographyRule } from '../packages/quality-engine/src/rules/spec-typography.js';
+import { specSpacingRule } from '../packages/quality-engine/src/rules/spec-spacing.js';
+import { specBorderRadiusRule } from '../packages/quality-engine/src/rules/spec-border-radius.js';
 
 function makeNode(overrides: Partial<AbstractNode>): AbstractNode {
   return { id: '1:1', name: 'Test', type: 'FRAME', ...overrides };

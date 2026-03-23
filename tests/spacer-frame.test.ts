@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { AbstractNode, LintContext } from '../src/plugin/linter/types.js';
-import { spacerFrameRule } from '../src/plugin/linter/rules/spacer-frame.js';
+import type { AbstractNode, LintContext } from '../packages/quality-engine/src/types.js';
+import { spacerFrameRule } from '../packages/quality-engine/src/rules/spacer-frame.js';
 
 const emptyCtx: LintContext = {
   colorTokens: new Map(),

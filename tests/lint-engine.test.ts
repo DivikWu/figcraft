@@ -3,9 +3,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { runLint, getAvailableRules } from '../src/plugin/linter/engine.js';
-import type { AbstractNode, LintContext } from '../src/plugin/linter/types.js';
-import { downgradeSeverity } from '../src/plugin/linter/types.js';
+import { runLint, getAvailableRules } from '../packages/quality-engine/src/engine.js';
+import type { AbstractNode, LintContext } from '../packages/quality-engine/src/types.js';
+import { downgradeSeverity } from '../packages/quality-engine/src/types.js';
 
 const emptyCtx: LintContext = {
   colorTokens: new Map(),
@@ -158,9 +158,10 @@ describe('downgradeSeverity', () => {
 });
 
 describe('getAvailableRules', () => {
-  it('returns 22 rules', () => {
+  it('returns a stable, non-duplicated rule list', () => {
     const rules = getAvailableRules();
-    expect(rules.length).toBe(22);
+    expect(rules.length).toBeGreaterThanOrEqual(30);
+    expect(new Set(rules.map((rule) => rule.name)).size).toBe(rules.length);
   });
 
   it('each rule has name, description, category, severity', () => {

@@ -21,13 +21,13 @@ import fc from 'fast-check';
 
 // ─── Mock setup (same pattern as method-dispatcher.test.ts) ───
 
-vi.mock('../src/mcp-server/tools/toolset-manager.js', () => ({
+vi.mock('../packages/core-mcp/src/tools/toolset-manager.js', () => ({
   getAccessLevel: vi.fn(() => 'edit'),
   isToolBlocked: vi.fn(() => null),
   getApiMode: vi.fn(() => 'both'),
 }));
 
-vi.mock('../src/mcp-server/tools/logic/node-logic.js', () => ({
+vi.mock('../packages/core-mcp/src/tools/logic/node-logic.js', () => ({
   getNodeInfoLogic: vi.fn().mockResolvedValue({
     content: [{ type: 'text', text: '{"id":"1:23"}' }],
   }),
@@ -39,7 +39,7 @@ vi.mock('../src/mcp-server/tools/logic/node-logic.js', () => ({
   }),
 }));
 
-vi.mock('../src/mcp-server/rest-fallback.js', () => ({
+vi.mock('../packages/core-mcp/src/rest-fallback.js', () => ({
   requestWithFallback: vi.fn(),
   restGetNodeInfo: vi.fn(),
   restExportImage: vi.fn(),
@@ -47,21 +47,21 @@ vi.mock('../src/mcp-server/rest-fallback.js', () => ({
   setFileContext: vi.fn(),
 }));
 
-vi.mock('../src/mcp-server/figma-api.js', () => ({
+vi.mock('../packages/core-mcp/src/figma-api.js', () => ({
   extractFileKeyFromUrl: vi.fn(),
   extractNodeIdFromUrl: vi.fn(),
 }));
 
 // Mock component-logic (listLibraryComponentsLogic used by components endpoint)
-vi.mock('../src/mcp-server/tools/logic/component-logic.js', () => ({
+vi.mock('../packages/core-mcp/src/tools/logic/component-logic.js', () => ({
   listLibraryComponentsLogic: vi.fn().mockResolvedValue({
     content: [{ type: 'text', text: '{"count":0,"components":[]}' }],
   }),
 }));
 
-import { registerEndpointTools } from '../src/mcp-server/tools/endpoints.js';
-import { getAccessLevel } from '../src/mcp-server/tools/toolset-manager.js';
-import { GENERATED_ENDPOINT_METHOD_ACCESS } from '../src/mcp-server/tools/_registry.js';
+import { registerEndpointTools } from '../packages/core-mcp/src/tools/endpoints.js';
+import { getAccessLevel } from '../packages/core-mcp/src/tools/toolset-manager.js';
+import { GENERATED_ENDPOINT_METHOD_ACCESS } from '../packages/core-mcp/src/tools/_registry.js';
 import { buildMinimalParams } from './helpers/endpoint-test-utils.js';
 
 const mockGetAccessLevel = vi.mocked(getAccessLevel);

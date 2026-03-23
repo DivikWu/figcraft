@@ -14,7 +14,7 @@ import {
   GENERATED_TOOLSETS,
   GENERATED_ENDPOINT_TOOLS,
   GENERATED_ENDPOINT_REPLACES,
-} from '../src/mcp-server/tools/_registry.js';
+} from '../packages/core-mcp/src/tools/_registry.js';
 
 // ─── Helpers: simulate what toolset-manager does for each API mode ───
 
@@ -260,7 +260,7 @@ describe('both mode tool enable/disable', () => {
 describe('standalone tools are never disabled by any API mode', () => {
   const standalone = getStandaloneTools();
   const expectedStandalone = [
-    'ping', 'get_mode', 'set_mode', 'create_document',
+    'ping', 'get_mode', 'set_mode', 'create_document', 'create_screen',
     'join_channel', 'get_channel', 'export_image', 'lint_fix_all',
     'set_current_page', 'save_version_history', 'set_selection',
     'get_selection', 'get_current_page', 'get_document_info',

@@ -6,3 +6,4 @@ dist/
 .mcp.json
 .kiro/settings/mcp.json
 .vscode/
+reports/benchmarks/

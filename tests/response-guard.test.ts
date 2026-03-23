@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { Bridge } from '../src/mcp-server/bridge.js';
+import { Bridge } from '../packages/core-mcp/src/bridge.js';
 
 describe('Bridge.guardResponseSize', () => {
   it('passes through small responses unchanged', () => {

@@ -11,7 +11,7 @@ import {
   GENERATED_EDIT_TOOLS,
   GENERATED_CORE_TOOLS,
   GENERATED_TOOLSETS,
-} from '../src/mcp-server/tools/_registry.js';
+} from '../packages/core-mcp/src/tools/_registry.js';
 
 // ─── Registry invariant tests (static, no env mocking needed) ───
 
@@ -54,7 +54,7 @@ describe('access control registry', () => {
 
   it('create tools include expected creation operations', () => {
     const expectedCreate = [
-      'create_document', 'create_frame', 'create_text', 'create_rectangle',
+      'create_document', 'create_screen', 'create_frame', 'create_text', 'create_rectangle',
       'create_ellipse', 'create_vector', 'clone_node', 'create_instance',
       'create_variable', 'create_collection', 'create_component', 'create_page',
       'lint_fix_all',
@@ -111,7 +111,7 @@ describe('isToolBlocked', () => {
 
   it('at edit level (default), no tools are blocked', async () => {
     // Default env = edit level
-    const { isToolBlocked } = await import('../src/mcp-server/tools/toolset-manager.js');
+    const { isToolBlocked } = await import('../packages/core-mcp/src/tools/toolset-manager.js');
     // At edit level, nothing should be blocked
     expect(isToolBlocked('patch_nodes')).toBeNull();
     expect(isToolBlocked('create_frame')).toBeNull();
@@ -119,7 +119,7 @@ describe('isToolBlocked', () => {
   });
 
   it('resolveAccessLevel defaults to edit', async () => {
-    const { getAccessLevel } = await import('../src/mcp-server/tools/toolset-manager.js');
+    const { getAccessLevel } = await import('../packages/core-mcp/src/tools/toolset-manager.js');
     // Module was loaded without FIGCRAFT_ACCESS set, should default to edit
     expect(getAccessLevel()).toBe('edit');
   });
@@ -186,7 +186,7 @@ import {
   GENERATED_ENDPOINT_METHOD_ACCESS,
   GENERATED_ENDPOINT_TOOLS,
   GENERATED_ENDPOINT_REPLACES,
-} from '../src/mcp-server/tools/_registry.js';
+} from '../packages/core-mcp/src/tools/_registry.js';
 
 describe('endpoint access control registry', () => {
   it('every endpoint tool has a method access map', () => {

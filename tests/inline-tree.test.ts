@@ -14,7 +14,7 @@ import {
   checkOverlappingSiblingsPostCreation,
   buildCorrectedPayload,
   type Hint,
-} from '../src/plugin/utils/inline-tree.js';
+} from '../packages/adapter-figma/src/utils/inline-tree.js';
 
 describe('detectWrongShapeParams', () => {
   it('detects CSS gap to itemSpacing', () => {
@@ -178,6 +178,48 @@ describe('inferChildSizing', () => {
 // ─── Button inference enhancements ───
 
 describe('inferStructure — button enhancements', () => {
+  it('does not misclassify a top-level screen named Sign In as a button', () => {
+    const spec = {
+      type: 'frame', name: 'Sign In',
+      props: { width: 402, height: 874 } as Record<string, unknown>,
+      children: [
+        { type: 'frame', name: 'Header', props: { autoLayout: true } },
+        { type: 'frame', name: 'Login Form', props: { autoLayout: true } },
+      ],
+    };
+    inferStructure(spec);
+    expect(spec.props.layoutDirection).toBeUndefined();
+    expect(spec.props.height).toBe(874);
+    expect(spec.props.paddingLeft).toBeUndefined();
+  });
+
+  it('records heuristic skip/conflict telemetry for blocked screen-like roots', () => {
+    const spec = {
+      type: 'frame', name: 'Sign In',
+      props: { width: 402, height: 874 } as Record<string, unknown>,
+      children: [
+        { type: 'frame', name: 'Header', props: { autoLayout: true } },
+        { type: 'frame', name: 'Login Form', props: { autoLayout: true } },
+      ],
+    };
+    const r = inferStructure(spec);
+    expect(r.telemetry.heuristicSkips).toBeGreaterThan(0);
+    expect(r.telemetry.interactiveGuessConflicts).toBeGreaterThan(0);
+    expect(r.structuralErrors).toHaveLength(0);
+  });
+
+  it('still applies button inference when role explicitly marks a button', () => {
+    const spec = {
+      type: 'frame', name: 'Sign In',
+      role: 'button',
+      props: { fill: '#111111' } as Record<string, unknown>,
+      children: [{ type: 'text', props: { content: 'Sign In' } }],
+    };
+    inferStructure(spec);
+    expect(spec.props.autoLayout).toBe(true);
+    expect(spec.props.height).toBe(48);
+  });
+
   it('auto-adds height to button without explicit height', () => {
     const spec = {
       type: 'frame', name: 'Submit Button',
@@ -237,6 +279,66 @@ describe('inferStructure — button enhancements', () => {
 // ─── Input inference enhancements ───
 
 describe('inferStructure — input enhancements', () => {
+  it('records structural errors for nested interactive shells', () => {
+    const spec = {
+      type: 'frame', name: 'Email Input',
+      role: 'input',
+      props: { autoLayout: true, layoutDirection: 'VERTICAL', width: 320 } as Record<string, unknown>,
+      children: [{
+        type: 'frame',
+        name: 'Email',
+        role: 'input',
+        props: {} as Record<string, unknown>,
+        children: [{ type: 'text', props: { content: 'Enter your email' } }],
+      }],
+    };
+    const r = inferStructure(spec);
+    expect(r.structuralErrors.some((error) => error.includes('nested inside interactive parent'))).toBe(true);
+  });
+
+  it('does not infer nested input shell inside another input-like parent', () => {
+    const spec = {
+      type: 'frame', name: 'Email Input',
+      props: { autoLayout: true, layoutDirection: 'VERTICAL', width: 320 } as Record<string, unknown>,
+      children: [{
+        type: 'frame',
+        name: 'Email',
+        props: {} as Record<string, unknown>,
+        children: [{ type: 'text', props: { content: 'Enter your email' } }],
+      }],
+    };
+    inferStructure(spec);
+    const nested = spec.children![0];
+    expect(nested.props?.stroke).toBeUndefined();
+    expect(nested.props?.cornerRadius).toBeUndefined();
+    expect(nested.props?.layoutAlign).toBeUndefined();
+  });
+
+  it('still applies input inference when role explicitly marks an input', () => {
+    const spec = {
+      type: 'frame', name: 'Email',
+      role: 'input',
+      props: {} as Record<string, unknown>,
+      children: [{ type: 'text', props: { content: 'Email' } }],
+    };
+    inferStructure(spec);
+    expect(spec.props.stroke).toBe('#E0E0E0');
+    expect(spec.props.height).toBe(48);
+  });
+
+  it('counts root role guesses for screen-like unnamed roots', () => {
+    const spec = {
+      type: 'frame', name: 'Welcome',
+      props: { width: 402, height: 874 } as Record<string, unknown>,
+      children: [
+        { type: 'frame', name: 'Header', props: { autoLayout: true } },
+        { type: 'frame', name: 'Hero', props: { autoLayout: true } },
+      ],
+    };
+    const r = inferStructure(spec);
+    expect(r.telemetry.rootRoleGuesses).toBe(1);
+  });
+
   it('auto-adds height to input without explicit height', () => {
     const spec = {
       type: 'frame', name: 'Email Input',
@@ -479,7 +581,7 @@ describe('checkOverlappingSiblings', () => {
 });
 
 
-// ─── Extended CSS alias normalization (surpasses Vibma) ───
+// ─── Extended CSS alias normalization ───
 
 describe('normalizeAliases — extended aliases', () => {
   it('converts fillVariableName to fill with _variable object', () => {
