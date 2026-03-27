@@ -13,19 +13,20 @@ Incorporates official Figma Plugin API best practices.
 
 ### Skill loading (must decide before any tool call)
 
-`figma-use` is a mandatory prerequisite for ANY `execute_js` call. Beyond that, load additional skills based on task type:
+In Kiro, the auto-loaded `figma-essential-rules.md` steering already covers all execute_js rules. Do NOT call `discloseContext("figma-use")` — it duplicates ~60KB of content already in context. Load additional skills based on task type:
 
 | Task type | Skills to load |
 |-----------|---------------|
-| Create/edit a single component, card, form, button in Figma | `figma-use` |
-| Create full page, multi-screen flow, mobile/web screens | `figma-use` + `figma-generate-design` |
-| Create a new blank Figma file then design in it | `figma-create-new-file` + `figma-use` |
-| Build design system, tokens, variables, component library | `figma-use` + `figma-generate-library` |
+| Create/edit a single component, card, form, button in Figma | None (auto-loaded steering is sufficient) |
+| Create full page, multi-screen flow, mobile/web screens (no design system) | None (auto-loaded steering is sufficient) |
+| Create full page using a design system | `figma-generate-design` |
+| Create a new blank Figma file then design in it | `figma-create-new-file` |
+| Build design system, tokens, variables, component library | `figma-generate-library` |
 | Generate project-level design system rules | `figma-create-design-system-rules` |
 | Map Figma components to code components (Code Connect) | `figma-code-connect-components` |
 | Generate frontend code from a Figma design | `figma-implement-design` (not for drawing in Figma) |
 
-If the task involves multi-screen or full-page creation and you're unsure, load `figma-generate-design` — it's better to have the workflow rules and not need them than to miss them.
+Use `readFile` on individual reference files (gotchas.md, common-patterns.md, etc.) when you need specific API patterns.
 
 ### Tool and context setup
 
@@ -134,18 +135,7 @@ Pass all supported `create_frame` parameters at creation time to avoid post-crea
 
 ### Sizing Defaults by Node Role
 
-Always set BOTH axes explicitly on every node. These defaults prevent the most common layout bugs:
-
-| Node role | Horizontal | Vertical | Notes |
-|-----------|-----------|----------|-------|
-| Screen shell (mobile) | FIXED (402/412) | FIXED (874/915) | iPhone 16 Pro / Android |
-| Section container | FILL | HUG | Stretches to parent width, height from content |
-| Input field frame | FILL | HUG | Full-width, height from padding + text |
-| Button frame | FILL | HUG | Full-width, height from padding + text |
-| Text in auto-layout parent | FILL | HUG | Wraps at parent width, grows with content |
-| Icon / badge / pill | HUG | HUG | Intrinsic size, leaf element |
-| Multi-screen wrapper | HUG | HUG | Child screens use FIXED, wrapper shrinks to fit |
-| Scrollable long page | FIXED (width) | HUG | Width fixed, height grows with content |
+See the Sizing Defaults table in `figma-essential-rules.md` (auto-loaded) — always set BOTH axes explicitly on every node.
 
 ## 6. Screen Layout — Top/Bottom Content Distribution (CRITICAL)
 

@@ -1,12 +1,14 @@
 ---
 inclusion: fileMatch
-fileMatchPattern: "packages/adapter-figma/**,packages/core-mcp/src/tools/**,.kiro/steering/figma-*,.kiro/skills/figma-*"
+fileMatchPattern: "packages/adapter-figma/**,packages/core-mcp/src/tools/**"
 description: "Workflow guide for building design system libraries using FigCraft execute_js"
 ---
 
 # Building Design System Libraries with execute_js
 
-This guide adapts the official `figma-generate-library` skill workflow to FigCraft's `execute_js`.
+This guide is the FigCraft-adapted version of the `figma-generate-library` skill workflow.
+**When this steering file conflicts with the skill, this file takes precedence.**
+
 Core principle: this is NOT a one-shot task — it requires 20-100+ `execute_js` calls across multiple phases, each requiring user confirmation.
 
 You MUST read #[[file:.kiro/steering/execute-js-guide.md]] before using `execute_js`.

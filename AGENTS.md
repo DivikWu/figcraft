@@ -2,6 +2,34 @@
 
 AI-powered Figma plugin. Bridges AI IDEs to Figma via MCP for design review, lint, audit, token sync, and inspection. Creation capabilities are delegated to the official Figma MCP. In endpoint mode, 4 additional core endpoint tools are available.
 
+## ⛔ Figma UI Creation — Mandatory Pre-Flight (ALL AI IDEs)
+
+Before ANY Figma write operation (create_frame, create_text, execute_js, nodes update/delete), you MUST complete these steps IN ORDER. Skipping any step is a critical error.
+
+```
+STEP 0: ping                                          → verify plugin connection
+STEP 1: get_current_page(maxDepth=1)                  → inspect existing content, find placement position
+STEP 2: get_mode                                      → check library/token status
+        ├─ library selected → readFile design-guardian.md + load design system discovery workflow
+        └─ no library       → readFile design-creator.md (make intentional design choices)
+STEP 3: CLASSIFY TASK SCALE                           → count screens, pick granularity:
+        ├─ single element   → 1 execute_js call
+        ├─ single screen    → 2-4 execute_js calls (1 per section)
+        ├─ multi-screen 3-5 → 1 execute_js per FULL SCREEN
+        └─ large flow 6+    → batch 2-3 screens per conversation turn
+STEP 4: IF multi-screen flow →
+        Read the multi-screen-flow-guide (see Reference Docs below)
+        ❌ FORBIDDEN: using create_frame/create_text individually for multi-screen flows
+        ❌ FORBIDDEN: skipping the Wrapper → Header → Flow Row → Stage → Screen hierarchy
+        ✅ REQUIRED: use execute_js with PRESET variable, shared helpers, one screen per call
+```
+
+During execution: verify after every write (`get_current_page(maxDepth=1)` + `export_image` at milestones). Run `lint_fix_all` before replying to user.
+
+Reference docs (read on demand):
+- Kiro: `.kiro/steering/figma-essential-rules.md` (auto-loaded) + `.kiro/steering/multi-screen-flow-guide.md`
+- Claude Code / other IDEs: see Multi-Screen Flow section in CLAUDE.md
+
 ## API Mode (Endpoint)
 
 FigCraft uses resource-oriented endpoints with method dispatch. Legacy flat tool names (e.g. `get_node_info`, `patch_nodes`) are registered as ghost tools that return migration guidance pointing to the equivalent endpoint method.
@@ -47,6 +75,10 @@ Load multiple at once: `load_toolset({ names: "tokens,variables" })`
 > **Note:** Code generation, design system search, Code Connect, and canvas write capabilities are now provided by Figma Power (Kiro platform). FigCraft focuses on Plugin Channel capabilities: lint, audit, token sync, and node operations.
 
 ## Rules
+
+### Context Budget (CRITICAL)
+
+0. **NEVER pre-load skills at the start of UI creation tasks.** The auto-loaded `figma-essential-rules.md` + `figcraft.md` (~16KB) is sufficient for all UI creation without a design system. Forbidden calls: `discloseContext("figma-essential-rules")` (redundant — already auto-loaded), `discloseContext("figma-use")` (~60KB, duplicates steering), `discloseContext("figma-generate-design")` when no design system. Allowed: `discloseContext("figma-generate-design")` WITH a design system, `discloseContext("figma-generate-library")` for building design systems. Use `readFile` for individual reference docs as needed.
 
 ### Tool Behavior
 

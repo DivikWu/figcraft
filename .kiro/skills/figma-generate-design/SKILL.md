@@ -1,6 +1,6 @@
 ---
 name: figma-generate-design
-description: "Use this skill alongside figma-use when the task involves translating an application page, view, or multi-section layout into Figma. Triggers: 'write to Figma', 'create in Figma from code', 'push page to Figma', 'take this app/page and build it in Figma', 'create a screen', 'build a landing page in Figma', 'update the Figma screen to match code'. This is the preferred workflow skill whenever the user wants to build or update a full page, screen, or view in Figma from code or a description. Discovers design system components, variables, and styles, imports them, and assembles screens incrementally section-by-section using design system tokens instead of hardcoded values."
+description: "Use this skill when the task involves translating an application page, view, or multi-section layout into Figma AND a design system library is available. Triggers: 'write to Figma', 'create in Figma from code', 'push page to Figma', 'take this app/page and build it in Figma', 'create a screen', 'build a landing page in Figma', 'update the Figma screen to match code'. This is the preferred workflow skill whenever the user wants to build or update a full page, screen, or view in Figma from code or a description. Discovers design system components, variables, and styles, imports them, and assembles screens incrementally section-by-section using design system tokens instead of hardcoded values."
 disable-model-invocation: false
 ---
 
@@ -10,7 +10,7 @@ disable-model-invocation: false
 
 Use this skill to create or update full-page screens in Figma by **reusing the published design system** — components, variables, and styles — rather than drawing primitives with hardcoded values. The key insight: the Figma file likely has a published design system with components, color/spacing variables, and text/effect styles that correspond to the codebase's UI components and tokens. Find and use those instead of drawing boxes with hex colors.
 
-**MANDATORY**: You MUST also load [figma-use](../figma-use/SKILL.md) before any `execute_js` call. That skill contains critical rules (color ranges, font loading, etc.) that apply to every script you write.
+**MANDATORY**: You MUST also load [figma-use](../figma-use/SKILL.md) before any `execute_js` call. That skill contains critical rules (color ranges, font loading, etc.) that apply to every script you write. *(In Kiro: this is overridden — the auto-loaded `figma-essential-rules.md` steering already covers these rules. Do NOT load figma-use separately.)*
 
 ## Skill Boundaries
 
@@ -314,7 +314,7 @@ return { success: true, mutatedNodeIds: [existingButton.id] };
 2. **Read the error message carefully** to understand what went wrong.
 3. If the error is unclear, call `get_current_page` or `export_image` to inspect the current file state.
 4. **Fix the script** based on the error message.
-5. **Retry** the corrected script — this is safe because failed scripts are atomic (nothing is created if a script errors).
+5. **Retry** the corrected script — but first inspect page state with `get_current_page(maxDepth=1)` to check for orphan nodes (failed scripts are not always fully atomic).
 
 Because this skill works incrementally (one section per call), errors are naturally scoped to a single section. Previous sections from successful calls remain intact.
 

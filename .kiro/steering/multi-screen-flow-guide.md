@@ -22,7 +22,7 @@ Every `execute_js` script MUST start with this block (choose one preset):
 // Options: 'square' | 'soft' | 'device-mockup' | 'flat-wireframe'
 const PRESET = {
   // soft (default for mobile product flows)
-  screen:  { radius: 28, shadow: { type: "DROP_SHADOW", color: {r:0,g:0,b:0,a:0.08}, offset:{x:0,y:4}, radius:24, spread:0, visible:true, blendMode:"NORMAL" } },
+  screen:  { radius: 28, shadow: null },
   button:  { radius: 12 },
   input:   { radius: 12 },
   card:    { radius: 20 },
@@ -34,8 +34,8 @@ const PRESET = {
 
 | Preset | screen.radius | button.radius | input.radius | card.radius | pill.radius | Shadow | Notes |
 |--------|--------------|---------------|-------------|-------------|------------|--------|-------|
-| `square` | 0 | 4–8 | 4–8 | 8 | 12 | subtle or none | Enterprise / dashboard / brutalist |
-| `soft` | 28 | 12 | 12 | 20 | 100 | medium drop shadow | Modern mobile product (default) |
+| `square` | 0 | 4–8 | 4–8 | 8 | 12 | none | Enterprise / dashboard / brutalist |
+| `soft` | 28 | 12 | 12 | 20 | 100 | none | Modern mobile product (default) |
 | `device-mockup` | 40 | 12 | 12 | 20 | 100 | strong drop shadow | Presentation with phone shell |
 | `flat-wireframe` | 0 | 0 | 0 | 0 | 0 | none | Lo-fi wireframe, no decoration |
 
@@ -73,14 +73,18 @@ Wrapper (VERTICAL, HUG/HUG, counterAxisAlignItems=MIN, clipsContent=false, corne
 ```
 
 ### Shadow Rule
-Screen has `dropShadow` + `clipsContent=true` (clips its own content at rounded corners). ALL ancestor layout containers (Stage, Flow Row, Wrapper) MUST have `clipsContent=false` so the shadow renders fully. See Layout & Quality Rule #24 in the essential rules cheat sheet.
+When `PRESET.screen.shadow` is set (e.g., `device-mockup` preset), Screen has `dropShadow` + `clipsContent=true` (clips its own content at rounded corners). ALL ancestor layout containers (Stage, Flow Row, Wrapper) MUST have `clipsContent=false` so the shadow renders fully. See Layout & Quality Rule #24 in the essential rules cheat sheet. When `PRESET.screen.shadow` is `null` (e.g., `soft`, `square`, `flat-wireframe` presets), no shadow is applied and the `clipsContent=false` requirement on ancestors is relaxed (but still recommended for consistency).
 
 ### Layout Rule
 Screen nodes MUST have `layoutMode: "VERTICAL"` with padding to control safe area insets. Do NOT use a separate Content child with absolute positioning — this causes `lint_fix_all` to force auto-layout on Screen, breaking the layout.
 
 ## Step 3: Write Helper Functions from PRESET
 
-`makeText`, `makeButton`, `makeField`, `makeBadge`, etc. These helpers MUST use `PRESET.button.radius`, `PRESET.input.radius`, etc. — **never hardcoded numbers**.
+`makeText`, `makeButton`, `makeField`, `makeBadge`, `makeIcon`, etc. These helpers MUST use `PRESET.button.radius`, `PRESET.input.radius`, etc. — **never hardcoded numbers**.
+
+### Icon Helper (MANDATORY — no emoji placeholders)
+
+Every script that needs icons MUST include the `ICONS` path library and `makeIcon` helper. See `.kiro/steering/figma-essential-rules.md` §Icons for the full `ICONS` object and `makeIcon` implementation. Use `figma.createNodeFromSvg()` to create real vector icons — **NEVER use emoji text nodes as icon substitutes**.
 
 ```js
 function makeButton(parent, label, fillColor, textColor) {

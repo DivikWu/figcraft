@@ -1,6 +1,6 @@
 ---
 inclusion: fileMatch
-fileMatchPattern: "packages/adapter-figma/**,packages/core-mcp/src/tools/**,.kiro/steering/figma-*,.kiro/skills/figma-*"
+fileMatchPattern: "packages/adapter-figma/**,packages/core-mcp/src/tools/**"
 description: "FigCraft execute_js tool usage rules and key pitfalls"
 ---
 
@@ -18,20 +18,9 @@ FigCraft's `execute_js` tool executes arbitrary JavaScript in the Figma Plugin s
 
 ## Key Rules
 
-1. Use `return` to send data back — auto JSON-serialized. Do not call `figma.closePlugin()` or wrap in async IIFE
-2. Top-level `await` is supported — code is automatically wrapped in an async context
-3. `figma.notify()` throws — never use it
-4. `console.log()` does not return output — use `return` instead
-5. Colors are 0–1 range, fills/strokes are immutable arrays, `setBoundVariableForPaint` returns a new paint — see gotchas.md for details
-6. Must load fonts before text operations: `await figma.loadFontAsync({family, style})`
-7. `layoutSizingHorizontal/Vertical = 'FILL'` must be set AFTER `parent.appendChild(child)`
-8. Page context resets on each call — use `await figma.setCurrentPageAsync(page)` to switch
-9. Failed scripts are NOT always atomic — nodes created before the error point may persist as orphans. Always inspect page state after a failure before retrying
-10. Must `return` created/mutated node IDs — for multi-screen flows, return only IDs needed by subsequent calls (see Incremental Workflow below)
-11. Every Promise must be `await`ed — no fire-and-forget
-12. Position new top-level nodes away from (0,0) to avoid overlapping existing content
-13. After setting `layoutMode`, always explicitly set both `layoutSizingHorizontal` and `layoutSizingVertical` — see gotchas.md "Auto-layout sizing mode must be explicitly set"
-14. Never use empty frames for spacing — see gotchas.md "Never use empty Spacer frames"
+See `figma-essential-rules.md` (auto-loaded) — execute_js Critical Rules #1–15 and Layout & Quality Rules #16–24. Those rules are the authoritative source and are always in context.
+
+This guide adds the following execute_js-specific guidance that goes beyond the cheat sheet rules.
 
 ## Incremental Workflow (Key to Avoiding Bugs)
 
@@ -64,8 +53,8 @@ When `execute_js` errors:
 ## Reference Documentation
 
 For detailed code patterns and pitfalls, see:
-- #[[file:.kiro/steering/references/gotchas.md]] — All known pitfalls with WRONG/CORRECT code examples
-- #[[file:.kiro/steering/references/common-patterns.md]] — Working code examples for common operations
+- #[[file:.kiro/skills/figma-use/references/gotchas.md]] — All known pitfalls with WRONG/CORRECT code examples
+- #[[file:.kiro/skills/figma-use/references/common-patterns.md]] — Working code examples for common operations
 
 ## Recommended Step Order for Full Page/Screen Creation
 
@@ -169,21 +158,9 @@ return { formId: form.id, emailFieldId: emailField.id, passFieldId: passField.id
 // Call 6: verify
 ```
 
-### Sizing Defaults (borrowed from Vibma auto-correction)
+### Sizing Defaults
 
-Apply these defaults consistently in every script to avoid layout bugs:
-
-| Node role | Horizontal | Vertical | Notes |
-|-----------|-----------|----------|-------|
-| Screen shell | FIXED (402/412) | FIXED (874/915) | Mobile dimensions |
-| Section container | FILL | HUG | Stretches to parent, height from content |
-| Input field frame | FILL | HUG | Stretches to parent |
-| Button frame | FILL | HUG | Full-width button, height from padding |
-| Text in auto-layout | FILL | HUG | Wraps at parent width |
-| Icon / badge | HUG | HUG | Intrinsic size only |
-| Multi-screen wrapper | HUG | HUG | Shrinks to child screens |
-
-Always set BOTH axes explicitly. Never rely on defaults.
+See the Sizing Defaults table in `figma-essential-rules.md` — always set BOTH axes explicitly on every node. Never rely on defaults.
 
 ## Post-Creation Lint (Mandatory)
 

@@ -1,6 +1,6 @@
 ---
 name: figma-use
-description: "**MANDATORY prerequisite** — you MUST invoke this skill BEFORE every `execute_js` tool call. NEVER call `execute_js` directly without loading this skill first. Skipping it causes common, hard-to-debug failures. Trigger whenever the user wants to perform a write action or a unique read action that requires JavaScript execution in the Figma file context — e.g. create/edit/delete nodes, set up variables or tokens, build components and variants, modify auto-layout or fills, bind variables to properties, or inspect file structure programmatically."
+description: "Figma Plugin API reference for `execute_js` scripting — color ranges, font loading, layout sizing, variable binding, and common pitfalls. In Kiro, the auto-loaded `figma-essential-rules.md` steering already covers these core rules, so this skill is NOT needed for routine UI creation. Only load when you need the full reference docs (gotchas, component-patterns, variable-patterns) for complex or unfamiliar API patterns. For canvas writes via `use_figma`, use `figma-use`."
 disable-model-invocation: false
 ---
 
@@ -32,7 +32,7 @@ IMPORTANT: Whenever you work with design systems, start with [working-with-desig
 11. `createVariable` accepts collection **object or ID string** (object preferred)
 12. **`layoutSizingHorizontal/Vertical = 'FILL'` MUST be set AFTER `parent.appendChild(child)`** — setting before append throws. Same applies to `'HUG'` on non-auto-layout nodes.
 13. **Position new top-level nodes away from (0,0).** Nodes appended directly to the page default to (0,0). Scan `figma.currentPage.children` to find a clear position (e.g., to the right of the rightmost node). This only applies to page-level nodes — nodes nested inside other frames or auto-layout containers are positioned by their parent. See [Gotchas](references/gotchas.md).
-14. **On `execute_js` error, STOP. Do NOT immediately retry.** Failed scripts are **atomic** — if a script errors, it is not executed at all and no changes are made to the file. Read the error message carefully, fix the script, then retry. See [Error Recovery](#6-error-recovery--self-correction).
+14. **On `execute_js` error, STOP. Do NOT immediately retry.** Failed scripts are intended to be atomic, but in practice **partial nodes may persist** — nodes created before the error point can remain as orphans. Always inspect page state with `get_current_page(maxDepth=1)` after a failure and clean up orphan nodes before retrying. See [Error Recovery](#6-error-recovery--self-correction).
 15. **MUST `return` ALL created/mutated node IDs.** Whenever a script creates new nodes or mutates existing ones on the canvas, collect every affected node ID and return them in a structured object (e.g. `return { createdNodeIds: [...], mutatedNodeIds: [...] }`). This is essential for subsequent calls to reference, validate, or clean up those nodes.
 16. **Always set `variable.scopes` explicitly when creating variables.** The default `ALL_SCOPES` pollutes every property picker — almost never what you want. Use specific scopes like `["FRAME_FILL", "SHAPE_FILL"]` for backgrounds, `["TEXT_FILL"]` for text colors, `["GAP"]` for spacing, etc. See [variable-patterns.md](references/variable-patterns.md) for the full list.
 17. **`await` every Promise.** Never leave a Promise unawaited — unawaited async calls (e.g. `figma.loadFontAsync(...)` without `await`, or `figma.setCurrentPageAsync(page)` without `await`) will fire-and-forget, causing silent failures or race conditions. The script may return before the async operation completes, leading to missing data or half-applied changes.
@@ -120,14 +120,15 @@ Step 5: Final verification
 
 ## 6. Error Recovery & Self-Correction
 
-**`execute_js` is atomic — failed scripts do not execute.** If a script errors, no changes are made to the file. The file remains in the same state as before the call. This means there are no partial nodes, no orphaned elements from the failed script, and retrying after a fix is safe.
+**`execute_js` errors are intended to be atomic, but in practice partial nodes may persist.** Nodes created before the error point can remain on the page as orphans (e.g., partially created wrappers, detached text nodes). Always inspect page state after a failure.
 
 ### When `execute_js` returns an error
 
 1. **STOP.** Do not immediately fix the code and retry.
 2. **Read the error message carefully.** Understand exactly what went wrong — wrong API usage, missing font, invalid property value, etc.
-3. **If the error is unclear**, call `get_current_page` or `export_image` to understand the current file state.
-4. **Fix the script** based on the error message.
+3. **ALWAYS inspect page state** — run `get_current_page(maxDepth=1)` to check for orphan nodes left behind by the failed script.
+4. **Clean up orphan nodes** — if unexpected nodes exist, remove them with `execute_js` before retrying.
+5. **Fix the script** based on the error message, then retry on a clean page.
 5. **Retry** the corrected script.
 
 ### Common self-correction patterns

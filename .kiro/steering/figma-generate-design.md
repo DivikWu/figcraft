@@ -1,12 +1,14 @@
 ---
 inclusion: fileMatch
-fileMatchPattern: "packages/adapter-figma/**,packages/core-mcp/src/tools/**,.kiro/steering/figma-*,.kiro/skills/figma-*"
+fileMatchPattern: "packages/adapter-figma/**,packages/core-mcp/src/tools/**"
 description: "Workflow guide for building/updating Figma designs using FigCraft execute_js"
 ---
 
 # Building/Updating Figma Designs with execute_js
 
-This guide adapts the official `figma-generate-design` skill workflow to FigCraft's `execute_js` tool.
+This guide is the FigCraft-adapted version of the `figma-generate-design` skill workflow.
+**When this steering file conflicts with the skill, this file takes precedence.**
+
 Core principle: reuse design system components, variables, and styles instead of drawing primitives with hardcoded values.
 
 You MUST read #[[file:.kiro/steering/execute-js-guide.md]] before using `execute_js`.

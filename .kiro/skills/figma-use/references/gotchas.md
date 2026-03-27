@@ -72,7 +72,7 @@ The same applies to `COMPONENT_SET` nodes — `addComponentProperty` always retu
 
 ## MUST return ALL created/mutated node IDs
 
-Every script that creates or mutates nodes on the canvas must track and return all affected node IDs in the return value. Without these IDs, subsequent calls cannot reference, validate, or clean up those nodes.
+Every script that creates or mutates nodes on the canvas must track and return all affected node IDs in the return value. Without these IDs, subsequent calls cannot reference, validate, or clean up those nodes. For multi-screen flows where context budget matters, return only the IDs that subsequent calls will reference (wrapper ID, screen IDs) — not every child node.
 
 ```js
 // WRONG — only returns the parent frame ID, loses track of children
@@ -365,6 +365,78 @@ const child = figma.createFrame()
 parent.appendChild(child)            // parent must have layoutMode set
 child.layoutSizingVertical = 'FILL'  // Works!
 ```
+
+## Auto-layout sizing mode must be explicitly set — never rely on defaults
+
+After setting `layoutMode`, the sizing modes default to `HUG`. This silently overrides any dimensions set by `resize()`. For fixed-size screens (e.g., mobile 402×874), the frame shrinks to content height. Flex spacers (`layoutGrow = 1`) also fail because HUG parents have no extra space to distribute.
+
+```js
+// WRONG — resize() is overridden by default HUG behavior
+const screen = figma.createFrame()
+screen.resize(402, 874)
+screen.layoutMode = "VERTICAL"
+// screen height shrinks to content height, NOT 874!
+
+// CORRECT — explicitly set sizing modes after layoutMode
+const screen = figma.createFrame()
+screen.resize(402, 874)
+screen.layoutMode = "VERTICAL"
+screen.layoutSizingHorizontal = "FIXED"  // width stays at 402
+screen.layoutSizingVertical = "FIXED"    // height stays at 874
+
+// For scrollable long pages where content exceeds screen height:
+const longPage = figma.createFrame()
+longPage.resize(402, 874)
+longPage.layoutMode = "VERTICAL"
+longPage.layoutSizingHorizontal = "FIXED"  // width always fixed
+longPage.layoutSizingVertical = "HUG"      // height grows with content
+// Do NOT use flex spacers (layoutGrow=1) with HUG — they have no space to fill
+```
+
+**Rule**: After setting `layoutMode`, always explicitly declare both `layoutSizingHorizontal` and `layoutSizingVertical`. Never rely on defaults.
+
+## Never use empty Spacer frames for spacing — use itemSpacing and padding
+
+In auto-layout, spacing between elements should be controlled by `itemSpacing` (uniform gap between siblings) and `paddingTop/Bottom/Left/Right` (container inner spacing). Inserting empty frames as spacers pollutes the layer panel, violates Figma best practices, and makes maintenance difficult.
+
+```js
+// WRONG — empty frames as spacers create noise in the layer panel
+const screen = figma.createFrame()
+screen.layoutMode = "VERTICAL"
+screen.itemSpacing = 0  // no spacing, relying on spacer frames instead
+
+const header = figma.createFrame()
+screen.appendChild(header)
+
+const spacer = figma.createFrame()  // empty spacer frame!
+spacer.resize(10, 32)
+spacer.fills = []
+screen.appendChild(spacer)
+
+const form = figma.createFrame()
+screen.appendChild(form)
+
+// CORRECT — use itemSpacing on the parent, or nest content in groups with their own spacing
+const screen = figma.createFrame()
+screen.layoutMode = "VERTICAL"
+screen.itemSpacing = 24  // uniform spacing between top-level sections
+screen.paddingTop = 54   // status bar area
+screen.paddingBottom = 48
+screen.paddingLeft = 24
+screen.paddingRight = 24
+
+const header = figma.createFrame()
+header.layoutMode = "VERTICAL"
+header.itemSpacing = 8  // spacing within header
+screen.appendChild(header)
+
+const form = figma.createFrame()
+form.layoutMode = "VERTICAL"
+form.itemSpacing = 16  // spacing within form
+screen.appendChild(form)
+```
+
+For uneven spacing between different sections, group related elements into semantic auto-layout containers, each with its own `itemSpacing`. The parent's `itemSpacing` handles the gap between groups.
 
 ## HUG parents collapse FILL children
 

@@ -113,6 +113,28 @@ export function registerModeTools(server: McpServer, bridge: Bridge): void {
         inputs: ['## Input Fields'],
       };
 
+      // Categories that were moved to steering files (layout, buttons, inputs)
+      // return a helpful redirect message instead of "not found"
+      const movedCategories: Record<string, string> = {
+        layout: 'Layout rules are enforced by the Quality Engine lint system. Run lint_fix_all to auto-check.',
+        buttons: 'Button structure rules are enforced by the Quality Engine lint system. Run lint_fix_all to auto-check.',
+        inputs: 'Input field rules are enforced by the Quality Engine lint system. Run lint_fix_all to auto-check.',
+      };
+
+      if (movedCategories[category]) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              mode: ruleName,
+              selectedLibrary: library,
+              category,
+              guidelines: movedCategories[category],
+            }, null, 2),
+          }],
+        };
+      }
+
       const headings = categoryMap[category] ?? [];
       const sections: string[] = [];
       for (const heading of headings) {
