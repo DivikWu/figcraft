@@ -37,6 +37,9 @@ import { statsRowCrampedRule } from './rules/stats-row-cramped.js';
 import { rootMisclassifiedInteractiveRule } from './rules/root-misclassified-interactive.js';
 import { nestedInteractiveShellRule } from './rules/nested-interactive-shell.js';
 import { screenShellInvalidRule } from './rules/screen-shell-invalid.js';
+import { inputFieldStructureRule } from './rules/input-field-structure.js';
+import { mobileDimensionsRule } from './rules/mobile-dimensions.js';
+import { systemBarFullbleedRule } from './rules/system-bar-fullbleed.js';
 
 const ALL_RULES: LintRule[] = [
   // Token compliance (require tokens/library to activate)
@@ -73,6 +76,9 @@ const ALL_RULES: LintRule[] = [
   socialRowCrampedRule,
   navOvercrowdedRule,
   statsRowCrampedRule,
+  inputFieldStructureRule,
+  mobileDimensionsRule,
+  systemBarFullbleedRule,
   // Naming (always active)
   defaultNameRule,
   // Component (always active)
@@ -88,6 +94,8 @@ export interface LintOptions {
   maxViolations?: number;
   /** Minimum severity to include in results (default: all). */
   minSeverity?: LintSeverity;
+  /** Rule names to skip (used to avoid re-checking rules already handled by pre-creation validation). */
+  skipRules?: Set<string>;
 }
 
 export interface LintReport {
@@ -120,6 +128,9 @@ export function runLint(
   }
   if (options.rules) {
     activeRules = activeRules.filter((r) => options.rules!.includes(r.name));
+  }
+  if (options.skipRules && options.skipRules.size > 0) {
+    activeRules = activeRules.filter((r) => !options.skipRules!.has(r.name));
   }
 
   // Determine if token context is sparse (no tokens loaded) — triggers severity downgrade

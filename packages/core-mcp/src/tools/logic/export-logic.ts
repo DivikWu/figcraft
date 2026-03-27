@@ -1,6 +1,6 @@
 /**
  * Export logic functions — extracted from export.ts server.tool() callbacks.
- * Shared by both flat tools and endpoint tools.
+ * Used by endpoint tools for image export operations.
  */
 
 import type { Bridge } from '../../bridge.js';

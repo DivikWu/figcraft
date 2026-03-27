@@ -26,32 +26,7 @@
 #   ref    → ref: shared_definition_name
 
 _param_definitions:
-  node_role:
-    type: enum
-    values: [screen, header, hero, nav, content, list, row, stats, card, form, field, input, button, footer, actions, social_row, system_bar]
-  node_type:
-    type: enum
-    values: [frame, text, rectangle, ellipse, line, vector, instance]
-  node_spec:
-    type: object
-    fields:
-      type:
-        type: ref
-        ref: node_type
-        required: true
-      name:
-        type: string
-      role:
-        type: ref
-        ref: node_role
-      props:
-        type: record
-        valueType: unknown
-      children:
-        type: array
-        items:
-          type: ref
-          ref: node_spec
+  # node_role, node_type, node_spec removed — creation tools removed
 
 # ═══════════════════════════════════════════════════════════════
 # CORE TOOLS (~33 always enabled)
@@ -179,8 +154,7 @@ set_mode:
     and "spec" (DTCG design spec documents). Also updates the Plugin UI toggle.
     In library mode, optionally specify which library to use.
   toolset: core
-  write: true
-  access: create
+  write: false
   handler: custom
   params:
     mode:
@@ -204,6 +178,110 @@ set_mode:
   examples:
     - mode: "library"
       description: "Using Figma shared library as token source. Lint checks variable/style bindings."
+
+get_design_guidelines:
+  description: >-
+    Get design quality guidelines for the current mode. Returns Design Guardian rules (library mode)
+    or Design Creator rules (no library). Use this to understand design best practices before creating elements.
+    Optionally specify a category to get focused rules.
+  toolset: core
+  write: false
+  handler: custom
+  params:
+    category:
+      type: enum
+      values: [all, color, typography, spacing, layout, composition, content, accessibility, buttons, inputs]
+      description: 'Rule category to return (default: "all")'
+  response:
+    type: object
+    fields:
+      mode:
+        type: string
+        required: true
+      selectedLibrary:
+        type: string
+      category:
+        type: string
+      guidelines:
+        type: string
+        required: true
+  examples:
+    - mode: "Design Guardian (Library Mode)"
+      selectedLibrary: "My Design System"
+      guidelines: "# Design Guardian — Library Mode Rules..."
+
+audit_node:
+  description: >-
+    Run a deep quality audit on a single node. Combines all lint rules + design guideline checks
+    into a structured report with severity, suggestions, and auto-fix availability.
+    Use this for detailed inspection of a specific element before finalizing a design.
+  toolset: core
+  write: false
+  handler: custom
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: The Figma node ID to audit
+    categories:
+      type: array
+      items: string
+      description: "Lint categories to check: token, layout, naming, wcag, component (default: all)"
+    includeChildren:
+      type: boolean
+      description: "Also audit child nodes recursively (default: true)"
+  response:
+    type: object
+    fields:
+      nodeId:
+        type: string
+        required: true
+      nodeName:
+        type: string
+        required: true
+      nodeType:
+        type: string
+        required: true
+      qualityScore:
+        type: number
+        required: true
+      summary:
+        type: object
+        required: true
+        fields:
+          totalChecked:
+            type: number
+          violations:
+            type: number
+          errors:
+            type: number
+          warnings:
+            type: number
+          autoFixable:
+            type: number
+      violations:
+        type: array
+        items: object
+      structuralNotes:
+        type: array
+        items: string
+      recommendation:
+        type: string
+        required: true
+  examples:
+    - nodeId: "1:23"
+      nodeName: "Login Button"
+      nodeType: "FRAME"
+      qualityScore: 85
+      summary:
+        totalChecked: 12
+        violations: 2
+        errors: 0
+        warnings: 2
+        autoFixable: 1
+      violations: []
+      structuralNotes: []
+      recommendation: "Fix 1 auto-fixable warning, then review the remaining warning manually."
 
 join_channel:
   description: >-
@@ -254,78 +332,6 @@ get_channel:
       connected: true
 
 # ─── Read Nodes ───
-
-get_node_info:
-  description: >-
-    Get detailed information about a specific Figma node by ID,
-    including layout, styles, variable bindings, and children.
-  toolset: core
-  write: false
-  handler: custom
-  params:
-    nodeId:
-      type: string
-      required: true
-      description: 'The Figma node ID (e.g. "1:23")'
-  response:
-    type: object
-    fields:
-      id:
-        type: string
-        required: true
-      name:
-        type: string
-        required: true
-      type:
-        type: string
-        required: true
-      x:
-        type: number
-      y:
-        type: number
-      width:
-        type: number
-      height:
-        type: number
-      children:
-        type: array
-        items:
-          type: object
-          fields:
-            id:
-              type: string
-              required: true
-            name:
-              type: string
-              required: true
-            type:
-              type: string
-              required: true
-      _error:
-        type: string
-      _sizeKB:
-        type: number
-      _limitKB:
-        type: number
-      method:
-        type: string
-      warning:
-        type: string
-      hints:
-        type: array
-        items: string
-      _preview:
-        type: string
-  examples:
-    - id: "1:23"
-      name: "Login Screen"
-      type: "FRAME"
-      width: 402
-      height: 874
-      children:
-        - id: "1:24"
-          name: "Login Form"
-          type: "FRAME"
 
 get_current_page:
   description: >-
@@ -485,76 +491,11 @@ get_selection:
           name: "Headline"
           type: "TEXT"
 
-search_nodes:
-  description: >-
-    Search for nodes by name on the current page.
-    Optionally filter by node type (FRAME, TEXT, RECTANGLE, etc.).
-  toolset: core
-  write: false
-  handler: custom
-  params:
-    query:
-      type: string
-      required: true
-      description: Search query (matches node name, case-insensitive)
-    types:
-      type: array
-      items: string
-      description: 'Filter by node types (e.g. ["FRAME", "TEXT"])'
-    limit:
-      type: number
-      description: "Maximum results to return (default: 50)"
-  response:
-    type: object
-    fields:
-      count:
-        type: number
-        required: true
-      nodes:
-        type: array
-        required: true
-        items:
-          type: object
-          fields:
-            id:
-              type: string
-              required: true
-            name:
-              type: string
-              required: true
-            type:
-              type: string
-              required: true
-      _error:
-        type: string
-      _sizeKB:
-        type: number
-      _limitKB:
-        type: number
-      method:
-        type: string
-      warning:
-        type: string
-      hints:
-        type: array
-        items: string
-      _preview:
-        type: string
-  examples:
-    - count: 2
-      nodes:
-        - id: "1:10"
-          name: "Login Button"
-          type: "FRAME"
-        - id: "1:11"
-          name: "Login Title"
-          type: "TEXT"
-
 list_fonts:
   description: >-
     List available font families in the Figma environment.
     Pass family to get all available styles for that family.
-    Use before create_text to ensure the chosen font is available.
+    Use before creating text to ensure the chosen font is available.
   toolset: core
   write: false
   handler: bridge
@@ -590,282 +531,12 @@ list_fonts:
         - "Bold"
       count: 3
 
-# ─── Write Nodes (primary) ───
-
-create_document:
-  description: >-
-    Batch-create a tree of nodes in one call.
-    PREFERRED over multiple create_frame/create_text calls — minimizes round-trips and is much faster.
-    Supports 7 levels of nesting (screen → section → card → row → component → element → content)
-    and 7 node types: frame, text, rectangle, ellipse, line, vector, instance.
-    Use vector type with props.svg to inline SVG icons directly in the batch tree.
-    Use instance type with props.componentKey or props.componentId to inline component instances
-    (supports props.properties for variant overrides).
-    Frame props support layoutSizingHorizontal/layoutSizingVertical (FIXED/HUG/FILL) for intuitive sizing control.
-    Use role on semantic frames (screen/header/hero/nav/content/list/row/stats/card/form/button/input/footer/etc.) to reduce name-based misclassification.
-    Explicit roles apply the same shared safety defaults used by create_screen, and marginHorizontal / marginLeft / marginRight
-    are converted into transparent inset wrappers automatically.
-    By default, FigCraft runs a scoped post-create lint/fix pass on the newly created root nodes.
-    Treat this as the raw tree path. For complete screens, prefer create_screen; use create_document for partial inserts or
-    low-level control.
-    PREREQUISITE: You MUST call get_mode first to load design tokens. Without it, elements will lack token bindings.
-  toolset: core
-  write: true
-  access: create
-  handler: custom
-  params:
-    parentId:
-      type: string
-      description: Parent node ID. Omit to add to current page.
-    nodes:
-      type: array
-      required: true
-      items:
-        type: ref
-        ref: node_spec
-      description: Array of node specs (supports 7 levels of nesting)
-    autoLint:
-      type: boolean
-      description: Run scoped post-create lint/fix on the created root nodes (default true)
-  response:
-    type: object
-    fields:
-      ok:
-        type: boolean
-        required: true
-      error:
-        type: string
-      created:
-        type: array
-        items:
-          type: object
-          fields:
-            id:
-              type: string
-              required: true
-            name:
-              type: string
-              required: true
-            type:
-              type: string
-              required: true
-      truncated:
-        type: boolean
-      warnings:
-        type: array
-        items: string
-      errors:
-        type: array
-        items:
-          type: object
-          fields:
-            index:
-              type: number
-              required: true
-            name:
-              type: string
-            type:
-              type: string
-              required: true
-            error:
-              type: string
-              required: true
-      postCreateLint:
-        type: record
-        valueType: unknown
-  examples:
-    - ok: true
-      created:
-        - id: "12:34"
-          name: "Auth Screen"
-          type: "FRAME"
-      postCreateLint:
-        scopedNodeIds: ["12:34"]
-        initial:
-          violations: 0
-        final:
-          violations: 0
-    - ok: false
-      error: "nodes array must not be empty"
-
-create_screen:
-  description: >-
-    Create a full screen progressively: first the screen shell, then each section,
-    then a final scoped lint/fix pass.
-    Preferred for complete screens when quality matters more than a single raw tree call.
-    The shell defaults to role=screen and gets platform size presets when width/height are omitted.
-    Supports semantic sections like hero/content/card and inset wrapper helpers for filled children.
-    This is the default high-level screen workflow used by the generation benchmark and release gate.
-  toolset: core
-  write: true
-  access: create
-  handler: custom
-  params:
-    name:
-      type: string
-      description: 'Screen name (default: "Screen")'
-    parentId:
-      type: string
-      description: Parent node ID. Omit to add to current page.
-    platform:
-      type: enum
-      values: [ios, android, web]
-      description: Platform preset for the screen shell
-    hasSystemBar:
-      type: boolean
-      description: Apply full-bleed system bar shell defaults
-    wrapInSection:
-      type: boolean
-      description: Create a Figma Section around the finished screen
-    shell:
-      type: ref
-      ref: node_spec
-      description: Root screen node spec. Defaults to a frame with role=screen if omitted.
-    sections:
-      type: array
-      items:
-        type: ref
-        ref: node_spec
-      description: Section node specs appended to the screen root one by one
-    autoLint:
-      type: boolean
-      description: Run scoped lint/fix after shell and each section (default true)
-    finalLint:
-      type: boolean
-      description: Run one final scoped lint/fix pass on the complete screen root (default true)
-  response:
-    type: object
-    fields:
-      ok:
-        type: boolean
-        required: true
-      error:
-        type: string
-      failedStage:
-        type: string
-      screenRootId:
-        type: string
-      screen:
-        type: record
-        valueType: unknown
-      canvasSection:
-        type: record
-        valueType: unknown
-      sections:
-        type: array
-        items:
-          type: object
-          fields:
-            index:
-              type: number
-              required: true
-            name:
-              type: string
-            ok:
-              type: boolean
-              required: true
-            result:
-              type: record
-              valueType: unknown
-      pipelineStages:
-        type: array
-        items:
-          type: object
-          fields:
-            stage:
-              type: string
-              required: true
-            ok:
-              type: boolean
-              required: true
-            createdCount:
-              type: number
-              required: true
-            nodeIds:
-              type: array
-              items: string
-            lint:
-              type: record
-              valueType: unknown
-            warningCount:
-              type: number
-            patchCallCount:
-              type: number
-            patchNodeCount:
-              type: number
-            patchRules:
-              type: array
-              items: string
-            structuralErrors:
-              type: array
-              items: object
-            debugStats:
-              type: record
-              valueType: unknown
-      pipelineSummary:
-        type: record
-        valueType: unknown
-      finalLint:
-        type: record
-        valueType: unknown
-  examples:
-    - ok: true
-      screenRootId: "20:1"
-      screen:
-        ok: true
-        created:
-          - id: "20:1"
-            name: "Marketing Hero"
-            type: "FRAME"
-      sections:
-        - index: 0
-          name: "Hero Section"
-          ok: true
-          result:
-            ok: true
-            created:
-              - id: "20:2"
-                name: "Hero Content"
-                type: "FRAME"
-      pipelineStages:
-        - stage: "shell"
-          ok: true
-          createdCount: 1
-          nodeIds:
-            - "20:1"
-          warningCount: 0
-          patchCallCount: 0
-          patchNodeCount: 0
-          patchRules: []
-          structuralErrors: []
-          debugStats: {}
-        - stage: "section:1"
-          ok: true
-          createdCount: 1
-          nodeIds:
-            - "20:2"
-          warningCount: 0
-          patchCallCount: 0
-          patchNodeCount: 0
-          patchRules: []
-          structuralErrors: []
-          debugStats: {}
-      pipelineSummary:
-        stageCount: 2
-        createdCount: 2
-        warningCount: 0
-        remaining: 0
-      finalLint:
-        scopedNodeIds:
-          - "20:1"
-        remaining: 0
-    - ok: false
-      error: "create_screen could not determine the created screen root"
+# ─── Write Nodes ───
 
 create_frame:
   description: >-
-    Create a new frame (optionally with auto layout). Returns the created node data.
-    When a design library is selected and fill is not specified, auto-binds the default surface color token.
+    Create a frame node with optional auto-layout, fills, corner radius, and parent.
+    Supports all common layout properties for building UI structures.
   toolset: core
   write: true
   access: create
@@ -873,7 +544,7 @@ create_frame:
   params:
     name:
       type: string
-      description: Frame name
+      description: 'Frame name (default: "Frame")'
     x:
       type: number
       description: X position
@@ -882,57 +553,54 @@ create_frame:
       description: Y position
     width:
       type: number
-      description: "Width in px (default: 100)"
+      description: "Width (default: 100)"
     height:
       type: number
-      description: "Height in px (default: 100)"
-    parentId:
+      description: "Height (default: 100)"
+    fill:
       type: string
-      description: Parent node ID to append to
-    autoLayout:
-      type: boolean
-      description: Enable auto layout
-    layoutDirection:
+      description: Fill color as hex (e.g. "#FFFFFF")
+    layoutMode:
       type: enum
       values: [HORIZONTAL, VERTICAL]
-      description: Auto layout direction
+      description: Auto-layout direction
     itemSpacing:
       type: number
-      description: Spacing between items
-    padding:
-      type: number
-      description: Uniform padding
+      description: Spacing between children
     paddingLeft:
       type: number
-      description: Left padding (overrides uniform padding)
+      description: Left padding
     paddingRight:
       type: number
-      description: Right padding (overrides uniform padding)
+      description: Right padding
     paddingTop:
       type: number
-      description: Top padding (overrides uniform padding)
+      description: Top padding
     paddingBottom:
       type: number
-      description: Bottom padding (overrides uniform padding)
-    primaryAxisAlignItems:
-      type: enum
-      values: [MIN, CENTER, MAX, SPACE_BETWEEN]
-      description: "Main axis alignment (default: MIN)"
-    counterAxisAlignItems:
-      type: enum
-      values: [MIN, CENTER, MAX]
-      description: "Cross axis alignment (default: MIN). Use CENTER to vertically center children in HORIZONTAL layout."
+      description: Bottom padding
+    cornerRadius:
+      type: number
+      description: Corner radius
+    parentId:
+      type: string
+      description: Parent node ID to append into
     layoutSizingHorizontal:
       type: enum
       values: [FIXED, HUG, FILL]
-      description: "Horizontal sizing mode. FIXED=use explicit width, HUG=shrink to content, FILL=expand to fill parent. More intuitive than layoutAlign/layoutGrow. Default: FIXED if width set, HUG otherwise."
+      description: Horizontal sizing mode (set AFTER parent append)
     layoutSizingVertical:
       type: enum
       values: [FIXED, HUG, FILL]
-      description: "Vertical sizing mode. FIXED=use explicit height, HUG=shrink to content, FILL=expand to fill parent. More intuitive than layoutAlign/layoutGrow. Default: FIXED if height set, HUG otherwise."
-    fill:
-      type: string
-      description: 'Fill color as hex (e.g. "#FF0000")'
+      description: Vertical sizing mode (set AFTER parent append)
+    primaryAxisAlignItems:
+      type: enum
+      values: [MIN, CENTER, MAX, SPACE_BETWEEN]
+      description: Primary axis alignment
+    counterAxisAlignItems:
+      type: enum
+      values: [MIN, CENTER, MAX]
+      description: Counter axis alignment
   response:
     type: object
     fields:
@@ -945,43 +613,27 @@ create_frame:
       type:
         type: string
         required: true
-      x:
-        type: number
-      y:
-        type: number
       width:
         type: number
+        required: true
       height:
         type: number
-      layoutMode:
-        type: string
-      itemSpacing:
-        type: number
-      autoBound:
-        type: string
-      colorHint:
-        type: string
-      warnings:
-        type: array
-        items: string
+        required: true
+      visible:
+        type: boolean
+        required: true
   examples:
-    - id: "30:1"
-      name: "Card Frame"
+    - id: "50:1"
+      name: "Login Screen"
       type: "FRAME"
-      x: 64
-      y: 120
-      width: 320
-      height: 180
-      layoutMode: "VERTICAL"
-      itemSpacing: 16
-      autoBound: "surface/default"
+      width: 375
+      height: 812
+      visible: true
 
 create_text:
   description: >-
-    Create a text node with specified content and font.
-    When a design library is selected: auto-applies matching Text Style if discovered in current page,
-    falls back to typography variable binding (fontSize/fontFamily/fontWeight/lineHeight),
-    and auto-binds text/primary color if fill not specified.
+    Create a text node with specified content, font, size, and color.
+    Supports font family/style selection with fallback chain.
   toolset: core
   write: true
   access: create
@@ -989,11 +641,10 @@ create_text:
   params:
     content:
       type: string
-      required: true
-      description: Text content
+      description: Text content to display
     name:
       type: string
-      description: Node name
+      description: Node name (defaults to content)
     x:
       type: number
       description: X position
@@ -1002,459 +653,29 @@ create_text:
       description: Y position
     fontSize:
       type: number
-      description: "Font size (default: 16)"
+      description: "Font size (default: 14)"
     fontFamily:
       type: string
-      description: "Font family (default: Inter)"
+      description: 'Font family (default: "Inter")'
     fontStyle:
       type: string
-      description: "Font style (default: Regular)"
+      description: 'Font style (default: "Regular")'
     fill:
       type: string
-      description: Text color as hex
-    parentId:
-      type: string
-      description: Parent node ID
-  response:
-    type: object
-    fields:
-      id:
-        type: string
-        required: true
-      name:
-        type: string
-        required: true
-      type:
-        type: string
-        required: true
-      x:
-        type: number
-      y:
-        type: number
-      width:
-        type: number
-      height:
-        type: number
-      characters:
-        type: string
-      fontSize:
-        type: number
-      autoBound:
-        type: record
-        valueType: unknown
-      colorHint:
-        type: string
-  examples:
-    - id: "30:2"
-      name: "Hero Title"
-      type: "TEXT"
-      x: 88
-      y: 164
-      width: 220
-      height: 40
-      characters: "Ship Faster"
-      fontSize: 32
-      autoBound:
-        color: "text/primary"
-        typography: "style:Heading/L"
-    - id: "30:3"
-      name: "Body Copy"
-      type: "TEXT"
-      characters: "Build polished screens with AI."
-      fontSize: 16
-
-patch_nodes:
-  description: >-
-    Update properties on one or more existing nodes.
-    Supports: x, y, name, visible, opacity, cornerRadius, resize, fills (hex string), strokes (hex string), strokeWeight,
-    effects (raw Figma effect array), layoutMode (NONE/HORIZONTAL/VERTICAL), layoutAlign, layoutGrow,
-    primaryAxisAlignItems, counterAxisAlignItems, itemSpacing, paddingLeft/Right/Top/Bottom,
-    layoutSizingHorizontal (FIXED/HUG/FILL), layoutSizingVertical (FIXED/HUG/FILL),
-    fontSize, fontName ({family,style}), rotation, constraints ({horizontal,vertical}),
-    blendMode, isMask (boolean), clipsContent (boolean), minWidth, minHeight.
-  toolset: core
-  write: true
-  access: edit
-  handler: bridge
-  params:
-    patches:
-      type: array
-      required: true
-      items:
-        type: object
-        fields:
-          nodeId:
-            type: string
-            required: true
-            description: Node ID
-          props:
-            type: record
-            required: true
-            valueType: unknown
-            description: Properties to update
-      description: Array of node patches
-  response:
-    type: object
-    fields:
-      results:
-        type: array
-        required: true
-        items:
-          type: object
-          fields:
-            nodeId:
-              type: string
-              required: true
-            ok:
-              type: boolean
-              required: true
-            error:
-              type: string
-  examples:
-    - results:
-        - nodeId: "30:1"
-          ok: true
-        - nodeId: "30:2"
-          ok: false
-          error: "Node not found"
-
-delete_nodes:
-  description: Delete multiple nodes by ID in one call. Preferred over multiple delete_node calls.
-  toolset: core
-  write: true
-  access: edit
-  handler: bridge
-  params:
-    nodeIds:
-      type: array
-      required: true
-      items: string
-      description: Array of node IDs to delete
-  response:
-    type: object
-    fields:
-      results:
-        type: array
-        required: true
-        items:
-          type: object
-          fields:
-            nodeId:
-              type: string
-              required: true
-            ok:
-              type: boolean
-              required: true
-            error:
-              type: string
-  examples:
-    - results:
-        - nodeId: "30:1"
-          ok: true
-        - nodeId: "999:1"
-          ok: false
-          error: "Node not found"
-
-set_text_content:
-  description: Update the text content of an existing text node.
-  toolset: core
-  write: true
-  access: edit
-  handler: bridge
-  params:
-    nodeId:
-      type: string
-      required: true
-      description: Text node ID
-    content:
-      type: string
-      required: true
-      description: New text content
-  response:
-    type: object
-    fields:
-      ok:
-        type: boolean
-        required: true
-      error:
-        type: string
-  examples:
-    - ok: true
-
-clone_node:
-  description: Clone a node and return the new copy.
-  toolset: core
-  write: true
-  access: create
-  handler: bridge
-  params:
-    nodeId:
-      type: string
-      required: true
-      description: Node ID to clone
-  response:
-    type: object
-    fields:
-      id:
-        type: string
-        required: true
-      name:
-        type: string
-        required: true
-      type:
-        type: string
-        required: true
-      x:
-        type: number
-      y:
-        type: number
-      width:
-        type: number
-      height:
-        type: number
-  examples:
-    - id: "60:1"
-      name: "Cloned Card"
-      type: "FRAME"
-      width: 320
-      height: 180
-
-insert_child:
-  description: Move a node into a parent container, optionally at a specific index.
-  toolset: core
-  write: true
-  access: edit
-  handler: bridge
-  params:
-    parentId:
-      type: string
-      required: true
-      description: Parent node ID (must be a container like Frame)
-    childId:
-      type: string
-      required: true
-      description: Child node ID to insert
-    index:
+      description: Text color as hex (e.g. "#000000")
+    lineHeight:
       type: number
-      description: Insert position (0-based). Omit to append at end.
-  response:
-    type: object
-    fields:
-      ok:
-        type: boolean
-        required: true
-      error:
-        type: string
-  examples:
-    - ok: true
-
-# ─── Components (read — core) ───
-
-list_components:
-  description: List all components on the current page.
-  toolset: core
-  write: false
-  handler: bridge
-  params: {}
-  response:
-    type: object
-    fields:
-      count:
-        type: number
-        required: true
-      components:
-        type: array
-        required: true
-        items:
-          type: object
-          fields:
-            id:
-              type: string
-              required: true
-            name:
-              type: string
-              required: true
-            description:
-              type: string
-            key:
-              type: string
-  examples:
-    - count: 2
-      components:
-        - id: "12:1"
-          name: "Button / Primary"
-          description: "Main call-to-action button"
-          key: "button-primary-key"
-        - id: "12:2"
-          name: "Input / Default"
-          key: "input-default-key"
-
-list_library_components:
-  description: >-
-    List published components from a library file via REST API.
-    Returns component key, name, description. Use the key with create_instance.
-    Requires library file URL to be configured in the plugin panel, or provide fileKey directly.
-  toolset: core
-  write: false
-  handler: custom
-  params:
-    fileKey:
-      type: string
-      description: "Figma file key. If omitted, uses the key from the selected library's configured URL."
-  response:
-    type: object
-    fields:
-      count:
-        type: number
-        required: true
-      components:
-        type: array
-        required: true
-        items:
-          type: object
-          fields:
-            key:
-              type: string
-              required: true
-            name:
-              type: string
-              required: true
-            description:
-              type: string
-  examples:
-    - count: 2
-      components:
-        - key: "library-button-primary"
-          name: "Button / Primary"
-          description: "Primary CTA button"
-        - key: "library-input-default"
-          name: "Input / Default"
-          description: "Default text field"
-
-list_component_properties:
-  description: >-
-    List all properties and variant options exposed by a component or component set.
-    Use this to discover available variant values before calling create_instance with properties.
-  toolset: core
-  write: false
-  handler: bridge
-  params:
-    nodeId:
-      type: string
-      required: true
-      description: Component or ComponentSet node ID
-  response:
-    type: object
-    fields:
-      properties:
-        type: array
-        required: true
-        items:
-          type: object
-          fields:
-            key:
-              type: string
-              required: true
-            type:
-              type: string
-              required: true
-            defaultValue:
-              type: unknown
-            variantOptions:
-              type: array
-              items: string
-  examples:
-    - properties:
-        - key: "State"
-          type: "VARIANT"
-          defaultValue: "Default"
-          variantOptions: ["Default", "Pressed", "Disabled"]
-        - key: "Has Icon"
-          type: "BOOLEAN"
-          defaultValue: false
-
-get_component:
-  description: Get full details of a component by node ID.
-  toolset: core
-  write: false
-  handler: bridge
-  params:
-    nodeId:
-      type: string
-      required: true
-      description: Component node ID
-  response:
-    type: object
-    fields:
-      id:
-        type: string
-        required: true
-      name:
-        type: string
-        required: true
-      type:
-        type: string
-        required: true
-      width:
-        type: number
-      height:
-        type: number
-      description:
-        type: string
-      key:
-        type: string
-      children:
-        type: array
-        items:
-          type: object
-          fields:
-            id:
-              type: string
-              required: true
-            name:
-              type: string
-              required: true
-            type:
-              type: string
-              required: true
-      componentPropertyDefinitions:
-        type: record
-        valueType: unknown
-  examples:
-    - id: "12:1"
-      name: "Button / Primary"
-      type: "COMPONENT"
-      width: 160
-      height: 48
-      description: "Main call-to-action button"
-      key: "button-primary-key"
-      componentPropertyDefinitions:
-        State#1:
-          type: "VARIANT"
-          defaultValue: "Default"
-
-create_instance:
-  description: >-
-    Create an instance of a component.
-    Can use either a local component ID or a library component key.
-  toolset: core
-  write: true
-  access: create
-  handler: bridge
-  params:
-    componentId:
-      type: string
-      description: Local component node ID
-    componentKey:
-      type: string
-      description: Library component key (for imports)
-    properties:
-      type: record
-      valueType: string
-      description: Variant/property overrides
+      description: Line height in pixels
+    letterSpacing:
+      type: number
+      description: Letter spacing in pixels
+    textAlignHorizontal:
+      type: enum
+      values: [LEFT, CENTER, RIGHT, JUSTIFIED]
+      description: Horizontal text alignment
     parentId:
       type: string
-      description: Parent node ID to append to
+      description: Parent node ID to append into
   response:
     type: object
     fields:
@@ -1467,27 +688,22 @@ create_instance:
       type:
         type: string
         required: true
-      x:
-        type: number
-      y:
-        type: number
       width:
         type: number
+        required: true
       height:
         type: number
-      componentPropertyReferences:
-        type: record
-        valueType: string
-      error:
-        type: string
+        required: true
+      visible:
+        type: boolean
+        required: true
   examples:
-    - id: "40:1"
-      name: "Button / Primary"
-      type: "INSTANCE"
-      width: 160
-      height: 48
-
-# ─── Lint (batch — core) ───
+    - id: "51:1"
+      name: "Welcome back"
+      type: "TEXT"
+      width: 84
+      height: 17
+      visible: true
 
 lint_fix_all:
   description: >-
@@ -1495,7 +711,7 @@ lint_fix_all:
     Returns the lint report and fix results. Equivalent to lint_check + lint_fix.
   toolset: core
   write: true
-  access: create
+  access: edit
   handler: custom
   params:
     nodeIds:
@@ -1637,8 +853,7 @@ save_version_history:
     Save a named version history snapshot of the current Figma file.
     Use before making significant changes so you can restore if needed.
   toolset: core
-  write: true
-  access: create
+  write: false
   handler: bridge
   params:
     title:
@@ -1705,460 +920,61 @@ set_selection:
       notFound:
         - "999:1"
 
-# ─── Shapes & Vectors (core) ───
+# ─── Execute JS (Plugin API sandbox) ───
 
-create_rectangle:
-  description: Create a rectangle node. Supports fill, corner radius, and stroke.
-  toolset: core
-  write: true
-  access: create
-  handler: bridge
-  params:
-    name:
-      type: string
-      description: Node name
-    x:
-      type: number
-      description: X position
-    y:
-      type: number
-      description: Y position
-    width:
-      type: number
-      description: "Width in px (default: 100)"
-    height:
-      type: number
-      description: "Height in px (default: 100)"
-    parentId:
-      type: string
-      description: Parent node ID
-    fill:
-      type: string
-      description: Fill color as hex
-    cornerRadius:
-      type: number
-      description: Corner radius
-    stroke:
-      type: string
-      description: Stroke color as hex
-    strokeWeight:
-      type: number
-      description: "Stroke weight (default: 1)"
-  response:
-    type: object
-    fields:
-      id:
-        type: string
-        required: true
-      name:
-        type: string
-        required: true
-      type:
-        type: string
-        required: true
-      x:
-        type: number
-      y:
-        type: number
-      width:
-        type: number
-      height:
-        type: number
-      cornerRadius:
-        type: unknown
-      autoBound:
-        type: string
-      colorHint:
-        type: string
-  examples:
-    - id: "50:1"
-      name: "Card Background"
-      type: "RECTANGLE"
-      width: 320
-      height: 180
-      cornerRadius: 24
-      autoBound: "surface/default"
-
-create_ellipse:
-  description: Create an ellipse (circle) node. Supports fill and stroke.
-  toolset: core
-  write: true
-  access: create
-  handler: bridge
-  params:
-    name:
-      type: string
-      description: Node name
-    x:
-      type: number
-      description: X position
-    y:
-      type: number
-      description: Y position
-    width:
-      type: number
-      description: "Width in px (default: 100)"
-    height:
-      type: number
-      description: "Height in px (default: 100, same as width for circle)"
-    parentId:
-      type: string
-      description: Parent node ID
-    fill:
-      type: string
-      description: Fill color as hex
-    stroke:
-      type: string
-      description: Stroke color as hex
-    strokeWeight:
-      type: number
-      description: "Stroke weight (default: 1)"
-  response:
-    type: object
-    fields:
-      id:
-        type: string
-        required: true
-      name:
-        type: string
-        required: true
-      type:
-        type: string
-        required: true
-      x:
-        type: number
-      y:
-        type: number
-      width:
-        type: number
-      height:
-        type: number
-      autoBound:
-        type: string
-      colorHint:
-        type: string
-  examples:
-    - id: "50:2"
-      name: "Avatar Dot"
-      type: "ELLIPSE"
-      width: 40
-      height: 40
-      autoBound: "surface/accent"
-
-create_vector:
+execute_js:
   description: >-
-    Create a vector node from an SVG string.
-    Accepts a complete SVG element (e.g. '<svg>...</svg>').
-    The SVG is parsed and converted to Figma vector paths.
-  toolset: core
-  write: true
-  access: create
-  handler: bridge
-  params:
-    svg:
-      type: string
-      required: true
-      description: 'Complete SVG string (e.g. "<svg width=\"24\" height=\"24\">...</svg>")'
-    name:
-      type: string
-      description: 'Node name (default: "Vector")'
-    x:
-      type: number
-      description: X position
-    y:
-      type: number
-      description: Y position
-    resize:
-      type: tuple
-      items: [number, number]
-      description: Resize to [width, height] after creation
-    parentId:
-      type: string
-      description: Parent node ID
-  response:
-    type: object
-    fields:
-      id:
-        type: string
-        required: true
-      name:
-        type: string
-        required: true
-      type:
-        type: string
-        required: true
-      x:
-        type: number
-      y:
-        type: number
-      width:
-        type: number
-      height:
-        type: number
-  examples:
-    - id: "70:1"
-      name: "Arrow Icon"
-      type: "FRAME"
-      width: 24
-      height: 24
-
-set_image_fill:
-  description: >-
-    Set a node's fill to an image. Provide base64-encoded image data (PNG/JPG).
-    Use export_image to get image data from another node, or provide external image data.
+    Execute arbitrary JavaScript in the Figma Plugin sandbox.
+    This is the FigCraft equivalent of Figma MCP's use_figma tool.
+    Code runs in an async context with top-level await support.
+    Use `return` to send data back — the return value is JSON-serialized automatically.
+    The `figma` global is available (Plugin API). Do NOT call figma.closePlugin()
+    or wrap code in an async IIFE — this is handled for you.
+    Colors are 0–1 range (not 0–255). Fills/strokes are read-only arrays — clone, modify, reassign.
+    Font MUST be loaded before any text operation: await figma.loadFontAsync({family, style}).
+    Failed scripts are atomic — if a script errors, no changes are made to the file.
   toolset: core
   write: true
   access: edit
-  handler: bridge
+  handler: custom
   params:
-    nodeId:
+    code:
       type: string
       required: true
-      description: Target node ID
-    imageData:
-      type: string
-      required: true
-      description: Base64-encoded image data (PNG or JPG)
-    scaleMode:
-      type: enum
-      values: [FILL, FIT, CROP, TILE]
-      description: "Image scale mode (default: FILL)"
+      description: >-
+        JavaScript code to execute in the Figma Plugin sandbox.
+        Use top-level await freely. Use `return` to send data back.
+        The `figma` global (Plugin API) is available.
+    timeoutMs:
+      type: number
+      description: >-
+        Execution timeout in milliseconds (default: 30000, max: 120000).
   response:
     type: object
     fields:
       ok:
         type: boolean
         required: true
-      imageHash:
-        type: string
+      result:
+        type: unknown
       error:
+        type: string
+      stack:
+        type: string
+      _warning:
         type: string
   examples:
     - ok: true
-      imageHash: "b2f7c1d4a9"
+      result:
+        pages:
+          - "Page 1"
+          - "Components"
+    - ok: false
+      error: "figma.notify is not a function"
 
 # ═══════════════════════════════════════════════════════════════
 # TOOLSET: variables (18 tools)
 # ═══════════════════════════════════════════════════════════════
-
-list_variables:
-  description: >-
-    List all local Figma variables, optionally filtered by collection or type.
-    Returns variable name, type, scopes, and values per mode.
-  toolset: variables
-  write: false
-  handler: bridge
-  params:
-    collectionId:
-      type: string
-      description: Filter by variable collection ID
-    type:
-      type: string
-      description: "Filter by resolved type: COLOR, FLOAT, STRING, BOOLEAN"
-  response:
-    type: object
-    fields:
-      count:
-        type: number
-        required: true
-      variables:
-        type: array
-        required: true
-        items:
-          type: object
-          fields:
-            id:
-              type: string
-              required: true
-            name:
-              type: string
-              required: true
-            resolvedType:
-              type: string
-              required: true
-            description:
-              type: string
-            collectionId:
-              type: string
-              required: true
-            collectionName:
-              type: string
-              required: true
-            scopes:
-              type: array
-              required: true
-              items: string
-            valuesByMode:
-              type: record
-              required: true
-              valueType: unknown
-  examples:
-    - count: 1
-      variables:
-        - id: "VariableID:1:12"
-          name: "color/brand/primary"
-          resolvedType: "COLOR"
-          description: "Primary brand color"
-          collectionId: "VariableCollectionId:1:2"
-          collectionName: "Primitives"
-          scopes: ["ALL_FILLS"]
-          valuesByMode:
-            Default: "#7c3aed"
-
-get_variable:
-  description: >-
-    Get detailed info for a specific variable by ID,
-    including values per mode, scopes, and code syntax.
-  toolset: variables
-  write: false
-  handler: bridge
-  params:
-    variableId:
-      type: string
-      required: true
-      description: The Figma variable ID
-  response:
-    type: object
-    fields:
-      id:
-        type: string
-        required: true
-      name:
-        type: string
-        required: true
-      resolvedType:
-        type: string
-        required: true
-      description:
-        type: string
-      collectionId:
-        type: string
-        required: true
-      collectionName:
-        type: string
-      scopes:
-        type: array
-        required: true
-        items: string
-      codeSyntax:
-        type: unknown
-      valuesByMode:
-        type: record
-        required: true
-        valueType: unknown
-      error:
-        type: string
-  examples:
-    - id: "VariableID:1:12"
-      name: "color/brand/primary"
-      resolvedType: "COLOR"
-      description: "Primary brand color"
-      collectionId: "VariableCollectionId:1:2"
-      collectionName: "Primitives"
-      scopes: ["ALL_FILLS"]
-      codeSyntax:
-        WEB: "var(--color-brand-primary)"
-      valuesByMode:
-        Default: "#7c3aed"
-
-list_collections:
-  description: List all local variable collections with their modes and variable counts.
-  toolset: variables
-  write: false
-  handler: bridge
-  params: {}
-  response:
-    type: array
-    items:
-      type: object
-      fields:
-        id:
-          type: string
-          required: true
-        name:
-          type: string
-          required: true
-        modes:
-          type: array
-          required: true
-          items:
-            type: object
-            fields:
-              modeId:
-                type: string
-                required: true
-              name:
-                type: string
-                required: true
-        variableCount:
-          type: number
-          required: true
-  examples:
-    - - id: "VariableCollectionId:1:2"
-        name: "Primitives"
-        modes:
-          - modeId: "1:0"
-            name: "Default"
-        variableCount: 12
-
-get_node_variables:
-  description: Get all variable bindings on a node — shows which variables are bound to which properties.
-  toolset: variables
-  write: false
-  handler: bridge
-  params:
-    nodeId:
-      type: string
-      required: true
-      description: Node ID to inspect for variable bindings
-  response:
-    type: object
-    fields:
-      nodeId:
-        type: string
-        required: true
-      bindings:
-        type: object
-        required: true
-      error:
-        type: string
-  examples:
-    - nodeId: "1:24"
-      bindings:
-        fills:
-          - variableId: "VariableID:1:12"
-            variableName: "color/brand/primary"
-            collectionId: "VariableCollectionId:1:2"
-
-set_variable_binding:
-  description: 'Bind a variable to a specific property on a node (e.g. fills, cornerRadius, itemSpacing).'
-  toolset: variables
-  write: true
-  access: edit
-  handler: bridge
-  params:
-    nodeId:
-      type: string
-      required: true
-      description: Target node ID
-    field:
-      type: string
-      required: true
-      description: 'Property field to bind (e.g. "fills", "cornerRadius", "itemSpacing")'
-    variableId:
-      type: string
-      required: true
-      description: Variable ID to bind
-  response:
-    type: object
-    fields:
-      ok:
-        type: boolean
-        required: true
-      error:
-        type: string
-  examples:
-    - ok: true
 
 set_explicit_variable_mode:
   description: >-
@@ -2181,182 +997,6 @@ set_explicit_variable_mode:
       type: string
       required: true
       description: Mode ID to set (get available modes from list_collections)
-  response:
-    type: object
-    fields:
-      ok:
-        type: boolean
-        required: true
-      error:
-        type: string
-  examples:
-    - ok: true
-
-create_variable:
-  description: Create a new Figma variable in a collection.
-  toolset: variables
-  write: true
-  access: create
-  handler: bridge
-  params:
-    name:
-      type: string
-      required: true
-      description: Variable name
-    collectionId:
-      type: string
-      required: true
-      description: Target variable collection ID
-    resolvedType:
-      type: enum
-      values: [COLOR, FLOAT, STRING, BOOLEAN]
-      required: true
-      description: Variable type
-    value:
-      type: unknown
-      description: Initial value for the default mode
-    modeId:
-      type: string
-      description: Mode ID to set the value for (defaults to first mode)
-    description:
-      type: string
-      description: Variable description
-    scopes:
-      type: array
-      items: string
-      description: "Variable scopes (e.g. ALL_FILLS, CORNER_RADIUS)"
-  response:
-    type: object
-    fields:
-      id:
-        type: string
-        required: true
-      name:
-        type: string
-        required: true
-      resolvedType:
-        type: string
-        required: true
-      error:
-        type: string
-  examples:
-    - id: "VariableID:1:30"
-      name: "spacing/md"
-      resolvedType: "FLOAT"
-
-update_variable:
-  description: Update properties of an existing variable (name, description, scopes, value).
-  toolset: variables
-  write: true
-  access: edit
-  handler: bridge
-  params:
-    variableId:
-      type: string
-      required: true
-      description: Variable ID to update
-    name:
-      type: string
-      description: New variable name
-    description:
-      type: string
-      description: New description
-    scopes:
-      type: array
-      items: string
-      description: New scopes array
-    value:
-      type: unknown
-      description: New value (requires modeId)
-    modeId:
-      type: string
-      description: Mode ID for the value update
-  response:
-    type: object
-    fields:
-      ok:
-        type: boolean
-        required: true
-      id:
-        type: string
-      error:
-        type: string
-  examples:
-    - ok: true
-      id: "VariableID:1:30"
-
-delete_variable:
-  description: Delete a variable by ID.
-  toolset: variables
-  write: true
-  access: edit
-  handler: bridge
-  params:
-    variableId:
-      type: string
-      required: true
-      description: Variable ID to delete
-  response:
-    type: object
-    fields:
-      ok:
-        type: boolean
-        required: true
-      error:
-        type: string
-  examples:
-    - ok: true
-
-create_collection:
-  description: Create a new variable collection. Returns the collection ID and default mode.
-  toolset: variables
-  write: true
-  access: create
-  handler: bridge
-  params:
-    name:
-      type: string
-      required: true
-      description: Collection name
-  response:
-    type: object
-    fields:
-      id:
-        type: string
-        required: true
-      name:
-        type: string
-        required: true
-      modes:
-        type: array
-        required: true
-        items:
-          type: object
-          fields:
-            modeId:
-              type: string
-              required: true
-            name:
-              type: string
-              required: true
-  examples:
-    - id: "VariableCollectionId:1:2"
-      name: "Semantic"
-      modes:
-        - modeId: "1:0"
-          name: "Mode 1"
-
-delete_collection:
-  description: Delete a variable collection by ID.
-  toolset: variables
-  write: true
-  access: edit
-  handler: bridge
-  params:
-    collectionId:
-      type: string
-      required: true
-      description: Collection ID to delete
   response:
     type: object
     fields:
@@ -2525,137 +1165,6 @@ create_variable_alias:
     - ok: true
       variableId: "VariableID:1:40"
       aliasTo: "color/brand/primary"
-
-export_variables:
-  description: >-
-    Export all Figma variables as DTCG-compatible flat list.
-    Resolves aliases to {path} references. Use this for reverse sync (Figma → DTCG file).
-  toolset: variables
-  write: false
-  handler: bridge
-  params:
-    collectionId:
-      type: string
-      description: Filter by collection ID. Omit to export all.
-  response:
-    type: object
-    fields:
-      count:
-        type: number
-        required: true
-      variables:
-        type: array
-        required: true
-        items:
-          type: object
-          fields:
-            path:
-              type: string
-              required: true
-            type:
-              type: string
-              required: true
-            valuesByMode:
-              type: record
-              required: true
-              valueType: unknown
-            description:
-              type: string
-            scopes:
-              type: array
-              items: string
-            aliasOf:
-              type: record
-              valueType: string
-  examples:
-    - count: 1
-      variables:
-        - path: "color.brand.primary"
-          type: "color"
-          valuesByMode:
-            Default: "#7c3aed"
-          description: "Primary brand color"
-          scopes: ["ALL_FILLS"]
-
-batch_create_variables:
-  description: >-
-    Create multiple variables at once from an in-memory array.
-    Faster than calling create_variable repeatedly.
-    Automatically creates the collection if it doesn't exist.
-  toolset: variables
-  write: true
-  access: create
-  handler: bridge
-  params:
-    collectionName:
-      type: string
-      required: true
-      description: Collection name (created if not exists)
-    modeName:
-      type: string
-      description: 'Mode name (default: "Default")'
-    variables:
-      type: array
-      required: true
-      items:
-        type: object
-        fields:
-          name:
-            type: string
-            required: true
-            description: 'Variable name (slash-separated path, e.g. "color/brand/primary")'
-          type:
-            type: enum
-            values: [COLOR, FLOAT, STRING, BOOLEAN]
-            required: true
-            description: Variable type
-          value:
-            type: unknown
-            required: true
-            description: Variable value
-          description:
-            type: string
-          scopes:
-            type: array
-            items: string
-  response:
-    type: object
-    fields:
-      created:
-        type: number
-        required: true
-      skipped:
-        type: number
-        required: true
-      failed:
-        type: number
-        required: true
-      errors:
-        type: array
-        required: true
-        items:
-          type: object
-          fields:
-            name:
-              type: string
-              required: true
-            error:
-              type: string
-              required: true
-      collectionId:
-        type: string
-        required: true
-  examples:
-    - created: 2
-      skipped: 0
-      failed: 0
-      errors: []
-      collectionId: "VariableCollectionId:1:2"
-      description: Array of variables to create
-
-# ═══════════════════════════════════════════════════════════════
-# TOOLSET: tokens (11 tools)
-# ═══════════════════════════════════════════════════════════════
 
 list_tokens:
   description: >-
@@ -3195,379 +1704,11 @@ diff_styles:
 # TOOLSET: styles (10 tools)
 # ═══════════════════════════════════════════════════════════════
 
-list_styles:
-  description: >-
-    List all local Figma styles (paint, text, effect, grid).
-    Optionally filter by type.
-  toolset: styles
-  write: false
-  handler: bridge
-  params:
-    type:
-      type: string
-      description: "Filter by style type: PAINT, TEXT, EFFECT, GRID"
-  response:
-    type: object
-    fields:
-      count:
-        type: number
-        required: true
-      styles:
-        type: array
-        required: true
-        items:
-          type: object
-          fields:
-            id:
-              type: string
-              required: true
-            name:
-              type: string
-              required: true
-            type:
-              type: string
-              required: true
-            description:
-              type: string
-            paints:
-              type: array
-              items: object
-            fontName:
-              type: unknown
-            fontSize:
-              type: number
-            letterSpacing:
-              type: unknown
-            lineHeight:
-              type: unknown
-            textCase:
-              type: string
-            textDecoration:
-              type: string
-            effects:
-              type: array
-              items: object
-  examples:
-    - count: 2
-      styles:
-        - id: "Style:1"
-          name: "Color/Brand/Primary"
-          type: "PAINT"
-          description: "Primary brand color"
-          paints:
-            - type: "SOLID"
-              visible: true
-              opacity: 1
-              color: "#7c3aed"
-        - id: "Style:2"
-          name: "Text/Heading/L"
-          type: "TEXT"
-          fontName:
-            family: "Inter"
-            style: "Bold"
-          fontSize: 32
-
-get_style:
-  description: Get detailed info for a specific style by ID.
-  toolset: styles
-  write: false
-  handler: bridge
-  params:
-    styleId:
-      type: string
-      required: true
-      description: The Figma style ID
-  response:
-    type: object
-    fields:
-      id:
-        type: string
-        required: true
-      name:
-        type: string
-        required: true
-      type:
-        type: string
-        required: true
-      description:
-        type: string
-      paints:
-        type: array
-        items: object
-      fontName:
-        type: unknown
-      fontSize:
-        type: number
-      letterSpacing:
-        type: unknown
-      lineHeight:
-        type: unknown
-      textCase:
-        type: string
-      textDecoration:
-        type: string
-      effects:
-        type: array
-        items: object
-      error:
-        type: string
-  examples:
-    - id: "Style:1"
-      name: "Color/Brand/Primary"
-      type: "PAINT"
-      description: "Primary brand color"
-      paints:
-        - type: "SOLID"
-          visible: true
-          opacity: 1
-          color: "#7c3aed"
-
-sync_styles:
-  description: >-
-    Sync composite design tokens (typography, shadow) to Figma Styles.
-    For atomic tokens (color, number, etc.), use sync_tokens instead.
-  toolset: styles
-  write: true
-  access: create
-  handler: bridge
-  params:
-    tokens:
-      type: array
-      required: true
-      items:
-        type: object
-        fields:
-          path:
-            type: string
-            required: true
-            description: 'Token path (e.g. "heading/h1")'
-          type:
-            type: string
-            required: true
-            description: 'Token type: "typography" or "shadow"'
-          value:
-            type: unknown
-            required: true
-            description: Token value object
-          description:
-            type: string
-            description: Token description
-      description: Array of composite design tokens to sync
-  response:
-    type: object
-    fields:
-      created:
-        type: number
-        required: true
-      updated:
-        type: number
-        required: true
-      skipped:
-        type: number
-        required: true
-      failed:
-        type: number
-        required: true
-      failures:
-        type: array
-        required: true
-        items:
-          type: object
-          fields:
-            path:
-              type: string
-              required: true
-            error:
-              type: string
-              required: true
-  examples:
-    - created: 2
-      updated: 1
-      skipped: 0
-      failed: 0
-      failures: []
-
-create_paint_style:
-  description: Create a new paint style with a solid color fill.
-  toolset: styles
-  write: true
-  access: create
-  handler: bridge
-  params:
-    name:
-      type: string
-      required: true
-      description: Style name
-    color:
-      type: string
-      required: true
-      description: 'Hex color (e.g. "#FF0000")'
-    description:
-      type: string
-      description: Style description
-  response:
-    type: object
-    fields:
-      id:
-        type: string
-        required: true
-      name:
-        type: string
-        required: true
-  examples:
-    - id: "Style:10"
-      name: "Color/Brand/Primary"
-
-delete_style:
-  description: Delete a style by ID.
-  toolset: styles
-  write: true
-  access: edit
-  handler: bridge
-  params:
-    styleId:
-      type: string
-      required: true
-      description: Style ID to delete
-  response:
-    type: object
-    fields:
-      ok:
-        type: boolean
-        required: true
-      error:
-        type: string
-  examples:
-    - ok: true
-
-update_paint_style:
-  description: "Update an existing paint style. Can change name, description, and/or color."
-  toolset: styles
-  write: true
-  access: edit
-  handler: bridge
-  params:
-    styleId:
-      type: string
-      required: true
-      description: Paint style ID
-    name:
-      type: string
-      description: New name
-    description:
-      type: string
-      description: New description
-    color:
-      type: string
-      description: 'New hex color (e.g. "#FF0000")'
-  response:
-    type: object
-    fields:
-      id:
-        type: string
-        required: true
-      name:
-        type: string
-        required: true
-      error:
-        type: string
-  examples:
-    - id: "Style:10"
-      name: "Color/Brand/Accent"
-
-update_text_style:
-  description: "Update an existing text style. Can change name, description, font, size, line height, letter spacing."
-  toolset: styles
-  write: true
-  access: edit
-  handler: custom
-  params:
-    styleId:
-      type: string
-      required: true
-      description: Text style ID
-    name:
-      type: string
-      description: New name
-    description:
-      type: string
-      description: New description
-    fontFamily:
-      type: string
-      description: Font family
-    fontStyle:
-      type: string
-      description: 'Font style (e.g. "Bold")'
-    fontSize:
-      type: number
-      description: Font size in px
-    lineHeight:
-      type: unknown
-      description: 'Line height: number (px), "AUTO", or {value, unit}'
-    letterSpacing:
-      type: unknown
-      description: "Letter spacing: number (px) or {value, unit}"
-  response:
-    type: object
-    fields:
-      id:
-        type: string
-        required: true
-      name:
-        type: string
-        required: true
-      fontSize:
-        type: number
-      error:
-        type: string
-  examples:
-    - id: "Style:11"
-      name: "Text/Heading/L"
-      fontSize: 32
-
-update_effect_style:
-  description: "Update an existing effect style. Can change name, description, and effects array."
-  toolset: styles
-  write: true
-  access: edit
-  handler: bridge
-  params:
-    styleId:
-      type: string
-      required: true
-      description: Effect style ID
-    name:
-      type: string
-      description: New name
-    description:
-      type: string
-      description: New description
-    effects:
-      type: array
-      items:
-        type: record
-        valueType: unknown
-      description: New effects array (raw Figma effect objects)
-  response:
-    type: object
-    fields:
-      id:
-        type: string
-        required: true
-      name:
-        type: string
-        required: true
-      error:
-        type: string
-  examples:
-    - id: "Style:12"
-      name: "Shadow/Card/Default"
-
 register_library_styles:
   description: >-
     Register Text/Paint/Effect styles from a library for auto-application to new elements.
     Stored per-library in clientStorage, persists across sessions.
-    create_text will auto-apply matching Text Style by fontSize.
+    Text creation will auto-apply matching Text Style by fontSize.
   toolset: styles
   write: true
   access: create
@@ -4870,7 +3011,7 @@ boolean_operation:
       visible: true
 
 # ═══════════════════════════════════════════════════════════════
-# TOOLSET: annotations (6 tools)
+# TOOLSET: annotations (4 tools)
 # ═══════════════════════════════════════════════════════════════
 
 get_annotations:
@@ -5020,11 +3161,15 @@ clear_annotations:
   examples:
     - cleared: 3
 
+# ═══════════════════════════════════════════════════════════════
+# TOOLSET: prototype (6 tools — 2 read + 4 write)
+# ═══════════════════════════════════════════════════════════════
+
 get_reactions:
   description: >-
     Get prototype reactions (interactions) on a specific node or all nodes on the current page.
     Returns trigger types and action types. Useful for analyzing prototype flows.
-  toolset: annotations
+  toolset: prototype
   write: false
   handler: bridge
   params:
@@ -5069,7 +3214,7 @@ analyze_prototype_flow:
   description: >-
     Analyze prototype interactions on the current page (or a subtree) and produce a structured flow graph.
     Returns: directed graph, entry points, dead ends, loops, trigger/action stats, Mermaid diagram, and Markdown docs.
-  toolset: annotations
+  toolset: prototype
   write: false
   handler: custom
   params:
@@ -5102,6 +3247,260 @@ analyze_prototype_flow:
         edges: []
       mermaid: "graph TD\n  A --> B"
       markdown: "# Prototype Flow Documentation"
+
+add_reaction:
+  description: >-
+    Add a prototype reaction (interaction) to a node. Supports single node or batch mode via items array.
+    Use this to wire up click/hover/press navigation between screens.
+  toolset: prototype
+  write: true
+  access: create
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      description: Target node ID (single mode)
+    trigger:
+      type: object
+      description: >-
+        Trigger definition (single mode). type is required: ON_CLICK, ON_HOVER, ON_PRESS, ON_DRAG,
+        AFTER_TIMEOUT, MOUSE_ENTER, MOUSE_LEAVE, MOUSE_UP, MOUSE_DOWN.
+        Optional: delay (ms), timeout (ms).
+      fields:
+        type:
+          type: string
+          required: true
+        delay:
+          type: number
+        timeout:
+          type: number
+    actions:
+      type: array
+      description: >-
+        Action definitions (single mode). Each action: type (NODE|BACK|CLOSE|URL),
+        destinationId, navigation (NAVIGATE|SWAP|OVERLAY|SCROLL_TO|CHANGE_TO),
+        transition ({type, duration, easing, direction}), url (for URL type).
+      items:
+        type: object
+        fields:
+          type:
+            type: string
+            required: true
+          destinationId:
+            type: string
+          navigation:
+            type: string
+          url:
+            type: string
+          transition:
+            type: object
+            fields:
+              type:
+                type: string
+                required: true
+              duration:
+                type: number
+                required: true
+              easing:
+                type: object
+              direction:
+                type: string
+          overlay:
+            type: object
+    items:
+      type: array
+      description: >-
+        Batch mode: array of {nodeId, trigger, actions} objects.
+        When provided, nodeId/trigger/actions params are ignored.
+      items:
+        type: object
+        fields:
+          nodeId:
+            type: string
+            required: true
+          trigger:
+            type: object
+            required: true
+          actions:
+            type: array
+            required: true
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+      reactionCount:
+        type: number
+      results:
+        type: array
+        items: object
+  examples:
+    - ok: true
+      reactionCount: 1
+
+remove_reaction:
+  description: >-
+    Remove prototype reactions from a node. Remove by index, by trigger type, or all at once.
+  toolset: prototype
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: Target node ID
+    index:
+      type: number
+      description: Reaction index to remove (0-based)
+    triggerType:
+      type: string
+      description: Remove all reactions with this trigger type (e.g. ON_CLICK)
+    removeAll:
+      type: boolean
+      description: Remove all reactions from the node
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      removed:
+        type: number
+      remaining:
+        type: number
+      error:
+        type: string
+  examples:
+    - ok: true
+      removed: 1
+      remaining: 0
+
+set_reactions:
+  description: >-
+    Replace all prototype reactions on a node with a new set.
+    Use this for full control over a node's interactions.
+  toolset: prototype
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: Target node ID
+    reactions:
+      type: array
+      required: true
+      description: >-
+        Array of reaction specs. Each: {trigger: {type, delay?, timeout?}, actions: [{type, destinationId?, navigation?, transition?, url?}]}
+      items:
+        type: object
+        fields:
+          trigger:
+            type: object
+            required: true
+            fields:
+              type:
+                type: string
+                required: true
+              delay:
+                type: number
+              timeout:
+                type: number
+          actions:
+            type: array
+            required: true
+            items:
+              type: object
+              fields:
+                type:
+                  type: string
+                  required: true
+                destinationId:
+                  type: string
+                navigation:
+                  type: string
+                url:
+                  type: string
+                transition:
+                  type: object
+                overlay:
+                  type: object
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      reactionCount:
+        type: number
+      error:
+        type: string
+  examples:
+    - ok: true
+      reactionCount: 2
+
+connect_screens:
+  description: >-
+    Batch-connect screens with prototype interactions. Provide an array of connections,
+    each specifying source node, destination node, trigger, and optional transition.
+    After wiring, runs analyze_prototype_flow to validate the resulting flow graph
+    and report dead ends or missing connections.
+  toolset: prototype
+  write: true
+  access: create
+  handler: custom
+  params:
+    connections:
+      type: array
+      required: true
+      description: >-
+        Array of screen connections. Each: {sourceNodeId, destinationNodeId,
+        trigger (ON_CLICK default), navigation (NAVIGATE default), transition?}
+      items:
+        type: object
+        fields:
+          sourceNodeId:
+            type: string
+            required: true
+          destinationNodeId:
+            type: string
+            required: true
+          trigger:
+            type: string
+          navigation:
+            type: string
+          transition:
+            type: object
+    analyze:
+      type: boolean
+      description: "Run flow analysis after connecting (default: true)"
+  response:
+    type: object
+    fields:
+      connected:
+        type: number
+        required: true
+      total:
+        type: number
+        required: true
+      failures:
+        type: array
+        items: object
+      flowAnalysis:
+        type: object
+      hint:
+        type: string
+  examples:
+    - connected: 3
+      total: 3
+      flowAnalysis:
+        totalScreens: 4
+        totalInteractions: 3
+        entryPoints: []
+        deadEnds: []
+        loops: 0
 
 # ═══════════════════════════════════════════════════════════════
 # TOOLSET: lint (4 tools)
@@ -5466,13 +3865,128 @@ delete_node:
     - ok: true
 
 # ═══════════════════════════════════════════════════════════════
+# TOOLSET: staging (4 tools)
+# ═══════════════════════════════════════════════════════════════
+
+stage_changes:
+  description: >-
+    Mark nodes as staged (preview). Staged nodes are shown at reduced opacity with an annotation.
+    Use commit_changes to finalize or discard_changes to remove them.
+  toolset: staging
+  write: true
+  access: edit
+  handler: custom
+  params:
+    nodeIds:
+      type: array
+      items: string
+      required: true
+      description: Node IDs to stage
+  response:
+    type: object
+    fields:
+      staged:
+        type: number
+        required: true
+      errors:
+        type: array
+        items: object
+      stagedNodeIds:
+        type: array
+        items: string
+  examples:
+    - staged: 3
+      errors: []
+      stagedNodeIds: ["1:23", "1:24", "1:25"]
+
+commit_changes:
+  description: >-
+    Finalize staged nodes — restores original opacity and removes staging annotations.
+    If no nodeIds provided, commits all currently staged nodes.
+  toolset: staging
+  write: true
+  access: edit
+  handler: custom
+  params:
+    nodeIds:
+      type: array
+      items: string
+      description: "Node IDs to commit (default: all staged)"
+  response:
+    type: object
+    fields:
+      committed:
+        type: number
+        required: true
+      errors:
+        type: array
+        items: object
+      remainingStaged:
+        type: array
+        items: string
+  examples:
+    - committed: 3
+      errors: []
+      remainingStaged: []
+
+discard_changes:
+  description: >-
+    Remove staged nodes from the canvas entirely.
+    If no nodeIds provided, discards all currently staged nodes.
+  toolset: staging
+  write: true
+  access: edit
+  handler: custom
+  params:
+    nodeIds:
+      type: array
+      items: string
+      description: "Node IDs to discard (default: all staged)"
+  response:
+    type: object
+    fields:
+      discarded:
+        type: number
+        required: true
+      errors:
+        type: array
+        items: object
+      remainingStaged:
+        type: array
+        items: string
+  examples:
+    - discarded: 2
+      errors: []
+      remainingStaged: ["1:25"]
+
+list_staged:
+  description: List all currently staged nodes.
+  toolset: staging
+  write: false
+  handler: custom
+  response:
+    type: object
+    fields:
+      staged:
+        type: array
+        items: object
+        required: true
+      count:
+        type: number
+        required: true
+  examples:
+    - staged:
+        - nodeId: "1:23"
+          name: "Login Screen"
+      count: 1
+
+# ═══════════════════════════════════════════════════════════════
 # ENDPOINT TOOLS (resource-oriented API with method dispatch)
 # ═══════════════════════════════════════════════════════════════
 
 nodes:
   description: >-
-    Node operations — get, list, update, delete, clone, insert_child.
-    For creating nodes, use create_document (batch) or shapes/text endpoints.
+    Node operations — get, list, update, delete.
   toolset: core
   handler: endpoint
   methods:
@@ -5654,129 +4168,13 @@ nodes:
           type: array
           required: true
           items: string
-    clone:
-      description: Clone a node
-      maps_to: clone_node
-      write: true
-      access: create
-      response:
-        type: object
-        fields:
-          id:
-            type: string
-            required: true
-          name:
-            type: string
-            required: true
-          type:
-            type: string
-            required: true
-          width:
-            type: number
-          height:
-            type: number
-      examples:
-        - id: "60:1"
-          name: "Cloned Card"
-          type: "FRAME"
-          width: 320
-          height: 180
-      params:
-        nodeId:
-          type: string
-          required: true
-    insert_child:
-      description: Move a node into a parent container
-      maps_to: insert_child
-      write: true
-      access: edit
-      response:
-        type: object
-        fields:
-          ok:
-            type: boolean
-            required: true
-          error:
-            type: string
-      examples:
-        - ok: true
-      params:
-        parentId:
-          type: string
-          required: true
-        childId:
-          type: string
-          required: true
-        index:
-          type: number
 
 text:
   description: >-
-    Text node operations — create text nodes and update text content.
+    Text node operations — update text content.
   toolset: core
   handler: endpoint
   methods:
-    create:
-      description: Create a text node with specified content and font
-      maps_to: create_text
-      write: true
-      access: create
-      response:
-        type: object
-        fields:
-          id:
-            type: string
-            required: true
-          name:
-            type: string
-            required: true
-          type:
-            type: string
-            required: true
-          characters:
-            type: string
-          fontSize:
-            type: number
-          autoBound:
-            type: record
-            valueType: unknown
-      examples:
-        - id: "30:2"
-          name: "Hero Title"
-          type: "TEXT"
-          characters: "Ship Faster"
-          fontSize: 32
-          autoBound:
-            color: "text/primary"
-      params:
-        content:
-          type: string
-          required: true
-          description: Text content
-        name:
-          type: string
-          description: Node name
-        x:
-          type: number
-          description: X position
-        y:
-          type: number
-          description: Y position
-        fontSize:
-          type: number
-          description: 'Font size (default: 16)'
-        fontFamily:
-          type: string
-          description: 'Font family (default: Inter)'
-        fontStyle:
-          type: string
-          description: 'Font style (default: Regular)'
-        fill:
-          type: string
-          description: Text color as hex
-        parentId:
-          type: string
-          description: Parent node ID
     set_content:
       description: Update the text content of an existing text node
       maps_to: set_text_content
@@ -5802,233 +4200,9 @@ text:
           required: true
           description: New text content
 
-shapes:
-  description: >-
-    Shape creation operations — create frames, rectangles, ellipses, and vectors.
-  toolset: core
-  handler: endpoint
-  methods:
-    create_frame:
-      description: Create a new frame (optionally with auto layout)
-      maps_to: create_frame
-      write: true
-      access: create
-      response:
-        type: object
-        fields:
-          id:
-            type: string
-            required: true
-          name:
-            type: string
-            required: true
-          type:
-            type: string
-            required: true
-          width:
-            type: number
-          height:
-            type: number
-          layoutMode:
-            type: string
-          autoBound:
-            type: string
-      examples:
-        - id: "30:1"
-          name: "Card Frame"
-          type: "FRAME"
-          width: 320
-          height: 180
-          layoutMode: "VERTICAL"
-          autoBound: "surface/default"
-      params:
-        name:
-          type: string
-          description: Frame name
-        x:
-          type: number
-        y:
-          type: number
-        width:
-          type: number
-        height:
-          type: number
-        parentId:
-          type: string
-        autoLayout:
-          type: boolean
-        layoutDirection:
-          type: enum
-          values: [HORIZONTAL, VERTICAL]
-        itemSpacing:
-          type: number
-        padding:
-          type: number
-        paddingLeft:
-          type: number
-        paddingRight:
-          type: number
-        paddingTop:
-          type: number
-        paddingBottom:
-          type: number
-        primaryAxisAlignItems:
-          type: enum
-          values: [MIN, CENTER, MAX, SPACE_BETWEEN]
-        counterAxisAlignItems:
-          type: enum
-          values: [MIN, CENTER, MAX]
-        fill:
-          type: string
-          description: 'Fill color as hex'
-    create_rectangle:
-      description: Create a rectangle node
-      maps_to: create_rectangle
-      write: true
-      access: create
-      response:
-        type: object
-        fields:
-          id:
-            type: string
-            required: true
-          name:
-            type: string
-            required: true
-          type:
-            type: string
-            required: true
-          width:
-            type: number
-          height:
-            type: number
-          cornerRadius:
-            type: unknown
-          autoBound:
-            type: string
-      examples:
-        - id: "50:1"
-          name: "Card Background"
-          type: "RECTANGLE"
-          width: 320
-          height: 180
-          cornerRadius: 24
-      params:
-        name:
-          type: string
-        x:
-          type: number
-        y:
-          type: number
-        width:
-          type: number
-        height:
-          type: number
-        parentId:
-          type: string
-        fill:
-          type: string
-        cornerRadius:
-          type: number
-        stroke:
-          type: string
-        strokeWeight:
-          type: number
-    create_ellipse:
-      description: Create an ellipse (circle) node
-      maps_to: create_ellipse
-      write: true
-      access: create
-      response:
-        type: object
-        fields:
-          id:
-            type: string
-            required: true
-          name:
-            type: string
-            required: true
-          type:
-            type: string
-            required: true
-          width:
-            type: number
-          height:
-            type: number
-          autoBound:
-            type: string
-      examples:
-        - id: "50:2"
-          name: "Avatar Dot"
-          type: "ELLIPSE"
-          width: 40
-          height: 40
-      params:
-        name:
-          type: string
-        x:
-          type: number
-        y:
-          type: number
-        width:
-          type: number
-        height:
-          type: number
-        parentId:
-          type: string
-        fill:
-          type: string
-        stroke:
-          type: string
-        strokeWeight:
-          type: number
-    create_vector:
-      description: Create a vector node from an SVG string
-      maps_to: create_vector
-      write: true
-      access: create
-      response:
-        type: object
-        fields:
-          id:
-            type: string
-            required: true
-          name:
-            type: string
-            required: true
-          type:
-            type: string
-            required: true
-          width:
-            type: number
-          height:
-            type: number
-      examples:
-        - id: "70:1"
-          name: "Arrow Icon"
-          type: "FRAME"
-          width: 24
-          height: 24
-      params:
-        svg:
-          type: string
-          required: true
-          description: Complete SVG string
-        name:
-          type: string
-        x:
-          type: number
-        y:
-          type: number
-        resize:
-          type: tuple
-          items: [number, number]
-        parentId:
-          type: string
-
 components:
   description: >-
-    Component operations — list, get, create instances, and manage properties.
+    Component operations — list, get, and inspect properties.
     Core methods are always available. Advanced methods require load_toolset("components-advanced").
   toolset: core
   handler: endpoint
@@ -6134,49 +4308,6 @@ components:
           type: string
           required: true
           description: Component node ID
-    create_instance:
-      description: Create an instance of a component
-      maps_to: create_instance
-      write: true
-      access: create
-      response:
-        type: object
-        fields:
-          id:
-            type: string
-            required: true
-          name:
-            type: string
-            required: true
-          type:
-            type: string
-            required: true
-          width:
-            type: number
-          height:
-            type: number
-          error:
-            type: string
-      examples:
-        - id: "40:1"
-          name: "Button / Primary"
-          type: "INSTANCE"
-          width: 160
-          height: 48
-      params:
-        componentId:
-          type: string
-          description: Local component node ID
-        componentKey:
-          type: string
-          description: Library component key
-        properties:
-          type: record
-          valueType: string
-          description: Variant/property overrides
-        parentId:
-          type: string
-          description: Parent node ID
     list_properties:
       description: List all properties and variant options of a component
       maps_to: list_component_properties
@@ -6990,8 +5121,11 @@ _toolset_descriptions:
   styles: "Style management — create, update, delete paint/text/effect styles, sync composite tokens."
   components-advanced: "Advanced component ops — create components, manage variants/properties/overrides, audit."
   library: "Library operations — browse and import library variables, styles, and components from shared libraries."
-  shapes-vectors: "Shape primitives & vectors — stars, polygons, sections, boolean ops, flatten. Note: create_rectangle, create_ellipse, create_vector, set_image_fill are always available as core tools."
-  annotations: "Annotations & prototype analysis — add/read annotations, analyze prototype flows."
+  shapes-vectors: "Shape primitives & vectors — stars, polygons, sections, boolean ops, flatten."
+  annotations: "Annotations — add, read, batch-set, and clear annotations on nodes."
+  prototype: "Prototype interactions — get/add/remove/set reactions, analyze prototype flows and navigation."
   lint: "Granular lint — individual check, fix, rules list, compliance report (beyond lint_fix_all)."
   auth: "Figma OAuth — login, logout, check auth status."
   pages: "Page management — create and rename pages."
+  staging: "Staged workflow — preview changes before finalizing. Stage, commit, discard, and list staged nodes."
+

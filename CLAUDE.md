@@ -98,72 +98,40 @@ figcraft/
 | **library** | Figma 共享库 Variables/Styles | 检查节点是否绑定了 Library Variable/Style | 设计师日常设计，使用团队共享库 |
 | **spec** | DTCG JSON 文件 | 检查节点值是否匹配 DTCG Token 值 | 从设计规范文档同步，验证合规性 |
 
-## MCP 工具清单 (65+)
+## MCP 工具清单 (Endpoint 模式)
 
 ### 基础
 - `ping` — 测试连通性
 
-### 读取 (P1)
-- `get_node_info` / `get_current_page` / `get_document_info` / `get_selection` / `search_nodes` — 节点读取
-- `list_fonts` — 枚举可用字体族及字重（创建文字前查询）
-- `list_variables` / `get_variable` / `list_collections` — Variables
-- `list_styles` / `get_style` — Styles
-- `list_library_collections` / `list_library_variables` / `import_library_variable` — Team Library Variables
-- `list_library_styles` / `get_library_style_details` / `import_library_style` — Team Library Styles（REST API，需 FIGMA_API_TOKEN）
-- `export_image` — 图片导出
+### 节点操作 (`nodes` endpoint)
+- `nodes(method: "get")` / `nodes(method: "list")` — 节点读取与搜索
+- `nodes(method: "update")` — 更新节点属性
+- `nodes(method: "delete")` — 删除节点
+- `get_current_page` / `get_document_info` / `get_selection` — 页面/文档/选区读取
+- `list_fonts` — 枚举可用字体族及字重
 
-### 写入 (P2)
-- `create_frame` / `create_text` / `create_rectangle` / `create_ellipse` / `create_line` / `create_section` / `create_document` / `patch_nodes` / `delete_node` / `clone_node` / `insert_child` / `boolean_operation` — 节点 CRUD
-- `set_image_fill` — 设置节点的图片填充（base64 PNG/JPG）
-- `create_vector` — 从 SVG 字符串创建矢量节点
-- `create_star` / `create_polygon` — 星形/多边形
-- `flatten_node` — 将节点扁平化为单一矢量
-- `save_version_history` — 创建命名版本历史快照（AI 迭代设计前的 checkpoint）- `create_variable` / `update_variable` / `delete_variable` — Variable CRUD
-- `create_collection` / `delete_collection` / `rename_collection` — Collection 管理
-- `add_collection_mode` / `rename_collection_mode` / `remove_collection_mode` — Mode 管理
-- `list_tokens` / `sync_tokens` / `sync_tokens_multi_mode` / `diff_tokens` / `reverse_sync_tokens` — DTCG Token 同步（含多模式）
-- `list_components` / `get_component` / `create_component` / `update_component` / `delete_component` — Component CRUD
-- `list_component_properties` — 枚举组件暴露的属性和变体选项
-- `create_component_set` — 将多个 Component 合并为 Variant Set
-- `create_instance` / `swap_instance` / `detach_instance` / `reset_instance_overrides` — Instance 管理
-- `get_instance_overrides` / `set_instance_overrides` — Override 读取与批量传播
-- `add_component_property` / `update_component_property` / `delete_component_property` — 组件属性管理
-- `audit_components` — 组件结构审计（缺失描述、未暴露文本、空组件等）
-- `create_variable_alias` — 变量别名（语义 Token 引用原始 Token）
+### 文本 (`text` endpoint)
+- `text(method: "set_content")` — 更新文本内容
+
+### 组件 (`components` endpoint)
+- `components(method: "list")` / `components(method: "get")` — 本地组件
+- `components(method: "list_library")` — 库组件（REST API，需 FIGMA_API_TOKEN）
+- `components(method: "list_properties")` — 枚举组件暴露的属性和变体选项
+
+> 注意：UI 创建（frame、shape、text、instance）已委托给 Figma 官方 MCP。FigCraft 专注于审查、lint、审计和 token 同步。
+
+### 变量 (`variables_ep` endpoint, 需 `load_toolset("variables")`)
+- 12 个方法：list, get, create, update, delete, list_collections, create_collection, delete_collection, rename_collection, add_mode, rename_mode, remove_mode
 - `export_variables` — 导出 Figma 变量为 DTCG 兼容格式
-- `batch_create_variables` — 批量创建变量（内存数组 → Figma Variables）
-- `reverse_sync_tokens` — 反向同步（Figma Variables → DTCG JSON 文件）
-- `update_paint_style` / `update_text_style` / `update_effect_style` — Style 更新
-- `cache_tokens` / `list_cached_tokens` / `delete_cached_tokens` — Token 缓存
+- `batch_create_variables` — 批量创建变量
+- `create_variable_alias` — 变量别名
 
-### 注解 (P2)
-- `get_annotations` — 读取当前页面或指定节点的所有注解
-- `set_annotation` — 在节点上添加/覆盖注解（支持 Markdown）
-- `set_multiple_annotations` — 批量注解多个节点
+### 样式 (`styles_ep` endpoint, 需 `load_toolset("styles")`)
+- 8 个方法：list, get, update_paint, update_text, update_effect, list_library, get_library_details, import_library
 
-### 图片与矢量 (P2)
-- `set_image_fill` — 设置节点的图片填充（base64 PNG/JPG，支持 FILL/FIT/CROP/TILE 模式）
-- `create_vector` — 从 SVG 字符串创建矢量节点
-- `create_star` — 创建星形（可配置角数和内径比）
-- `create_polygon` — 创建正多边形（三角形、五边形等）
-- `flatten_node` — 将节点扁平化为单一矢量路径
-
-### Lint (P3)
-- `lint_check` — 运行 Lint 规则（支持分页、注解、按类别过滤）
-- `lint_fix` — 自动修复可修复的违规
-- `lint_fix_all` — 一键扫描 + 自动修复所有可修复项
-- `lint_rules` — 列出可用规则（含类别和严重级别）
-- `clear_annotations` — 清除 Lint 注解
-- `compliance_report` — 综合合规报告（Lint + 组件审计 + 评分）
-
-### 原型流分析 (P4)
-- `analyze_prototype_flow` — 分析原型交互，生成流程图（Mermaid）+ 交互文档（Markdown）+ 结构化有向图
-
-### 模式 (P4)
-- `get_mode` / `set_mode` — 切换 library/spec 模式
-
-### MCP Prompts (8)
-- `sync-tokens` / `lint-page` / `compare-spec` / `auto-fix` / `generate-element` / `review-design` / `prototype-flow` / `document-components`
+### 图片与矢量
+- `set_image_fill` — 设置节点的图片填充（base64 PNG/JPG）
+- `export_image` — 图片导出
 
 ## DTCG → Figma 类型映射
 
@@ -179,12 +147,15 @@ figcraft/
 
 ## Plugin Handler 注册模式
 
-所有 handler 通过 `registerHandler(method, handler)` 注册到全局 Map。handler 文件通过 import 副作用自动注册：
+所有 handler 通过 `registerHandler(method, handler)` 注册到全局 Map。handler 文件通过 import 副作用自动注册。
+
+> **注意**: Plugin 侧的 handler 方法名（如 `get_node_info`、`patch_nodes`）是内部桥接协议名称，与 MCP 工具名无关。MCP 层使用 endpoint 模式（如 `nodes(method: "get")`），endpoint 内部通过 `bridge.request('get_node_info', ...)` 调用 Plugin handler。
 
 ```typescript
 // packages/adapter-figma/src/handlers/nodes.ts
 import { registerHandler } from '../code.js';
 
+// 内部桥接协议名 — 不是 MCP 工具名
 registerHandler('get_node_info', async (params) => {
   // ... Figma API 调用
 });
@@ -192,34 +163,19 @@ registerHandler('get_node_info', async (params) => {
 
 添加新 handler 时：
 1. 在 `packages/adapter-figma/src/handlers/` 创建文件
-2. 使用 `registerHandler` 注册方法
+2. 使用 `registerHandler` 注册方法（内部桥接协议名）
 3. 在 `packages/adapter-figma/src/code.ts` 中添加 `import './handlers/xxx.js'`
-4. 在 `packages/core-mcp/src/tools/` 创建对应的 MCP 工具包装
+4. 在 `schema/tools.yaml` 中添加工具定义（endpoint 或 standalone）
 
 ## 添加新 MCP 工具
 
-```typescript
-// packages/core-mcp/src/tools/xxx.ts
-import { z } from 'zod';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { Bridge } from '../bridge.js';
+新工具通过 `schema/tools.yaml` 定义，支持三种 handler 类型：
 
-export function registerXxxTools(server: McpServer, bridge: Bridge): void {
-  server.tool(
-    'tool_name',
-    'Tool description for AI.',
-    { param: z.string().describe('Param description') },
-    async ({ param }) => {
-      const result = await bridge.request('handler_method', { param });
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-      };
-    },
-  );
-}
-```
+1. **`handler: bridge`** — 自动生成，YAML 定义即可，无需手写 MCP 包装
+2. **`handler: endpoint`** — 资源端点，在 YAML 中定义 `methods` map，dispatch 在 `packages/core-mcp/src/tools/endpoints.ts`
+3. **`handler: custom`** — 手写 MCP 包装在 `packages/core-mcp/src/tools/`，注册在 `toolset-manager.ts`
 
-然后在 `packages/core-mcp/src/index.ts` 中导入并调用对应注册逻辑。
+运行 `npm run schema` 重新生成 registry。详见 AGENTS.md "Adding New Tools" 章节。
 
 ## 添加新 Lint 规则
 

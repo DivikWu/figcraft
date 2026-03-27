@@ -24,7 +24,6 @@ import fc from 'fast-check';
 vi.mock('../packages/core-mcp/src/tools/toolset-manager.js', () => ({
   getAccessLevel: vi.fn(() => 'edit'),
   isToolBlocked: vi.fn(() => null),
-  getApiMode: vi.fn(() => 'both'),
 }));
 
 vi.mock('../packages/core-mcp/src/tools/logic/node-logic.js', () => ({

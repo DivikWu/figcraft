@@ -1,9 +1,12 @@
 node_modules/
 dist/
 *.js.map
+*.DS_Store
+.DS_Store
 .env
 .env.local
 .mcp.json
 .kiro/settings/mcp.json
 .vscode/
 reports/benchmarks/
+.tmp/

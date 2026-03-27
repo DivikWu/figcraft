@@ -1,6 +1,6 @@
 /**
  * Node logic functions — extracted from nodes.ts server.tool() callbacks.
- * Shared by both flat tools and endpoint tools.
+ * Used by endpoint tools for get/list operations.
  */
 
 import { Bridge } from '../../bridge.js';
@@ -52,7 +52,7 @@ export async function getNodeInfoLogic(
     return {
       content: [
         { type: 'text' as const, text: JSON.stringify(result, null, 2) },
-        { type: 'text' as const, text: '\n⚠️ Node not found. If you are trying to CREATE elements, do NOT use get_node_info. Follow this workflow instead: ping → get_mode → get_current_page(maxDepth=1) → create_document.' },
+        { type: 'text' as const, text: '\n⚠️ Node not found. Verify the node ID is correct. Use get_current_page(maxDepth=2) to browse the page tree, or nodes(method: "list") to search by name.' },
       ],
     };
   }
@@ -60,7 +60,7 @@ export async function getNodeInfoLogic(
   // Guard against oversized responses
   const guarded = Bridge.guardResponseSize(result, 'get_node_info', [
     'Use get_current_page(maxDepth=1) for a lightweight overview first',
-    'Inspect specific child nodes with get_node_info instead of the full subtree',
+    'Inspect specific child nodes with nodes(method: "get") instead of the full subtree',
   ]);
 
   const text = source === 'rest-api'
@@ -78,13 +78,13 @@ export async function getCurrentPageLogic(
   const guarded = Bridge.guardResponseSize(result, 'get_current_page', [
     'Use maxDepth=1 for a fast overview of top-level frames',
     'Use maxDepth=2 to see one level of children',
-    'Use get_node_info on specific nodes for full details',
+    'Use nodes(method: "get") on specific nodes for full details',
     'Use maxNodes to limit the number of top-level children returned',
   ]);
   return {
     content: [
       { type: 'text' as const, text: JSON.stringify(guarded, null, 2) },
-      { type: 'text' as const, text: '\n⚡ NEXT: If creating elements, call create_document with your design plan. It now runs a scoped post-create lint/fix pass by default; use lint_fix_all afterward for a final full-screen verification. Do NOT call get_node_info for creation tasks.' },
+      { type: 'text' as const, text: '\n⚡ NEXT: Use nodes(method: "get") on specific nodes for detailed inspection. Use lint_fix_all to check design compliance. Use audit_node for deep quality review of a specific element.' },
     ],
   };
 }

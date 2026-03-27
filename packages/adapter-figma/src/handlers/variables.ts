@@ -6,6 +6,7 @@ import { registerHandler } from '../registry.js';
 import { figmaRgbaToHex } from '../utils/color.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
 import { isVariableAlias, isRgbaLike } from '../utils/type-guards.js';
+import { assertHandler } from '../utils/handler-error.js';
 
 export function registerVariableHandlers(): void {
 
@@ -43,9 +44,7 @@ registerHandler('list_variables', async (params) => {
 registerHandler('get_variable', async (params) => {
   const variableId = params.variableId as string;
   const variable = await figma.variables.getVariableByIdAsync(variableId);
-  if (!variable) {
-    return { error: `Variable not found: ${variableId}` };
-  }
+  assertHandler(variable, `Variable not found: ${variableId}`, 'NOT_FOUND');
 
   const collection = await figma.variables.getVariableCollectionByIdAsync(variable.variableCollectionId);
 
@@ -77,7 +76,7 @@ registerHandler('list_collections', async () => {
 registerHandler('get_node_variables', async (params) => {
   const nodeId = params.nodeId as string;
   const node = await findNodeByIdAsync(nodeId);
-  if (!node) return { error: `Node not found: ${nodeId}` };
+  assertHandler(node, `Node not found: ${nodeId}`, 'NOT_FOUND');
 
   const sceneNode = node as SceneNode;
   if (!('boundVariables' in sceneNode) || !sceneNode.boundVariables) {

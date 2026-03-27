@@ -2,13 +2,14 @@
  * Shared node creation helpers — extracted from write-nodes.ts to eliminate duplication.
  *
  * These functions encapsulate common patterns used across standalone handlers
- * (create_frame, create_rectangle, create_ellipse) and the batch createNodeFromSpec.
+ * and the batch node creation pipeline.
  */
 
 import { hexToFigmaRgb } from './color.js';
 import { autoBindDefault, autoBindStrokeDefault, suggestColorVariable, findColorVariableByName, findColorVariableById, findFloatVariableByName } from './design-context.js';
 import { ensureLoaded, getPaintStyleId, getAvailablePaintStyleNames, findClosestPaintStyle } from './style-registry.js';
 import { findNodeByIdAsync } from './node-lookup.js';
+import { registerCache } from './cache-manager.js';
 
 // ─── FLOAT variable scope mapping ───
 // Maps node property names to Figma variable scopes for scope-aware auto-bind.
@@ -163,6 +164,9 @@ export async function applyTokenFields(
 export function clearFloatVarCache(): void {
   _floatVarCache = null;
 }
+
+// Register with centralized cache manager
+registerCache('float-var', clearFloatVarCache);
 
 // ─── Fill input types ───
 

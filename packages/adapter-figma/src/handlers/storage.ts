@@ -3,6 +3,7 @@
  */
 
 import { registerHandler } from '../registry.js';
+import { assertHandler } from '../utils/handler-error.js';
 
 const STORAGE_PREFIX = 'figcraft:tokens:';
 
@@ -18,7 +19,7 @@ registerHandler('save_spec_tokens', async (params) => {
 registerHandler('load_spec_tokens', async (params) => {
   const name = params.name as string;
   const tokens = await figma.clientStorage.getAsync(STORAGE_PREFIX + name);
-  if (!tokens) return { error: `No cached tokens found: ${name}` };
+  assertHandler(tokens, `No cached tokens found: ${name}`, 'NOT_FOUND');
   return { name, tokens };
 });
 

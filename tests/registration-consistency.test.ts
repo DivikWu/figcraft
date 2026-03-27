@@ -8,29 +8,33 @@
  */
 import { describe, it, expect } from 'vitest';
 import fc from 'fast-check';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
+  GENERATED_BRIDGE_TOOLS,
   GENERATED_CORE_TOOLS,
+  GENERATED_CUSTOM_TOOLS,
   GENERATED_TOOLSETS,
   GENERATED_ENDPOINT_TOOLS,
   GENERATED_ENDPOINT_REPLACES,
-  GENERATED_FLAT_TOOL_MIGRATIONS,
+  GENERATED_REMOVED_TOOLS,
 } from '../packages/core-mcp/src/tools/_registry.js';
 
-// ─── 1. get_reactions belongs to annotations toolset (not core / nodes) ───
+// ─── 1. get_reactions belongs to prototype toolset (not core / nodes) ───
 
 describe('get_reactions toolset assignment', () => {
-  it('get_reactions is in the annotations toolset', () => {
-    const annotationsTools = GENERATED_TOOLSETS['annotations']?.tools ?? [];
-    expect(annotationsTools).toContain('get_reactions');
+  it('get_reactions is in the prototype toolset', () => {
+    const prototypeTools = GENERATED_TOOLSETS['prototype']?.tools ?? [];
+    expect(prototypeTools).toContain('get_reactions');
   });
 
   it('get_reactions is NOT in GENERATED_CORE_TOOLS', () => {
     expect(GENERATED_CORE_TOOLS.has('get_reactions')).toBe(false);
   });
 
-  it('get_reactions is NOT in any other toolset besides annotations', () => {
+  it('get_reactions is NOT in any other toolset besides prototype', () => {
     for (const [name, toolset] of Object.entries(GENERATED_TOOLSETS)) {
-      if (name === 'annotations') continue;
+      if (name === 'prototype') continue;
       expect(toolset.tools).not.toContain('get_reactions');
     }
   });
@@ -103,18 +107,18 @@ describe('endpoint replaces mapping validity', () => {
     }
   }
 
-  it('every endpoint in GENERATED_ENDPOINT_REPLACES maps to existing flat tool names', () => {
+  it('every endpoint in GENERATED_ENDPOINT_REPLACES references valid endpoint tools', () => {
     for (const [endpoint, replacedTools] of Object.entries(GENERATED_ENDPOINT_REPLACES)) {
       expect(
         GENERATED_ENDPOINT_TOOLS.has(endpoint),
         `Endpoint "${endpoint}" in ENDPOINT_REPLACES should be in ENDPOINT_TOOLS`,
       ).toBe(true);
 
+      // Replaced flat tools may no longer exist in CORE_TOOLS/TOOLSETS (Phase 3 removal)
+      // but they should still be valid tool name strings
       for (const flatTool of replacedTools) {
-        expect(
-          allKnownTools.has(flatTool),
-          `Endpoint "${endpoint}" replaces "${flatTool}" which is not found in CORE_TOOLS or any TOOLSET`,
-        ).toBe(true);
+        expect(typeof flatTool).toBe('string');
+        expect(flatTool.length).toBeGreaterThan(0);
       }
     }
   });
@@ -128,24 +132,24 @@ describe('endpoint replaces mapping validity', () => {
     }
   });
 
-  it('every replaced flat tool has a reverse migration entry', () => {
+  it('every replaced flat tool has a reverse entry in GENERATED_REMOVED_TOOLS', () => {
     for (const [endpoint, replacedTools] of Object.entries(GENERATED_ENDPOINT_REPLACES)) {
       for (const flatTool of replacedTools) {
         expect(
-          GENERATED_FLAT_TOOL_MIGRATIONS,
-          `Flat tool "${flatTool}" should have a reverse migration entry for endpoint "${endpoint}"`,
+          GENERATED_REMOVED_TOOLS,
+          `Flat tool "${flatTool}" should have a removal entry for endpoint "${endpoint}"`,
         ).toHaveProperty(flatTool);
-        expect(GENERATED_FLAT_TOOL_MIGRATIONS[flatTool]?.endpoint).toBe(endpoint);
+        expect(GENERATED_REMOVED_TOOLS[flatTool]?.endpoint).toBe(endpoint);
       }
     }
   });
 
-  it('reverse migration entries point back to a valid endpoint replacement', () => {
-    for (const [flatTool, migration] of Object.entries(GENERATED_FLAT_TOOL_MIGRATIONS)) {
-      expect(GENERATED_ENDPOINT_TOOLS.has(migration.endpoint)).toBe(true);
-      expect(GENERATED_ENDPOINT_REPLACES[migration.endpoint]).toContain(flatTool);
-      expect(typeof migration.method).toBe('string');
-      expect(migration.method.length).toBeGreaterThan(0);
+  it('reverse removal entries point back to a valid endpoint replacement', () => {
+    for (const [flatTool, removal] of Object.entries(GENERATED_REMOVED_TOOLS)) {
+      expect(GENERATED_ENDPOINT_TOOLS.has(removal.endpoint)).toBe(true);
+      expect(GENERATED_ENDPOINT_REPLACES[removal.endpoint]).toContain(flatTool);
+      expect(typeof removal.method).toBe('string');
+      expect(removal.method.length).toBeGreaterThan(0);
     }
   });
 });
@@ -176,5 +180,59 @@ describe('Feature: endpoint-mode-refactor, Property 12: 注册文件与 Toolset 
       ),
       { numRuns: Math.max(100, toolsetNames.length * 10) },
     );
+  });
+});
+
+// ─── 7. Hand-written registration files should only register custom tools ───
+
+describe('hand-written registration files', () => {
+  const toolsDir = join(process.cwd(), 'packages/core-mcp/src/tools');
+  const excludedFiles = new Set([
+    '_generated.ts',
+    '_registry.ts',
+    '_contracts.ts',
+    'toolset-manager.ts',
+    'endpoints.ts',
+  ]);
+
+  function getHandWrittenRegistrations(): Map<string, string[]> {
+    const registrations = new Map<string, string[]>();
+
+    for (const file of readdirSync(toolsDir)) {
+      if (!file.endsWith('.ts') || excludedFiles.has(file)) continue;
+      const src = readFileSync(join(toolsDir, file), 'utf8');
+      const names = [...src.matchAll(/server\.(?:tool|registerTool)\(\s*'([^']+)'/g)].map((m) => m[1]);
+      if (names.length > 0) registrations.set(file, names);
+    }
+
+    return registrations;
+  }
+
+  it('hand-written registration files only register GENERATED_CUSTOM_TOOLS', () => {
+    for (const [file, toolNames] of getHandWrittenRegistrations()) {
+      for (const toolName of toolNames) {
+        expect(
+          GENERATED_CUSTOM_TOOLS.has(toolName),
+          `${file} should only register custom tools, but found "${toolName}"`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('every GENERATED_CUSTOM_TOOL is covered by a hand-written registration file', () => {
+    const registered = new Set<string>();
+    for (const toolNames of getHandWrittenRegistrations().values()) {
+      for (const toolName of toolNames) registered.add(toolName);
+    }
+
+    for (const toolName of GENERATED_CUSTOM_TOOLS) {
+      expect(registered.has(toolName), `missing hand-written registration for custom tool "${toolName}"`).toBe(true);
+    }
+  });
+
+  it('GENERATED_BRIDGE_TOOLS and GENERATED_CUSTOM_TOOLS do not overlap', () => {
+    for (const toolName of GENERATED_BRIDGE_TOOLS) {
+      expect(GENERATED_CUSTOM_TOOLS.has(toolName), `tool "${toolName}" cannot be both bridge and custom`).toBe(false);
+    }
   });
 });

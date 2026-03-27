@@ -1,29 +1,29 @@
 ---
 inclusion: fileMatch
-fileMatchPattern: "src/plugin/handlers/write-nodes*,src/mcp-server/tools/write-nodes*"
-description: "write-nodes 代码实现注意事项 — auto layout 属性设置的正确时机和方式"
+fileMatchPattern: "packages/adapter-figma/src/handlers/write-nodes*,packages/core-mcp/src/tools/write-nodes*"
+description: "write-nodes implementation notes — correct timing and approach for auto layout property assignment"
 ---
 
-# write-nodes 实现注意事项
+# write-nodes Implementation Notes
 
-编辑 `write-nodes` 相关代码时，注意以下实现细节：
+When editing `write-nodes` related code, keep these implementation details in mind:
 
-## layoutAlign / layoutGrow 必须在 appendChild 之后设置
+## layoutAlign / layoutGrow Must Be Set After appendChild
 
-Figma API 要求节点先被添加到 auto layout 父容器中，才能设置 `layoutAlign` 和 `layoutGrow`。在 `createNodeFromSpec` 中，这些属性通过 `applyLayoutChildProps` 在 `appendChild` 之后统一应用。
+The Figma API requires a node to be added to an auto layout parent container before `layoutAlign` and `layoutGrow` can be set. In `createNodeFromSpec`, these properties are applied uniformly via `applyLayoutChildProps` after `appendChild`.
 
-如果新增节点类型，必须在 appendChild 之后调用 `applyLayoutChildProps(node, spec.props)`。
+When adding new node types, you must call `applyLayoutChildProps(node, spec.props)` after appendChild.
 
-## minWidth / minHeight 保护 auto layout 收缩
+## minWidth / minHeight Protect Against Auto Layout Shrinking
 
-当 `create_frame` 或 `createNodeFromSpec` 显式指定了 width/height 时，同时设置 `minWidth`/`minHeight` 为相同值，防止 auto layout HUG 模式将容器收缩到小于预期尺寸。
+When creating frames or setting explicit width/height, also set `minWidth`/`minHeight` to the same value to prevent auto layout HUG mode from shrinking the container below the intended size.
 
-## patch_nodes 支持的布局属性
+## Auto Layout Properties Supported by nodes(method: "update")
 
-`patch_nodes` handler 中需要支持的 auto layout 相关属性：
-- `layoutAlign`, `layoutGrow` — 子元素对齐
-- `minWidth`, `minHeight` — 最小尺寸约束
-- `primaryAxisAlignItems`, `counterAxisAlignItems` — 主轴/交叉轴对齐
-- `itemSpacing`, `paddingLeft/Right/Top/Bottom` — 间距和内边距
+The `nodes(method: "update")` handler (internal `patch_nodes`) needs to support these auto layout related properties:
+- `layoutAlign`, `layoutGrow` — child element alignment
+- `minWidth`, `minHeight` — minimum size constraints
+- `primaryAxisAlignItems`, `counterAxisAlignItems` — primary/cross axis alignment
+- `itemSpacing`, `paddingLeft/Right/Top/Bottom` — spacing and padding
 
-新增属性时，确保在 `patch_nodes` 和 `create_document` 的 `propsDesc` 中同步更新文档。
+When adding new properties, make sure to update the documentation in `propsDesc` within the `nodes(method: "update")` handler.

@@ -7,6 +7,7 @@ import type { DesignToken } from '@figcraft/shared';
 import { syncTypographyToStyle, syncShadowToStyle } from '../adapters/style-mapper.js';
 import { hexToFigmaRgba } from '../utils/color.js';
 import { processBatch } from '../utils/batch.js';
+import { assertHandler } from '../utils/handler-error.js';
 
 export function registerWriteStyleHandlers(): void {
 
@@ -92,7 +93,7 @@ registerHandler('create_paint_style', async (params) => {
 registerHandler('delete_style', async (params) => {
   const styleId = params.styleId as string;
   const style = figma.getStyleById(styleId);
-  if (!style) return { error: `Style not found: ${styleId}` };
+  assertHandler(style, `Style not found: ${styleId}`, 'NOT_FOUND');
   style.remove();
   return { ok: true };
 });
@@ -100,7 +101,7 @@ registerHandler('delete_style', async (params) => {
 registerHandler('update_paint_style', async (params) => {
   const styleId = params.styleId as string;
   const style = figma.getStyleById(styleId);
-  if (!style || style.type !== 'PAINT') return { error: `Paint style not found: ${styleId}` };
+  assertHandler(style && style.type === 'PAINT', `Paint style not found: ${styleId}`, 'NOT_FOUND');
   const ps = style as PaintStyle;
   if (params.name) ps.name = params.name as string;
   if (params.description !== undefined) ps.description = params.description as string;
@@ -113,7 +114,7 @@ registerHandler('update_paint_style', async (params) => {
 registerHandler('update_text_style', async (params) => {
   const styleId = params.styleId as string;
   const style = figma.getStyleById(styleId);
-  if (!style || style.type !== 'TEXT') return { error: `Text style not found: ${styleId}` };
+  assertHandler(style && style.type === 'TEXT', `Text style not found: ${styleId}`, 'NOT_FOUND');
   const ts = style as TextStyle;
   if (params.name) ts.name = params.name as string;
   if (params.description !== undefined) ts.description = params.description as string;
@@ -148,7 +149,7 @@ registerHandler('update_text_style', async (params) => {
 registerHandler('update_effect_style', async (params) => {
   const styleId = params.styleId as string;
   const style = figma.getStyleById(styleId);
-  if (!style || style.type !== 'EFFECT') return { error: `Effect style not found: ${styleId}` };
+  assertHandler(style && style.type === 'EFFECT', `Effect style not found: ${styleId}`, 'NOT_FOUND');
   const es = style as EffectStyle;
   if (params.name) es.name = params.name as string;
   if (params.description !== undefined) es.description = params.description as string;

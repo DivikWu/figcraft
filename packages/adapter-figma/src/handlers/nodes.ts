@@ -5,15 +5,18 @@
 import { registerHandler } from '../registry.js';
 import { simplifyNode, simplifyPage } from '../adapters/node-simplifier.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
+import { assertHandler } from '../utils/handler-error.js';
 
 export function registerNodeHandlers(): void {
 
 registerHandler('get_node_info', async (params) => {
   const nodeId = params.nodeId as string;
   const node = await findNodeByIdAsync(nodeId);
-  if (!node || !('type' in node) || node.type === 'PAGE' || node.type === 'DOCUMENT') {
-    return { error: `Node not found: ${nodeId}` };
-  }
+  assertHandler(
+    node && 'type' in node && node.type !== 'PAGE' && node.type !== 'DOCUMENT',
+    `Node not found: ${nodeId}`,
+    'NOT_FOUND',
+  );
   return simplifyNode(node as SceneNode);
 });
 

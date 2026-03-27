@@ -28,26 +28,4 @@ export function registerStorageTools(server: McpServer, bridge: Bridge): void {
       };
     },
   );
-
-  server.tool(
-    'list_cached_tokens',
-    'List all cached token entries in Figma clientStorage.',
-    {},
-    async () => {
-      const result = await bridge.request('list_spec_tokens', {});
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'delete_cached_tokens',
-    'Delete a cached token entry from Figma clientStorage.',
-    {
-      name: z.string().describe('Cache entry name to delete'),
-    },
-    async ({ name }) => {
-      const result = await bridge.request('delete_spec_tokens', { name });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
 }

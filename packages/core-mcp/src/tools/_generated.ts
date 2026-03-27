@@ -11,19 +11,23 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Bridge } from '../bridge.js';
 
-const NodeRoleSharedSchema: z.ZodTypeAny = z.lazy(() => z.enum(['screen', 'header', 'hero', 'nav', 'content', 'list', 'row', 'stats', 'card', 'form', 'field', 'input', 'button', 'footer', 'actions', 'social_row', 'system_bar']));
-const NodeTypeSharedSchema: z.ZodTypeAny = z.lazy(() => z.enum(['frame', 'text', 'rectangle', 'ellipse', 'line', 'vector', 'instance']));
-const NodeSpecSharedSchema: z.ZodTypeAny = z.lazy(() => z.object({
-      type: NodeTypeSharedSchema,
-      name: z.string().optional(),
-      role: NodeRoleSharedSchema.optional(),
-      props: z.record(z.unknown()).optional(),
-      children: z.array(NodeSpecSharedSchema).optional(),
-    }));
 
+export interface GeneratedToolRegistrationOptions {
+  include?: ReadonlySet<string>;
+}
 
-export function registerGeneratedTools(server: McpServer, bridge: Bridge): void {
-  server.tool(
+function shouldRegisterGeneratedTool(include: ReadonlySet<string> | undefined, toolName: string): boolean {
+  return !include || include.has(toolName);
+}
+
+export function registerGeneratedTools(
+  server: McpServer,
+  bridge: Bridge,
+  options: GeneratedToolRegistrationOptions = {},
+): void {
+  const include = options.include;
+  if (shouldRegisterGeneratedTool(include, 'get_selection')) {
+    server.tool(
     'get_selection',
     "Get the currently selected nodes in Figma with full compressed data.",
     {},
@@ -32,10 +36,12 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'list_fonts')) {
+    server.tool(
     'list_fonts',
-    "List available font families in the Figma environment. Pass family to get all available styles for that family. Use before create_text to ensure the chosen font is available.",
+    "List available font families in the Figma environment. Pass family to get all available styles for that family. Use before creating text to ensure the chosen font is available.",
     {
       family: z.string().optional().describe("Font family name to get available styles for"),
     },
@@ -44,173 +50,66 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'create_frame')) {
+    server.tool(
     'create_frame',
-    "Create a new frame (optionally with auto layout). Returns the created node data. When a design library is selected and fill is not specified, auto-binds the default surface color token.",
+    "Create a frame node with optional auto-layout, fills, corner radius, and parent. Supports all common layout properties for building UI structures.",
     {
-      name: z.string().optional().describe("Frame name"),
+      name: z.string().optional().describe("Frame name (default: \"Frame\")"),
       x: z.number().optional().describe("X position"),
       y: z.number().optional().describe("Y position"),
-      width: z.number().optional().describe("Width in px (default: 100)"),
-      height: z.number().optional().describe("Height in px (default: 100)"),
-      parentId: z.string().optional().describe("Parent node ID to append to"),
-      autoLayout: z.boolean().optional().describe("Enable auto layout"),
-      layoutDirection: z.enum(['HORIZONTAL', 'VERTICAL']).optional().describe("Auto layout direction"),
-      itemSpacing: z.number().optional().describe("Spacing between items"),
-      padding: z.number().optional().describe("Uniform padding"),
-      paddingLeft: z.number().optional().describe("Left padding (overrides uniform padding)"),
-      paddingRight: z.number().optional().describe("Right padding (overrides uniform padding)"),
-      paddingTop: z.number().optional().describe("Top padding (overrides uniform padding)"),
-      paddingBottom: z.number().optional().describe("Bottom padding (overrides uniform padding)"),
-      primaryAxisAlignItems: z.enum(['MIN', 'CENTER', 'MAX', 'SPACE_BETWEEN']).optional().describe("Main axis alignment (default: MIN)"),
-      counterAxisAlignItems: z.enum(['MIN', 'CENTER', 'MAX']).optional().describe("Cross axis alignment (default: MIN). Use CENTER to vertically center children in HORIZONTAL layout."),
-      layoutSizingHorizontal: z.enum(['FIXED', 'HUG', 'FILL']).optional().describe("Horizontal sizing mode. FIXED=use explicit width, HUG=shrink to content, FILL=expand to fill parent. More intuitive than layoutAlign/layoutGrow. Default: FIXED if width set, HUG otherwise."),
-      layoutSizingVertical: z.enum(['FIXED', 'HUG', 'FILL']).optional().describe("Vertical sizing mode. FIXED=use explicit height, HUG=shrink to content, FILL=expand to fill parent. More intuitive than layoutAlign/layoutGrow. Default: FIXED if height set, HUG otherwise."),
-      fill: z.string().optional().describe("Fill color as hex (e.g. \"#FF0000\")"),
+      width: z.number().optional().describe("Width (default: 100)"),
+      height: z.number().optional().describe("Height (default: 100)"),
+      fill: z.string().optional().describe("Fill color as hex (e.g. \"#FFFFFF\")"),
+      layoutMode: z.enum(['HORIZONTAL', 'VERTICAL']).optional().describe("Auto-layout direction"),
+      itemSpacing: z.number().optional().describe("Spacing between children"),
+      paddingLeft: z.number().optional().describe("Left padding"),
+      paddingRight: z.number().optional().describe("Right padding"),
+      paddingTop: z.number().optional().describe("Top padding"),
+      paddingBottom: z.number().optional().describe("Bottom padding"),
+      cornerRadius: z.number().optional().describe("Corner radius"),
+      parentId: z.string().optional().describe("Parent node ID to append into"),
+      layoutSizingHorizontal: z.enum(['FIXED', 'HUG', 'FILL']).optional().describe("Horizontal sizing mode (set AFTER parent append)"),
+      layoutSizingVertical: z.enum(['FIXED', 'HUG', 'FILL']).optional().describe("Vertical sizing mode (set AFTER parent append)"),
+      primaryAxisAlignItems: z.enum(['MIN', 'CENTER', 'MAX', 'SPACE_BETWEEN']).optional().describe("Primary axis alignment"),
+      counterAxisAlignItems: z.enum(['MIN', 'CENTER', 'MAX']).optional().describe("Counter axis alignment"),
     },
     async (params) => {
       const result = await bridge.request('create_frame', params);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'create_text')) {
+    server.tool(
     'create_text',
-    "Create a text node with specified content and font. When a design library is selected: auto-applies matching Text Style if discovered in current page, falls back to typography variable binding (fontSize/fontFamily/fontWeight/lineHeight), and auto-binds text/primary color if fill not specified.",
+    "Create a text node with specified content, font, size, and color. Supports font family/style selection with fallback chain.",
     {
-      content: z.string().describe("Text content"),
-      name: z.string().optional().describe("Node name"),
+      content: z.string().optional().describe("Text content to display"),
+      name: z.string().optional().describe("Node name (defaults to content)"),
       x: z.number().optional().describe("X position"),
       y: z.number().optional().describe("Y position"),
-      fontSize: z.number().optional().describe("Font size (default: 16)"),
-      fontFamily: z.string().optional().describe("Font family (default: Inter)"),
-      fontStyle: z.string().optional().describe("Font style (default: Regular)"),
-      fill: z.string().optional().describe("Text color as hex"),
-      parentId: z.string().optional().describe("Parent node ID"),
+      fontSize: z.number().optional().describe("Font size (default: 14)"),
+      fontFamily: z.string().optional().describe("Font family (default: \"Inter\")"),
+      fontStyle: z.string().optional().describe("Font style (default: \"Regular\")"),
+      fill: z.string().optional().describe("Text color as hex (e.g. \"#000000\")"),
+      lineHeight: z.number().optional().describe("Line height in pixels"),
+      letterSpacing: z.number().optional().describe("Letter spacing in pixels"),
+      textAlignHorizontal: z.enum(['LEFT', 'CENTER', 'RIGHT', 'JUSTIFIED']).optional().describe("Horizontal text alignment"),
+      parentId: z.string().optional().describe("Parent node ID to append into"),
     },
     async (params) => {
       const result = await bridge.request('create_text', params);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
-    'patch_nodes',
-    "Update properties on one or more existing nodes. Supports: x, y, name, visible, opacity, cornerRadius, resize, fills (hex string), strokes (hex string), strokeWeight, effects (raw Figma effect array), layoutMode (NONE/HORIZONTAL/VERTICAL), layoutAlign, layoutGrow, primaryAxisAlignItems, counterAxisAlignItems, itemSpacing, paddingLeft/Right/Top/Bottom, layoutSizingHorizontal (FIXED/HUG/FILL), layoutSizingVertical (FIXED/HUG/FILL), fontSize, fontName ({family,style}), rotation, constraints ({horizontal,vertical}), blendMode, isMask (boolean), clipsContent (boolean), minWidth, minHeight.",
-    {
-      patches: z.array(z.object({
-          nodeId: z.string().describe("Node ID"),
-          props: z.record(z.unknown()).describe("Properties to update"),
-        })).describe("Array of node patches"),
-    },
-    async (params) => {
-      const result = await bridge.request('patch_nodes', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'delete_nodes',
-    "Delete multiple nodes by ID in one call. Preferred over multiple delete_node calls.",
-    {
-      nodeIds: z.array(z.string()).describe("Array of node IDs to delete"),
-    },
-    async (params) => {
-      const result = await bridge.request('delete_nodes', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'set_text_content',
-    "Update the text content of an existing text node.",
-    {
-      nodeId: z.string().describe("Text node ID"),
-      content: z.string().describe("New text content"),
-    },
-    async ({ nodeId, content }) => {
-      const result = await bridge.request('set_text_content', { nodeId, content });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'clone_node',
-    "Clone a node and return the new copy.",
-    {
-      nodeId: z.string().describe("Node ID to clone"),
-    },
-    async ({ nodeId }) => {
-      const result = await bridge.request('clone_node', { nodeId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'insert_child',
-    "Move a node into a parent container, optionally at a specific index.",
-    {
-      parentId: z.string().describe("Parent node ID (must be a container like Frame)"),
-      childId: z.string().describe("Child node ID to insert"),
-      index: z.number().optional().describe("Insert position (0-based). Omit to append at end."),
-    },
-    async ({ parentId, childId, index }) => {
-      const result = await bridge.request('insert_child', { parentId, childId, index });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'list_components',
-    "List all components on the current page.",
-    {},
-    async (params) => {
-      const result = await bridge.request('list_components', {});
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'list_component_properties',
-    "List all properties and variant options exposed by a component or component set. Use this to discover available variant values before calling create_instance with properties.",
-    {
-      nodeId: z.string().describe("Component or ComponentSet node ID"),
-    },
-    async ({ nodeId }) => {
-      const result = await bridge.request('list_component_properties', { nodeId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'get_component',
-    "Get full details of a component by node ID.",
-    {
-      nodeId: z.string().describe("Component node ID"),
-    },
-    async ({ nodeId }) => {
-      const result = await bridge.request('get_component', { nodeId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'create_instance',
-    "Create an instance of a component. Can use either a local component ID or a library component key.",
-    {
-      componentId: z.string().optional().describe("Local component node ID"),
-      componentKey: z.string().optional().describe("Library component key (for imports)"),
-      properties: z.record(z.string()).optional().describe("Variant/property overrides"),
-      parentId: z.string().optional().describe("Parent node ID to append to"),
-    },
-    async ({ componentId, componentKey, properties, parentId }) => {
-      const result = await bridge.request('create_instance', { componentId, componentKey, properties, parentId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'set_current_page')) {
+    server.tool(
     'set_current_page',
     "Switch to a different page by name or ID. Warning: this changes the context for all subsequent operations.",
     {
@@ -221,8 +120,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'save_version_history')) {
+    server.tool(
     'save_version_history',
     "Save a named version history snapshot of the current Figma file. Use before making significant changes so you can restore if needed.",
     {
@@ -234,8 +135,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'set_selection')) {
+    server.tool(
     'set_selection',
     "Set the current selection to specific nodes and optionally scroll them into view. Nodes must be on the current page.",
     {
@@ -247,141 +150,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
-    'create_rectangle',
-    "Create a rectangle node. Supports fill, corner radius, and stroke.",
-    {
-      name: z.string().optional().describe("Node name"),
-      x: z.number().optional().describe("X position"),
-      y: z.number().optional().describe("Y position"),
-      width: z.number().optional().describe("Width in px (default: 100)"),
-      height: z.number().optional().describe("Height in px (default: 100)"),
-      parentId: z.string().optional().describe("Parent node ID"),
-      fill: z.string().optional().describe("Fill color as hex"),
-      cornerRadius: z.number().optional().describe("Corner radius"),
-      stroke: z.string().optional().describe("Stroke color as hex"),
-      strokeWeight: z.number().optional().describe("Stroke weight (default: 1)"),
-    },
-    async (params) => {
-      const result = await bridge.request('create_rectangle', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'create_ellipse',
-    "Create an ellipse (circle) node. Supports fill and stroke.",
-    {
-      name: z.string().optional().describe("Node name"),
-      x: z.number().optional().describe("X position"),
-      y: z.number().optional().describe("Y position"),
-      width: z.number().optional().describe("Width in px (default: 100)"),
-      height: z.number().optional().describe("Height in px (default: 100, same as width for circle)"),
-      parentId: z.string().optional().describe("Parent node ID"),
-      fill: z.string().optional().describe("Fill color as hex"),
-      stroke: z.string().optional().describe("Stroke color as hex"),
-      strokeWeight: z.number().optional().describe("Stroke weight (default: 1)"),
-    },
-    async (params) => {
-      const result = await bridge.request('create_ellipse', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'create_vector',
-    "Create a vector node from an SVG string. Accepts a complete SVG element (e.g. '<svg>...</svg>'). The SVG is parsed and converted to Figma vector paths.",
-    {
-      svg: z.string().describe("Complete SVG string (e.g. \"<svg width=\\\"24\\\" height=\\\"24\\\">...</svg>\")"),
-      name: z.string().optional().describe("Node name (default: \"Vector\")"),
-      x: z.number().optional().describe("X position"),
-      y: z.number().optional().describe("Y position"),
-      resize: z.tuple([z.number(), z.number()]).optional().describe("Resize to [width, height] after creation"),
-      parentId: z.string().optional().describe("Parent node ID"),
-    },
-    async (params) => {
-      const result = await bridge.request('create_vector', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'set_image_fill',
-    "Set a node's fill to an image. Provide base64-encoded image data (PNG/JPG). Use export_image to get image data from another node, or provide external image data.",
-    {
-      nodeId: z.string().describe("Target node ID"),
-      imageData: z.string().describe("Base64-encoded image data (PNG or JPG)"),
-      scaleMode: z.enum(['FILL', 'FIT', 'CROP', 'TILE']).optional().describe("Image scale mode (default: FILL)"),
-    },
-    async ({ nodeId, imageData, scaleMode }) => {
-      const result = await bridge.request('set_image_fill', { nodeId, imageData, scaleMode });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'list_variables',
-    "List all local Figma variables, optionally filtered by collection or type. Returns variable name, type, scopes, and values per mode.",
-    {
-      collectionId: z.string().optional().describe("Filter by variable collection ID"),
-      type: z.string().optional().describe("Filter by resolved type: COLOR, FLOAT, STRING, BOOLEAN"),
-    },
-    async ({ collectionId, type }) => {
-      const result = await bridge.request('list_variables', { collectionId, type });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'get_variable',
-    "Get detailed info for a specific variable by ID, including values per mode, scopes, and code syntax.",
-    {
-      variableId: z.string().describe("The Figma variable ID"),
-    },
-    async ({ variableId }) => {
-      const result = await bridge.request('get_variable', { variableId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'list_collections',
-    "List all local variable collections with their modes and variable counts.",
-    {},
-    async (params) => {
-      const result = await bridge.request('list_collections', {});
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'get_node_variables',
-    "Get all variable bindings on a node — shows which variables are bound to which properties.",
-    {
-      nodeId: z.string().describe("Node ID to inspect for variable bindings"),
-    },
-    async ({ nodeId }) => {
-      const result = await bridge.request('get_node_variables', { nodeId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'set_variable_binding',
-    "Bind a variable to a specific property on a node (e.g. fills, cornerRadius, itemSpacing).",
-    {
-      nodeId: z.string().describe("Target node ID"),
-      field: z.string().describe("Property field to bind (e.g. \"fills\", \"cornerRadius\", \"itemSpacing\")"),
-      variableId: z.string().describe("Variable ID to bind"),
-    },
-    async ({ nodeId, field, variableId }) => {
-      const result = await bridge.request('set_variable_binding', { nodeId, field, variableId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'set_explicit_variable_mode')) {
+    server.tool(
     'set_explicit_variable_mode',
     "Set an explicit variable mode on a node for a specific collection. This overrides the inherited mode.",
     {
@@ -394,79 +166,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
-    'create_variable',
-    "Create a new Figma variable in a collection.",
-    {
-      name: z.string().describe("Variable name"),
-      collectionId: z.string().describe("Target variable collection ID"),
-      resolvedType: z.enum(['COLOR', 'FLOAT', 'STRING', 'BOOLEAN']).describe("Variable type"),
-      value: z.unknown().optional().describe("Initial value for the default mode"),
-      modeId: z.string().optional().describe("Mode ID to set the value for (defaults to first mode)"),
-      description: z.string().optional().describe("Variable description"),
-      scopes: z.array(z.string()).optional().describe("Variable scopes (e.g. ALL_FILLS, CORNER_RADIUS)"),
-    },
-    async (params) => {
-      const result = await bridge.request('create_variable', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'update_variable',
-    "Update properties of an existing variable (name, description, scopes, value).",
-    {
-      variableId: z.string().describe("Variable ID to update"),
-      name: z.string().optional().describe("New variable name"),
-      description: z.string().optional().describe("New description"),
-      scopes: z.array(z.string()).optional().describe("New scopes array"),
-      value: z.unknown().optional().describe("New value (requires modeId)"),
-      modeId: z.string().optional().describe("Mode ID for the value update"),
-    },
-    async (params) => {
-      const result = await bridge.request('update_variable', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'delete_variable',
-    "Delete a variable by ID.",
-    {
-      variableId: z.string().describe("Variable ID to delete"),
-    },
-    async ({ variableId }) => {
-      const result = await bridge.request('delete_variable', { variableId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'create_collection',
-    "Create a new variable collection. Returns the collection ID and default mode.",
-    {
-      name: z.string().describe("Collection name"),
-    },
-    async ({ name }) => {
-      const result = await bridge.request('create_collection', { name });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'delete_collection',
-    "Delete a variable collection by ID.",
-    {
-      collectionId: z.string().describe("Collection ID to delete"),
-    },
-    async ({ collectionId }) => {
-      const result = await bridge.request('delete_collection', { collectionId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'rename_collection')) {
+    server.tool(
     'rename_collection',
     "Rename a variable collection.",
     {
@@ -478,8 +181,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'add_collection_mode')) {
+    server.tool(
     'add_collection_mode',
     "Add a new mode to a variable collection. Returns the new mode ID.",
     {
@@ -491,8 +196,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'rename_collection_mode')) {
+    server.tool(
     'rename_collection_mode',
     "Rename an existing mode in a variable collection.",
     {
@@ -505,8 +212,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'remove_collection_mode')) {
+    server.tool(
     'remove_collection_mode',
     "Remove a mode from a variable collection. Cannot remove the last remaining mode.",
     {
@@ -518,8 +227,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'create_variable_alias')) {
+    server.tool(
     'create_variable_alias',
     "Set a variable's value to reference another variable (alias). Both variables must have the same resolved type. This is how Figma implements semantic tokens (e.g. \"text/primary\" → \"gray/900\").",
     {
@@ -532,40 +243,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
-    'export_variables',
-    "Export all Figma variables as DTCG-compatible flat list. Resolves aliases to {path} references. Use this for reverse sync (Figma → DTCG file).",
-    {
-      collectionId: z.string().optional().describe("Filter by collection ID. Omit to export all."),
-    },
-    async ({ collectionId }) => {
-      const result = await bridge.request('export_variables', { collectionId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'batch_create_variables',
-    "Create multiple variables at once from an in-memory array. Faster than calling create_variable repeatedly. Automatically creates the collection if it doesn't exist.",
-    {
-      collectionName: z.string().describe("Collection name (created if not exists)"),
-      modeName: z.string().optional().describe("Mode name (default: \"Default\")"),
-      variables: z.array(z.object({
-          name: z.string().describe("Variable name (slash-separated path, e.g. \"color/brand/primary\")"),
-          type: z.enum(['COLOR', 'FLOAT', 'STRING', 'BOOLEAN']).describe("Variable type"),
-          value: z.unknown().describe("Variable value"),
-          description: z.string().optional(),
-          scopes: z.array(z.string()).optional(),
-        })),
-    },
-    async (params) => {
-      const result = await bridge.request('batch_create_variables', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'list_cached_tokens')) {
+    server.tool(
     'list_cached_tokens',
     "List all cached token entries in Figma clientStorage.",
     {},
@@ -574,8 +255,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'delete_cached_tokens')) {
+    server.tool(
     'delete_cached_tokens',
     "Delete a cached token entry from Figma clientStorage.",
     {
@@ -586,8 +269,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'scan_styles')) {
+    server.tool(
     'scan_styles',
     "Scan all local styles (paint, text, effect) and return a summary with counts and details.",
     {},
@@ -596,8 +281,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'export_tokens')) {
+    server.tool(
     'export_tokens',
     "Export all local Figma variables as DTCG-format tokens, grouped by collection.",
     {},
@@ -606,8 +293,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'diff_styles')) {
+    server.tool(
     'diff_styles',
     "Compare DTCG tokens against current Figma variables. Shows in-sync, value-mismatch, and missing tokens in both directions.",
     {
@@ -622,105 +311,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
-    'list_styles',
-    "List all local Figma styles (paint, text, effect, grid). Optionally filter by type.",
-    {
-      type: z.string().optional().describe("Filter by style type: PAINT, TEXT, EFFECT, GRID"),
-    },
-    async ({ type }) => {
-      const result = await bridge.request('list_styles', { type });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'get_style',
-    "Get detailed info for a specific style by ID.",
-    {
-      styleId: z.string().describe("The Figma style ID"),
-    },
-    async ({ styleId }) => {
-      const result = await bridge.request('get_style', { styleId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'sync_styles',
-    "Sync composite design tokens (typography, shadow) to Figma Styles. For atomic tokens (color, number, etc.), use sync_tokens instead.",
-    {
-      tokens: z.array(z.object({
-          path: z.string().describe("Token path (e.g. \"heading/h1\")"),
-          type: z.string().describe("Token type: \"typography\" or \"shadow\""),
-          value: z.unknown().describe("Token value object"),
-          description: z.string().optional().describe("Token description"),
-        })).describe("Array of composite design tokens to sync"),
-    },
-    async (params) => {
-      const result = await bridge.request('sync_styles', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'create_paint_style',
-    "Create a new paint style with a solid color fill.",
-    {
-      name: z.string().describe("Style name"),
-      color: z.string().describe("Hex color (e.g. \"#FF0000\")"),
-      description: z.string().optional().describe("Style description"),
-    },
-    async ({ name, color, description }) => {
-      const result = await bridge.request('create_paint_style', { name, color, description });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'delete_style',
-    "Delete a style by ID.",
-    {
-      styleId: z.string().describe("Style ID to delete"),
-    },
-    async ({ styleId }) => {
-      const result = await bridge.request('delete_style', { styleId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'update_paint_style',
-    "Update an existing paint style. Can change name, description, and/or color.",
-    {
-      styleId: z.string().describe("Paint style ID"),
-      name: z.string().optional().describe("New name"),
-      description: z.string().optional().describe("New description"),
-      color: z.string().optional().describe("New hex color (e.g. \"#FF0000\")"),
-    },
-    async ({ styleId, name, description, color }) => {
-      const result = await bridge.request('update_paint_style', { styleId, name, description, color });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
-    'update_effect_style',
-    "Update an existing effect style. Can change name, description, and effects array.",
-    {
-      styleId: z.string().describe("Effect style ID"),
-      name: z.string().optional().describe("New name"),
-      description: z.string().optional().describe("New description"),
-      effects: z.array(z.record(z.unknown())).optional().describe("New effects array (raw Figma effect objects)"),
-    },
-    async (params) => {
-      const result = await bridge.request('update_effect_style', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-    },
-  );
-
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'get_registered_styles')) {
+    server.tool(
     'get_registered_styles',
     "Get previously registered styles for a library. Returns null if not registered.",
     {
@@ -731,8 +325,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'create_component')) {
+    server.tool(
     'create_component',
     "Create a new component with specified dimensions.",
     {
@@ -746,8 +342,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'create_component_set')) {
+    server.tool(
     'create_component_set',
     "Combine multiple existing components into a variant set (ComponentSet).",
     {
@@ -759,8 +357,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'update_component')) {
+    server.tool(
     'update_component',
     "Update a component's name, description, or size.",
     {
@@ -775,8 +375,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'delete_component')) {
+    server.tool(
     'delete_component',
     "Delete a component node.",
     {
@@ -787,8 +389,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'swap_instance')) {
+    server.tool(
     'swap_instance',
     "Swap an existing instance to a different component.",
     {
@@ -800,8 +404,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'detach_instance')) {
+    server.tool(
     'detach_instance',
     "Detach an instance from its component, converting it to a frame.",
     {
@@ -812,8 +418,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'reset_instance_overrides')) {
+    server.tool(
     'reset_instance_overrides',
     "Reset all overrides on an instance back to the component defaults.",
     {
@@ -824,8 +432,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'get_instance_overrides')) {
+    server.tool(
     'get_instance_overrides',
     "Get the current override properties of a component instance (values that differ from component defaults).",
     {
@@ -836,8 +446,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'set_instance_overrides')) {
+    server.tool(
     'set_instance_overrides',
     "Copy override properties from a source instance to one or more target instances. Use get_instance_overrides first to inspect the source, then propagate to targets.",
     {
@@ -849,8 +461,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'add_component_property')) {
+    server.tool(
     'add_component_property',
     "Add a new property to a component or component set. Supported types: BOOLEAN, TEXT, INSTANCE_SWAP, VARIANT.",
     {
@@ -864,8 +478,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'update_component_property')) {
+    server.tool(
     'update_component_property',
     "Update an existing component property (rename or change default value).",
     {
@@ -879,8 +495,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'delete_component_property')) {
+    server.tool(
     'delete_component_property',
     "Remove a property from a component or component set.",
     {
@@ -892,8 +510,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'audit_components')) {
+    server.tool(
     'audit_components',
     "Audit all components on the current page for structural health. Reports: missing descriptions, unexposed text nodes, empty components, single-variant sets, and property counts. Use for design system maintenance.",
     {
@@ -904,8 +524,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'list_library_collections')) {
+    server.tool(
     'list_library_collections',
     "List all available team library variable collections. Returns collection key, name, and library name.",
     {},
@@ -914,8 +536,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'list_library_variables')) {
+    server.tool(
     'list_library_variables',
     "List all variables in a specific team library collection.",
     {
@@ -926,8 +550,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'import_library_variable')) {
+    server.tool(
     'import_library_variable',
     "Import a team library variable into the current file by key. Returns the imported variable details.",
     {
@@ -938,8 +564,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'create_line')) {
+    server.tool(
     'create_line',
     "Create a line node. Specify length and optional rotation.",
     {
@@ -957,8 +585,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'create_star')) {
+    server.tool(
     'create_star',
     "Create a star shape node.",
     {
@@ -977,8 +607,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'create_polygon')) {
+    server.tool(
     'create_polygon',
     "Create a regular polygon shape node.",
     {
@@ -996,8 +628,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'create_section')) {
+    server.tool(
     'create_section',
     "Create a Figma Section node for organizing canvas content. Sections group frames without clipping and can be collapsed in Figma. Optionally move existing nodes inside by providing childIds.",
     {
@@ -1011,8 +645,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'flatten_node')) {
+    server.tool(
     'flatten_node',
     "Flatten a node (or group) into a single vector. Useful for converting complex shapes into a single editable path.",
     {
@@ -1023,8 +659,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'boolean_operation')) {
+    server.tool(
     'boolean_operation',
     "Apply a boolean operation to two or more vector/shape nodes. UNION merges shapes, SUBTRACT removes overlap from the first shape, INTERSECT keeps only the overlapping area, EXCLUDE keeps non-overlapping areas. All nodes must share the same parent. Returns the resulting BooleanOperation node.",
     {
@@ -1037,8 +675,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'get_annotations')) {
+    server.tool(
     'get_annotations',
     "Get all annotations on the current page or a specific node. Returns each annotated node with its annotation labels.",
     {
@@ -1049,8 +689,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'set_annotation')) {
+    server.tool(
     'set_annotation',
     "Add or replace an annotation on a node. Use replace=true to overwrite existing annotations; omit or set false to append.",
     {
@@ -1063,8 +705,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'set_multiple_annotations')) {
+    server.tool(
     'set_multiple_annotations',
     "Batch annotate multiple nodes in a single call. Each item can independently append or replace.",
     {
@@ -1079,8 +723,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'clear_annotations')) {
+    server.tool(
     'clear_annotations',
     "Remove all figcraft lint annotations from specified nodes or the whole page.",
     {
@@ -1091,8 +737,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'get_reactions')) {
+    server.tool(
     'get_reactions',
     "Get prototype reactions (interactions) on a specific node or all nodes on the current page. Returns trigger types and action types. Useful for analyzing prototype flows.",
     {
@@ -1103,8 +751,93 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'add_reaction')) {
+    server.tool(
+    'add_reaction',
+    "Add a prototype reaction (interaction) to a node. Supports single node or batch mode via items array. Use this to wire up click/hover/press navigation between screens.",
+    {
+      nodeId: z.string().optional().describe("Target node ID (single mode)"),
+      trigger: z.object({
+          type: z.string(),
+          delay: z.number().optional(),
+          timeout: z.number().optional(),
+        }).optional().describe("Trigger definition (single mode). type is required: ON_CLICK, ON_HOVER, ON_PRESS, ON_DRAG, AFTER_TIMEOUT, MOUSE_ENTER, MOUSE_LEAVE, MOUSE_UP, MOUSE_DOWN. Optional: delay (ms), timeout (ms)."),
+      actions: z.array(z.object({
+          type: z.string(),
+          destinationId: z.string().optional(),
+          navigation: z.string().optional(),
+          url: z.string().optional(),
+          transition: z.object({
+            type: z.string(),
+            duration: z.number(),
+            easing: z.record(z.unknown()).optional(),
+            direction: z.string().optional(),
+          }).optional(),
+          overlay: z.record(z.unknown()).optional(),
+        })).optional().describe("Action definitions (single mode). Each action: type (NODE|BACK|CLOSE|URL), destinationId, navigation (NAVIGATE|SWAP|OVERLAY|SCROLL_TO|CHANGE_TO), transition ({type, duration, easing, direction}), url (for URL type)."),
+      items: z.array(z.object({
+          nodeId: z.string(),
+          trigger: z.record(z.unknown()),
+          actions: z.array(z.unknown()),
+        })).optional().describe("Batch mode: array of {nodeId, trigger, actions} objects. When provided, nodeId/trigger/actions params are ignored."),
+    },
+    async (params) => {
+      const result = await bridge.request('add_reaction', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+  }
+
+  if (shouldRegisterGeneratedTool(include, 'remove_reaction')) {
+    server.tool(
+    'remove_reaction',
+    "Remove prototype reactions from a node. Remove by index, by trigger type, or all at once.",
+    {
+      nodeId: z.string().describe("Target node ID"),
+      index: z.number().optional().describe("Reaction index to remove (0-based)"),
+      triggerType: z.string().optional().describe("Remove all reactions with this trigger type (e.g. ON_CLICK)"),
+      removeAll: z.boolean().optional().describe("Remove all reactions from the node"),
+    },
+    async ({ nodeId, index, triggerType, removeAll }) => {
+      const result = await bridge.request('remove_reaction', { nodeId, index, triggerType, removeAll });
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+  }
+
+  if (shouldRegisterGeneratedTool(include, 'set_reactions')) {
+    server.tool(
+    'set_reactions',
+    "Replace all prototype reactions on a node with a new set. Use this for full control over a node's interactions.",
+    {
+      nodeId: z.string().describe("Target node ID"),
+      reactions: z.array(z.object({
+          trigger: z.object({
+            type: z.string(),
+            delay: z.number().optional(),
+            timeout: z.number().optional(),
+          }),
+          actions: z.array(z.object({
+          type: z.string(),
+          destinationId: z.string().optional(),
+          navigation: z.string().optional(),
+          url: z.string().optional(),
+          transition: z.record(z.unknown()).optional(),
+          overlay: z.record(z.unknown()).optional(),
+        })),
+        })).describe("Array of reaction specs. Each: {trigger: {type, delay?, timeout?}, actions: [{type, destinationId?, navigation?, transition?, url?}]}"),
+    },
+    async (params) => {
+      const result = await bridge.request('set_reactions', params);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+  }
+
+  if (shouldRegisterGeneratedTool(include, 'lint_rules')) {
+    server.tool(
     'lint_rules',
     "List all available lint rules with descriptions.",
     {},
@@ -1113,8 +846,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'create_page')) {
+    server.tool(
     'create_page',
     "Create a new page in the document.",
     {
@@ -1125,8 +860,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'rename_page')) {
+    server.tool(
     'rename_page',
     "Rename an existing page.",
     {
@@ -1138,8 +875,10 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
-  server.tool(
+  if (shouldRegisterGeneratedTool(include, 'delete_node')) {
+    server.tool(
     'delete_node',
     "Delete a node by ID.",
     {
@@ -1150,13 +889,14 @@ export function registerGeneratedTools(server: McpServer, bridge: Bridge): void 
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
+  }
 
 }
 
 // ─── Endpoint Zod Schemas ───
 
 export const nodesEndpointSchema = {
-      method: z.enum(['get', 'list', 'update', 'delete', 'clone', 'insert_child']).describe('Method to invoke on this endpoint'),
+      method: z.enum(['get', 'list', 'update', 'delete']).describe('Method to invoke on this endpoint'),
       nodeId: z.string().optional().describe("Node ID or Figma URL"),
       query: z.string().optional().describe("Search query"),
       types: z.array(z.string()).optional().describe("Filter by node types"),
@@ -1166,59 +906,18 @@ export const nodesEndpointSchema = {
           props: z.record(z.unknown()),
         })).optional(),
       nodeIds: z.array(z.string()).optional(),
-      parentId: z.string().optional(),
-      childId: z.string().optional(),
-      index: z.number().optional(),
     };
 
 export const textEndpointSchema = {
-      method: z.enum(['create', 'set_content']).describe('Method to invoke on this endpoint'),
-      content: z.string().optional().describe("Text content"),
-      name: z.string().optional().describe("Node name"),
-      x: z.number().optional().describe("X position"),
-      y: z.number().optional().describe("Y position"),
-      fontSize: z.number().optional().describe("Font size (default: 16)"),
-      fontFamily: z.string().optional().describe("Font family (default: Inter)"),
-      fontStyle: z.string().optional().describe("Font style (default: Regular)"),
-      fill: z.string().optional().describe("Text color as hex"),
-      parentId: z.string().optional().describe("Parent node ID"),
+      method: z.enum(['set_content']).describe('Method to invoke on this endpoint'),
       nodeId: z.string().optional().describe("Text node ID"),
-    };
-
-export const shapesEndpointSchema = {
-      method: z.enum(['create_frame', 'create_rectangle', 'create_ellipse', 'create_vector']).describe('Method to invoke on this endpoint'),
-      name: z.string().optional().describe("Frame name"),
-      x: z.number().optional(),
-      y: z.number().optional(),
-      width: z.number().optional(),
-      height: z.number().optional(),
-      parentId: z.string().optional(),
-      autoLayout: z.boolean().optional(),
-      layoutDirection: z.enum(['HORIZONTAL', 'VERTICAL']).optional(),
-      itemSpacing: z.number().optional(),
-      padding: z.number().optional(),
-      paddingLeft: z.number().optional(),
-      paddingRight: z.number().optional(),
-      paddingTop: z.number().optional(),
-      paddingBottom: z.number().optional(),
-      primaryAxisAlignItems: z.enum(['MIN', 'CENTER', 'MAX', 'SPACE_BETWEEN']).optional(),
-      counterAxisAlignItems: z.enum(['MIN', 'CENTER', 'MAX']).optional(),
-      fill: z.string().optional().describe("Fill color as hex"),
-      cornerRadius: z.number().optional(),
-      stroke: z.string().optional(),
-      strokeWeight: z.number().optional(),
-      svg: z.string().optional().describe("Complete SVG string"),
-      resize: z.tuple([z.number(), z.number()]).optional(),
+      content: z.string().optional().describe("New text content"),
     };
 
 export const componentsEndpointSchema = {
-      method: z.enum(['list', 'list_library', 'get', 'create_instance', 'list_properties']).describe('Method to invoke on this endpoint'),
+      method: z.enum(['list', 'list_library', 'get', 'list_properties']).describe('Method to invoke on this endpoint'),
       fileKey: z.string().optional().describe("Figma file key"),
       nodeId: z.string().optional().describe("Component node ID"),
-      componentId: z.string().optional().describe("Local component node ID"),
-      componentKey: z.string().optional().describe("Library component key"),
-      properties: z.record(z.string()).optional().describe("Variant/property overrides"),
-      parentId: z.string().optional().describe("Parent node ID"),
     };
 
 export const variables_epEndpointSchema = {

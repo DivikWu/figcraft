@@ -4,6 +4,7 @@
 
 import { registerHandler } from '../registry.js';
 import { figmaRgbaToHex } from '../utils/color.js';
+import { assertHandler } from '../utils/handler-error.js';
 import {
   registerStyles,
   registerStylesIncremental,
@@ -57,9 +58,7 @@ registerHandler('list_styles', async (params) => {
 registerHandler('get_style', async (params) => {
   const styleId = params.styleId as string;
   const style = figma.getStyleById(styleId);
-  if (!style) {
-    return { error: `Style not found: ${styleId}` };
-  }
+  assertHandler(style, `Style not found: ${styleId}`, 'NOT_FOUND');
 
   switch (style.type) {
     case 'PAINT':

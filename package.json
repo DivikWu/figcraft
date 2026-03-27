@@ -1,7 +1,7 @@
 {
   "name": "figcraft-workspace",
   "version": "0.1.0",
-  "description": "AI-powered Figma plugin for design system compliance — Token sync, Lint, Auto-fix, Element generation via MCP",
+  "description": "AI-powered Figma plugin for design quality — Token sync, Lint, Audit, Auto-fix via MCP. UI creation delegated to official Figma MCP.",
   "private": true,
   "workspaces": [
     "packages/*"
@@ -24,23 +24,16 @@
   "scripts": {
     "dev:relay": "tsx packages/relay/src/index.ts",
     "dev:mcp": "tsx packages/figcraft-design/src/index.ts",
-    "schema": "node --import tsx scripts/compile-schema.ts",
+    "schema": "node --import tsx scripts/compile-schema.ts && node scripts/sync-auto-approve.mjs",
     "check:schema-generated": "npm run schema && npm run docs:contracts && test -z \"$(git status --porcelain -- packages/core-mcp/src/tools/_generated.ts packages/core-mcp/src/tools/_registry.ts packages/core-mcp/src/tools/_contracts.ts docs/generated/api-contracts.md)\"",
     "build": "npm run schema && npm run build:server && npm run build:plugin && npm run build -w figcraft-design",
     "build:plugin": "node build.plugin.mjs",
-    "build:server": "tsup --config tsup.server.config.ts",
+    "build:server": "tsup --config tsup.config.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.plugin.json",
-    "bench:quality": "node --import tsx scripts/run-screen-benchmarks.ts",
-    "bench:quality:save": "node --import tsx scripts/run-screen-benchmarks.ts --out-default",
-    "bench:dashboard": "node --import tsx scripts/generate-screen-benchmark-dashboard.ts",
-    "bench:dashboard:from-latest": "node --import tsx scripts/generate-screen-benchmark-dashboard.ts --from-latest",
-    "bench:gate": "node --import tsx scripts/check-screen-benchmark-gate.ts",
-    "bench:gate:from-latest": "node --import tsx scripts/check-screen-benchmark-gate.ts --from-latest",
     "docs:contracts": "node scripts/generate-api-contract-doc.mjs",
-    "ci:bench": "npm run bench:quality:save && npm run bench:dashboard:from-latest && npm run bench:gate:from-latest",
     "test": "vitest --run --config vitest.workspace.ts",
     "test:watch": "vitest --config vitest.workspace.ts",
-    "release:verify": "npm run check:schema-generated && npm run typecheck && npm run test && npm run ci:bench && npm run build"
+    "release:verify": "npm run check:schema-generated && npm run typecheck && npm run test && npm run build"
   },
   "devDependencies": {
     "@figma/plugin-typings": "^1",

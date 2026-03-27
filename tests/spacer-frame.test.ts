@@ -94,4 +94,20 @@ describe('spacer-frame', () => {
     }), emptyCtx);
     expect(v).toHaveLength(0);
   });
+
+  it('reports autoFixable: true with fixData', () => {
+    const v = spacerFrameRule.check(makeNode({
+      name: 'Spacer 1',
+      width: 100,
+      height: 20,
+      children: [],
+    }), emptyCtx);
+    expect(v).toHaveLength(1);
+    expect(v[0].autoFixable).toBe(true);
+    expect(v[0].fixData).toEqual({
+      action: 'remove-spacer',
+      width: 100,
+      height: 20,
+    });
+  });
 });

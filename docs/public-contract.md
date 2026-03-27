@@ -1,6 +1,6 @@
 # FigCraft Public Contract Baseline
 
-This document captures the externally visible behavior that must remain stable while the repository migrates to a monorepo.
+This document captures the externally visible behavior that must remain stable across releases.
 
 ## CLI
 
@@ -32,19 +32,19 @@ This document captures the externally visible behavior that must remain stable w
   - `packages/core-mcp/src/tools/_contracts.ts`
 - Generated API contract documentation lives at:
   - `docs/generated/api-contracts.md`
-- The generated registry exposes flat-to-endpoint migration metadata via:
-  - `GENERATED_FLAT_TOOL_MIGRATIONS`
+- The generated registry exposes endpoint-to-flat-tool replacement metadata via:
+  - `GENERATED_ENDPOINT_REPLACES`
+  - `GENERATED_REMOVED_TOOLS`
 
 ## Stable Runtime Surface
 
-- MCP tool names remain stable
 - Endpoint names and method names remain stable
+- Legacy flat tool names have been removed; calling them returns migration guidance (see `docs/flat-to-endpoint-migration.md`)
 - Existing environment variables remain stable:
   - `FIGCRAFT_RELAY_PORT`
   - `FIGCRAFT_RELAY_URL`
   - `FIGCRAFT_CHANNEL`
   - `FIGCRAFT_ACCESS`
-  - `FIGCRAFT_API_MODE`
   - `FIGMA_API_TOKEN`
 
 ## Quality Gate
@@ -53,9 +53,6 @@ The migration must continue to pass:
 
 - `npm run typecheck`
 - `npm run test`
-- `npm run bench:quality:save`
-- `npm run bench:dashboard:from-latest`
-- `npm run bench:gate:from-latest`
 - `npm run build`
 
 ## Compatibility Note

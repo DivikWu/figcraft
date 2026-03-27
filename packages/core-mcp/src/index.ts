@@ -22,9 +22,9 @@ import {
 import { VERSION } from '@figcraft/shared';
 
 const RELAY_URL = process.env.FIGCRAFT_RELAY_URL ?? 'ws://localhost:3055';
-const CHANNEL = process.env.FIGCRAFT_CHANNEL ?? 'design-1';
+const CHANNEL = process.env.FIGCRAFT_CHANNEL ?? 'figcraft';
 
-export interface McpRuntime {
+interface McpRuntime {
   server: McpServer;
   bridge: Bridge;
   shutdown: () => void;
@@ -86,6 +86,9 @@ export async function runMcpServer(): Promise<void> {
       }
     }
   }
+
+  // Auto-discover plugin channel if it differs from the configured one
+  await bridge.discoverPluginChannel();
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

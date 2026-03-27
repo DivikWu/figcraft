@@ -18,30 +18,25 @@ import type { Bridge } from '../bridge.js';
 // Import all register functions
 import { registerPing } from './ping.js';
 import { registerNodeTools } from './nodes.js';
-import { registerVariableTools } from './variables.js';
-import { registerStyleTools } from './styles.js';
-import { registerLibraryTools } from './library.js';
 import { registerLibraryStyleTools } from './library-styles.js';
 import { registerExportTools } from './export.js';
-import { registerWriteNodeTools } from './write-nodes.js';
 import { registerTokenTools } from './tokens.js';
-import { registerComponentTools } from './components.js';
 import { registerStorageTools } from './storage.js';
 import { registerLintTools } from './lint.js';
-import { registerAnnotationTools } from './annotations.js';
 import { registerModeTools } from './mode.js';
 import { registerChannelTools } from './channel.js';
-import { registerWriteVariableTools } from './write-variables.js';
 import { registerWriteStyleTools } from './write-styles.js';
-import { registerScanTools } from './scan.js';
-import { registerPageTools } from './pages.js';
 import { registerPrototypeTools } from './prototype.js';
-import { registerImageVectorTools } from './image-vector.js';
-import { registerSelectionTools } from './selection.js';
+import { registerAuditTools } from './audit.js';
+import { registerStagingTools } from './staging.js';
 import { registerAuthTools } from './auth.js';
+import { registerGeneratedTools } from './_generated.js';
+import { registerExecuteJsTools } from './execute-js.js';
+
 
 // ─── Generated registry (single source of truth from schema/tools.yaml) ───
 import {
+  GENERATED_BRIDGE_TOOLS,
   GENERATED_CORE_TOOLS,
   GENERATED_WRITE_TOOLS,
   GENERATED_EDIT_TOOLS,
@@ -49,8 +44,8 @@ import {
   GENERATED_ENDPOINT_TOOLS,
   GENERATED_ENDPOINT_REPLACES,
   GENERATED_ENDPOINT_METHOD_ACCESS,
-  GENERATED_FLAT_TOOL_MIGRATIONS,
   GENERATED_DEPRECATED_TOOLS,
+  GENERATED_REMOVED_TOOLS,
 } from './_registry.js';
 import { registerEndpointTools } from './endpoints.js';
 
@@ -86,21 +81,9 @@ function resolveAccessLevel(): AccessLevel {
 
 const ACCESS_LEVEL: AccessLevel = resolveAccessLevel();
 
-// ─── API mode (flat/endpoint/both) ───
-
-export type ApiMode = 'flat' | 'endpoint' | 'both';
-
-function resolveApiMode(): ApiMode {
-  const mode = (process.env.FIGCRAFT_API_MODE ?? 'flat').toLowerCase();
-  if (mode === 'flat' || mode === 'endpoint' || mode === 'both') return mode as ApiMode;
-  console.error(`[FigCraft toolset] WARNING: unknown FIGCRAFT_API_MODE="${mode}", defaulting to "flat"`);
-  return 'flat';
-}
-
-const API_MODE: ApiMode = resolveApiMode();
-
-/** Get the current API mode. */
-export function getApiMode(): ApiMode { return API_MODE; }
+// ─── API mode ───
+// FigCraft uses endpoint mode exclusively. Legacy flat tools are registered as
+// ghost tools that return migration guidance (see GENERATED_REMOVED_TOOLS).
 
 /** All tools that modify the Figma document. */
 const WRITE_TOOLS = GENERATED_WRITE_TOOLS;
@@ -199,34 +182,55 @@ function safeDisable(handle: RegisteredTool): boolean {
 /**
  * Register ALL tools (core + all toolsets). Captures handles for later enable/disable.
  */
+/**
+ * Register ghost tools for removed flat tools.
+ * Each ghost returns a migration guidance error pointing to the replacement endpoint.
+ */
+function registerRemovedToolGhosts(server: McpServer): void {
+  for (const [toolName, info] of Object.entries(GENERATED_REMOVED_TOOLS)) {
+    server.tool(
+      toolName,
+      `[REMOVED] This tool has been removed. Use ${info.endpoint}(method: "${info.method}") instead.`,
+      {},
+      async () => ({
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            ok: false,
+            error: `Tool "${toolName}" has been removed. Use ${info.endpoint}(method: "${info.method}") instead.`,
+            migration: { endpoint: info.endpoint, method: info.method },
+          }, null, 2),
+        }],
+        isError: true,
+      }),
+    );
+  }
+}
+
 export function registerAllTools(server: McpServer, bridge: Bridge): void {
   // Register every tool group (same as original index.ts)
   registerPing(server, bridge);
   registerAuthTools(server);
   registerNodeTools(server, bridge);
-  registerVariableTools(server, bridge);
-  registerStyleTools(server, bridge);
-  registerLibraryTools(server, bridge);
+  registerGeneratedTools(server, bridge, { include: GENERATED_BRIDGE_TOOLS });
   registerLibraryStyleTools(server, bridge);
   registerExportTools(server, bridge);
-  registerWriteNodeTools(server, bridge);
   registerTokenTools(server, bridge);
-  registerComponentTools(server, bridge);
   registerStorageTools(server, bridge);
-  registerWriteVariableTools(server, bridge);
   registerWriteStyleTools(server, bridge);
-  registerPageTools(server, bridge);
-  registerSelectionTools(server, bridge);
   registerLintTools(server, bridge);
-  registerAnnotationTools(server, bridge);
   registerModeTools(server, bridge);
   registerChannelTools(server, bridge);
-  registerScanTools(server, bridge);
   registerPrototypeTools(server, bridge);
-  registerImageVectorTools(server, bridge);
+  registerAuditTools(server, bridge);
+  registerStagingTools(server, bridge);
+  registerExecuteJsTools(server, bridge);
 
   // Register endpoint tools (resource-oriented API)
   registerEndpointTools(server, bridge);
+
+  // Register ghost tools for removed flat tools (Phase 3 migration guidance)
+  registerRemovedToolGhosts(server);
 
   // Snapshot all handles from the server's internal registry
   const captured = captureToolHandles(server);
@@ -247,7 +251,7 @@ export function registerToolsetMetaTools(server: McpServer): void {
     {
       description:
         'Load an additional toolset to enable more tools. ' +
-        'Only ~30 core tools are enabled by default. ' +
+        `Only ~${CORE_TOOLS.size + 3} core tools are enabled by default. ` +
         'Call list_toolsets to see available toolsets and their descriptions. ' +
         'You can load multiple toolsets at once by passing a comma-separated string.',
       inputSchema: {
@@ -292,10 +296,6 @@ export function registerToolsetMetaTools(server: McpServer): void {
     },
     async () => {
       const lines: string[] = [];
-      // API mode info
-      if (API_MODE !== 'flat') {
-        lines.push(`🔄 API mode: ${API_MODE.toUpperCase()} (FIGCRAFT_API_MODE=${API_MODE})`, '');
-      }
       if (ACCESS_LEVEL !== 'edit') {
         const icon = ACCESS_LEVEL === 'read' ? '🔒' : '🔏';
         lines.push(`${icon} Access level: ${ACCESS_LEVEL.toUpperCase()} (FIGCRAFT_ACCESS=${ACCESS_LEVEL}). ${ACCESS_LEVEL === 'read' ? 'All write tools disabled.' : 'Edit tools disabled, create tools allowed.'}`, '');
@@ -310,7 +310,7 @@ export function registerToolsetMetaTools(server: McpServer): void {
         '',
       );
       // Endpoint info
-      if (API_MODE !== 'flat') {
+      {
         const epLines: string[] = [];
         for (const ep of GENERATED_ENDPOINT_TOOLS) {
           const methods = GENERATED_ENDPOINT_METHOD_ACCESS[ep];
@@ -321,10 +321,6 @@ export function registerToolsetMetaTools(server: McpServer): void {
         }
         if (epLines.length > 0) {
           lines.push(`Endpoints: ${epLines.join(', ')}`, '');
-        }
-        const migrationCount = Object.keys(GENERATED_FLAT_TOOL_MIGRATIONS).length;
-        if (migrationCount > 0) {
-          lines.push(`Flat→endpoint migrations available for ${migrationCount} tools (see GENERATED_FLAT_TOOL_MIGRATIONS in the generated registry).`, '');
         }
       }
       lines.push('Available toolsets:');
@@ -392,36 +388,26 @@ export function disableNonCoreTools(server: McpServer): void {
     }
   }
 
-  // API mode: disable endpoint tools in flat mode, disable replaced flat tools in endpoint mode
+  // Disable flat tools that are replaced by endpoints (only core ones — toolset ones are already disabled)
   let apiModeDisabled = 0;
-  if (API_MODE === 'flat') {
-    // Disable all endpoint tools
-    for (const ep of GENERATED_ENDPOINT_TOOLS) {
-      const h = toolHandles.get(ep);
-      if (h && h.enabled && safeDisable(h)) apiModeDisabled++;
-    }
-  } else if (API_MODE === 'endpoint') {
-    // Disable flat tools that are replaced by endpoints (only core ones — toolset ones are already disabled)
-    for (const replaces of Object.values(GENERATED_ENDPOINT_REPLACES)) {
-      for (const flatTool of replaces) {
-        if (CORE_TOOLS.has(flatTool)) {
-          const h = toolHandles.get(flatTool);
-          if (h && h.enabled && safeDisable(h)) apiModeDisabled++;
-        }
-      }
-    }
-    // Re-enable core endpoint tools that were disabled in the generic non-core loop above.
-    // Defensive: core endpoint tools (e.g. 'nodes', 'text', 'shapes', 'components') are in
-    // CORE_TOOLS, so the generic loop won't disable them. This block is a safety net in case
-    // the CORE_TOOLS set is misconfigured or a future refactor changes the disable order.
-    for (const ep of GENERATED_ENDPOINT_TOOLS) {
-      if (CORE_TOOLS.has(ep)) {
-        const h = toolHandles.get(ep);
-        if (h && !h.enabled && safeEnable(h)) apiModeDisabled--; // net count
+  for (const replaces of Object.values(GENERATED_ENDPOINT_REPLACES)) {
+    for (const flatTool of replaces) {
+      if (CORE_TOOLS.has(flatTool)) {
+        const h = toolHandles.get(flatTool);
+        if (h && h.enabled && safeDisable(h)) apiModeDisabled++;
       }
     }
   }
-  // 'both' mode: endpoint tools stay enabled alongside flat tools (no extra action needed)
+  // Re-enable core endpoint tools that were disabled in the generic non-core loop above.
+  // Defensive: core endpoint tools (e.g. 'nodes', 'text', 'shapes', 'components') are in
+  // CORE_TOOLS, so the generic loop won't disable them. This block is a safety net in case
+  // the CORE_TOOLS set is misconfigured or a future refactor changes the disable order.
+  for (const ep of GENERATED_ENDPOINT_TOOLS) {
+    if (CORE_TOOLS.has(ep)) {
+      const h = toolHandles.get(ep);
+      if (h && !h.enabled && safeEnable(h)) apiModeDisabled--; // net count
+    }
+  }
 
   // Access control: disable tools blocked by the current access level
   let accessDisabled = 0;
@@ -442,8 +428,8 @@ export function disableNonCoreTools(server: McpServer): void {
   if (ACCESS_LEVEL !== 'edit') {
     console.error(`[FigCraft toolset] access level "${ACCESS_LEVEL}": additionally disabled ${accessDisabled} tools`);
   }
-  if (API_MODE !== 'flat') {
-    console.error(`[FigCraft toolset] API mode "${API_MODE}": ${apiModeDisabled} tools adjusted`);
+  if (apiModeDisabled > 0) {
+    console.error(`[FigCraft toolset] endpoint mode: ${apiModeDisabled} replaced flat tools disabled`);
   }
 
   // Validate WRITE_TOOLS: warn about entries that don't match any registered tool.
@@ -476,25 +462,20 @@ function enableToolset(server: McpServer, name: string): string {
 
   let count = 0;
   const skippedAccess: string[] = [];
-  const skippedMode: string[] = [];
+  const skippedReplaced: string[] = [];
   for (const tool of def.tools) {
     const blocked = isToolBlocked(tool);
     if (blocked) {
       skippedAccess.push(tool);
       continue;
     }
-    // API mode awareness: skip flat tools in endpoint mode, skip endpoint tools in flat mode
-    if (API_MODE === 'endpoint' && !GENERATED_ENDPOINT_TOOLS.has(tool)) {
-      // Check if this flat tool is replaced by an endpoint
+    // Skip flat tools that are replaced by endpoints
+    if (!GENERATED_ENDPOINT_TOOLS.has(tool)) {
       const isReplaced = Object.values(GENERATED_ENDPOINT_REPLACES).some(r => r.includes(tool));
       if (isReplaced) {
-        skippedMode.push(tool);
+        skippedReplaced.push(tool);
         continue;
       }
-    }
-    if (API_MODE === 'flat' && GENERATED_ENDPOINT_TOOLS.has(tool)) {
-      skippedMode.push(tool);
-      continue;
     }
     const h = toolHandles.get(tool);
     if (h && !h.enabled && safeEnable(h)) count++;
@@ -502,13 +483,13 @@ function enableToolset(server: McpServer, name: string): string {
   loadedToolsets.add(name);
   server.sendToolListChanged();
 
-  const enabledTools = def.tools.filter(t => !isToolBlocked(t) && !skippedMode.includes(t));
+  const enabledTools = def.tools.filter(t => !isToolBlocked(t) && !skippedReplaced.includes(t));
   let msg = `Loaded "${name}" — ${count} tools enabled: ${enabledTools.join(', ')}`;
   if (skippedAccess.length > 0) {
     msg += `\n⚠️ Access level "${ACCESS_LEVEL}": ${skippedAccess.length} tools skipped: ${skippedAccess.join(', ')}`;
   }
-  if (skippedMode.length > 0) {
-    msg += `\n⚠️ API mode "${API_MODE}": ${skippedMode.length} tools skipped: ${skippedMode.join(', ')}`;
+  if (skippedReplaced.length > 0) {
+    msg += `\n⚠️ Endpoint mode: ${skippedReplaced.length} replaced flat tools skipped: ${skippedReplaced.join(', ')}`;
   }
   return msg;
 }

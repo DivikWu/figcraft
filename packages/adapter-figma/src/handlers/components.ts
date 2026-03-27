@@ -5,6 +5,7 @@
 import { registerHandler } from '../registry.js';
 import { simplifyNode } from '../adapters/node-simplifier.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
+import { assertHandler, HandlerError } from '../utils/handler-error.js';
 
 export function registerComponentHandlers(): void {
 
@@ -37,9 +38,7 @@ registerHandler('list_components', async () => {
 registerHandler('get_component', async (params) => {
   const nodeId = params.nodeId as string;
   const node = await findNodeByIdAsync(nodeId);
-  if (!node || node.type !== 'COMPONENT') {
-    return { error: `Component not found: ${nodeId}` };
-  }
+  assertHandler(node && node.type === 'COMPONENT', `Component not found: ${nodeId}`, 'NOT_FOUND');
   const comp = node as ComponentNode;
   return {
     ...simplifyNode(comp),
@@ -82,7 +81,7 @@ registerHandler('create_instance', async (params) => {
   }
 
   if (!component) {
-    return { error: 'Component not found' };
+    throw new HandlerError('Component not found', 'NOT_FOUND');
   }
 
   const instance = component.createInstance();
@@ -113,9 +112,7 @@ registerHandler('swap_instance', async (params) => {
   const newComponentKey = params.componentKey as string;
 
   const node = await findNodeByIdAsync(instanceId);
-  if (!node || node.type !== 'INSTANCE') {
-    return { error: `Instance not found: ${instanceId}` };
-  }
+  assertHandler(node && node.type === 'INSTANCE', `Instance not found: ${instanceId}`, 'NOT_FOUND');
 
   const newComponent = await figma.importComponentByKeyAsync(newComponentKey);
   (node as InstanceNode).swapComponent(newComponent);
@@ -126,9 +123,7 @@ registerHandler('swap_instance', async (params) => {
 registerHandler('detach_instance', async (params) => {
   const instanceId = params.instanceId as string;
   const node = await findNodeByIdAsync(instanceId);
-  if (!node || node.type !== 'INSTANCE') {
-    return { error: `Instance not found: ${instanceId}` };
-  }
+  assertHandler(node && node.type === 'INSTANCE', `Instance not found: ${instanceId}`, 'NOT_FOUND');
   const frame = (node as InstanceNode).detachInstance();
   return simplifyNode(frame);
 });
@@ -136,16 +131,14 @@ registerHandler('detach_instance', async (params) => {
 registerHandler('reset_instance_overrides', async (params) => {
   const instanceId = params.instanceId as string;
   const node = await findNodeByIdAsync(instanceId);
-  if (!node || node.type !== 'INSTANCE') {
-    return { error: `Instance not found: ${instanceId}` };
-  }
+  assertHandler(node && node.type === 'INSTANCE', `Instance not found: ${instanceId}`, 'NOT_FOUND');
   (node as InstanceNode).resetOverrides();
   return { ok: true };
 });
 
 registerHandler('update_component', async (params) => {
   const node = await findNodeByIdAsync(params.nodeId as string);
-  if (!node || node.type !== 'COMPONENT') throw new Error(`Component not found: ${params.nodeId}`);
+  assertHandler(node && node.type === 'COMPONENT', `Component not found: ${params.nodeId}`, 'NOT_FOUND');
   const comp = node as ComponentNode;
   if (params.name != null) comp.name = params.name as string;
   if (params.description != null) comp.description = params.description as string;
@@ -160,15 +153,18 @@ registerHandler('update_component', async (params) => {
 
 registerHandler('delete_component', async (params) => {
   const node = await findNodeByIdAsync(params.nodeId as string);
-  if (!node || node.type !== 'COMPONENT') throw new Error(`Component not found: ${params.nodeId}`);
+  assertHandler(node && node.type === 'COMPONENT', `Component not found: ${params.nodeId}`, 'NOT_FOUND');
   node.remove();
   return { ok: true };
 });
 
 registerHandler('list_component_properties', async (params) => {
   const node = await findNodeByIdAsync(params.nodeId as string);
-  if (!node || (node.type !== 'COMPONENT' && node.type !== 'COMPONENT_SET'))
-    throw new Error(`Component not found: ${params.nodeId}`);
+  assertHandler(
+    node && (node.type === 'COMPONENT' || node.type === 'COMPONENT_SET'),
+    `Component not found: ${params.nodeId}`,
+    'NOT_FOUND',
+  );
   const comp = node as ComponentNode | ComponentSetNode;
   return {
     properties: Object.entries(comp.componentPropertyDefinitions).map(([key, def]) => ({
@@ -184,7 +180,7 @@ registerHandler('create_component_set', async (params) => {
   const ids = params.componentIds as string[];
   const nodes = await Promise.all(ids.map((id) => findNodeByIdAsync(id)));
   const components = nodes.filter((n): n is ComponentNode => n?.type === 'COMPONENT');
-  if (components.length === 0) throw new Error('No valid components found');
+  assertHandler(components.length > 0, 'No valid components found');
   const set = figma.combineAsVariants(components, figma.currentPage);
   if (params.name != null) set.name = params.name as string;
   return simplifyNode(set);
@@ -192,7 +188,7 @@ registerHandler('create_component_set', async (params) => {
 
 registerHandler('get_instance_overrides', async (params) => {
   const node = await findNodeByIdAsync(params.nodeId as string);
-  if (!node || node.type !== 'INSTANCE') throw new Error(`Instance not found: ${params.nodeId}`);
+  assertHandler(node && node.type === 'INSTANCE', `Instance not found: ${params.nodeId}`, 'NOT_FOUND');
   const instance = node as InstanceNode;
   const props = instance.componentProperties;
   return {
@@ -208,7 +204,7 @@ registerHandler('get_instance_overrides', async (params) => {
 
 registerHandler('set_instance_overrides', async (params) => {
   const source = await findNodeByIdAsync(params.sourceId as string);
-  if (!source || source.type !== 'INSTANCE') throw new Error(`Source instance not found: ${params.sourceId}`);
+  assertHandler(source && source.type === 'INSTANCE', `Source instance not found: ${params.sourceId}`, 'NOT_FOUND');
   const sourceProps = (source as InstanceNode).componentProperties;
   const propValues = Object.fromEntries(Object.entries(sourceProps).map(([k, v]) => [k, v.value]));
 
@@ -216,7 +212,7 @@ registerHandler('set_instance_overrides', async (params) => {
   const results = await Promise.allSettled(
     targetIds.map(async (id) => {
       const target = await findNodeByIdAsync(id);
-      if (!target || target.type !== 'INSTANCE') throw new Error(`Instance ${id} not found`);
+      if (!target || target.type !== 'INSTANCE') throw new HandlerError(`Instance ${id} not found`, 'NOT_FOUND');
       (target as InstanceNode).setProperties(propValues as Record<string, string | boolean>);
       return { nodeId: id, ok: true };
     }),
@@ -334,9 +330,11 @@ registerHandler('add_component_property', async (params) => {
   const defaultValue = params.defaultValue as string | boolean;
 
   const node = await findNodeByIdAsync(nodeId);
-  if (!node || (node.type !== 'COMPONENT' && node.type !== 'COMPONENT_SET')) {
-    return { error: `Component not found: ${nodeId}` };
-  }
+  assertHandler(
+    node && (node.type === 'COMPONENT' || node.type === 'COMPONENT_SET'),
+    `Component not found: ${nodeId}`,
+    'NOT_FOUND',
+  );
   const comp = node as ComponentNode | ComponentSetNode;
 
   const options: { type: string; defaultValue: string | boolean; preferredValues?: Array<{ type: string; key: string }> } = {
@@ -357,14 +355,17 @@ registerHandler('update_component_property', async (params) => {
   const propertyName = params.propertyName as string;
 
   const node = await findNodeByIdAsync(nodeId);
-  if (!node || (node.type !== 'COMPONENT' && node.type !== 'COMPONENT_SET')) {
-    return { error: `Component not found: ${nodeId}` };
-  }
+  assertHandler(
+    node && (node.type === 'COMPONENT' || node.type === 'COMPONENT_SET'),
+    `Component not found: ${nodeId}`,
+    'NOT_FOUND',
+  );
   const comp = node as ComponentNode | ComponentSetNode;
 
-  if (!(propertyName in comp.componentPropertyDefinitions)) {
-    return { error: `Property "${propertyName}" not found on component` };
-  }
+  assertHandler(
+    propertyName in comp.componentPropertyDefinitions,
+    `Property "${propertyName}" not found on component`,
+  );
 
   if (params.newName != null) {
     comp.editComponentProperty(propertyName, { name: params.newName as string });
@@ -382,14 +383,17 @@ registerHandler('delete_component_property', async (params) => {
   const propertyName = params.propertyName as string;
 
   const node = await findNodeByIdAsync(nodeId);
-  if (!node || (node.type !== 'COMPONENT' && node.type !== 'COMPONENT_SET')) {
-    return { error: `Component not found: ${nodeId}` };
-  }
+  assertHandler(
+    node && (node.type === 'COMPONENT' || node.type === 'COMPONENT_SET'),
+    `Component not found: ${nodeId}`,
+    'NOT_FOUND',
+  );
   const comp = node as ComponentNode | ComponentSetNode;
 
-  if (!(propertyName in comp.componentPropertyDefinitions)) {
-    return { error: `Property "${propertyName}" not found on component` };
-  }
+  assertHandler(
+    propertyName in comp.componentPropertyDefinitions,
+    `Property "${propertyName}" not found on component`,
+  );
 
   comp.deleteComponentProperty(propertyName);
   return { ok: true, properties: Object.keys(comp.componentPropertyDefinitions) };

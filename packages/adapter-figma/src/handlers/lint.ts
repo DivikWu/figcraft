@@ -10,10 +10,10 @@ import { runLint, getAvailableRules } from '@figcraft/quality-engine';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
 import type { AbstractNode, LintContext, LintViolation, LintCategory as LintRuleCategory, LintReport } from '@figcraft/quality-engine';
 import type { CompressedNode } from '@figcraft/shared';
-import { STORAGE_KEYS } from '../constants.js';
 import { hexToFigmaRgb, figmaRgbaToHex } from '../utils/color.js';
 import { ensureLoaded, getTextStyleId } from '../utils/style-registry.js';
 import { isVariableAlias, isRgbaLike, setSpacingProp } from '../utils/type-guards.js';
+import { getCachedModeLibrary } from './write-nodes.js';
 
 // Cache last-built LintContext Maps to avoid redundant Map construction on repeated calls
 // with the same tokenContext (common in iterative lint workflows).
@@ -41,9 +41,8 @@ registerHandler('lint_check', async (params) => {
     variableIds?: Record<string, string>;
   } | undefined;
 
-  // Read current mode and selected library from storage
-  const currentMode = ((await figma.clientStorage.getAsync(STORAGE_KEYS.MODE)) || 'library') as 'library' | 'spec';
-  const currentLibrary = (await figma.clientStorage.getAsync(STORAGE_KEYS.LIBRARY)) as string | undefined;
+  // Read current mode and selected library from cache (avoids repeated clientStorage reads)
+  const [currentMode, currentLibrary] = await getCachedModeLibrary() as ['library' | 'spec', string | undefined];
 
   // Build lint context — cache Maps when tokenContext is unchanged (common in iterative workflows)
   const tokenContextKey = tokenContext ? JSON.stringify(tokenContext) : null;
@@ -107,6 +106,10 @@ registerHandler('lint_check', async (params) => {
 
 registerHandler('lint_fix', async (params) => {
   const violations = params.violations as LintViolation[];
+
+  // Hoist library name read before the loop — avoids repeated clientStorage reads
+  // inside hardcoded-token (cornerRadius, fills) and no-text-style branches.
+  const [, cachedLibraryName] = await getCachedModeLibrary();
 
   let fixed = 0;
   let failed = 0;
@@ -188,7 +191,7 @@ registerHandler('lint_fix', async (params) => {
           if (prop === 'cornerRadius' && 'cornerRadius' in node) {
             const targetValue = v.fixData.value as number;
             const nodeName = (v.fixData.nodeName as string | undefined) || v.nodeName || '';
-            const libraryName = (await figma.clientStorage.getAsync(STORAGE_KEYS.LIBRARY)) as string | undefined;
+            const libraryName = cachedLibraryName;
             if (!libraryName) { failed++; errors.push({ nodeId: v.nodeId, error: 'No library selected' }); break; }
 
             // Collect all candidate radius variables with their resolved values
@@ -293,7 +296,7 @@ registerHandler('lint_fix', async (params) => {
           const targetOpacity = (v.fixData.opacity as number | undefined) ?? 1;
           if (prop === 'fills' && hex && 'fills' in node) {
             // Load library color variables and find the closest match
-            const libraryName = (await figma.clientStorage.getAsync(STORAGE_KEYS.LIBRARY)) as string | undefined;
+            const libraryName = cachedLibraryName;
             if (libraryName) {
               const targetRgb = hexToFigmaRgb(hex);
               const isTextNode = nodeType === 'TEXT' || node.type === 'TEXT';
@@ -462,7 +465,7 @@ registerHandler('lint_fix', async (params) => {
             errors.push({ nodeId: v.nodeId, error: 'Missing fontSize or not a text node' });
             break;
           }
-          const libraryName = (await figma.clientStorage.getAsync(STORAGE_KEYS.LIBRARY)) as string | undefined;
+          const libraryName = cachedLibraryName;
           if (!libraryName) {
             failed++;
             errors.push({ nodeId: v.nodeId, error: 'No library selected' });
@@ -611,6 +614,123 @@ registerHandler('lint_fix', async (params) => {
             failed++;
             errors.push({ nodeId: v.nodeId, error: 'Node is not a frame — cannot enable auto-layout' });
           }
+          break;
+        }
+        case 'input-field-structure': {
+          if (node.type === 'FRAME' || node.type === 'COMPONENT') {
+            const frame = node as FrameNode;
+            const fixType = v.fixData?.fix as string | undefined;
+            if (fixType === 'layout') {
+              if (v.fixData?.layoutMode) frame.layoutMode = v.fixData.layoutMode as 'HORIZONTAL' | 'VERTICAL';
+              if (v.fixData?.counterAxisAlignItems) (frame as any).counterAxisAlignItems = v.fixData.counterAxisAlignItems;
+              fixed++;
+            } else if (fixType === 'padding') {
+              if (v.fixData?.paddingLeft != null) frame.paddingLeft = v.fixData.paddingLeft as number;
+              if (v.fixData?.paddingRight != null) frame.paddingRight = v.fixData.paddingRight as number;
+              fixed++;
+            } else if (fixType === 'cornerRadius') {
+              if ('cornerRadius' in frame) {
+                (frame as any).cornerRadius = v.fixData?.cornerRadius ?? 8;
+                fixed++;
+              }
+            } else {
+              failed++;
+              errors.push({ nodeId: v.nodeId, error: `Unknown input-field-structure fix type: ${fixType}` });
+            }
+          } else {
+            failed++;
+            errors.push({ nodeId: v.nodeId, error: 'Node is not a frame — cannot auto-fix input structure' });
+          }
+          break;
+        }
+        case 'mobile-dimensions': {
+          if (node.type === 'FRAME' || node.type === 'COMPONENT') {
+            const frame = node as FrameNode;
+            const w = v.fixData?.width as number | undefined;
+            const h = v.fixData?.height as number | undefined;
+            if (w != null && h != null) {
+              frame.resize(w, h);
+              fixed++;
+            } else {
+              failed++;
+              errors.push({ nodeId: v.nodeId, error: 'Missing width/height in fixData' });
+            }
+          } else {
+            failed++;
+            errors.push({ nodeId: v.nodeId, error: 'Node is not a frame — cannot resize' });
+          }
+          break;
+        }
+        case 'system-bar-fullbleed': {
+          if (node.type === 'FRAME' || node.type === 'COMPONENT') {
+            const frame = node as FrameNode;
+            const fixType = v.fixData?.fix as string | undefined;
+            if (fixType === 'padding') {
+              if (v.fixData?.paddingLeft != null) frame.paddingLeft = v.fixData.paddingLeft as number;
+              if (v.fixData?.paddingRight != null) frame.paddingRight = v.fixData.paddingRight as number;
+              if (v.fixData?.paddingTop != null) frame.paddingTop = v.fixData.paddingTop as number;
+              fixed++;
+            } else if (fixType === 'alignment') {
+              if (v.fixData?.primaryAxisAlignItems) (frame as any).primaryAxisAlignItems = v.fixData.primaryAxisAlignItems;
+              fixed++;
+            } else {
+              failed++;
+              errors.push({ nodeId: v.nodeId, error: `Unknown system-bar-fullbleed fix type: ${fixType}` });
+            }
+          } else {
+            failed++;
+            errors.push({ nodeId: v.nodeId, error: 'Node is not a frame — cannot fix system bar layout' });
+          }
+          break;
+        }
+        case 'spacer-frame': {
+          // Auto-fix: remove spacer frame and convert its dimension to parent spacing.
+          // Find the parent auto-layout container and absorb the spacer's dimension.
+          const parent = node.parent;
+          if (!parent || !('layoutMode' in parent)) {
+            failed++;
+            errors.push({ nodeId: v.nodeId, error: 'Spacer parent is not an auto-layout frame' });
+            break;
+          }
+          const parentFrame = parent as FrameNode;
+          if (parentFrame.layoutMode === 'NONE') {
+            failed++;
+            errors.push({ nodeId: v.nodeId, error: 'Spacer parent has no auto-layout' });
+            break;
+          }
+          const isVertical = parentFrame.layoutMode === 'VERTICAL';
+          const spacerDim = isVertical
+            ? (v.fixData?.height as number ?? (node as FrameNode).height ?? 0)
+            : (v.fixData?.width as number ?? (node as FrameNode).width ?? 0);
+
+          // Determine position: first child, last child, or middle
+          const siblings = [...parentFrame.children];
+          const idx = siblings.indexOf(node as SceneNode);
+          if (idx === 0) {
+            // First child → add to paddingTop/paddingLeft
+            if (isVertical) {
+              parentFrame.paddingTop = (parentFrame.paddingTop ?? 0) + spacerDim;
+            } else {
+              parentFrame.paddingLeft = (parentFrame.paddingLeft ?? 0) + spacerDim;
+            }
+          } else if (idx === siblings.length - 1) {
+            // Last child → add to paddingBottom/paddingRight
+            if (isVertical) {
+              parentFrame.paddingBottom = (parentFrame.paddingBottom ?? 0) + spacerDim;
+            } else {
+              parentFrame.paddingRight = (parentFrame.paddingRight ?? 0) + spacerDim;
+            }
+          } else {
+            // Middle → use as itemSpacing if parent has no itemSpacing or same value
+            const currentSpacing = parentFrame.itemSpacing ?? 0;
+            if (currentSpacing === 0 || currentSpacing === spacerDim) {
+              parentFrame.itemSpacing = spacerDim;
+            }
+            // If different, just remove the spacer (can't perfectly represent mixed spacing)
+          }
+          // Remove the spacer node
+          node.remove();
+          fixed++;
           break;
         }
         default:

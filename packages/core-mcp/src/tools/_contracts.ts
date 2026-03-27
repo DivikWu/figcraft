@@ -9,16 +9,6 @@
 
 import { z } from 'zod';
 
-const NodeRoleSharedSchema: z.ZodTypeAny = z.lazy(() => z.enum(['screen', 'header', 'hero', 'nav', 'content', 'list', 'row', 'stats', 'card', 'form', 'field', 'input', 'button', 'footer', 'actions', 'social_row', 'system_bar']));
-const NodeTypeSharedSchema: z.ZodTypeAny = z.lazy(() => z.enum(['frame', 'text', 'rectangle', 'ellipse', 'line', 'vector', 'instance']));
-const NodeSpecSharedSchema: z.ZodTypeAny = z.lazy(() => z.object({
-      type: NodeTypeSharedSchema,
-      name: z.string().optional(),
-      role: NodeRoleSharedSchema.optional(),
-      props: z.record(z.unknown()).optional(),
-      children: z.array(NodeSpecSharedSchema).optional(),
-    }));
-
 export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
   'ping': z.object({
       connected: z.boolean(),
@@ -51,6 +41,28 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
       mode: z.enum(['library', 'spec']),
       description: z.string(),
     }),
+  'get_design_guidelines': z.object({
+      mode: z.string(),
+      selectedLibrary: z.string().optional(),
+      category: z.string().optional(),
+      guidelines: z.string(),
+    }),
+  'audit_node': z.object({
+      nodeId: z.string(),
+      nodeName: z.string(),
+      nodeType: z.string(),
+      qualityScore: z.number(),
+      summary: z.object({
+        totalChecked: z.number().optional(),
+        violations: z.number().optional(),
+        errors: z.number().optional(),
+        warnings: z.number().optional(),
+        autoFixable: z.number().optional(),
+      }),
+      violations: z.array(z.record(z.unknown())).optional(),
+      structuralNotes: z.array(z.string()).optional(),
+      recommendation: z.string(),
+    }),
   'join_channel': z.object({
       ok: z.boolean(),
       channel: z.string().optional(),
@@ -60,27 +72,6 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
   'get_channel': z.object({
       channel: z.string(),
       connected: z.boolean(),
-    }),
-  'get_node_info': z.object({
-      id: z.string(),
-      name: z.string(),
-      type: z.string(),
-      x: z.number().optional(),
-      y: z.number().optional(),
-      width: z.number().optional(),
-      height: z.number().optional(),
-      children: z.array(z.object({
-          id: z.string(),
-          name: z.string(),
-          type: z.string(),
-        })).optional(),
-      _error: z.string().optional(),
-      _sizeKB: z.number().optional(),
-      _limitKB: z.number().optional(),
-      method: z.string().optional(),
-      warning: z.string().optional(),
-      hints: z.array(z.string()).optional(),
-      _preview: z.string().optional(),
     }),
   'get_current_page': z.object({
       id: z.string(),
@@ -118,21 +109,6 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
           type: z.string(),
         })),
     }),
-  'search_nodes': z.object({
-      count: z.number(),
-      nodes: z.array(z.object({
-          id: z.string(),
-          name: z.string(),
-          type: z.string(),
-        })),
-      _error: z.string().optional(),
-      _sizeKB: z.number().optional(),
-      _limitKB: z.number().optional(),
-      method: z.string().optional(),
-      warning: z.string().optional(),
-      hints: z.array(z.string()).optional(),
-      _preview: z.string().optional(),
-    }),
   'list_fonts': z.object({
       family: z.string().optional(),
       styles: z.array(z.string()).optional(),
@@ -140,161 +116,21 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
       families: z.array(z.string()).optional(),
       total: z.number().optional(),
     }),
-  'create_document': z.object({
-      ok: z.boolean(),
-      error: z.string().optional(),
-      created: z.array(z.object({
-          id: z.string(),
-          name: z.string(),
-          type: z.string(),
-        })).optional(),
-      truncated: z.boolean().optional(),
-      warnings: z.array(z.string()).optional(),
-      errors: z.array(z.object({
-          index: z.number(),
-          name: z.string().optional(),
-          type: z.string(),
-          error: z.string(),
-        })).optional(),
-      postCreateLint: z.record(z.unknown()).optional(),
-    }),
-  'create_screen': z.object({
-      ok: z.boolean(),
-      error: z.string().optional(),
-      failedStage: z.string().optional(),
-      screenRootId: z.string().optional(),
-      screen: z.record(z.unknown()).optional(),
-      canvasSection: z.record(z.unknown()).optional(),
-      sections: z.array(z.object({
-          index: z.number(),
-          name: z.string().optional(),
-          ok: z.boolean(),
-          result: z.record(z.unknown()).optional(),
-        })).optional(),
-      pipelineStages: z.array(z.object({
-          stage: z.string(),
-          ok: z.boolean(),
-          createdCount: z.number(),
-          nodeIds: z.array(z.string()).optional(),
-          lint: z.record(z.unknown()).optional(),
-          warningCount: z.number().optional(),
-          patchCallCount: z.number().optional(),
-          patchNodeCount: z.number().optional(),
-          patchRules: z.array(z.string()).optional(),
-          structuralErrors: z.array(z.record(z.unknown())).optional(),
-          debugStats: z.record(z.unknown()).optional(),
-        })).optional(),
-      pipelineSummary: z.record(z.unknown()).optional(),
-      finalLint: z.record(z.unknown()).optional(),
-    }),
   'create_frame': z.object({
       id: z.string(),
       name: z.string(),
       type: z.string(),
-      x: z.number().optional(),
-      y: z.number().optional(),
-      width: z.number().optional(),
-      height: z.number().optional(),
-      layoutMode: z.string().optional(),
-      itemSpacing: z.number().optional(),
-      autoBound: z.string().optional(),
-      colorHint: z.string().optional(),
-      warnings: z.array(z.string()).optional(),
+      width: z.number(),
+      height: z.number(),
+      visible: z.boolean(),
     }),
   'create_text': z.object({
       id: z.string(),
       name: z.string(),
       type: z.string(),
-      x: z.number().optional(),
-      y: z.number().optional(),
-      width: z.number().optional(),
-      height: z.number().optional(),
-      characters: z.string().optional(),
-      fontSize: z.number().optional(),
-      autoBound: z.record(z.unknown()).optional(),
-      colorHint: z.string().optional(),
-    }),
-  'patch_nodes': z.object({
-      results: z.array(z.object({
-          nodeId: z.string(),
-          ok: z.boolean(),
-          error: z.string().optional(),
-        })),
-    }),
-  'delete_nodes': z.object({
-      results: z.array(z.object({
-          nodeId: z.string(),
-          ok: z.boolean(),
-          error: z.string().optional(),
-        })),
-    }),
-  'set_text_content': z.object({
-      ok: z.boolean(),
-      error: z.string().optional(),
-    }),
-  'clone_node': z.object({
-      id: z.string(),
-      name: z.string(),
-      type: z.string(),
-      x: z.number().optional(),
-      y: z.number().optional(),
-      width: z.number().optional(),
-      height: z.number().optional(),
-    }),
-  'insert_child': z.object({
-      ok: z.boolean(),
-      error: z.string().optional(),
-    }),
-  'list_components': z.object({
-      count: z.number(),
-      components: z.array(z.object({
-          id: z.string(),
-          name: z.string(),
-          description: z.string().optional(),
-          key: z.string().optional(),
-        })),
-    }),
-  'list_library_components': z.object({
-      count: z.number(),
-      components: z.array(z.object({
-          key: z.string(),
-          name: z.string(),
-          description: z.string().optional(),
-        })),
-    }),
-  'list_component_properties': z.object({
-      properties: z.array(z.object({
-          key: z.string(),
-          type: z.string(),
-          defaultValue: z.unknown().optional(),
-          variantOptions: z.array(z.string()).optional(),
-        })),
-    }),
-  'get_component': z.object({
-      id: z.string(),
-      name: z.string(),
-      type: z.string(),
-      width: z.number().optional(),
-      height: z.number().optional(),
-      description: z.string().optional(),
-      key: z.string().optional(),
-      children: z.array(z.object({
-          id: z.string(),
-          name: z.string(),
-          type: z.string(),
-        })).optional(),
-      componentPropertyDefinitions: z.record(z.unknown()).optional(),
-    }),
-  'create_instance': z.object({
-      id: z.string(),
-      name: z.string(),
-      type: z.string(),
-      x: z.number().optional(),
-      y: z.number().optional(),
-      width: z.number().optional(),
-      height: z.number().optional(),
-      componentPropertyReferences: z.record(z.string()).optional(),
-      error: z.string().optional(),
+      width: z.number(),
+      height: z.number(),
+      visible: z.boolean(),
     }),
   'lint_fix_all': z.object({
       lint: z.object({
@@ -329,114 +165,14 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
       selectedCount: z.number(),
       notFound: z.array(z.string()),
     }),
-  'create_rectangle': z.object({
-      id: z.string(),
-      name: z.string(),
-      type: z.string(),
-      x: z.number().optional(),
-      y: z.number().optional(),
-      width: z.number().optional(),
-      height: z.number().optional(),
-      cornerRadius: z.unknown().optional(),
-      autoBound: z.string().optional(),
-      colorHint: z.string().optional(),
-    }),
-  'create_ellipse': z.object({
-      id: z.string(),
-      name: z.string(),
-      type: z.string(),
-      x: z.number().optional(),
-      y: z.number().optional(),
-      width: z.number().optional(),
-      height: z.number().optional(),
-      autoBound: z.string().optional(),
-      colorHint: z.string().optional(),
-    }),
-  'create_vector': z.object({
-      id: z.string(),
-      name: z.string(),
-      type: z.string(),
-      x: z.number().optional(),
-      y: z.number().optional(),
-      width: z.number().optional(),
-      height: z.number().optional(),
-    }),
-  'set_image_fill': z.object({
+  'execute_js': z.object({
       ok: z.boolean(),
-      imageHash: z.string().optional(),
+      result: z.unknown().optional(),
       error: z.string().optional(),
-    }),
-  'list_variables': z.object({
-      count: z.number(),
-      variables: z.array(z.object({
-          id: z.string(),
-          name: z.string(),
-          resolvedType: z.string(),
-          description: z.string().optional(),
-          collectionId: z.string(),
-          collectionName: z.string(),
-          scopes: z.array(z.string()),
-          valuesByMode: z.record(z.unknown()),
-        })),
-    }),
-  'get_variable': z.object({
-      id: z.string(),
-      name: z.string(),
-      resolvedType: z.string(),
-      description: z.string().optional(),
-      collectionId: z.string(),
-      collectionName: z.string().optional(),
-      scopes: z.array(z.string()),
-      codeSyntax: z.unknown().optional(),
-      valuesByMode: z.record(z.unknown()),
-      error: z.string().optional(),
-    }),
-  'list_collections': z.array(z.object({
-          id: z.string(),
-          name: z.string(),
-          modes: z.array(z.object({
-          modeId: z.string(),
-          name: z.string(),
-        })),
-          variableCount: z.number(),
-        })),
-  'get_node_variables': z.object({
-      nodeId: z.string(),
-      bindings: z.record(z.unknown()),
-      error: z.string().optional(),
-    }),
-  'set_variable_binding': z.object({
-      ok: z.boolean(),
-      error: z.string().optional(),
+      stack: z.string().optional(),
+      _warning: z.string().optional(),
     }),
   'set_explicit_variable_mode': z.object({
-      ok: z.boolean(),
-      error: z.string().optional(),
-    }),
-  'create_variable': z.object({
-      id: z.string(),
-      name: z.string(),
-      resolvedType: z.string(),
-      error: z.string().optional(),
-    }),
-  'update_variable': z.object({
-      ok: z.boolean(),
-      id: z.string().optional(),
-      error: z.string().optional(),
-    }),
-  'delete_variable': z.object({
-      ok: z.boolean(),
-      error: z.string().optional(),
-    }),
-  'create_collection': z.object({
-      id: z.string(),
-      name: z.string(),
-      modes: z.array(z.object({
-          modeId: z.string(),
-          name: z.string(),
-        })),
-    }),
-  'delete_collection': z.object({
       ok: z.boolean(),
       error: z.string().optional(),
     }),
@@ -465,27 +201,6 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
       variableId: z.string().optional(),
       aliasTo: z.string().optional(),
       error: z.string().optional(),
-    }),
-  'export_variables': z.object({
-      count: z.number(),
-      variables: z.array(z.object({
-          path: z.string(),
-          type: z.string(),
-          valuesByMode: z.record(z.unknown()),
-          description: z.string().optional(),
-          scopes: z.array(z.string()).optional(),
-          aliasOf: z.record(z.string()).optional(),
-        })),
-    }),
-  'batch_create_variables': z.object({
-      created: z.number(),
-      skipped: z.number(),
-      failed: z.number(),
-      errors: z.array(z.object({
-          name: z.string(),
-          error: z.string(),
-        })),
-      collectionId: z.string(),
     }),
   'list_tokens': z.object({
       total: z.number(),
@@ -584,72 +299,6 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
           figmaValue: z.unknown().optional(),
         })),
       total: z.number(),
-      error: z.string().optional(),
-    }),
-  'list_styles': z.object({
-      count: z.number(),
-      styles: z.array(z.object({
-          id: z.string(),
-          name: z.string(),
-          type: z.string(),
-          description: z.string().optional(),
-          paints: z.array(z.record(z.unknown())).optional(),
-          fontName: z.unknown().optional(),
-          fontSize: z.number().optional(),
-          letterSpacing: z.unknown().optional(),
-          lineHeight: z.unknown().optional(),
-          textCase: z.string().optional(),
-          textDecoration: z.string().optional(),
-          effects: z.array(z.record(z.unknown())).optional(),
-        })),
-    }),
-  'get_style': z.object({
-      id: z.string(),
-      name: z.string(),
-      type: z.string(),
-      description: z.string().optional(),
-      paints: z.array(z.record(z.unknown())).optional(),
-      fontName: z.unknown().optional(),
-      fontSize: z.number().optional(),
-      letterSpacing: z.unknown().optional(),
-      lineHeight: z.unknown().optional(),
-      textCase: z.string().optional(),
-      textDecoration: z.string().optional(),
-      effects: z.array(z.record(z.unknown())).optional(),
-      error: z.string().optional(),
-    }),
-  'sync_styles': z.object({
-      created: z.number(),
-      updated: z.number(),
-      skipped: z.number(),
-      failed: z.number(),
-      failures: z.array(z.object({
-          path: z.string(),
-          error: z.string(),
-        })),
-    }),
-  'create_paint_style': z.object({
-      id: z.string(),
-      name: z.string(),
-    }),
-  'delete_style': z.object({
-      ok: z.boolean(),
-      error: z.string().optional(),
-    }),
-  'update_paint_style': z.object({
-      id: z.string(),
-      name: z.string(),
-      error: z.string().optional(),
-    }),
-  'update_text_style': z.object({
-      id: z.string(),
-      name: z.string(),
-      fontSize: z.number().optional(),
-      error: z.string().optional(),
-    }),
-  'update_effect_style': z.object({
-      id: z.string(),
-      name: z.string(),
       error: z.string().optional(),
     }),
   'register_library_styles': z.object({
@@ -916,6 +565,29 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
       message: z.string().optional(),
       hint: z.string().optional(),
     }),
+  'add_reaction': z.object({
+      ok: z.boolean().optional(),
+      reactionCount: z.number().optional(),
+      results: z.array(z.record(z.unknown())).optional(),
+    }),
+  'remove_reaction': z.object({
+      ok: z.boolean(),
+      removed: z.number().optional(),
+      remaining: z.number().optional(),
+      error: z.string().optional(),
+    }),
+  'set_reactions': z.object({
+      ok: z.boolean(),
+      reactionCount: z.number().optional(),
+      error: z.string().optional(),
+    }),
+  'connect_screens': z.object({
+      connected: z.number(),
+      total: z.number(),
+      failures: z.array(z.record(z.unknown())).optional(),
+      flowAnalysis: z.record(z.unknown()).optional(),
+      hint: z.string().optional(),
+    }),
   'lint_check': z.object({
       summary: z.object({
         total: z.number(),
@@ -978,6 +650,25 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
       ok: z.boolean(),
       error: z.string().optional(),
     }),
+  'stage_changes': z.object({
+      staged: z.number(),
+      errors: z.array(z.record(z.unknown())).optional(),
+      stagedNodeIds: z.array(z.string()).optional(),
+    }),
+  'commit_changes': z.object({
+      committed: z.number(),
+      errors: z.array(z.record(z.unknown())).optional(),
+      remainingStaged: z.array(z.string()).optional(),
+    }),
+  'discard_changes': z.object({
+      discarded: z.number(),
+      errors: z.array(z.record(z.unknown())).optional(),
+      remainingStaged: z.array(z.string()).optional(),
+    }),
+  'list_staged': z.object({
+      staged: z.array(z.record(z.unknown())),
+      count: z.number(),
+    }),
 };
 
 export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
@@ -1033,6 +724,31 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
       "description": "Using Figma shared library as token source. Lint checks variable/style bindings."
     }
   ],
+  'get_design_guidelines': [
+    {
+      "mode": "Design Guardian (Library Mode)",
+      "selectedLibrary": "My Design System",
+      "guidelines": "# Design Guardian — Library Mode Rules..."
+    }
+  ],
+  'audit_node': [
+    {
+      "nodeId": "1:23",
+      "nodeName": "Login Button",
+      "nodeType": "FRAME",
+      "qualityScore": 85,
+      "summary": {
+        "totalChecked": 12,
+        "violations": 2,
+        "errors": 0,
+        "warnings": 2,
+        "autoFixable": 1
+      },
+      "violations": [],
+      "structuralNotes": [],
+      "recommendation": "Fix 1 auto-fixable warning, then review the remaining warning manually."
+    }
+  ],
   'join_channel': [
     {
       "ok": true,
@@ -1044,22 +760,6 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
     {
       "channel": "design-1",
       "connected": true
-    }
-  ],
-  'get_node_info': [
-    {
-      "id": "1:23",
-      "name": "Login Screen",
-      "type": "FRAME",
-      "width": 402,
-      "height": 874,
-      "children": [
-        {
-          "id": "1:24",
-          "name": "Login Form",
-          "type": "FRAME"
-        }
-      ]
     }
   ],
   'get_current_page': [
@@ -1118,23 +818,6 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
       ]
     }
   ],
-  'search_nodes': [
-    {
-      "count": 2,
-      "nodes": [
-        {
-          "id": "1:10",
-          "name": "Login Button",
-          "type": "FRAME"
-        },
-        {
-          "id": "1:11",
-          "name": "Login Title",
-          "type": "TEXT"
-        }
-      ]
-    }
-  ],
   'list_fonts': [
     {
       "families": [
@@ -1154,279 +837,24 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
       "count": 3
     }
   ],
-  'create_document': [
-    {
-      "ok": true,
-      "created": [
-        {
-          "id": "12:34",
-          "name": "Auth Screen",
-          "type": "FRAME"
-        }
-      ],
-      "postCreateLint": {
-        "scopedNodeIds": [
-          "12:34"
-        ],
-        "initial": {
-          "violations": 0
-        },
-        "final": {
-          "violations": 0
-        }
-      }
-    },
-    {
-      "ok": false,
-      "error": "nodes array must not be empty"
-    }
-  ],
-  'create_screen': [
-    {
-      "ok": true,
-      "screenRootId": "20:1",
-      "screen": {
-        "ok": true,
-        "created": [
-          {
-            "id": "20:1",
-            "name": "Marketing Hero",
-            "type": "FRAME"
-          }
-        ]
-      },
-      "sections": [
-        {
-          "index": 0,
-          "name": "Hero Section",
-          "ok": true,
-          "result": {
-            "ok": true,
-            "created": [
-              {
-                "id": "20:2",
-                "name": "Hero Content",
-                "type": "FRAME"
-              }
-            ]
-          }
-        }
-      ],
-      "pipelineStages": [
-        {
-          "stage": "shell",
-          "ok": true,
-          "createdCount": 1,
-          "nodeIds": [
-            "20:1"
-          ],
-          "warningCount": 0,
-          "patchCallCount": 0,
-          "patchNodeCount": 0,
-          "patchRules": [],
-          "structuralErrors": [],
-          "debugStats": {}
-        },
-        {
-          "stage": "section:1",
-          "ok": true,
-          "createdCount": 1,
-          "nodeIds": [
-            "20:2"
-          ],
-          "warningCount": 0,
-          "patchCallCount": 0,
-          "patchNodeCount": 0,
-          "patchRules": [],
-          "structuralErrors": [],
-          "debugStats": {}
-        }
-      ],
-      "pipelineSummary": {
-        "stageCount": 2,
-        "createdCount": 2,
-        "warningCount": 0,
-        "remaining": 0
-      },
-      "finalLint": {
-        "scopedNodeIds": [
-          "20:1"
-        ],
-        "remaining": 0
-      }
-    },
-    {
-      "ok": false,
-      "error": "create_screen could not determine the created screen root"
-    }
-  ],
   'create_frame': [
     {
-      "id": "30:1",
-      "name": "Card Frame",
+      "id": "50:1",
+      "name": "Login Screen",
       "type": "FRAME",
-      "x": 64,
-      "y": 120,
-      "width": 320,
-      "height": 180,
-      "layoutMode": "VERTICAL",
-      "itemSpacing": 16,
-      "autoBound": "surface/default"
+      "width": 375,
+      "height": 812,
+      "visible": true
     }
   ],
   'create_text': [
     {
-      "id": "30:2",
-      "name": "Hero Title",
+      "id": "51:1",
+      "name": "Welcome back",
       "type": "TEXT",
-      "x": 88,
-      "y": 164,
-      "width": 220,
-      "height": 40,
-      "characters": "Ship Faster",
-      "fontSize": 32,
-      "autoBound": {
-        "color": "text/primary",
-        "typography": "style:Heading/L"
-      }
-    },
-    {
-      "id": "30:3",
-      "name": "Body Copy",
-      "type": "TEXT",
-      "characters": "Build polished screens with AI.",
-      "fontSize": 16
-    }
-  ],
-  'patch_nodes': [
-    {
-      "results": [
-        {
-          "nodeId": "30:1",
-          "ok": true
-        },
-        {
-          "nodeId": "30:2",
-          "ok": false,
-          "error": "Node not found"
-        }
-      ]
-    }
-  ],
-  'delete_nodes': [
-    {
-      "results": [
-        {
-          "nodeId": "30:1",
-          "ok": true
-        },
-        {
-          "nodeId": "999:1",
-          "ok": false,
-          "error": "Node not found"
-        }
-      ]
-    }
-  ],
-  'set_text_content': [
-    {
-      "ok": true
-    }
-  ],
-  'clone_node': [
-    {
-      "id": "60:1",
-      "name": "Cloned Card",
-      "type": "FRAME",
-      "width": 320,
-      "height": 180
-    }
-  ],
-  'insert_child': [
-    {
-      "ok": true
-    }
-  ],
-  'list_components': [
-    {
-      "count": 2,
-      "components": [
-        {
-          "id": "12:1",
-          "name": "Button / Primary",
-          "description": "Main call-to-action button",
-          "key": "button-primary-key"
-        },
-        {
-          "id": "12:2",
-          "name": "Input / Default",
-          "key": "input-default-key"
-        }
-      ]
-    }
-  ],
-  'list_library_components': [
-    {
-      "count": 2,
-      "components": [
-        {
-          "key": "library-button-primary",
-          "name": "Button / Primary",
-          "description": "Primary CTA button"
-        },
-        {
-          "key": "library-input-default",
-          "name": "Input / Default",
-          "description": "Default text field"
-        }
-      ]
-    }
-  ],
-  'list_component_properties': [
-    {
-      "properties": [
-        {
-          "key": "State",
-          "type": "VARIANT",
-          "defaultValue": "Default",
-          "variantOptions": [
-            "Default",
-            "Pressed",
-            "Disabled"
-          ]
-        },
-        {
-          "key": "Has Icon",
-          "type": "BOOLEAN",
-          "defaultValue": false
-        }
-      ]
-    }
-  ],
-  'get_component': [
-    {
-      "id": "12:1",
-      "name": "Button / Primary",
-      "type": "COMPONENT",
-      "width": 160,
-      "height": 48,
-      "description": "Main call-to-action button",
-      "key": "button-primary-key",
-      "componentPropertyDefinitions": {
-        "State#1": {
-          "type": "VARIANT",
-          "defaultValue": "Default"
-        }
-      }
-    }
-  ],
-  'create_instance': [
-    {
-      "id": "40:1",
-      "name": "Button / Primary",
-      "type": "INSTANCE",
-      "width": 160,
-      "height": 48
+      "width": 84,
+      "height": 17,
+      "visible": true
     }
   ],
   'lint_fix_all': [
@@ -1481,152 +909,22 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
       ]
     }
   ],
-  'create_rectangle': [
-    {
-      "id": "50:1",
-      "name": "Card Background",
-      "type": "RECTANGLE",
-      "width": 320,
-      "height": 180,
-      "cornerRadius": 24,
-      "autoBound": "surface/default"
-    }
-  ],
-  'create_ellipse': [
-    {
-      "id": "50:2",
-      "name": "Avatar Dot",
-      "type": "ELLIPSE",
-      "width": 40,
-      "height": 40,
-      "autoBound": "surface/accent"
-    }
-  ],
-  'create_vector': [
-    {
-      "id": "70:1",
-      "name": "Arrow Icon",
-      "type": "FRAME",
-      "width": 24,
-      "height": 24
-    }
-  ],
-  'set_image_fill': [
+  'execute_js': [
     {
       "ok": true,
-      "imageHash": "b2f7c1d4a9"
-    }
-  ],
-  'list_variables': [
-    {
-      "count": 1,
-      "variables": [
-        {
-          "id": "VariableID:1:12",
-          "name": "color/brand/primary",
-          "resolvedType": "COLOR",
-          "description": "Primary brand color",
-          "collectionId": "VariableCollectionId:1:2",
-          "collectionName": "Primitives",
-          "scopes": [
-            "ALL_FILLS"
-          ],
-          "valuesByMode": {
-            "Default": "#7c3aed"
-          }
-        }
-      ]
-    }
-  ],
-  'get_variable': [
-    {
-      "id": "VariableID:1:12",
-      "name": "color/brand/primary",
-      "resolvedType": "COLOR",
-      "description": "Primary brand color",
-      "collectionId": "VariableCollectionId:1:2",
-      "collectionName": "Primitives",
-      "scopes": [
-        "ALL_FILLS"
-      ],
-      "codeSyntax": {
-        "WEB": "var(--color-brand-primary)"
-      },
-      "valuesByMode": {
-        "Default": "#7c3aed"
-      }
-    }
-  ],
-  'list_collections': [
-    [
-      {
-        "id": "VariableCollectionId:1:2",
-        "name": "Primitives",
-        "modes": [
-          {
-            "modeId": "1:0",
-            "name": "Default"
-          }
-        ],
-        "variableCount": 12
-      }
-    ]
-  ],
-  'get_node_variables': [
-    {
-      "nodeId": "1:24",
-      "bindings": {
-        "fills": [
-          {
-            "variableId": "VariableID:1:12",
-            "variableName": "color/brand/primary",
-            "collectionId": "VariableCollectionId:1:2"
-          }
+      "result": {
+        "pages": [
+          "Page 1",
+          "Components"
         ]
       }
-    }
-  ],
-  'set_variable_binding': [
+    },
     {
-      "ok": true
+      "ok": false,
+      "error": "figma.notify is not a function"
     }
   ],
   'set_explicit_variable_mode': [
-    {
-      "ok": true
-    }
-  ],
-  'create_variable': [
-    {
-      "id": "VariableID:1:30",
-      "name": "spacing/md",
-      "resolvedType": "FLOAT"
-    }
-  ],
-  'update_variable': [
-    {
-      "ok": true,
-      "id": "VariableID:1:30"
-    }
-  ],
-  'delete_variable': [
-    {
-      "ok": true
-    }
-  ],
-  'create_collection': [
-    {
-      "id": "VariableCollectionId:1:2",
-      "name": "Semantic",
-      "modes": [
-        {
-          "modeId": "1:0",
-          "name": "Mode 1"
-        }
-      ]
-    }
-  ],
-  'delete_collection': [
     {
       "ok": true
     }
@@ -1660,34 +958,6 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
       "ok": true,
       "variableId": "VariableID:1:40",
       "aliasTo": "color/brand/primary"
-    }
-  ],
-  'export_variables': [
-    {
-      "count": 1,
-      "variables": [
-        {
-          "path": "color.brand.primary",
-          "type": "color",
-          "valuesByMode": {
-            "Default": "#7c3aed"
-          },
-          "description": "Primary brand color",
-          "scopes": [
-            "ALL_FILLS"
-          ]
-        }
-      ]
-    }
-  ],
-  'batch_create_variables': [
-    {
-      "created": 2,
-      "skipped": 0,
-      "failed": 0,
-      "errors": [],
-      "collectionId": "VariableCollectionId:1:2",
-      "description": "Array of variables to create"
     }
   ],
   'list_tokens': [
@@ -1871,92 +1141,6 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
         }
       ],
       "total": 1
-    }
-  ],
-  'list_styles': [
-    {
-      "count": 2,
-      "styles": [
-        {
-          "id": "Style:1",
-          "name": "Color/Brand/Primary",
-          "type": "PAINT",
-          "description": "Primary brand color",
-          "paints": [
-            {
-              "type": "SOLID",
-              "visible": true,
-              "opacity": 1,
-              "color": "#7c3aed"
-            }
-          ]
-        },
-        {
-          "id": "Style:2",
-          "name": "Text/Heading/L",
-          "type": "TEXT",
-          "fontName": {
-            "family": "Inter",
-            "style": "Bold"
-          },
-          "fontSize": 32
-        }
-      ]
-    }
-  ],
-  'get_style': [
-    {
-      "id": "Style:1",
-      "name": "Color/Brand/Primary",
-      "type": "PAINT",
-      "description": "Primary brand color",
-      "paints": [
-        {
-          "type": "SOLID",
-          "visible": true,
-          "opacity": 1,
-          "color": "#7c3aed"
-        }
-      ]
-    }
-  ],
-  'sync_styles': [
-    {
-      "created": 2,
-      "updated": 1,
-      "skipped": 0,
-      "failed": 0,
-      "failures": []
-    }
-  ],
-  'create_paint_style': [
-    {
-      "id": "Style:10",
-      "name": "Color/Brand/Primary"
-    }
-  ],
-  'delete_style': [
-    {
-      "ok": true
-    }
-  ],
-  'update_paint_style': [
-    {
-      "id": "Style:10",
-      "name": "Color/Brand/Accent"
-    }
-  ],
-  'update_text_style': [
-    {
-      "id": "Style:11",
-      "name": "Text/Heading/L",
-      "fontSize": 32
-    }
-  ],
-  'update_effect_style': [
-    {
-      "id": "Style:12",
-      "name": "Shadow/Card/Default"
     }
   ],
   'register_library_styles': [
@@ -2371,6 +1555,38 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
       "markdown": "# Prototype Flow Documentation"
     }
   ],
+  'add_reaction': [
+    {
+      "ok": true,
+      "reactionCount": 1
+    }
+  ],
+  'remove_reaction': [
+    {
+      "ok": true,
+      "removed": 1,
+      "remaining": 0
+    }
+  ],
+  'set_reactions': [
+    {
+      "ok": true,
+      "reactionCount": 2
+    }
+  ],
+  'connect_screens': [
+    {
+      "connected": 3,
+      "total": 3,
+      "flowAnalysis": {
+        "totalScreens": 4,
+        "totalInteractions": 3,
+        "entryPoints": [],
+        "deadEnds": [],
+        "loops": 0
+      }
+    }
+  ],
   'lint_check': [
     {
       "summary": {
@@ -2471,6 +1687,44 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
       "ok": true
     }
   ],
+  'stage_changes': [
+    {
+      "staged": 3,
+      "errors": [],
+      "stagedNodeIds": [
+        "1:23",
+        "1:24",
+        "1:25"
+      ]
+    }
+  ],
+  'commit_changes': [
+    {
+      "committed": 3,
+      "errors": [],
+      "remainingStaged": []
+    }
+  ],
+  'discard_changes': [
+    {
+      "discarded": 2,
+      "errors": [],
+      "remainingStaged": [
+        "1:25"
+      ]
+    }
+  ],
+  'list_staged': [
+    {
+      "staged": [
+        {
+          "nodeId": "1:23",
+          "name": "Login Screen"
+        }
+      ],
+      "count": 1
+    }
+  ],
 };
 
 export const GENERATED_ENDPOINT_METHOD_RESPONSE_SCHEMAS: Record<string, Record<string, z.ZodTypeAny>> = {
@@ -2516,65 +1770,11 @@ export const GENERATED_ENDPOINT_METHOD_RESPONSE_SCHEMAS: Record<string, Record<s
           error: z.string().optional(),
         })),
     }),
-    'clone': z.object({
-      id: z.string(),
-      name: z.string(),
-      type: z.string(),
-      width: z.number().optional(),
-      height: z.number().optional(),
-    }),
-    'insert_child': z.object({
-      ok: z.boolean(),
-      error: z.string().optional(),
-    }),
   },
   'text': {
-    'create': z.object({
-      id: z.string(),
-      name: z.string(),
-      type: z.string(),
-      characters: z.string().optional(),
-      fontSize: z.number().optional(),
-      autoBound: z.record(z.unknown()).optional(),
-    }),
     'set_content': z.object({
       ok: z.boolean(),
       error: z.string().optional(),
-    }),
-  },
-  'shapes': {
-    'create_frame': z.object({
-      id: z.string(),
-      name: z.string(),
-      type: z.string(),
-      width: z.number().optional(),
-      height: z.number().optional(),
-      layoutMode: z.string().optional(),
-      autoBound: z.string().optional(),
-    }),
-    'create_rectangle': z.object({
-      id: z.string(),
-      name: z.string(),
-      type: z.string(),
-      width: z.number().optional(),
-      height: z.number().optional(),
-      cornerRadius: z.unknown().optional(),
-      autoBound: z.string().optional(),
-    }),
-    'create_ellipse': z.object({
-      id: z.string(),
-      name: z.string(),
-      type: z.string(),
-      width: z.number().optional(),
-      height: z.number().optional(),
-      autoBound: z.string().optional(),
-    }),
-    'create_vector': z.object({
-      id: z.string(),
-      name: z.string(),
-      type: z.string(),
-      width: z.number().optional(),
-      height: z.number().optional(),
     }),
   },
   'components': {
@@ -2602,14 +1802,6 @@ export const GENERATED_ENDPOINT_METHOD_RESPONSE_SCHEMAS: Record<string, Record<s
       description: z.string().optional(),
       key: z.string().optional(),
       componentPropertyDefinitions: z.record(z.unknown()).optional(),
-    }),
-    'create_instance': z.object({
-      id: z.string(),
-      name: z.string(),
-      type: z.string(),
-      width: z.number().optional(),
-      height: z.number().optional(),
-      error: z.string().optional(),
     }),
     'list_properties': z.object({
       properties: z.array(z.object({
@@ -2833,78 +2025,11 @@ export const GENERATED_ENDPOINT_METHOD_RESPONSE_EXAMPLES: Record<string, Record<
         ]
       }
     ],
-    'clone': [
-      {
-        "id": "60:1",
-        "name": "Cloned Card",
-        "type": "FRAME",
-        "width": 320,
-        "height": 180
-      }
-    ],
-    'insert_child': [
-      {
-        "ok": true
-      }
-    ],
   },
   'text': {
-    'create': [
-      {
-        "id": "30:2",
-        "name": "Hero Title",
-        "type": "TEXT",
-        "characters": "Ship Faster",
-        "fontSize": 32,
-        "autoBound": {
-          "color": "text/primary"
-        }
-      }
-    ],
     'set_content': [
       {
         "ok": true
-      }
-    ],
-  },
-  'shapes': {
-    'create_frame': [
-      {
-        "id": "30:1",
-        "name": "Card Frame",
-        "type": "FRAME",
-        "width": 320,
-        "height": 180,
-        "layoutMode": "VERTICAL",
-        "autoBound": "surface/default"
-      }
-    ],
-    'create_rectangle': [
-      {
-        "id": "50:1",
-        "name": "Card Background",
-        "type": "RECTANGLE",
-        "width": 320,
-        "height": 180,
-        "cornerRadius": 24
-      }
-    ],
-    'create_ellipse': [
-      {
-        "id": "50:2",
-        "name": "Avatar Dot",
-        "type": "ELLIPSE",
-        "width": 40,
-        "height": 40
-      }
-    ],
-    'create_vector': [
-      {
-        "id": "70:1",
-        "name": "Arrow Icon",
-        "type": "FRAME",
-        "width": 24,
-        "height": 24
       }
     ],
   },
@@ -2940,15 +2065,6 @@ export const GENERATED_ENDPOINT_METHOD_RESPONSE_EXAMPLES: Record<string, Record<
         "type": "COMPONENT",
         "description": "Main call-to-action button",
         "key": "button-primary-key"
-      }
-    ],
-    'create_instance': [
-      {
-        "id": "40:1",
-        "name": "Button / Primary",
-        "type": "INSTANCE",
-        "width": 160,
-        "height": 48
       }
     ],
     'list_properties': [

@@ -13,7 +13,6 @@ import { z } from 'zod';
 import {
   nodesEndpointSchema,
   textEndpointSchema,
-  shapesEndpointSchema,
   componentsEndpointSchema,
   variables_epEndpointSchema,
   styles_epEndpointSchema,
@@ -30,13 +29,12 @@ import {
 const ALL_ENDPOINT_SCHEMAS: Record<string, Record<string, z.ZodTypeAny>> = {
   nodes: nodesEndpointSchema,
   text: textEndpointSchema,
-  shapes: shapesEndpointSchema,
   components: componentsEndpointSchema,
   variables_ep: variables_epEndpointSchema,
   styles_ep: styles_epEndpointSchema,
 };
 
-const EXPECTED_ENDPOINTS = ['nodes', 'text', 'shapes', 'components', 'variables_ep', 'styles_ep'];
+const EXPECTED_ENDPOINTS = ['nodes', 'text', 'components', 'variables_ep', 'styles_ep'];
 
 // ─── 1. _generated.ts exports endpoint Zod schemas for all 6 endpoints ───
 
@@ -69,7 +67,7 @@ describe('endpoint schema method field', () => {
 // ─── 3. nodes endpoint accepts valid methods and rejects invalid ones ───
 
 describe('nodes endpoint method validation', () => {
-  const validMethods = ['get', 'list', 'update', 'delete', 'clone', 'insert_child'];
+  const validMethods = ['get', 'list', 'update', 'delete'];
   const zodObj = z.object(nodesEndpointSchema);
 
   it.each(validMethods)('accepts valid method "%s"', (method) => {
@@ -77,7 +75,7 @@ describe('nodes endpoint method validation', () => {
     expect(result.success).toBe(true);
   });
 
-  it.each(['create', 'move', 'rename', ''])('rejects invalid method "%s"', (method) => {
+  it.each(['create', 'move', 'rename', '', 'clone', 'insert_child'])('rejects invalid method "%s"', (method) => {
     const result = zodObj.safeParse({ method });
     expect(result.success).toBe(false);
   });
@@ -101,22 +99,11 @@ describe('GENERATED_ENDPOINT_METHOD_ACCESS write/access correctness', () => {
     expect(nodes['list']).toEqual({ write: false });
     expect(nodes['update']).toEqual({ write: true, access: 'edit' });
     expect(nodes['delete']).toEqual({ write: true, access: 'edit' });
-    expect(nodes['clone']).toEqual({ write: true, access: 'create' });
-    expect(nodes['insert_child']).toEqual({ write: true, access: 'edit' });
   });
 
   it('text endpoint methods have correct write/access', () => {
     const text = GENERATED_ENDPOINT_METHOD_ACCESS['text'];
-    expect(text['create']).toEqual({ write: true, access: 'create' });
     expect(text['set_content']).toEqual({ write: true, access: 'edit' });
-  });
-
-  it('shapes endpoint methods are all write+create', () => {
-    const shapes = GENERATED_ENDPOINT_METHOD_ACCESS['shapes'];
-    for (const method of Object.values(shapes)) {
-      expect(method.write).toBe(true);
-      expect(method.access).toBe('create');
-    }
   });
 
   it('components endpoint read methods are not write', () => {
@@ -125,7 +112,6 @@ describe('GENERATED_ENDPOINT_METHOD_ACCESS write/access correctness', () => {
     expect(comp['list_library'].write).toBe(false);
     expect(comp['get'].write).toBe(false);
     expect(comp['list_properties'].write).toBe(false);
-    expect(comp['create_instance']).toEqual({ write: true, access: 'create' });
   });
 
   it('variables_ep has both read and write methods', () => {
@@ -149,8 +135,8 @@ describe('GENERATED_ENDPOINT_METHOD_ACCESS write/access correctness', () => {
 // ─── 6. GENERATED_ENDPOINT_TOOLS contains exactly the 6 endpoint names ───
 
 describe('GENERATED_ENDPOINT_TOOLS', () => {
-  it('contains exactly the 6 expected endpoint names', () => {
-    expect(GENERATED_ENDPOINT_TOOLS.size).toBe(6);
+  it('contains exactly the 5 expected endpoint names', () => {
+    expect(GENERATED_ENDPOINT_TOOLS.size).toBe(5);
     for (const ep of EXPECTED_ENDPOINTS) {
       expect(GENERATED_ENDPOINT_TOOLS.has(ep)).toBe(true);
     }
@@ -176,7 +162,7 @@ describe('GENERATED_ENDPOINT_REPLACES', () => {
 
   it('nodes replaces the expected flat tools', () => {
     expect(GENERATED_ENDPOINT_REPLACES['nodes']).toEqual(
-      expect.arrayContaining(['get_node_info', 'search_nodes', 'patch_nodes', 'delete_nodes', 'clone_node', 'insert_child']),
+      expect.arrayContaining(['get_node_info', 'search_nodes', 'patch_nodes', 'delete_nodes']),
     );
   });
 });
@@ -198,7 +184,6 @@ const ALL_ENDPOINT_NAMES = Object.keys(GENERATED_ENDPOINT_METHOD_ACCESS);
 const ALL_ENDPOINT_SCHEMAS_MAP: Record<string, Record<string, z.ZodTypeAny>> = {
   nodes: nodesEndpointSchema,
   text: textEndpointSchema,
-  shapes: shapesEndpointSchema,
   components: componentsEndpointSchema,
   variables_ep: variables_epEndpointSchema,
   styles_ep: styles_epEndpointSchema,

@@ -4,6 +4,7 @@
 
 import { registerHandler } from '../registry.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
+import { assertHandler } from '../utils/handler-error.js';
 
 export function registerExportHandlers(): void {
 
@@ -17,9 +18,11 @@ registerHandler('export_image', async (params) => {
   const scale = (params.scale as number) ?? 2;
 
   const node = await findNodeByIdAsync(nodeId);
-  if (!node || !('exportAsync' in node)) {
-    return { error: `Node not found or not exportable: ${nodeId}` };
-  }
+  assertHandler(
+    node && 'exportAsync' in node,
+    `Node not found or not exportable: ${nodeId}`,
+    'NOT_FOUND',
+  );
 
   const exportNode = node as SceneNode & { exportAsync: (settings: ExportSettings) => Promise<Uint8Array> };
 

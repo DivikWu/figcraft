@@ -87,7 +87,7 @@ export interface ChannelAnnounceMessage {
   designChannel: ChannelId;
 }
 
-/** Progress message sent by the plugin during long-running operations (e.g. create_document). */
+/** Progress message sent by the plugin during long-running operations. */
 export interface CommandProgressMessage {
   type: 'command_progress';
   channel: ChannelId;

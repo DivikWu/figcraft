@@ -235,12 +235,20 @@ function setupRelay(wss: WebSocketServer, state: RelayState): void {
           for (const existing of members) {
             if (existing.role === msg.role && existing.ws !== ws) {
               state.stats.sameRoleEvictions++;
+              const timeSinceConnect = Date.now() - Date.parse(existing.connectedAt);
               relayLog('same_role_eviction', {
                 channel: msg.channel,
                 role: msg.role,
                 replacedSocketId: existing.socketId,
                 replacementSocketId: socketId,
+                replacedAgeMs: timeSinceConnect,
               });
+              if (state.stats.sameRoleEvictions > 3) {
+                relayLog('same_role_eviction_warning', {
+                  message: 'Frequent evictions detected — likely multiple MCP server instances connecting to the same channel. Check for duplicate figcraft entries in .mcp.json, .kiro/settings/mcp.json, and .vscode/mcp.json.',
+                  totalEvictions: state.stats.sameRoleEvictions,
+                });
+              }
               members.delete(existing);
               try {
                 existing.ws.close(4001, `Replaced by new ${msg.role}`);
@@ -430,7 +438,9 @@ import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 
 const __filename = fileURLToPath(import.meta.url);
-const isDirectRun = !process.argv[1] || resolve(process.argv[1]) === __filename;
+const isDirectRun = process.env.FIGCRAFT_RELAY_DIRECT === '1'
+  || !process.argv[1]
+  || resolve(process.argv[1]) === __filename;
 if (isDirectRun) {
   startRelay().then(({ wss, server }) => {
     process.on('SIGINT', () => {

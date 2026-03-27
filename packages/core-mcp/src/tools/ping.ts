@@ -22,6 +22,16 @@ export function registerPing(server: McpServer, bridge: Bridge): void {
     },
     async () => {
       if (!bridge.isConnected) {
+        // Try reconnecting — the bridge may have been evicted or disconnected
+        try {
+          await bridge.connect();
+          await bridge.discoverPluginChannel();
+        } catch {
+          // Still not connected
+        }
+      }
+
+      if (!bridge.isConnected) {
         return {
           content: [
             {
@@ -70,6 +80,47 @@ export function registerPing(server: McpServer, bridge: Bridge): void {
           ],
         };
       } catch (err) {
+        // Ping failed — the plugin may be on a different channel.
+        // Try auto-discovering the correct channel and retry once.
+        try {
+          await bridge.discoverPluginChannel();
+          const retryStart = Date.now();
+          const retryResult = await bridge.request('ping', {}) as Record<string, unknown>;
+          const retryLatency = Date.now() - retryStart;
+
+          const pluginVersion = retryResult.pluginVersion as string | undefined;
+          let versionWarning: string | undefined;
+          if (pluginVersion && pluginVersion !== SERVER_VERSION) {
+            versionWarning = `Version mismatch: MCP Server ${SERVER_VERSION}, Plugin ${pluginVersion}. Please rebuild the plugin.`;
+          }
+
+          const fileKey = retryResult.fileKey as string | undefined;
+          const documentName = retryResult.documentName as string | undefined;
+          if (fileKey && documentName) {
+            setFileContext(fileKey, documentName);
+          }
+
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({
+                  connected: true,
+                  latency: `${retryLatency}ms`,
+                  serverVersion: SERVER_VERSION,
+                  pluginVersion: pluginVersion ?? 'unknown',
+                  ...(versionWarning ? { versionWarning } : {}),
+                  _channelAutoSwitched: bridge.currentChannel,
+                  _hint: 'Connection OK (auto-switched channel). Proceed with your task.',
+                  result: retryResult,
+                }),
+              },
+            ],
+          };
+        } catch {
+          // Auto-discovery also failed — return original error
+        }
+
         return {
           content: [
             {

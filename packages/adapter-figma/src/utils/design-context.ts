@@ -4,10 +4,11 @@
  * Architecture:
  * - get_mode returns lightweight collection index + defaults (no variable lists)
  * - Variables loaded per-collection on first use
- * - Typography mapping built on first create_text (imports font-size vars to read values)
+ * - Typography mapping built on first text creation (imports font-size vars to read values)
  */
 
 import { STORAGE_KEYS } from '../constants.js';
+import { registerCache } from './cache-manager.js';
 
 // ─── Types ───
 
@@ -347,7 +348,7 @@ export async function getLibraryDesignContext(
     typoCol
       ? getCollectionVariables(typoCol.key).then(extractTypographyScales).catch(() => [] as string[])
       : Promise.resolve([] as string[]),
-    // Preheat typography mapping in parallel — avoids cold-start latency on first create_text
+    // Preheat typography mapping in parallel — avoids cold-start latency on first text creation
     typoCol ? getTypographyMapping(libraryName).catch(() => {}) : Promise.resolve(),
   ]);
 
@@ -421,6 +422,9 @@ export function clearDesignContextCache(): void {
   _variableImportCache.clear();
   _colorVarCache = null;
 }
+
+// Register with centralized cache manager
+registerCache('design-context', clearDesignContextCache);
 
 /**
  * Auto-bind a default color variable to a node's fills.
@@ -606,10 +610,6 @@ export async function suggestColorVariable(
   return null;
 }
 
-/** Clear the color variable cache (called on library switch). */
-export function clearColorVarCache(): void {
-  _colorVarCache = null;
-}
 
 /**
  * 3-level variable resolution strategy:

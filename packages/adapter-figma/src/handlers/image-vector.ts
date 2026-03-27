@@ -5,6 +5,7 @@
 import { registerHandler } from '../registry.js';
 import { simplifyNode } from '../adapters/node-simplifier.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
+import { assertHandler, HandlerError } from '../utils/handler-error.js';
 
 export function registerImageVectorHandlers(): void {
 
@@ -14,9 +15,7 @@ registerHandler('set_image_fill', async (params) => {
   const scaleMode = ((params.scaleMode as string) ?? 'FILL').toUpperCase() as 'FILL' | 'FIT' | 'CROP' | 'TILE';
 
   const node = await findNodeByIdAsync(nodeId);
-  if (!node || !('fills' in node)) {
-    return { error: `Node not found or does not support fills: ${nodeId}` };
-  }
+  assertHandler(node && 'fills' in node, `Node not found or does not support fills: ${nodeId}`, 'NOT_FOUND');
 
   const bytes = figma.base64Decode(imageData);
   const image = figma.createImage(bytes);
@@ -40,7 +39,7 @@ registerHandler('create_vector', async (params) => {
   try {
     vectorNode = figma.createNodeFromSvg(svgString);
   } catch (err) {
-    return { error: `Failed to parse SVG: ${err instanceof Error ? err.message : String(err)}` };
+    throw new HandlerError(`Failed to parse SVG: ${err instanceof Error ? err.message : String(err)}`);
   }
   vectorNode.name = name;
 
@@ -64,9 +63,7 @@ registerHandler('create_vector', async (params) => {
 registerHandler('flatten_node', async (params) => {
   const nodeId = params.nodeId as string;
   const node = await findNodeByIdAsync(nodeId);
-  if (!node || !('type' in node)) {
-    return { error: `Node not found: ${nodeId}` };
-  }
+  assertHandler(node && 'type' in node, `Node not found: ${nodeId}`, 'NOT_FOUND');
 
   const sceneNode = node as SceneNode;
   const flat = figma.flatten([sceneNode]);

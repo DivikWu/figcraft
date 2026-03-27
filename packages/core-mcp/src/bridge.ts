@@ -6,6 +6,7 @@
  */
 
 import WebSocket from 'ws';
+import http from 'node:http';
 import type { ChannelId, RequestId } from '@figcraft/shared';
 import {
   generateId,
@@ -41,9 +42,11 @@ export class Bridge {
   private libraryFileKeys = new Map<string, string>();
   private reconnectAttempts = 0;
   private missedPongs = 0;
+  private lastPongTs = 0;
   private connectionWaiters: Array<() => void> = [];
   private intentionalDisconnect = false;
-  private static readonly MAX_MISSED_PONGS = 2;
+  private static readonly MAX_MISSED_PONGS = 3;
+  private static readonly MAX_REQUEST_RECONNECT_ATTEMPTS = 2;
 
   constructor(
     private relayUrl: string,
@@ -60,36 +63,48 @@ export class Bridge {
     this.connecting = true;
     this.intentionalDisconnect = false;
 
+    // Terminate any lingering previous socket before creating a new one.
+    // This prevents same_role_eviction loops where the relay sees two mcp
+    // sockets on the same channel (the old one not yet fully closed at TCP level).
+    if (this.ws) {
+      const oldWs = this.ws;
+      this.ws = null;
+      try { oldWs.removeAllListeners(); oldWs.terminate(); } catch { /* already closed */ }
+    }
+
     return new Promise<void>((resolve, reject) => {
       let settled = false;
-      this.ws = new WebSocket(this.relayUrl);
+      const ws = new WebSocket(this.relayUrl);
+      this.ws = ws;
 
       // Guard against connections that never open and never error
       const connectTimeout = setTimeout(() => {
         if (!settled) {
           settled = true;
           this.connecting = false;
-          this.ws?.terminate();
+          ws.terminate();
           reject(new Error(`Connection to relay timed out after ${Bridge.CONNECT_TIMEOUT_MS}ms`));
         }
       }, Bridge.CONNECT_TIMEOUT_MS);
 
-      this.ws.on('open', () => {
+      ws.on('open', () => {
         clearTimeout(connectTimeout);
         this.connected = true;
         this.connecting = false;
         this.reconnectAttempts = 0;
         this.missedPongs = 0;
         // Join data channel + control channel
-        this.ws!.send(JSON.stringify({ type: 'join', channel: this.channel, role: 'mcp' }));
-        this.ws!.send(JSON.stringify({ type: 'join', channel: CONTROL_CHANNEL, role: 'mcp' }));
+        ws.send(JSON.stringify({ type: 'join', channel: this.channel, role: 'mcp' }));
+        ws.send(JSON.stringify({ type: 'join', channel: CONTROL_CHANNEL, role: 'mcp' }));
         this.startHeartbeat();
         this.notifyConnectionWaiters();
         settled = true;
         resolve();
       });
 
-      this.ws.on('message', (raw) => {
+      ws.on('message', (raw) => {
+        // Ignore messages from stale sockets
+        if (this.ws !== ws) return;
         let msg: unknown;
         try {
           msg = JSON.parse(raw.toString());
@@ -119,6 +134,7 @@ export class Bridge {
 
         if (isPongMessage(msg)) {
           this.missedPongs = 0;
+          this.lastPongTs = Date.now();
           return;
         }
 
@@ -131,7 +147,7 @@ export class Bridge {
         }
 
         // Progress messages extend the timeout of the associated pending request.
-        // This prevents long-running operations (e.g. create_document with many nodes)
+        // This prevents long-running operations (e.g. batch node updates)
         // from timing out while the plugin is still actively working.
         if (isCommandProgressMessage(msg)) {
           const req = this.pending.get(msg.commandId);
@@ -167,7 +183,6 @@ export class Bridge {
 
         if (isResolveFileNameMessage(msg)) {
           const token = this.apiToken;
-          const ws = this.ws;
           if (!token || !ws) {
             ws?.send(JSON.stringify({ type: 'file-name-resolved', channel: this.channel, fileKey: msg.fileKey, url: msg.url, name: null, error: 'No API token configured' }));
             return;
@@ -185,8 +200,29 @@ export class Bridge {
         }
       });
 
-      this.ws.on('close', () => {
+      ws.on('close', (code, reason) => {
         clearTimeout(connectTimeout);
+        // Ignore close events from stale sockets replaced by a newer connection.
+        if (this.ws !== ws) return;
+        // code 4001 = same_role_eviction: this socket was replaced by another MCP
+        // instance on the same channel. Do NOT reconnect — it would create an
+        // infinite eviction loop. Log a clear warning instead.
+        if (code === 4001) {
+          console.error(`[FigCraft bridge] evicted by another MCP instance (4001: ${reason?.toString()}). Check for duplicate figcraft server configs in .mcp.json / .kiro/settings/mcp.json / .vscode/mcp.json.`);
+          this.connected = false;
+          this.connecting = false;
+          this.stopHeartbeat();
+          this.rejectAllPending('Connection closed');
+          if (!this.intentionalDisconnect) {
+            this.scheduleReconnect();
+          }
+          if (!settled) {
+            settled = true;
+            reject(new Error('Connection closed during handshake'));
+          }
+          return;
+        }
+        console.error(`[FigCraft bridge] connection closed (code=${code})`);
         this.connected = false;
         this.connecting = false;
         this.stopHeartbeat();
@@ -200,9 +236,10 @@ export class Bridge {
         }
       });
 
-      this.ws.on('error', (err) => {
+      ws.on('error', (err) => {
         clearTimeout(connectTimeout);
         console.error('[FigCraft bridge] ws error:', err.message);
+        if (this.ws !== ws) return; // stale socket
         if (!settled) {
           settled = true;
           this.connecting = false;
@@ -218,7 +255,21 @@ export class Bridge {
     if (!this.ws || !this.connected) {
       await this.waitForConnection(10_000);
     }
+    // Active reconnection: if still disconnected and not intentionally disconnected,
+    // attempt to reconnect (like ping/get_mode do) before giving up.
     if (!this.ws || !this.connected) {
+      if (!this.intentionalDisconnect) {
+        for (let attempt = 0; attempt < Bridge.MAX_REQUEST_RECONNECT_ATTEMPTS; attempt++) {
+          console.error(`[FigCraft bridge] request() triggering active reconnect for ${method} (attempt ${attempt + 1}/${Bridge.MAX_REQUEST_RECONNECT_ATTEMPTS})`);
+          try {
+            await this.connect();
+            await this.discoverPluginChannel();
+            if (this.connected) break;
+          } catch { /* continue to next attempt */ }
+        }
+      }
+    }
+    if (!this.ws || !this.connected || this.ws.readyState !== 1) {
       throw new Error('Bridge not connected');
     }
 
@@ -304,6 +355,7 @@ export class Bridge {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    this.connected = false;
     this.rejectAllPending('Disconnected');
     // Reject any pending connection waiters so they don't hang until timeout
     this.notifyConnectionWaiters();
@@ -311,7 +363,6 @@ export class Bridge {
       this.ws.close();
       this.ws = null;
     }
-    this.connected = false;
   }
 
   get isConnected(): boolean {
@@ -340,6 +391,62 @@ export class Bridge {
   /** Set the file key for a library (from plugin response or UI). */
   setLibraryFileKey(library: string, fileKey: string): void {
     this.libraryFileKeys.set(library, fileKey);
+  }
+
+  /**
+   * Query the Relay's /channels HTTP endpoint to find a channel with an active
+   * plugin connection. If found and different from the current channel, auto-switch.
+   * This solves the common mismatch where MCP Server starts on one channel but
+   * the Figma plugin is on another.
+   */
+  async discoverPluginChannel(): Promise<void> {
+    if (!this.connected) return;
+
+    // Derive HTTP URL from the WebSocket relay URL (same host:port)
+    const httpUrl = this.relayUrl.replace(/^ws/, 'http');
+    const channelsUrl = `${httpUrl}/channels`;
+
+    try {
+      const body = await new Promise<string>((resolve, reject) => {
+        const req = http.get(channelsUrl, { timeout: 3000 }, (res) => {
+          let data = '';
+          res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
+          res.on('end', () => resolve(data));
+        });
+        req.on('error', reject);
+        req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+      });
+
+      const json = JSON.parse(body) as {
+        ok: boolean;
+        channels: Array<{
+          channel: string;
+          roles: string[];
+          members: Array<{ role: string }>;
+        }>;
+      };
+
+      if (!json.ok || !json.channels) return;
+
+      // Find channels that have a plugin member but exclude the control channel
+      const pluginChannels = json.channels.filter(
+        (ch) => ch.channel !== '__control__' && ch.roles.includes('plugin'),
+      );
+
+      if (pluginChannels.length === 0) return;
+
+      // If current channel already has a plugin, no switch needed
+      if (pluginChannels.some((ch) => ch.channel === this.channel)) return;
+
+      // Switch to the first channel that has a plugin
+      const target = pluginChannels[0].channel;
+      console.error(
+        `[FigCraft bridge] auto-discovered plugin on channel "${target}", switching from "${this.channel}"`,
+      );
+      this.joinChannel(target);
+    } catch {
+      // Discovery is best-effort — silently ignore failures
+    }
   }
 
   /** Switch to a different channel. Re-joins the relay with the new channel. */
@@ -377,8 +484,8 @@ export class Bridge {
     const limitKB = Math.round(Bridge.MAX_RESPONSE_CHARS / 1024);
     const defaultHints = [
       'Use maxDepth=1 or maxDepth=2 to limit tree depth',
-      'Use get_node_info on specific nodes instead of fetching the full tree',
-      'Use search_nodes with a query to find specific nodes',
+      'Use nodes(method: "get") on specific nodes instead of fetching the full tree',
+      'Use nodes(method: "list") with a query to find specific nodes',
     ];
     return {
       _error: 'response_too_large',
@@ -396,11 +503,19 @@ export class Bridge {
 
   private startHeartbeat(): void {
     this.missedPongs = 0;
+    this.lastPongTs = Date.now();
     this.heartbeatTimer = setInterval(() => {
       if (this.ws && this.connected) {
         this.missedPongs++;
         if (this.missedPongs > Bridge.MAX_MISSED_PONGS) {
-          console.error(`[FigCraft bridge] relay unresponsive (${this.missedPongs} missed pongs), forcing reconnect`);
+          // Guard: if we received a pong recently (within 2× heartbeat interval),
+          // the relay is alive but pongs are arriving late. Reset instead of terminating.
+          const sincePong = Date.now() - this.lastPongTs;
+          if (sincePong < HEARTBEAT_INTERVAL_MS * 2) {
+            this.missedPongs = 1;
+            return;
+          }
+          console.error(`[FigCraft bridge] relay unresponsive (${this.missedPongs} missed pongs, last pong ${sincePong}ms ago), forcing reconnect`);
           this.ws.terminate();
           return;
         }
@@ -425,8 +540,7 @@ export class Bridge {
   }
 
   private scheduleReconnect(): void {
-    if (this.reconnectTimer) return;
-    // Exponential backoff: 1s, 2s, 4s, 8s … capped at 60s, with ±20% jitter
+    if (this.reconnectTimer) return;    // Exponential backoff: 1s, 2s, 4s, 8s … capped at 60s, with ±20% jitter
     const base = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 60_000);
     const jitter = base * 0.2 * (Math.random() * 2 - 1);
     const delay = Math.round(base + jitter);

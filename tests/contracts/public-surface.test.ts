@@ -63,7 +63,7 @@ describe('public contract baseline', () => {
     expect(doc).toContain('packages/adapter-figma/manifest.base.json');
     expect(doc).toContain('packages/core-mcp/src/tools/_contracts.ts');
     expect(doc).toContain('docs/generated/api-contracts.md');
-    expect(doc).toContain('GENERATED_FLAT_TOOL_MIGRATIONS');
+    expect(doc).toContain('GENERATED_ENDPOINT_REPLACES');
   });
 
   it('keeps the generated API contract doc present and populated', () => {
@@ -82,22 +82,12 @@ describe('public contract baseline', () => {
     expect(generatedDoc).toContain('join_channel');
     expect(generatedDoc).toContain('get_channel');
     expect(generatedDoc).toContain('list_fonts');
-    expect(generatedDoc).toContain('create_screen');
-    expect(generatedDoc).toContain('create_frame');
-    expect(generatedDoc).toContain('create_text');
-    expect(generatedDoc).toContain('create_instance');
     expect(generatedDoc).toContain('patch_nodes');
     expect(generatedDoc).toContain('delete_nodes');
-    expect(generatedDoc).toContain('clone_node');
-    expect(generatedDoc).toContain('insert_child');
-    expect(generatedDoc).toContain('create_rectangle');
-    expect(generatedDoc).toContain('create_ellipse');
-    expect(generatedDoc).toContain('create_vector');
     expect(generatedDoc).toContain('set_text_content');
     expect(generatedDoc).toContain('save_version_history');
     expect(generatedDoc).toContain('set_current_page');
     expect(generatedDoc).toContain('set_selection');
-    expect(generatedDoc).toContain('set_image_fill');
     expect(generatedDoc).toContain('list_variables');
     expect(generatedDoc).toContain('get_variable');
     expect(generatedDoc).toContain('list_collections');
@@ -183,18 +173,10 @@ describe('public contract baseline', () => {
     expect(generatedDoc).toContain('nodes.list');
     expect(generatedDoc).toContain('nodes.update');
     expect(generatedDoc).toContain('nodes.delete');
-    expect(generatedDoc).toContain('nodes.clone');
-    expect(generatedDoc).toContain('nodes.insert_child');
-    expect(generatedDoc).toContain('text.create');
     expect(generatedDoc).toContain('text.set_content');
-    expect(generatedDoc).toContain('shapes.create_frame');
-    expect(generatedDoc).toContain('shapes.create_rectangle');
-    expect(generatedDoc).toContain('shapes.create_ellipse');
-    expect(generatedDoc).toContain('shapes.create_vector');
     expect(generatedDoc).toContain('components.list');
     expect(generatedDoc).toContain('components.list_library');
     expect(generatedDoc).toContain('components.get');
-    expect(generatedDoc).toContain('components.create_instance');
     expect(generatedDoc).toContain('components.list_properties');
     expect(generatedDoc).toContain('variables_ep.list');
     expect(generatedDoc).toContain('variables_ep.get');

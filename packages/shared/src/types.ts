@@ -34,62 +34,10 @@ export type DtcgType =
   | 'boolean'
   | 'string';
 
-// ─── Sync ───
-
-export interface SyncResult {
-  created: number;
-  updated: number;
-  skipped: number;
-  failed: number;
-  failures: SyncFailure[];
-}
-
-export interface SyncFailure {
-  path: string;
-  error: string;
-}
-
-// ─── Figma Token Status (for diff) ───
-
-export type TokenSyncStatus =
-  | 'in-sync'
-  | 'dtcg-ahead'
-  | 'figma-ahead'
-  | 'conflict'
-  | 'missing-in-figma'
-  | 'missing-in-dtcg';
-
-export interface TokenDiffEntry {
-  path: string;
-  status: TokenSyncStatus;
-  dtcgValue?: unknown;
-  figmaValue?: unknown;
-  figmaVariableId?: string;
-}
-
-// ─── Lint ───
-
-export interface LintReport {
-  summary: { total: number; pass: number; violations: number };
-  categories: LintCategory[];
-  pagination?: { total: number; offset: number; limit: number; hasMore: boolean };
-}
-
-export interface LintCategory {
-  rule: string;
-  count: number;
-  fix: string;
-  nodes: LintViolation[];
-}
-
-export interface LintViolation {
-  nodeId: string;
-  nodeName: string;
-  currentValue: unknown;
-  expectedValue?: unknown;
-  suggestion: string;
-  autoFixable: boolean;
-}
+// NOTE: Sync types (SyncResult, SyncFailure, TokenDiffEntry) and Lint types
+// (LintReport, LintCategory, LintViolation) were removed — they were never
+// imported. Lint types live in @figcraft/quality-engine. Sync types are
+// inlined where needed.
 
 // ─── Compressed Node ───
 
@@ -144,14 +92,5 @@ export interface CompressedNode {
   truncatedChildCount?: number;
 }
 
-// ─── Operation Mode ───
-
-export type OperationMode = 'library' | 'spec';
-
-// ─── Batch Operation ───
-
-export interface BatchResult<T = unknown> {
-  success: number;
-  failed: number;
-  results: Array<{ item: T; ok: boolean; error?: string }>;
-}
+// NOTE: OperationMode and BatchResult were removed — never imported.
+// BatchResult lives in packages/adapter-figma/src/utils/batch.ts.

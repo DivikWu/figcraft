@@ -1,42 +1,9 @@
 /**
  * Tests for buildTokenContext helper in lint tools.
- * We extract and test the logic directly since it's a pure function.
  */
 
 import { describe, it, expect } from 'vitest';
-
-// Replicate the buildTokenContext function from src/mcp-server/tools/lint.ts
-// (it's not exported, so we test the logic inline)
-function buildTokenContext(tokens: Array<{ path: string; type: string; value: unknown }>): Record<string, unknown> {
-  const colorTokens: Record<string, string> = {};
-  const spacingTokens: Record<string, number> = {};
-  const radiusTokens: Record<string, number> = {};
-  const typographyTokens: Record<string, unknown> = {};
-
-  for (const t of tokens) {
-    const name = t.path.replace(/\./g, '/');
-    switch (t.type) {
-      case 'color':
-        if (typeof t.value === 'string') colorTokens[name] = t.value;
-        break;
-      case 'dimension':
-      case 'number': {
-        const num = typeof t.value === 'number' ? t.value : parseFloat(String(t.value));
-        if (t.path.includes('spacing') || t.path.includes('gap') || t.path.includes('padding')) {
-          spacingTokens[name] = num;
-        } else if (t.path.includes('radius') || t.path.includes('corner')) {
-          radiusTokens[name] = num;
-        }
-        break;
-      }
-      case 'typography':
-        typographyTokens[name] = t.value;
-        break;
-    }
-  }
-
-  return { colorTokens, spacingTokens, radiusTokens, typographyTokens, variableIds: {} };
-}
+import { buildTokenContext } from '../packages/core-mcp/src/tools/lint.js';
 
 describe('buildTokenContext', () => {
   it('categorizes color tokens', () => {

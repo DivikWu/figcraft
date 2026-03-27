@@ -1,6 +1,6 @@
 /**
  * Mode logic functions — extracted from mode.ts server.tool() callbacks.
- * Shared by both flat tools and endpoint tools.
+ * Used by get_mode / set_mode standalone tools.
  */
 
 import type { Bridge } from '../../bridge.js';
@@ -14,6 +14,16 @@ export async function getModeLogic(
   bridge: Bridge,
 ): Promise<McpResponse> {
   // Built-in connectivity check (replaces separate ping call in Create workflow)
+  if (!bridge.isConnected) {
+    // Try reconnecting — the bridge may have been evicted or disconnected
+    try {
+      await bridge.connect();
+      await bridge.discoverPluginChannel();
+    } catch {
+      // Still not connected
+    }
+  }
+
   if (!bridge.isConnected) {
     return {
       content: [{
@@ -45,15 +55,34 @@ export async function getModeLogic(
       setFileContext(fileKey, documentName);
     }
   } catch {
-    return {
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify({
-          connected: false,
-          error: 'Plugin not responding. Make sure the FigCraft plugin is open in Figma.',
-        }),
-      }],
-    };
+    // Ping failed — try auto-discovering the plugin's channel and retry
+    try {
+      await bridge.discoverPluginChannel();
+      const retryStart = Date.now();
+      const retryResult = await bridge.request('ping', {}) as Record<string, unknown>;
+      pingLatency = `${Date.now() - retryStart}ms`;
+
+      const pluginVersion = retryResult.pluginVersion as string | undefined;
+      if (pluginVersion && pluginVersion !== SERVER_VERSION) {
+        versionWarning = `Version mismatch: MCP Server ${SERVER_VERSION}, Plugin ${pluginVersion}. Please rebuild the plugin.`;
+      }
+
+      const fileKey = retryResult.fileKey as string | undefined;
+      const documentName = retryResult.documentName as string | undefined;
+      if (fileKey && documentName) {
+        setFileContext(fileKey, documentName);
+      }
+    } catch {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            connected: false,
+            error: 'Plugin not responding. Make sure the FigCraft plugin is open in Figma.',
+          }),
+        }],
+      };
+    }
   }
 
   const result = await bridge.request('get_mode', {}) as {
@@ -83,7 +112,7 @@ export async function getModeLogic(
       console.warn('[FigCraft] Failed to fetch library components:', err);
       (result as Record<string, unknown>).libraryComponentsError =
         `Failed to fetch library components: ${err instanceof Error ? err.message : String(err)}. ` +
-        'Use list_library_components to retry.';
+        'Use components(method: "list_library") to retry.';
     }
   }
 
@@ -115,6 +144,9 @@ export async function getModeLogic(
     ...(versionWarning ? { versionWarning } : {}),
     ...result as Record<string, unknown>,
   };
+
+  // Plugin channel status is reported by `ping` — not duplicated here
+  // to avoid adding latency to get_mode.
 
   return {
     content: [{

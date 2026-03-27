@@ -2,13 +2,13 @@
 
 English | [中文](README.zh-CN.md)
 
-AI-powered Figma plugin with 100+ MCP tools. Two-way bridge between AI IDEs and Figma — design creation, token sync, compliance linting, and auto-fix, all via natural language.
+AI-powered Figma plugin for design quality. Two-way bridge between AI IDEs and Figma — design review, token sync, compliance linting, audit, and auto-fix, all via natural language. UI creation is handled by the [official Figma MCP server](https://developers.figma.com/docs/figma-mcp-server/), while FigCraft focuses on the quality layer that Figma MCP doesn't cover.
 
 ## What can you do with it?
 
-Describe what you want in natural language, and FigCraft makes it happen in Figma:
+Describe what you want in natural language, and FigCraft + Figma MCP make it happen in Figma:
 
-> "Create a card component with 16px padding, bind colors to my design tokens, then lint the whole page"
+> "Create a login screen, then lint the whole page and auto-fix issues"
 
 > "Sync tokens from my DTCG JSON to Figma variables, diff and update"
 
@@ -16,12 +16,12 @@ Describe what you want in natural language, and FigCraft makes it happen in Figm
 
 ## Features
 
-- 🎨 **Design by talking** — tell the AI what UI you need, it builds frames, components, and styles right in Figma — from layout to export
 - 🔍 **Automated design audit** — token bindings, color contrast, spacing, component health — all checked in one pass
-- 🔧 **Lint + fix in one step** — token bindings, spacing, border radius, text size — one command to batch-fix everything flagged
+- 🔧 **Lint + fix in one step** — 35+ rules covering token compliance, WCAG, layout structure — one command to batch-fix everything flagged
 - 🔄 **Two-way token sync** — DTCG JSON ↔ Figma variables, Light/Dark multi-mode in one step. Changed tokens in code? Just sync
 - 🔀 **Dual mode for any team** — Library mode for Figma shared libraries, Spec mode for DTCG JSON — pick what fits your workflow
 - 📐 **Prototype → dev docs** — parse prototype interactions into Mermaid flow diagrams + interaction specs, no more manual handoff docs
+- 🎨 **Create via Figma MCP** — UI creation is handled by the [official Figma MCP server](https://developers.figma.com/docs/figma-mcp-server/); FigCraft provides the quality layer on top (review, lint, audit, token sync)
 
 ## Quick Start
 
@@ -42,11 +42,11 @@ Then in Figma Desktop:
 1. **Plugins → Development → Import plugin from manifest**
 2. Select the `manifest.json` file from the cloned repo
 
-### 2. Add MCP Server to your IDE
+### 2. Add MCP Servers to your IDE
 
-The Figma plugin runs inside Figma, but your AI IDE needs an MCP Server to talk to it. The npm package [`figcraft-design`](https://www.npmjs.com/package/figcraft-design) provides this bridge — just tell your IDE how to start it.
+FigCraft handles design quality (review, lint, audit, token sync). For UI creation, add the [official Figma MCP server](https://developers.figma.com/docs/figma-mcp-server/) alongside it. Both servers run in parallel — the AI IDE routes creation to Figma MCP and quality tasks to FigCraft.
 
-Core config (same for all IDEs):
+FigCraft config (same for all IDEs):
 
 ```json
 {
@@ -58,6 +58,32 @@ Core config (same for all IDEs):
   }
 }
 ```
+
+> FigCraft alone is sufficient if you only need review/lint/audit/token sync. Add the Figma MCP server when you also want AI-driven UI creation.
+
+<details>
+<summary><strong>Adding the official Figma MCP server (for UI creation)</strong></summary>
+
+Figma provides two deployment options:
+
+**Desktop server** (local, runs inside Figma Desktop App):
+1. Open Figma Desktop → Dev Mode → Enable MCP server in the inspect panel
+2. Add to your IDE config:
+```json
+{
+  "mcpServers": {
+    "figma-desktop": {
+      "url": "http://127.0.0.1:3845/mcp"
+    }
+  }
+}
+```
+
+**Remote server** (cloud, broader feature set — recommended by Figma):
+See [Figma's remote server setup guide](https://developers.figma.com/docs/figma-mcp-server/remote-server-installation/).
+
+For full details, see the [official Figma MCP documentation](https://developers.figma.com/docs/figma-mcp-server/).
+</details>
 
 Put it in the right file for your IDE:
 
@@ -95,7 +121,7 @@ Create `.kiro/settings/mcp.json` in your project root. Kiro supports additional 
 }
 ```
 
-Tools are exposed as `mcp_figcraft_*` (e.g. `mcp_figcraft_ping`, `mcp_figcraft_create_frame`).
+Tools are exposed as `mcp_figcraft_*` (e.g. `mcp_figcraft_ping`, `mcp_figcraft_lint_fix_all`).
 
 > **Tip**: This repo includes `.kiro/steering/figcraft.md` as a workflow guide. Copy it to your project's `.kiro/steering/` folder.
 </details>
@@ -126,18 +152,20 @@ To verify the connection works, ask your AI IDE to run the `ping` tool. If it re
 
 ## Architecture
 
+FigCraft operates on a single Plugin Channel to Figma:
+
 ```
 AI IDE (Kiro / Cursor / Claude Code / Antigravity / Codex)
     │ MCP (stdio)
     ▼
 MCP Server (Node.js)
-    │ WebSocket
-    ▼
-WS Relay (port 3055)
-    │ WebSocket
-    ▼
-Figma Plugin (code.js sandbox + UI iframe)
+    └── Plugin Channel ──→ WS Relay (:3055) ──→ Figma Plugin
+        (lint, audit, token sync, node ops)
 ```
+
+- Plugin Channel: WebSocket relay to the FigCraft Figma Plugin. Required for lint/audit (needs full node tree traversal in Plugin sandbox).
+- `ping` checks Plugin Channel connectivity and reports status.
+- Code generation, design system search, Code Connect, and canvas write are provided by Figma Power (Kiro) or the official Figma MCP server, not by FigCraft.
 
 ## Dual Mode
 
@@ -148,13 +176,13 @@ Figma Plugin (code.js sandbox + UI iframe)
 
 Switch modes via `set_mode` tool or the plugin UI.
 
-## Screen Creation Quality
+## UI Creation
 
-- Use `create_screen` for complete screens. It builds the shell first, then appends sections progressively, and finishes with scoped lint/fix.
-- Treat `create_document` as the raw tree path. Use it for smaller subtree inserts or when you need lower-level control over a batch node tree.
-- Add semantic `role` fields on major frames when possible: `screen`, `header`, `hero`, `nav`, `content`, `list`, `row`, `stats`, `card`, `form`, `input`, `button`, `footer`, `actions`, `social_row`, `system_bar`.
-- Explicit `role` defaults and `marginHorizontal` / `marginLeft` / `marginRight` inset wrappers are normalized consistently across both `create_screen` and raw `create_document`.
-- When a filled child needs real outer margin, use `marginHorizontal`, `marginLeft`, or `marginRight`. FigCraft converts them into transparent inset wrappers automatically.
+UI creation (frames, shapes, text, components) is handled by the [official Figma MCP server](https://developers.figma.com/docs/figma-mcp-server/). FigCraft complements it with quality tools:
+
+- After creating UI with Figma MCP, run `lint_fix_all` to check and auto-fix layout, token, and accessibility issues
+- Use `audit_node` for deep quality inspection of specific elements
+- Use `get_design_guidelines` to review design rules before creating
 
 ## Lint Rules (30)
 
@@ -172,7 +200,8 @@ Current lint coverage spans token compliance, WCAG accessibility, layout structu
 |----------|-------------|---------|
 | `FIGCRAFT_RELAY_PORT` | Relay WebSocket port | `3055` |
 | `FIGCRAFT_CHANNEL` | Channel ID | `figcraft` |
-| `FIGMA_API_TOKEN` | Figma Personal Access Token (optional — for REST API access to library components/styles; can also be set in plugin UI or via OAuth) | — |
+| `FIGMA_API_TOKEN` | Figma Personal Access Token (for REST API fallback; can also be set in plugin UI or via OAuth) | — |
+| `FIGCRAFT_ACCESS` | Access control level: `read`, `create`, or `edit` | `edit` |
 
 ## Development
 
@@ -183,17 +212,8 @@ npm install
 npm run build          # Build all (MCP server + relay + plugin)
 npm run build:plugin   # Build Figma plugin only
 npm run typecheck      # TypeScript type check
-npm run bench:quality  # Run screen-level quality benchmark report
-npm run bench:quality:save         # Save reports/benchmarks/latest.json + history snapshot
-npm run bench:dashboard:from-latest  # Render reports/benchmarks/dashboard.md from latest artifact
-npm run bench:gate:from-latest       # Enforce release gate against latest saved artifact
 npm run test           # Run unit tests (vitest)
 ```
-
-Benchmark artifacts:
-- `reports/benchmarks/latest.json` — latest saved benchmark payload
-- `reports/benchmarks/history/*.json` — historical snapshots for comparison
-- `reports/benchmarks/dashboard.md` — dashboard with rule-regression metrics plus generation-quality / release-gate metrics
 
 <details>
 <summary><strong>Run MCP server from source (for development)</strong></summary>
@@ -221,9 +241,6 @@ Before submitting, make sure:
 
 ```bash
 npm run typecheck      # Type check passes
-npm run bench:quality:save         # Save benchmark artifact + history
-npm run bench:dashboard:from-latest  # Refresh dashboard from saved artifact
-npm run bench:gate:from-latest       # Release gate passes on clean benchmark cases
 npm run test           # Tests pass
 ```
 

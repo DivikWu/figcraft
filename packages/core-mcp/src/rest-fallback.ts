@@ -123,8 +123,9 @@ export async function requestWithFallback(
 // ─── Fallback implementations for specific methods ───
 
 /**
- * REST fallback for get_node_info.
+ * REST fallback for nodes(method: "get").
  * Fetches node data via GET /v1/files/:fileKey/nodes?ids=nodeId
+ * Note: function name uses legacy bridge protocol name for internal consistency.
  */
 export async function restGetNodeInfo(
   nodeId: string,
@@ -143,7 +144,7 @@ export async function restGetNodeInfo(
 }
 
 /**
- * REST fallback for get_document_info.
+ * REST fallback for get_document_info (standalone tool).
  * Fetches file overview via GET /v1/files/:fileKey?depth=1
  */
 export async function restGetDocumentInfo(): Promise<unknown> {
@@ -162,7 +163,7 @@ export async function restGetDocumentInfo(): Promise<unknown> {
 }
 
 /**
- * REST fallback for export_image.
+ * REST fallback for export_image (standalone tool).
  * Fetches rendered image URL via GET /v1/images/:fileKey
  */
 export async function restExportImage(

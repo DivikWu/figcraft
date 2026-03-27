@@ -142,18 +142,12 @@ function buildFlowGraph(
     });
   }
 
-  // Detect simple loops via DFS
   const loops = detectLoops(edges);
-
   const entryPoints = nodes.filter((n) => n.role === 'entry').map((n) => n.nodeId);
   const deadEnds = nodes.filter((n) => n.role === 'exit').map((n) => n.nodeId);
 
   return {
-    nodes,
-    edges,
-    entryPoints,
-    deadEnds,
-    loops,
+    nodes, edges, entryPoints, deadEnds, loops,
     stats: {
       totalScreens: nodes.length,
       totalInteractions: edges.length,
@@ -201,28 +195,30 @@ function detectLoops(edges: FlowEdge[]): string[][] {
   return loops;
 }
 
+/** Escape Mermaid special characters in labels. */
+function escapeMermaid(text: string): string {
+  return text.replace(/["[\](){}|<>#&]/g, (ch) => `#${ch.charCodeAt(0)};`);
+}
+
 function generateMermaid(graph: FlowGraph, nameMap: Map<string, string>): string {
   const lines: string[] = ['graph TD'];
   const safeId = (id: string) => id.replace(/[^a-zA-Z0-9]/g, '_');
 
-  // Node declarations
   for (const node of graph.nodes) {
-    const label = nameMap.get(node.nodeId) ?? node.nodeId;
-    const escaped = label.replace(/"/g, '#quot;');
+    const label = escapeMermaid(nameMap.get(node.nodeId) ?? node.nodeId);
     if (node.role === 'entry') {
-      lines.push(`  ${safeId(node.nodeId)}(["🟢 ${escaped}"])`);
+      lines.push(`  ${safeId(node.nodeId)}(["🟢 ${label}"])`);
     } else if (node.role === 'exit') {
-      lines.push(`  ${safeId(node.nodeId)}(["🔴 ${escaped}"])`);
+      lines.push(`  ${safeId(node.nodeId)}(["🔴 ${label}"])`);
     } else {
-      lines.push(`  ${safeId(node.nodeId)}["${escaped}"]`);
+      lines.push(`  ${safeId(node.nodeId)}["${label}"]`);
     }
   }
 
-  // Edges
   for (const edge of graph.edges) {
     const label = edge.trigger === 'ON_CLICK' ? edge.action : `${edge.trigger} → ${edge.action}`;
     lines.push(
-      `  ${safeId(edge.from.nodeId)} -->|"${label}"| ${safeId(edge.to.nodeId)}`,
+      `  ${safeId(edge.from.nodeId)} -->|"${escapeMermaid(label)}"| ${safeId(edge.to.nodeId)}`,
     );
   }
 
@@ -233,7 +229,6 @@ function generateMarkdownDoc(graph: FlowGraph, nameMap: Map<string, string>): st
   const lines: string[] = [];
   lines.push('# Prototype Flow Documentation\n');
 
-  // Summary
   lines.push('## Summary\n');
   lines.push(`- Screens: ${graph.stats.totalScreens}`);
   lines.push(`- Interactions: ${graph.stats.totalInteractions}`);
@@ -241,20 +236,17 @@ function generateMarkdownDoc(graph: FlowGraph, nameMap: Map<string, string>): st
   lines.push(`- Dead ends: ${graph.deadEnds.length}`);
   lines.push(`- Loops detected: ${graph.loops.length}\n`);
 
-  // Trigger breakdown
   lines.push('## Trigger Types\n');
   for (const [trigger, count] of Object.entries(graph.stats.triggerBreakdown)) {
     lines.push(`- ${trigger}: ${count}`);
   }
   lines.push('');
 
-  // Flow diagram
   lines.push('## Flow Diagram\n');
   lines.push('```mermaid');
   lines.push(generateMermaid(graph, nameMap));
   lines.push('```\n');
 
-  // Screen details
   lines.push('## Screen Details\n');
   for (const node of graph.nodes) {
     const name = nameMap.get(node.nodeId) ?? node.nodeId;
@@ -275,7 +267,6 @@ function generateMarkdownDoc(graph: FlowGraph, nameMap: Map<string, string>): st
     lines.push('');
   }
 
-  // Warnings
   if (graph.deadEnds.length > 0) {
     lines.push('## ⚠️ Dead Ends (no outgoing navigation)\n');
     for (const id of graph.deadEnds) {
@@ -296,6 +287,62 @@ function generateMarkdownDoc(graph: FlowGraph, nameMap: Map<string, string>): st
   return lines.join('\n');
 }
 
+/**
+ * Shared helper: fetch reactions from bridge, resolve destination names,
+ * and build a FlowGraph. Used by both analyze_prototype_flow and connect_screens.
+ */
+async function fetchAndBuildGraph(
+  bridge: Bridge,
+  nodeId?: string,
+): Promise<{ graph: FlowGraph; nameMap: Map<string, string>; count: number }> {
+  const raw = await bridge.request('get_reactions', nodeId ? { nodeId } : {}) as {
+    nodes: ReactionNode[];
+    count: number;
+  };
+
+  if (raw.count === 0) {
+    return {
+      graph: {
+        nodes: [], edges: [], entryPoints: [], deadEnds: [], loops: [],
+        stats: { totalScreens: 0, totalInteractions: 0, triggerBreakdown: {}, actionBreakdown: {} },
+      },
+      nameMap: new Map(),
+      count: 0,
+    };
+  }
+
+  const nameMap = new Map<string, string>();
+  const destIds = new Set<string>();
+
+  for (const rn of raw.nodes) {
+    nameMap.set(rn.nodeId, rn.nodeName);
+    for (const reaction of rn.reactions) {
+      for (const act of normalizeActions(reaction)) {
+        if (act.destinationId) destIds.add(act.destinationId);
+      }
+    }
+  }
+
+  // Resolve unknown destination names in parallel
+  const unknownIds = [...destIds].filter(id => !nameMap.has(id));
+  const resolvedNames = await Promise.all(
+    unknownIds.map(async (id) => {
+      try {
+        const info = await bridge.request('get_node_info', { nodeId: id }) as { name?: string };
+        return { id, name: info.name ?? id };
+      } catch {
+        return { id, name: id };
+      }
+    }),
+  );
+  for (const { id, name } of resolvedNames) {
+    nameMap.set(id, name);
+  }
+
+  const graph = buildFlowGraph(raw.nodes, nameMap);
+  return { graph, nameMap, count: raw.count };
+}
+
 // ─── Tool Registration ───
 
 export function registerPrototypeTools(server: McpServer, bridge: Bridge): void {
@@ -311,13 +358,9 @@ export function registerPrototypeTools(server: McpServer, bridge: Bridge): void 
         .describe('Output format: "graph" (structured JSON), "mermaid" (diagram code), "markdown" (full doc), "all" (default)'),
     },
     async ({ nodeId, format = 'all' }) => {
-      // 1. Fetch raw reactions from plugin
-      const raw = await bridge.request('get_reactions', { nodeId }) as {
-        nodes: ReactionNode[];
-        count: number;
-      };
+      const { graph, nameMap, count } = await fetchAndBuildGraph(bridge, nodeId);
 
-      if (raw.count === 0) {
+      if (count === 0) {
         return {
           content: [{
             type: 'text' as const,
@@ -329,48 +372,99 @@ export function registerPrototypeTools(server: McpServer, bridge: Bridge): void 
         };
       }
 
-      // 2. Build name map — resolve destination node names via bridge
-      const nameMap = new Map<string, string>();
-      const destIds = new Set<string>();
-
-      for (const rn of raw.nodes) {
-        nameMap.set(rn.nodeId, rn.nodeName);
-        for (const reaction of rn.reactions) {
-          for (const act of normalizeActions(reaction)) {
-            if (act.destinationId) destIds.add(act.destinationId);
-          }
-        }
-      }
-
-      // Resolve unknown destination names
-      for (const id of destIds) {
-        if (!nameMap.has(id)) {
-          try {
-            const info = await bridge.request('get_node_info', { nodeId: id }) as {
-              name?: string;
-              error?: string;
-            };
-            nameMap.set(id, info.name ?? id);
-          } catch {
-            nameMap.set(id, id);
-          }
-        }
-      }
-
-      // 3. Build graph
-      const graph = buildFlowGraph(raw.nodes, nameMap);
-
-      // 4. Format output
       const output: Record<string, unknown> = {};
+      if (format === 'graph' || format === 'all') output.graph = graph;
+      if (format === 'mermaid' || format === 'all') output.mermaid = generateMermaid(graph, nameMap);
+      if (format === 'markdown' || format === 'all') output.markdown = generateMarkdownDoc(graph, nameMap);
 
-      if (format === 'graph' || format === 'all') {
-        output.graph = graph;
-      }
-      if (format === 'mermaid' || format === 'all') {
-        output.mermaid = generateMermaid(graph, nameMap);
-      }
-      if (format === 'markdown' || format === 'all') {
-        output.markdown = generateMarkdownDoc(graph, nameMap);
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
+      };
+    },
+  );
+
+  // ─── connect_screens — batch-wire navigation flows between screens ───
+
+  server.tool(
+    'connect_screens',
+    'Batch-connect screens with prototype interactions. Provide an array of connections, each specifying ' +
+      'source node, destination node, trigger, and optional transition. After wiring, runs analyze_prototype_flow ' +
+      'to validate the resulting flow graph and report dead ends or missing connections. ' +
+      'Use this to quickly set up multi-screen navigation flows.',
+    {
+      connections: z.array(z.object({
+        sourceNodeId: z.string().describe('Node ID of the trigger element (e.g. a button)'),
+        destinationNodeId: z.string().describe('Node ID of the destination screen/frame'),
+        trigger: z.enum([
+          'ON_CLICK', 'ON_HOVER', 'ON_PRESS', 'ON_DRAG',
+          'AFTER_TIMEOUT', 'MOUSE_ENTER', 'MOUSE_LEAVE',
+        ]).default('ON_CLICK').describe('Trigger type (default: ON_CLICK)'),
+        navigation: z.enum([
+          'NAVIGATE', 'SWAP', 'OVERLAY', 'SCROLL_TO', 'CHANGE_TO',
+        ]).default('NAVIGATE').describe('Navigation type (default: NAVIGATE)'),
+        transition: z.object({
+          type: z.enum([
+            'DISSOLVE', 'SMART_ANIMATE', 'MOVE_IN', 'MOVE_OUT',
+            'PUSH', 'SLIDE_IN', 'SLIDE_OUT', 'INSTANT',
+          ]).default('DISSOLVE'),
+          duration: z.number().default(300).describe('Duration in ms'),
+          direction: z.string().optional().describe('Direction for directional transitions (LEFT, RIGHT, TOP, BOTTOM)'),
+        }).optional().describe('Transition animation (default: DISSOLVE 300ms)'),
+      })).describe('Array of screen connections to wire up'),
+      analyze: z.boolean().optional().describe('Run flow analysis after connecting (default: true)'),
+    },
+    async ({ connections, analyze = true }) => {
+      // Build batch items for add_reaction
+      const items = connections.map((conn) => ({
+        nodeId: conn.sourceNodeId,
+        trigger: { type: conn.trigger },
+        actions: [{
+          type: 'NODE' as const,
+          destinationId: conn.destinationNodeId,
+          navigation: conn.navigation,
+          transition: conn.transition
+            ? {
+                type: conn.transition.type,
+                duration: conn.transition.duration,
+                ...(conn.transition.direction ? { direction: conn.transition.direction } : {}),
+              }
+            : { type: 'DISSOLVE', duration: 300 },
+        }],
+      }));
+
+      // Wire all connections via bridge
+      const wireResult = await bridge.request('add_reaction', { items }) as {
+        results: Array<{ nodeId: string; ok: boolean; reactionCount?: number; error?: string }>;
+      };
+
+      const succeeded = wireResult.results.filter((r) => r.ok).length;
+      const failed = wireResult.results.filter((r) => !r.ok);
+
+      const output: Record<string, unknown> = {
+        connected: succeeded,
+        total: connections.length,
+        ...(failed.length > 0 ? { failures: failed } : {}),
+      };
+
+      // Optionally run flow analysis using shared helper
+      if (analyze && succeeded > 0) {
+        try {
+          const { graph, nameMap, count } = await fetchAndBuildGraph(bridge);
+          if (count > 0) {
+            output.flowAnalysis = {
+              totalScreens: graph.stats.totalScreens,
+              totalInteractions: graph.stats.totalInteractions,
+              entryPoints: graph.entryPoints.map((id) => ({ id, name: nameMap.get(id) ?? id })),
+              deadEnds: graph.deadEnds.map((id) => ({ id, name: nameMap.get(id) ?? id })),
+              loops: graph.loops.length,
+            };
+            if (graph.deadEnds.length > 0) {
+              output.hint = `${graph.deadEnds.length} dead end(s) found — consider adding back navigation.`;
+            }
+          }
+        } catch {
+          output.flowAnalysisError = 'Flow analysis failed — connections were still applied.';
+        }
       }
 
       return {

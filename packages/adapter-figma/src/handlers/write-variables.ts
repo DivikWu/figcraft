@@ -12,6 +12,7 @@ import { processBatch } from '../utils/batch.js';
 import { hexToFigmaRgba } from '../utils/color.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
 import { isVariableAlias, isRgbaLike } from '../utils/type-guards.js';
+import { assertHandler, HandlerError } from '../utils/handler-error.js';
 
 export function registerWriteVariableHandlers(): void {
 
@@ -85,7 +86,7 @@ registerHandler('create_variable', async (params) => {
   const scopes = params.scopes as VariableScope[] | undefined;
 
   const collection = await figma.variables.getVariableCollectionByIdAsync(collectionId);
-  if (!collection) return { error: `Collection not found: ${collectionId}` };
+  assertHandler(collection, `Collection not found: ${collectionId}`, 'NOT_FOUND');
 
   const variable = figma.variables.createVariable(name, collection, resolvedType);
   if (description) variable.description = description;
@@ -106,7 +107,7 @@ registerHandler('create_variable', async (params) => {
 registerHandler('update_variable', async (params) => {
   const variableId = params.variableId as string;
   const variable = await figma.variables.getVariableByIdAsync(variableId);
-  if (!variable) return { error: `Variable not found: ${variableId}` };
+  assertHandler(variable, `Variable not found: ${variableId}`, 'NOT_FOUND');
 
   if (params.name !== undefined) variable.name = params.name as string;
   if (params.description !== undefined) variable.description = params.description as string;
@@ -122,7 +123,7 @@ registerHandler('update_variable', async (params) => {
 registerHandler('delete_variable', async (params) => {
   const variableId = params.variableId as string;
   const variable = await figma.variables.getVariableByIdAsync(variableId);
-  if (!variable) return { error: `Variable not found: ${variableId}` };
+  assertHandler(variable, `Variable not found: ${variableId}`, 'NOT_FOUND');
   variable.remove();
   return { ok: true };
 });
@@ -140,7 +141,7 @@ registerHandler('create_collection', async (params) => {
 registerHandler('delete_collection', async (params) => {
   const collectionId = params.collectionId as string;
   const collection = await figma.variables.getVariableCollectionByIdAsync(collectionId);
-  if (!collection) return { error: `Collection not found: ${collectionId}` };
+  assertHandler(collection, `Collection not found: ${collectionId}`, 'NOT_FOUND');
   collection.remove();
   return { ok: true };
 });
@@ -149,7 +150,7 @@ registerHandler('rename_collection', async (params) => {
   const collectionId = params.collectionId as string;
   const name = params.name as string;
   const collection = await figma.variables.getVariableCollectionByIdAsync(collectionId);
-  if (!collection) return { error: `Collection not found: ${collectionId}` };
+  assertHandler(collection, `Collection not found: ${collectionId}`, 'NOT_FOUND');
   collection.name = name;
   return { ok: true, id: collection.id, name: collection.name };
 });
@@ -158,7 +159,7 @@ registerHandler('add_collection_mode', async (params) => {
   const collectionId = params.collectionId as string;
   const name = params.name as string;
   const collection = await figma.variables.getVariableCollectionByIdAsync(collectionId);
-  if (!collection) return { error: `Collection not found: ${collectionId}` };
+  assertHandler(collection, `Collection not found: ${collectionId}`, 'NOT_FOUND');
   const modeId = collection.addMode(name);
   return { ok: true, modeId, name };
 });
@@ -168,7 +169,7 @@ registerHandler('rename_collection_mode', async (params) => {
   const modeId = params.modeId as string;
   const name = params.name as string;
   const collection = await figma.variables.getVariableCollectionByIdAsync(collectionId);
-  if (!collection) return { error: `Collection not found: ${collectionId}` };
+  assertHandler(collection, `Collection not found: ${collectionId}`, 'NOT_FOUND');
   collection.renameMode(modeId, name);
   return { ok: true };
 });
@@ -177,8 +178,8 @@ registerHandler('remove_collection_mode', async (params) => {
   const collectionId = params.collectionId as string;
   const modeId = params.modeId as string;
   const collection = await figma.variables.getVariableCollectionByIdAsync(collectionId);
-  if (!collection) return { error: `Collection not found: ${collectionId}` };
-  if (collection.modes.length <= 1) return { error: 'Cannot remove the last mode' };
+  assertHandler(collection, `Collection not found: ${collectionId}`, 'NOT_FOUND');
+  assertHandler(collection.modes.length > 1, 'Cannot remove the last mode');
   collection.removeMode(modeId);
   return { ok: true };
 });
@@ -189,12 +190,14 @@ registerHandler('set_variable_binding', async (params) => {
   const variableId = params.variableId as string;
 
   const node = await findNodeByIdAsync(nodeId);
-  if (!node || !('setBoundVariable' in node)) {
-    return { error: `Node not found or does not support variable binding: ${nodeId}` };
-  }
+  assertHandler(
+    node && 'setBoundVariable' in node,
+    `Node not found or does not support variable binding: ${nodeId}`,
+    'NOT_FOUND',
+  );
 
   const variable = await figma.variables.getVariableByIdAsync(variableId);
-  if (!variable) return { error: `Variable not found: ${variableId}` };
+  assertHandler(variable, `Variable not found: ${variableId}`, 'NOT_FOUND');
 
   try {
     if ((field === 'fills' || field === 'strokes') && 'fills' in node) {
@@ -210,7 +213,7 @@ registerHandler('set_variable_binding', async (params) => {
       (node as SceneNode).setBoundVariable(field as VariableBindableNodeField, variable);
     }
   } catch (err) {
-    return { error: `Cannot bind field "${field}": ${err instanceof Error ? err.message : String(err)}` };
+    throw new HandlerError(`Cannot bind field "${field}": ${err instanceof Error ? err.message : String(err)}`);
   }
 
   return { ok: true };
@@ -222,14 +225,16 @@ registerHandler('set_explicit_variable_mode', async (params) => {
   const modeId = params.modeId as string;
 
   const node = await findNodeByIdAsync(nodeId);
-  if (!node || !('setExplicitVariableModeForCollection' in node)) {
-    return { error: `Node not found or does not support variable modes: ${nodeId}` };
-  }
+  assertHandler(
+    node && 'setExplicitVariableModeForCollection' in node,
+    `Node not found or does not support variable modes: ${nodeId}`,
+    'NOT_FOUND',
+  );
 
   try {
     (node as SceneNode).setExplicitVariableModeForCollection(collectionId, modeId);
   } catch (err) {
-    return { error: `Cannot set mode: ${err instanceof Error ? err.message : String(err)}` };
+    throw new HandlerError(`Cannot set mode: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   return { ok: true };
@@ -336,18 +341,19 @@ registerHandler('create_variable_alias', async (params) => {
   const modeId = params.modeId as string | undefined;
 
   const variable = await figma.variables.getVariableByIdAsync(variableId);
-  if (!variable) return { error: `Variable not found: ${variableId}` };
+  assertHandler(variable, `Variable not found: ${variableId}`, 'NOT_FOUND');
 
   const target = await figma.variables.getVariableByIdAsync(targetVariableId);
-  if (!target) return { error: `Target variable not found: ${targetVariableId}` };
+  assertHandler(target, `Target variable not found: ${targetVariableId}`, 'NOT_FOUND');
 
   // Type compatibility check
-  if (variable.resolvedType !== target.resolvedType) {
-    return { error: `Type mismatch: ${variable.resolvedType} cannot alias ${target.resolvedType}` };
-  }
+  assertHandler(
+    variable.resolvedType === target.resolvedType,
+    `Type mismatch: ${variable.resolvedType} cannot alias ${target.resolvedType}`,
+  );
 
   const collection = await figma.variables.getVariableCollectionByIdAsync(variable.variableCollectionId);
-  if (!collection) return { error: 'Variable collection not found' };
+  assertHandler(collection, 'Variable collection not found', 'NOT_FOUND');
 
   const targetModeId = modeId ?? collection.modes[0].modeId;
   const alias: VariableAlias = {

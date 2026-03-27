@@ -1,6 +1,6 @@
 ---
 inclusion: fileMatch
-fileMatchPattern: "src/plugin/ui.html,src/plugin/**/*.css"
+fileMatchPattern: "packages/adapter-figma/src/ui.html,packages/adapter-figma/src/**/*.css"
 description: "8dp Grid 间距规则 — UI 代码中所有尺寸属性必须遵循 8dp grid 系统"
 ---
 

@@ -12,7 +12,8 @@
 
 import type { AbstractNode, LintContext, LintViolation, LintRule } from '../types.js';
 
-const SPACER_NAME_RE = /^spacer[\s_-]*\d*$/i;
+// Unified spacer detection — matches all known AI-generated spacer naming patterns
+const SPACER_RE = /^(?:(?:top|bottom|left|right|flex|vertical|horizontal)[\s_-]?)?(?:spacer|space|gap)(?:[\s_-]?(?:top|bottom|left|right|\d+))?$/i;
 
 function isEmptyOrInvisible(node: AbstractNode): boolean {
   if (!node.children || node.children.length === 0) return true;
@@ -35,7 +36,7 @@ export const spacerFrameRule: LintRule = {
     if (!isEmptyOrInvisible(node)) return [];
 
     // Check 1: Name matches spacer pattern
-    const nameMatch = SPACER_NAME_RE.test(node.name);
+    const nameMatch = SPACER_RE.test(node.name);
 
     // Check 2: Invisible thin frame (no fill, one dimension ≤ 4px)
     const thinSpacer = hasNoVisibleFill(node) &&
@@ -50,7 +51,12 @@ export const spacerFrameRule: LintRule = {
       severity: 'warning',
       currentValue: `${node.width ?? '?'}×${node.height ?? '?'} empty frame`,
       suggestion: `"${node.name}" looks like a spacing hack. Group related elements into semantic auto-layout frames with itemSpacing instead.`,
-      autoFixable: false,
+      autoFixable: true,
+      fixData: {
+        action: 'remove-spacer',
+        width: node.width,
+        height: node.height,
+      },
     }];
   },
 };

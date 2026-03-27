@@ -19,29 +19,17 @@ export function buildMinimalParams(endpoint: string, method: string): Record<str
     if (method === 'list') params.query = 'test';
     if (method === 'update') params.patches = [];
     if (method === 'delete') params.nodeIds = [];
-    if (method === 'clone') params.nodeId = '1:1';
-    if (method === 'insert_child') { params.parentId = '1:1'; params.childId = '2:2'; }
   }
 
   // text endpoint
   if (endpoint === 'text') {
-    if (method === 'create') params.content = 'hi';
     if (method === 'set_content') { params.nodeId = '1:1'; params.content = 'hi'; }
-  }
-
-  // shapes endpoint
-  if (endpoint === 'shapes') {
-    if (method === 'create_frame') params.name = 'F';
-    if (method === 'create_rectangle') params.name = 'R';
-    if (method === 'create_ellipse') params.name = 'E';
-    if (method === 'create_vector') params.svg = '<svg></svg>';
   }
 
   // components endpoint
   if (endpoint === 'components') {
     if (method === 'list_library') params.fileKey = 'fk';
     if (method === 'get') params.nodeId = '1:1';
-    if (method === 'create_instance') params.componentKey = 'k';
     if (method === 'list_properties') params.nodeId = '1:1';
   }
 

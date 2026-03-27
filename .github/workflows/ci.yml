@@ -29,8 +29,5 @@ jobs:
       - name: Test
         run: npm run test
 
-      - name: Benchmark gate
-        run: npm run ci:bench
-
       - name: Build workspace shell and published package
         run: npm run build

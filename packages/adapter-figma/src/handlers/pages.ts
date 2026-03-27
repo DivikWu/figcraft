@@ -3,6 +3,7 @@
  */
 
 import { registerHandler } from '../registry.js';
+import { assertHandler } from '../utils/handler-error.js';
 
 export function registerPageHandlers(): void {
 
@@ -11,7 +12,7 @@ registerHandler('set_current_page', async (params) => {
   const page = figma.root.children.find(
     (p) => p.id === nameOrId || p.name === nameOrId,
   );
-  if (!page) return { error: `Page not found: ${nameOrId}` };
+  assertHandler(page, `Page not found: ${nameOrId}`, 'NOT_FOUND');
   await figma.setCurrentPageAsync(page);
   return { ok: true, pageId: page.id, pageName: page.name };
 });
@@ -27,7 +28,7 @@ registerHandler('rename_page', async (params) => {
   const pageId = params.pageId as string;
   const name = params.name as string;
   const page = figma.root.children.find((p) => p.id === pageId);
-  if (!page) return { error: `Page not found: ${pageId}` };
+  assertHandler(page, `Page not found: ${pageId}`, 'NOT_FOUND');
   page.name = name;
   return { ok: true, id: page.id, name: page.name };
 });

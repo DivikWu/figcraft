@@ -20,15 +20,9 @@ function loadRules(filename: string): string {
 const DESIGN_GUARDIAN_RULES = loadRules('design-guardian.md');
 const DESIGN_CREATOR_RULES = loadRules('design-creator.md');
 
-// Note: Prompt templates currently use flat tool names (e.g. get_node_info, patch_nodes).
-// In endpoint mode (FIGCRAFT_API_MODE=endpoint), these map to endpoint methods:
-//   get_node_info → nodes(method: "get")
-//   search_nodes → nodes(method: "list")
-//   patch_nodes → nodes(method: "update")
-//   delete_nodes → nodes(method: "delete")
-//   create_text → text(method: "create")
-//   create_frame → shapes(method: "create_frame")
-// The flat tool names are retained for Phase 1 backward compatibility.
+// Prompt templates use endpoint syntax (e.g. nodes(method: "get"), nodes(method: "update")).
+// Standalone tools (ping, get_mode, lint_fix_all, etc.) keep their flat names.
+// Creation is delegated to the official Figma MCP — FigCraft focuses on review, lint, and audit.
 
 export function registerPrompts(server: McpServer): void {
   server.prompt(
@@ -166,29 +160,17 @@ Apply the mode-specific design rules from the appropriate prompt (generate-eleme
 7. If the user requests changes, revise the plan and present again. If approved, proceed.
 
 ## Query (library mode with components)
-8. For local components, call list_component_properties to discover available variants.
-   For library components (only have key from get_mode), use the description field to understand usage,
-   or create a temporary instance with create_instance to inspect its componentProperties.
+8. For local components, call components(method: "list_properties") to discover available variants.
+   For library components, use the description field from get_mode's libraryComponents to understand usage.
    Skip this step entirely in Design Creator mode (no library selected).
 
 ## Create
-9. Call get_current_page (maxDepth=1) to understand existing page structure
-10. For complete screens, prefer create_screen over raw create_document
-   - create_screen is the progressive path: shell first, then sections, then final scoped lint/fix
-   - In create_screen section specs, use marginHorizontal / marginLeft / marginRight when a filled child needs real outer margins; FigCraft will wrap it in a transparent inset frame automatically
-   - Use create_document directly for smaller inserts or one-off subtree creation
-11. If you use create_document for layout structure:
-   - Treat it as the raw tree path, not the default full-screen workflow
-   - Prefer shell-first / section-first trees over one giant undifferentiated hierarchy
-   - Add semantic role on major frames when possible: screen, header, hero, nav, content, list, row, stats, card, form, field, input, button, footer, actions, social_row, system_bar
-   - Explicit roles and marginHorizontal / marginLeft / marginRight now use the same shared normalization rules as create_screen
-   - With library: auto-bind tokens. Use create_instance (with correct variant properties from Query step) for matching components.
-   - Without library: apply your design plan choices
-   - Leave autoLint enabled unless you explicitly need raw creation output
-12. If create_document cannot express certain details (e.g. asymmetric padding), follow up with patch_nodes immediately.
+9. Use the official Figma MCP to create the design elements according to your plan.
+   FigCraft does not handle creation — it focuses on review, lint, audit, and token sync.
+   After creation, use FigCraft tools to verify and fix quality issues.
 
 ## Check
-13. Self-Review against Layout rules — verify:
+10. Self-Review against Layout rules — verify:
     - No empty Spacer frames (use semantic groups with itemSpacing)
     - Responsive children use layoutAlign: STRETCH (inputs, buttons, dividers, content sections)
     - Filled elements with margin use a transparent wrapper frame (not padding on the element itself)
@@ -199,8 +181,8 @@ Apply the mode-specific design rules from the appropriate prompt (generate-eleme
     - All input fields are auto-layout frames with stroke (border), corner radius, internal padding, and placeholder text child — set layoutAlign: STRETCH
     - Social login / icon buttons are auto-layout frames (HORIZONTAL) with icon + text children, wide enough to show all content without clipping
     - Every frame has a descriptive name reflecting its purpose (e.g. "Login Form", "Email Input") — no "Frame 1" defaults
-    Fix violations immediately with patch_nodes.
-14. Run lint_fix_all to verify compliance and auto-fix remaining issues.`,
+    Fix violations immediately with nodes(method: "update").
+11. Run lint_fix_all to verify compliance and auto-fix remaining issues.`,
         },
       }],
     }),
@@ -263,7 +245,7 @@ Always specify fill for frames that need a visible background.`,
         content: {
           type: 'text' as const,
           text: `Help me analyze the prototype flow in this Figma file. Follow these steps:
-1. Call load_toolset({ names: "annotations" }) to enable prototype analysis tools
+1. Call load_toolset({ names: "prototype" }) to enable prototype interaction tools
 2. Use analyze_prototype_flow to scan the current page (format: "all")
 3. Present the summary: total screens, interactions, entry points, dead ends, loops
 4. Show the Mermaid flow diagram
@@ -291,7 +273,7 @@ Always specify fill for frames that need a visible background.`,
 
 1. Call load_toolset({ names: "components-advanced" }) to enable component audit tools
 2. Use audit_components to scan all components on the current page
-3. For each component, use get_component and list_component_properties to get full details
+3. For each component, use components(method: "get") and components(method: "list_properties") to get full details
 4. Generate a structured documentation entry for each component:
 
    ## ComponentName
@@ -326,7 +308,7 @@ Always specify fill for frames that need a visible background.`,
 1. Call ping to verify plugin connection
 2. Call get_mode to determine the current mode and selected library
 3. Use get_selection to get selected nodes, or fall back to get_current_page (maxDepth=2) children
-4. Use get_node_info on each target node to read properties (fills, fontSize, fontName, spacing, dimensions, cornerRadius, etc.)
+4. Use nodes(method: "get") on each target node to read properties (fills, fontSize, fontName, spacing, dimensions, cornerRadius, etc.)
 
 5. Apply the appropriate design rules based on mode:
 

@@ -2,12 +2,7 @@
  * Color conversion utilities — hex ↔ Figma RGBA, contrast calculation.
  */
 
-const HEX_RE = /^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
-
-/** Validate a hex color string. Returns true for valid 6 or 8 char hex (with or without #). */
-export function isValidHex(hex: string): boolean {
-  return HEX_RE.test(hex);
-}
+export { hexToRgbTuple } from '@figcraft/shared';
 
 /** Parse hex color string to Figma RGBA (0–1 range). Returns opaque black for invalid input. */
 export function hexToFigmaRgba(hex: string): RGBA {
@@ -72,15 +67,4 @@ export function colorsEqual(a: string, b: string): boolean {
 /** Calculate contrast ratio between two hex colors. Returns ratio like 4.5. */
 export function hexContrastRatio(fgHex: string, bgHex: string): number {
   return contrastRatio(hexToFigmaRgb(fgHex), hexToFigmaRgb(bgHex));
-}
-
-/** Parse hex to normalized [r, g, b] tuple (0–1 range). Returns null for invalid hex. */
-export function hexToRgbTuple(hex: string): [number, number, number] | null {
-  const clean = hex.replace('#', '');
-  if (clean.length < 6) return null;
-  return [
-    parseInt(clean.slice(0, 2), 16) / 255,
-    parseInt(clean.slice(2, 4), 16) / 255,
-    parseInt(clean.slice(4, 6), 16) / 255,
-  ];
 }

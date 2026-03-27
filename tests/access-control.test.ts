@@ -54,10 +54,7 @@ describe('access control registry', () => {
 
   it('create tools include expected creation operations', () => {
     const expectedCreate = [
-      'create_document', 'create_screen', 'create_frame', 'create_text', 'create_rectangle',
-      'create_ellipse', 'create_vector', 'clone_node', 'create_instance',
-      'create_variable', 'create_collection', 'create_component', 'create_page',
-      'lint_fix_all',
+      'create_component', 'create_page',
     ];
     for (const tool of expectedCreate) {
       expect(GENERATED_CREATE_TOOLS.has(tool)).toBe(true);
@@ -66,9 +63,8 @@ describe('access control registry', () => {
 
   it('edit tools include expected modification/deletion operations', () => {
     const expectedEdit = [
-      'patch_nodes', 'delete_nodes', 'set_text_content', 'insert_child',
-      'delete_node', 'update_variable', 'delete_variable',
-      'rename_page', 'delete_component',
+      'delete_node',
+      'rename_page', 'delete_component', 'lint_fix_all',
     ];
     for (const tool of expectedEdit) {
       expect(GENERATED_EDIT_TOOLS.has(tool)).toBe(true);
@@ -113,9 +109,8 @@ describe('isToolBlocked', () => {
     // Default env = edit level
     const { isToolBlocked } = await import('../packages/core-mcp/src/tools/toolset-manager.js');
     // At edit level, nothing should be blocked
-    expect(isToolBlocked('patch_nodes')).toBeNull();
-    expect(isToolBlocked('create_frame')).toBeNull();
-    expect(isToolBlocked('get_node_info')).toBeNull();
+    expect(isToolBlocked('ping')).toBeNull();
+    expect(isToolBlocked('get_current_page')).toBeNull();
   });
 
   it('resolveAccessLevel defaults to edit', async () => {
@@ -149,9 +144,7 @@ describe('access level blocking logic (pure)', () => {
 
   it('read level allows read-only tools', () => {
     expect(simulateBlocked('read', 'ping')).toBeNull();
-    expect(simulateBlocked('read', 'get_node_info')).toBeNull();
     expect(simulateBlocked('read', 'get_current_page')).toBeNull();
-    expect(simulateBlocked('read', 'search_nodes')).toBeNull();
     expect(simulateBlocked('read', 'export_image')).toBeNull();
   });
 
@@ -169,7 +162,7 @@ describe('access level blocking logic (pure)', () => {
 
   it('create level allows read-only tools', () => {
     expect(simulateBlocked('create', 'ping')).toBeNull();
-    expect(simulateBlocked('create', 'get_node_info')).toBeNull();
+    expect(simulateBlocked('create', 'get_current_page')).toBeNull();
   });
 
   it('edit level allows everything', () => {
@@ -216,21 +209,17 @@ describe('endpoint access control registry', () => {
     expect(nodes['list']).toEqual({ write: false });
     expect(nodes['update']).toEqual({ write: true, access: 'edit' });
     expect(nodes['delete']).toEqual({ write: true, access: 'edit' });
-    expect(nodes['clone']).toEqual({ write: true, access: 'create' });
-    expect(nodes['insert_child']).toEqual({ write: true, access: 'edit' });
   });
 
   it('text endpoint has correct method access', () => {
     const text = GENERATED_ENDPOINT_METHOD_ACCESS['text'];
-    expect(text['create']).toEqual({ write: true, access: 'create' });
     expect(text['set_content']).toEqual({ write: true, access: 'edit' });
   });
 
-  it('shapes endpoint methods are all create-level', () => {
-    const shapes = GENERATED_ENDPOINT_METHOD_ACCESS['shapes'];
-    for (const [, v] of Object.entries(shapes)) {
-      expect(v.write).toBe(true);
-      expect(v.access).toBe('create');
+  it('components endpoint read methods are all non-write', () => {
+    const comp = GENERATED_ENDPOINT_METHOD_ACCESS['components'];
+    for (const [, v] of Object.entries(comp)) {
+      expect(v.write).toBe(false);
     }
   });
 });
@@ -255,17 +244,13 @@ describe('endpoint method-level blocking logic (pure)', () => {
     expect(simulateMethodBlocked('read', 'nodes', 'list')).toBeNull();
     expect(simulateMethodBlocked('read', 'nodes', 'update')).toBe('blocked');
     expect(simulateMethodBlocked('read', 'nodes', 'delete')).toBe('blocked');
-    expect(simulateMethodBlocked('read', 'nodes', 'clone')).toBe('blocked');
-    expect(simulateMethodBlocked('read', 'nodes', 'insert_child')).toBe('blocked');
   });
 
-  it('create level allows read + create methods, blocks edit methods', () => {
+  it('create level allows read methods, blocks edit methods on nodes', () => {
     expect(simulateMethodBlocked('create', 'nodes', 'get')).toBeNull();
     expect(simulateMethodBlocked('create', 'nodes', 'list')).toBeNull();
-    expect(simulateMethodBlocked('create', 'nodes', 'clone')).toBeNull(); // access: create
     expect(simulateMethodBlocked('create', 'nodes', 'update')).toBe('blocked'); // access: edit
     expect(simulateMethodBlocked('create', 'nodes', 'delete')).toBe('blocked'); // access: edit
-    expect(simulateMethodBlocked('create', 'nodes', 'insert_child')).toBe('blocked'); // access: edit
   });
 
   it('edit level allows all methods', () => {

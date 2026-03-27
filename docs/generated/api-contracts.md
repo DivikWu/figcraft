@@ -4,7 +4,7 @@ This document is generated from `schema/tools.yaml`, `packages/core-mcp/src/tool
 
 ## Tool Response Coverage
 
-Covered flat/custom tools: 115
+Covered flat/custom tools: 88
 
 ### `add_collection_mode`
 
@@ -29,6 +29,17 @@ Covered flat/custom tools: 115
     "State",
     "Label"
   ]
+}
+```
+
+### `add_reaction`
+
+- Example payloads: 1
+
+```json
+{
+  "ok": true,
+  "reactionCount": 1
 }
 ```
 
@@ -78,18 +89,26 @@ Covered flat/custom tools: 115
 }
 ```
 
-### `batch_create_variables`
+### `audit_node`
 
 - Example payloads: 1
 
 ```json
 {
-  "created": 2,
-  "skipped": 0,
-  "failed": 0,
-  "errors": [],
-  "collectionId": "VariableCollectionId:1:2",
-  "description": "Array of variables to create"
+  "nodeId": "1:23",
+  "nodeName": "Login Button",
+  "nodeType": "FRAME",
+  "qualityScore": 85,
+  "summary": {
+    "totalChecked": 12,
+    "violations": 2,
+    "errors": 0,
+    "warnings": 2,
+    "autoFixable": 1
+  },
+  "violations": [],
+  "structuralNotes": [],
+  "recommendation": "Fix 1 auto-fixable warning, then review the remaining warning manually."
 }
 ```
 
@@ -129,17 +148,15 @@ Covered flat/custom tools: 115
 }
 ```
 
-### `clone_node`
+### `commit_changes`
 
 - Example payloads: 1
 
 ```json
 {
-  "id": "60:1",
-  "name": "Cloned Card",
-  "type": "FRAME",
-  "width": 320,
-  "height": 180
+  "committed": 3,
+  "errors": [],
+  "remainingStaged": []
 }
 ```
 
@@ -164,20 +181,21 @@ Covered flat/custom tools: 115
 }
 ```
 
-### `create_collection`
+### `connect_screens`
 
 - Example payloads: 1
 
 ```json
 {
-  "id": "VariableCollectionId:1:2",
-  "name": "Semantic",
-  "modes": [
-    {
-      "modeId": "1:0",
-      "name": "Mode 1"
-    }
-  ]
+  "connected": 3,
+  "total": 3,
+  "flowAnalysis": {
+    "totalScreens": 4,
+    "totalInteractions": 3,
+    "entryPoints": [],
+    "deadEnds": [],
+    "loops": 0
+  }
 }
 ```
 
@@ -211,79 +229,18 @@ Covered flat/custom tools: 115
 }
 ```
 
-### `create_document`
-
-- Example payloads: 2
-
-```json
-{
-  "ok": true,
-  "created": [
-    {
-      "id": "12:34",
-      "name": "Auth Screen",
-      "type": "FRAME"
-    }
-  ],
-  "postCreateLint": {
-    "scopedNodeIds": [
-      "12:34"
-    ],
-    "initial": {
-      "violations": 0
-    },
-    "final": {
-      "violations": 0
-    }
-  }
-}
-```
-
-### `create_ellipse`
-
-- Example payloads: 1
-
-```json
-{
-  "id": "50:2",
-  "name": "Avatar Dot",
-  "type": "ELLIPSE",
-  "width": 40,
-  "height": 40,
-  "autoBound": "surface/accent"
-}
-```
-
 ### `create_frame`
 
 - Example payloads: 1
 
 ```json
 {
-  "id": "30:1",
-  "name": "Card Frame",
+  "id": "50:1",
+  "name": "Login Screen",
   "type": "FRAME",
-  "x": 64,
-  "y": 120,
-  "width": 320,
-  "height": 180,
-  "layoutMode": "VERTICAL",
-  "itemSpacing": 16,
-  "autoBound": "surface/default"
-}
-```
-
-### `create_instance`
-
-- Example payloads: 1
-
-```json
-{
-  "id": "40:1",
-  "name": "Button / Primary",
-  "type": "INSTANCE",
-  "width": 160,
-  "height": 48
+  "width": 375,
+  "height": 812,
+  "visible": true
 }
 ```
 
@@ -313,17 +270,6 @@ Covered flat/custom tools: 115
 }
 ```
 
-### `create_paint_style`
-
-- Example payloads: 1
-
-```json
-{
-  "id": "Style:10",
-  "name": "Color/Brand/Primary"
-}
-```
-
 ### `create_polygon`
 
 - Example payloads: 1
@@ -336,102 +282,6 @@ Covered flat/custom tools: 115
   "width": 100,
   "height": 100,
   "visible": true
-}
-```
-
-### `create_rectangle`
-
-- Example payloads: 1
-
-```json
-{
-  "id": "50:1",
-  "name": "Card Background",
-  "type": "RECTANGLE",
-  "width": 320,
-  "height": 180,
-  "cornerRadius": 24,
-  "autoBound": "surface/default"
-}
-```
-
-### `create_screen`
-
-- Example payloads: 2
-
-```json
-{
-  "ok": true,
-  "screenRootId": "20:1",
-  "screen": {
-    "ok": true,
-    "created": [
-      {
-        "id": "20:1",
-        "name": "Marketing Hero",
-        "type": "FRAME"
-      }
-    ]
-  },
-  "sections": [
-    {
-      "index": 0,
-      "name": "Hero Section",
-      "ok": true,
-      "result": {
-        "ok": true,
-        "created": [
-          {
-            "id": "20:2",
-            "name": "Hero Content",
-            "type": "FRAME"
-          }
-        ]
-      }
-    }
-  ],
-  "pipelineStages": [
-    {
-      "stage": "shell",
-      "ok": true,
-      "createdCount": 1,
-      "nodeIds": [
-        "20:1"
-      ],
-      "warningCount": 0,
-      "patchCallCount": 0,
-      "patchNodeCount": 0,
-      "patchRules": [],
-      "structuralErrors": [],
-      "debugStats": {}
-    },
-    {
-      "stage": "section:1",
-      "ok": true,
-      "createdCount": 1,
-      "nodeIds": [
-        "20:2"
-      ],
-      "warningCount": 0,
-      "patchCallCount": 0,
-      "patchNodeCount": 0,
-      "patchRules": [],
-      "structuralErrors": [],
-      "debugStats": {}
-    }
-  ],
-  "pipelineSummary": {
-    "stageCount": 2,
-    "createdCount": 2,
-    "warningCount": 0,
-    "remaining": 0
-  },
-  "finalLint": {
-    "scopedNodeIds": [
-      "20:1"
-    ],
-    "remaining": 0
-  }
 }
 ```
 
@@ -465,35 +315,16 @@ Covered flat/custom tools: 115
 
 ### `create_text`
 
-- Example payloads: 2
-
-```json
-{
-  "id": "30:2",
-  "name": "Hero Title",
-  "type": "TEXT",
-  "x": 88,
-  "y": 164,
-  "width": 220,
-  "height": 40,
-  "characters": "Ship Faster",
-  "fontSize": 32,
-  "autoBound": {
-    "color": "text/primary",
-    "typography": "style:Heading/L"
-  }
-}
-```
-
-### `create_variable`
-
 - Example payloads: 1
 
 ```json
 {
-  "id": "VariableID:1:30",
-  "name": "spacing/md",
-  "resolvedType": "FLOAT"
+  "id": "51:1",
+  "name": "Welcome back",
+  "type": "TEXT",
+  "width": 84,
+  "height": 17,
+  "visible": true
 }
 ```
 
@@ -509,31 +340,7 @@ Covered flat/custom tools: 115
 }
 ```
 
-### `create_vector`
-
-- Example payloads: 1
-
-```json
-{
-  "id": "70:1",
-  "name": "Arrow Icon",
-  "type": "FRAME",
-  "width": 24,
-  "height": 24
-}
-```
-
 ### `delete_cached_tokens`
-
-- Example payloads: 1
-
-```json
-{
-  "ok": true
-}
-```
-
-### `delete_collection`
 
 - Example payloads: 1
 
@@ -567,46 +374,6 @@ Covered flat/custom tools: 115
 ```
 
 ### `delete_node`
-
-- Example payloads: 1
-
-```json
-{
-  "ok": true
-}
-```
-
-### `delete_nodes`
-
-- Example payloads: 1
-
-```json
-{
-  "results": [
-    {
-      "nodeId": "30:1",
-      "ok": true
-    },
-    {
-      "nodeId": "999:1",
-      "ok": false,
-      "error": "Node not found"
-    }
-  ]
-}
-```
-
-### `delete_style`
-
-- Example payloads: 1
-
-```json
-{
-  "ok": true
-}
-```
-
-### `delete_variable`
 
 - Example payloads: 1
 
@@ -677,6 +444,36 @@ Covered flat/custom tools: 115
 }
 ```
 
+### `discard_changes`
+
+- Example payloads: 1
+
+```json
+{
+  "discarded": 2,
+  "errors": [],
+  "remainingStaged": [
+    "1:25"
+  ]
+}
+```
+
+### `execute_js`
+
+- Example payloads: 2
+
+```json
+{
+  "ok": true,
+  "result": {
+    "pages": [
+      "Page 1",
+      "Components"
+    ]
+  }
+}
+```
+
 ### `export_image`
 
 - Example payloads: 1
@@ -702,29 +499,6 @@ Covered flat/custom tools: 115
       "$description": "Primary brand color"
     }
   }
-}
-```
-
-### `export_variables`
-
-- Example payloads: 1
-
-```json
-{
-  "count": 1,
-  "variables": [
-    {
-      "path": "color.brand.primary",
-      "type": "color",
-      "valuesByMode": {
-        "Default": "#7c3aed"
-      },
-      "description": "Primary brand color",
-      "scopes": [
-        "ALL_FILLS"
-      ]
-    }
-  ]
 }
 ```
 
@@ -814,28 +588,6 @@ Covered flat/custom tools: 115
 }
 ```
 
-### `get_component`
-
-- Example payloads: 1
-
-```json
-{
-  "id": "12:1",
-  "name": "Button / Primary",
-  "type": "COMPONENT",
-  "width": 160,
-  "height": 48,
-  "description": "Main call-to-action button",
-  "key": "button-primary-key",
-  "componentPropertyDefinitions": {
-    "State#1": {
-      "type": "VARIANT",
-      "defaultValue": "Default"
-    }
-  }
-}
-```
-
 ### `get_current_page`
 
 - Example payloads: 1
@@ -859,6 +611,18 @@ Covered flat/custom tools: 115
       "type": "FRAME"
     }
   ]
+}
+```
+
+### `get_design_guidelines`
+
+- Example payloads: 1
+
+```json
+{
+  "mode": "Design Guardian (Library Mode)",
+  "selectedLibrary": "My Design System",
+  "guidelines": "# Design Guardian — Library Mode Rules..."
 }
 ```
 
@@ -957,46 +721,6 @@ Covered flat/custom tools: 115
 }
 ```
 
-### `get_node_info`
-
-- Example payloads: 1
-
-```json
-{
-  "id": "1:23",
-  "name": "Login Screen",
-  "type": "FRAME",
-  "width": 402,
-  "height": 874,
-  "children": [
-    {
-      "id": "1:24",
-      "name": "Login Form",
-      "type": "FRAME"
-    }
-  ]
-}
-```
-
-### `get_node_variables`
-
-- Example payloads: 1
-
-```json
-{
-  "nodeId": "1:24",
-  "bindings": {
-    "fills": [
-      {
-        "variableId": "VariableID:1:12",
-        "variableName": "color/brand/primary",
-        "collectionId": "VariableCollectionId:1:2"
-      }
-    ]
-  }
-}
-```
-
 ### `get_reactions`
 
 - Example payloads: 1
@@ -1085,51 +809,6 @@ Covered flat/custom tools: 115
 }
 ```
 
-### `get_style`
-
-- Example payloads: 1
-
-```json
-{
-  "id": "Style:1",
-  "name": "Color/Brand/Primary",
-  "type": "PAINT",
-  "description": "Primary brand color",
-  "paints": [
-    {
-      "type": "SOLID",
-      "visible": true,
-      "opacity": 1,
-      "color": "#7c3aed"
-    }
-  ]
-}
-```
-
-### `get_variable`
-
-- Example payloads: 1
-
-```json
-{
-  "id": "VariableID:1:12",
-  "name": "color/brand/primary",
-  "resolvedType": "COLOR",
-  "description": "Primary brand color",
-  "collectionId": "VariableCollectionId:1:2",
-  "collectionName": "Primitives",
-  "scopes": [
-    "ALL_FILLS"
-  ],
-  "codeSyntax": {
-    "WEB": "var(--color-brand-primary)"
-  },
-  "valuesByMode": {
-    "Default": "#7c3aed"
-  }
-}
-```
-
 ### `import_library_style`
 
 - Example payloads: 1
@@ -1155,16 +834,6 @@ Covered flat/custom tools: 115
   "resolvedType": "COLOR",
   "description": "Primary brand color",
   "key": "VariableKey:1"
-}
-```
-
-### `insert_child`
-
-- Example payloads: 1
-
-```json
-{
-  "ok": true
 }
 ```
 
@@ -1277,75 +946,6 @@ Covered flat/custom tools: 115
 }
 ```
 
-### `list_collections`
-
-- Example payloads: 1
-
-```json
-[
-  {
-    "id": "VariableCollectionId:1:2",
-    "name": "Primitives",
-    "modes": [
-      {
-        "modeId": "1:0",
-        "name": "Default"
-      }
-    ],
-    "variableCount": 12
-  }
-]
-```
-
-### `list_component_properties`
-
-- Example payloads: 1
-
-```json
-{
-  "properties": [
-    {
-      "key": "State",
-      "type": "VARIANT",
-      "defaultValue": "Default",
-      "variantOptions": [
-        "Default",
-        "Pressed",
-        "Disabled"
-      ]
-    },
-    {
-      "key": "Has Icon",
-      "type": "BOOLEAN",
-      "defaultValue": false
-    }
-  ]
-}
-```
-
-### `list_components`
-
-- Example payloads: 1
-
-```json
-{
-  "count": 2,
-  "components": [
-    {
-      "id": "12:1",
-      "name": "Button / Primary",
-      "description": "Main call-to-action button",
-      "key": "button-primary-key"
-    },
-    {
-      "id": "12:2",
-      "name": "Input / Default",
-      "key": "input-default-key"
-    }
-  ]
-}
-```
-
 ### `list_fonts`
 
 - Example payloads: 2
@@ -1373,28 +973,6 @@ Covered flat/custom tools: 115
     "libraryName": "Acme DS"
   }
 ]
-```
-
-### `list_library_components`
-
-- Example payloads: 1
-
-```json
-{
-  "count": 2,
-  "components": [
-    {
-      "key": "library-button-primary",
-      "name": "Button / Primary",
-      "description": "Primary CTA button"
-    },
-    {
-      "key": "library-input-default",
-      "name": "Input / Default",
-      "description": "Default text field"
-    }
-  ]
-}
 ```
 
 ### `list_library_styles`
@@ -1434,39 +1012,19 @@ Covered flat/custom tools: 115
 }
 ```
 
-### `list_styles`
+### `list_staged`
 
 - Example payloads: 1
 
 ```json
 {
-  "count": 2,
-  "styles": [
+  "staged": [
     {
-      "id": "Style:1",
-      "name": "Color/Brand/Primary",
-      "type": "PAINT",
-      "description": "Primary brand color",
-      "paints": [
-        {
-          "type": "SOLID",
-          "visible": true,
-          "opacity": 1,
-          "color": "#7c3aed"
-        }
-      ]
-    },
-    {
-      "id": "Style:2",
-      "name": "Text/Heading/L",
-      "type": "TEXT",
-      "fontName": {
-        "family": "Inter",
-        "style": "Bold"
-      },
-      "fontSize": 32
+      "nodeId": "1:23",
+      "name": "Login Screen"
     }
-  ]
+  ],
+  "count": 1
 }
 ```
 
@@ -1493,52 +1051,6 @@ Covered flat/custom tools: 115
         "fontWeight": 700,
         "fontSize": 32
       }
-    }
-  ]
-}
-```
-
-### `list_variables`
-
-- Example payloads: 1
-
-```json
-{
-  "count": 1,
-  "variables": [
-    {
-      "id": "VariableID:1:12",
-      "name": "color/brand/primary",
-      "resolvedType": "COLOR",
-      "description": "Primary brand color",
-      "collectionId": "VariableCollectionId:1:2",
-      "collectionName": "Primitives",
-      "scopes": [
-        "ALL_FILLS"
-      ],
-      "valuesByMode": {
-        "Default": "#7c3aed"
-      }
-    }
-  ]
-}
-```
-
-### `patch_nodes`
-
-- Example payloads: 1
-
-```json
-{
-  "results": [
-    {
-      "nodeId": "30:1",
-      "ok": true
-    },
-    {
-      "nodeId": "30:2",
-      "ok": false,
-      "error": "Node not found"
     }
   ]
 }
@@ -1584,6 +1096,18 @@ Covered flat/custom tools: 115
 ```json
 {
   "ok": true
+}
+```
+
+### `remove_reaction`
+
+- Example payloads: 1
+
+```json
+{
+  "ok": true,
+  "removed": 1,
+  "remaining": 0
 }
 ```
 
@@ -1694,28 +1218,6 @@ Covered flat/custom tools: 115
 }
 ```
 
-### `search_nodes`
-
-- Example payloads: 1
-
-```json
-{
-  "count": 2,
-  "nodes": [
-    {
-      "id": "1:10",
-      "name": "Login Button",
-      "type": "FRAME"
-    },
-    {
-      "id": "1:11",
-      "name": "Login Title",
-      "type": "TEXT"
-    }
-  ]
-}
-```
-
 ### `set_annotation`
 
 - Example payloads: 1
@@ -1747,17 +1249,6 @@ Covered flat/custom tools: 115
 ```json
 {
   "ok": true
-}
-```
-
-### `set_image_fill`
-
-- Example payloads: 1
-
-```json
-{
-  "ok": true,
-  "imageHash": "b2f7c1d4a9"
 }
 ```
 
@@ -1804,6 +1295,17 @@ Covered flat/custom tools: 115
 }
 ```
 
+### `set_reactions`
+
+- Example payloads: 1
+
+```json
+{
+  "ok": true,
+  "reactionCount": 2
+}
+```
+
 ### `set_selection`
 
 - Example payloads: 2
@@ -1816,23 +1318,19 @@ Covered flat/custom tools: 115
 }
 ```
 
-### `set_text_content`
+### `stage_changes`
 
 - Example payloads: 1
 
 ```json
 {
-  "ok": true
-}
-```
-
-### `set_variable_binding`
-
-- Example payloads: 1
-
-```json
-{
-  "ok": true
+  "staged": 3,
+  "errors": [],
+  "stagedNodeIds": [
+    "1:23",
+    "1:24",
+    "1:25"
+  ]
 }
 ```
 
@@ -1878,20 +1376,6 @@ Covered flat/custom tools: 115
       "effectStyles": 2
     }
   }
-}
-```
-
-### `sync_styles`
-
-- Example payloads: 1
-
-```json
-{
-  "created": 2,
-  "updated": 1,
-  "skipped": 0,
-  "failed": 0,
-  "failures": []
 }
 ```
 
@@ -1987,68 +1471,9 @@ Covered flat/custom tools: 115
 }
 ```
 
-### `update_effect_style`
-
-- Example payloads: 1
-
-```json
-{
-  "id": "Style:12",
-  "name": "Shadow/Card/Default"
-}
-```
-
-### `update_paint_style`
-
-- Example payloads: 1
-
-```json
-{
-  "id": "Style:10",
-  "name": "Color/Brand/Accent"
-}
-```
-
-### `update_text_style`
-
-- Example payloads: 1
-
-```json
-{
-  "id": "Style:11",
-  "name": "Text/Heading/L",
-  "fontSize": 32
-}
-```
-
-### `update_variable`
-
-- Example payloads: 1
-
-```json
-{
-  "ok": true,
-  "id": "VariableID:1:30"
-}
-```
-
 ## Endpoint Response Coverage
 
-Covered endpoint methods: 37
-
-### `components.create_instance`
-
-- Example payloads: 1
-
-```json
-{
-  "id": "40:1",
-  "name": "Button / Primary",
-  "type": "INSTANCE",
-  "width": 160,
-  "height": 48
-}
-```
+Covered endpoint methods: 29
 
 ### `components.get`
 
@@ -2118,20 +1543,6 @@ Covered endpoint methods: 37
 }
 ```
 
-### `nodes.clone`
-
-- Example payloads: 1
-
-```json
-{
-  "id": "60:1",
-  "name": "Cloned Card",
-  "type": "FRAME",
-  "width": 320,
-  "height": 180
-}
-```
-
 ### `nodes.delete`
 
 - Example payloads: 1
@@ -2168,16 +1579,6 @@ Covered endpoint methods: 37
 }
 ```
 
-### `nodes.insert_child`
-
-- Example payloads: 1
-
-```json
-{
-  "ok": true
-}
-```
-
 ### `nodes.list`
 
 - Example payloads: 1
@@ -2207,65 +1608,6 @@ Covered endpoint methods: 37
       "ok": true
     }
   ]
-}
-```
-
-### `shapes.create_ellipse`
-
-- Example payloads: 1
-
-```json
-{
-  "id": "50:2",
-  "name": "Avatar Dot",
-  "type": "ELLIPSE",
-  "width": 40,
-  "height": 40
-}
-```
-
-### `shapes.create_frame`
-
-- Example payloads: 1
-
-```json
-{
-  "id": "30:1",
-  "name": "Card Frame",
-  "type": "FRAME",
-  "width": 320,
-  "height": 180,
-  "layoutMode": "VERTICAL",
-  "autoBound": "surface/default"
-}
-```
-
-### `shapes.create_rectangle`
-
-- Example payloads: 1
-
-```json
-{
-  "id": "50:1",
-  "name": "Card Background",
-  "type": "RECTANGLE",
-  "width": 320,
-  "height": 180,
-  "cornerRadius": 24
-}
-```
-
-### `shapes.create_vector`
-
-- Example payloads: 1
-
-```json
-{
-  "id": "70:1",
-  "name": "Arrow Icon",
-  "type": "FRAME",
-  "width": 24,
-  "height": 24
 }
 ```
 
@@ -2392,23 +1734,6 @@ Covered endpoint methods: 37
   "id": "Style:11",
   "name": "Text/Heading/L",
   "fontSize": 32
-}
-```
-
-### `text.create`
-
-- Example payloads: 1
-
-```json
-{
-  "id": "30:2",
-  "name": "Hero Title",
-  "type": "TEXT",
-  "characters": "Ship Faster",
-  "fontSize": 32,
-  "autoBound": {
-    "color": "text/primary"
-  }
 }
 ```
 
@@ -2620,21 +1945,14 @@ Covered endpoint methods: 37
 
 ## Flat To Endpoint Migration Map
 
-Mapped flat tools: 37
+Mapped flat tools: 29
 
 | Flat Tool | Replacement | Toolset | Write | Access |
 | --- | --- | --- | --- | --- |
 | `batch_create_variables` | `variables_ep(method: "batch_create")` | `variables` | `true` | `create` |
-| `clone_node` | `nodes(method: "clone")` | `core` | `true` | `create` |
 | `create_collection` | `variables_ep(method: "create_collection")` | `variables` | `true` | `create` |
-| `create_ellipse` | `shapes(method: "create_ellipse")` | `core` | `true` | `create` |
-| `create_frame` | `shapes(method: "create_frame")` | `core` | `true` | `create` |
-| `create_instance` | `components(method: "create_instance")` | `core` | `true` | `create` |
 | `create_paint_style` | `styles_ep(method: "create_paint")` | `styles` | `true` | `create` |
-| `create_rectangle` | `shapes(method: "create_rectangle")` | `core` | `true` | `create` |
-| `create_text` | `text(method: "create")` | `core` | `true` | `create` |
 | `create_variable` | `variables_ep(method: "create")` | `variables` | `true` | `create` |
-| `create_vector` | `shapes(method: "create_vector")` | `core` | `true` | `create` |
 | `delete_collection` | `variables_ep(method: "delete_collection")` | `variables` | `true` | `edit` |
 | `delete_nodes` | `nodes(method: "delete")` | `core` | `true` | `edit` |
 | `delete_style` | `styles_ep(method: "delete")` | `styles` | `true` | `edit` |
@@ -2645,7 +1963,6 @@ Mapped flat tools: 37
 | `get_node_variables` | `variables_ep(method: "get_bindings")` | `variables` | `false` | `read` |
 | `get_style` | `styles_ep(method: "get")` | `styles` | `false` | `read` |
 | `get_variable` | `variables_ep(method: "get")` | `variables` | `false` | `read` |
-| `insert_child` | `nodes(method: "insert_child")` | `core` | `true` | `edit` |
 | `list_collections` | `variables_ep(method: "list_collections")` | `variables` | `false` | `read` |
 | `list_component_properties` | `components(method: "list_properties")` | `core` | `false` | `read` |
 | `list_components` | `components(method: "list")` | `core` | `false` | `read` |

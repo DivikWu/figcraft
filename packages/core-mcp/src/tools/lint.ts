@@ -6,6 +6,16 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Bridge } from '../bridge.js';
 
+/** Load cached tokens and build a token context for lint rules. */
+async function loadTokenContext(bridge: Bridge, useStoredTokens?: string): Promise<Record<string, unknown> | undefined> {
+  if (!useStoredTokens) return undefined;
+  const cached = await bridge.request('load_spec_tokens', { name: useStoredTokens }) as {
+    tokens?: Array<{ path: string; type: string; value: unknown }>;
+    error?: string;
+  };
+  return cached.tokens ? buildTokenContext(cached.tokens) : undefined;
+}
+
 export function registerLintTools(server: McpServer, bridge: Bridge): void {
   server.tool(
     'lint_check',
@@ -26,17 +36,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
       minSeverity: z.enum(['error', 'warning', 'info', 'hint']).optional().describe('Minimum severity to include (default: all). Use "warning" to hide hints/info.'),
     },
     async ({ nodeIds, rules, categories, offset, limit, maxViolations, annotate, useStoredTokens, minSeverity }) => {
-      // Load cached tokens if requested
-      let tokenContext: Record<string, unknown> | undefined;
-      if (useStoredTokens) {
-        const cached = await bridge.request('load_spec_tokens', { name: useStoredTokens }) as {
-          tokens?: Array<{ path: string; type: string; value: unknown }>;
-          error?: string;
-        };
-        if (cached.tokens) {
-          tokenContext = buildTokenContext(cached.tokens);
-        }
-      }
+      const tokenContext = await loadTokenContext(bridge, useStoredTokens);
 
       const result = await bridge.request('lint_check', {
         nodeIds,
@@ -84,32 +84,6 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
   );
 
   server.tool(
-    'lint_rules',
-    'List all available lint rules with descriptions.',
-    {},
-    async () => {
-      const result = await bridge.request('lint_rules', {});
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-      };
-    },
-  );
-
-  server.tool(
-    'clear_annotations',
-    'Remove all figcraft lint annotations from specified nodes or the whole page.',
-    {
-      nodeIds: z.array(z.string()).optional().describe('Node IDs to clear (default: all on page)'),
-    },
-    async ({ nodeIds }) => {
-      const result = await bridge.request('clear_annotations', { nodeIds });
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-      };
-    },
-  );
-
-  server.tool(
     'lint_fix_all',
     'Run lint on the page/selection, then auto-fix all fixable violations in one call. ' +
       'Returns the lint report and fix results. Equivalent to lint_check + lint_fix.',
@@ -122,17 +96,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
       maxViolations: z.number().optional().describe('Stop collecting after this many violations (performance optimization for large pages)'),
     },
     async ({ nodeIds, rules, categories, useStoredTokens, annotate, maxViolations }) => {
-      // Load cached tokens if requested
-      let tokenContext: Record<string, unknown> | undefined;
-      if (useStoredTokens) {
-        const cached = await bridge.request('load_spec_tokens', { name: useStoredTokens }) as {
-          tokens?: Array<{ path: string; type: string; value: unknown }>;
-          error?: string;
-        };
-        if (cached.tokens) {
-          tokenContext = buildTokenContext(cached.tokens);
-        }
-      }
+      const tokenContext = await loadTokenContext(bridge, useStoredTokens);
 
       // Step 1: lint_check
       const report = await bridge.request('lint_check', {
@@ -158,6 +122,8 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
 
       // Step 3: optionally annotate remaining
       if (annotate) {
+        // Clear previous lint annotations before adding new ones
+        await bridge.request('clear_annotations', { nodeIds });
         await bridge.request('lint_check', {
           nodeIds, rules, categories, tokenContext, annotate: true,
         });
@@ -188,16 +154,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
       useStoredTokens: z.string().optional().describe('Name of cached token set for lint'),
     },
     async ({ nodeIds, useStoredTokens }) => {
-      // 1. Lint check (all categories)
-      let tokenContext: Record<string, unknown> | undefined;
-      if (useStoredTokens) {
-        const cached = await bridge.request('load_spec_tokens', { name: useStoredTokens }) as {
-          tokens?: Array<{ path: string; type: string; value: unknown }>;
-        };
-        if (cached?.tokens) {
-          tokenContext = buildTokenContext(cached.tokens);
-        }
-      }
+      const tokenContext = await loadTokenContext(bridge, useStoredTokens);
 
       const lintReport = await bridge.request('lint_check', {
         nodeIds, tokenContext,
@@ -262,7 +219,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
   );
 }
 
-function buildTokenContext(tokens: Array<{ path: string; type: string; value: unknown }>): Record<string, unknown> {
+export function buildTokenContext(tokens: Array<{ path: string; type: string; value: unknown }>): Record<string, unknown> {
   const colorTokens: Record<string, string> = {};
   const spacingTokens: Record<string, number> = {};
   const radiusTokens: Record<string, number> = {};

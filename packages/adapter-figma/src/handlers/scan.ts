@@ -5,6 +5,7 @@
 import { registerHandler } from '../registry.js';
 import { figmaRgbaToHex } from '../utils/color.js';
 import { isRgbaLike } from '../utils/type-guards.js';
+import { assertHandler } from '../utils/handler-error.js';
 
 export function registerScanHandlers(): void {
 
@@ -72,7 +73,7 @@ registerHandler('export_tokens', async () => {
 
 registerHandler('diff_styles', async (params) => {
   const dtcgTokens = params.tokens as Array<{ path: string; type: string; value: unknown }> | undefined;
-  if (!dtcgTokens) return { error: 'No tokens provided for comparison' };
+  assertHandler(dtcgTokens, 'No tokens provided for comparison');
 
   const collections = await figma.variables.getLocalVariableCollectionsAsync();
   const figmaVars = new Map<string, { value: unknown; type: string }>();

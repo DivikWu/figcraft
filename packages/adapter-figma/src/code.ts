@@ -6,8 +6,11 @@
  */
 
 import { handlers, registerHandler } from './registry.js';
-import { getLibraryDesignContext, getLocalDesignContext, clearDesignContextCache } from './utils/design-context.js';
-import { getRegisteredStylesSummary, clearStyleRegistry } from './utils/style-registry.js';
+import { getLibraryDesignContext, getLocalDesignContext } from './utils/design-context.js';
+import { getRegisteredStylesSummary } from './utils/style-registry.js';
+import { createSerialTaskQueue } from './utils/serial-task-queue.js';
+import { HandlerError } from './utils/handler-error.js';
+import { clearAllCaches } from './utils/cache-manager.js';
 import { STORAGE_KEYS, PLUGIN_VERSION } from './constants.js';
 
 // ─── P1 handlers (read) ───
@@ -17,8 +20,8 @@ import { registerStyleHandlers } from './handlers/styles.js';
 import { registerLibraryHandlers } from './handlers/library.js';
 import { registerExportHandlers } from './handlers/export.js';
 
-// ─── P2 handlers (write) ───
-import { registerWriteNodeHandlers, invalidateModeCache } from './handlers/write-nodes.js';
+// ─── P2 handlers (write — patch/delete only, creation removed) ───
+import { registerWriteNodeHandlers } from './handlers/write-nodes.js';
 import { registerWriteVariableHandlers } from './handlers/write-variables.js';
 import { registerWriteStyleHandlers } from './handlers/write-styles.js';
 import { registerComponentHandlers } from './handlers/components.js';
@@ -30,11 +33,20 @@ import { registerSelectionHandlers } from './handlers/selection.js';
 import { registerLintHandlers } from './handlers/lint.js';
 import { registerAnnotationHandlers } from './handlers/annotations.js';
 
+// ─── P6 handlers (prototype) ───
+import { registerPrototypeHandlers } from './handlers/prototype.js';
+
+// ─── Staging handlers ───
+import { registerStagingHandlers } from './handlers/staging.js';
+
 // ─── P4 handlers (scan) ───
 import { registerScanHandlers } from './handlers/scan.js';
 
 // ─── P5 handlers (image/vector) ───
 import { registerImageVectorHandlers } from './handlers/image-vector.js';
+
+// ─── P7 handlers (execute JS) ───
+import { registerExecuteJsHandler } from './handlers/execute-js.js';
 
 // ─── Register all handlers ───
 registerNodeHandlers();
@@ -51,8 +63,11 @@ registerPageHandlers();
 registerSelectionHandlers();
 registerLintHandlers();
 registerAnnotationHandlers();
+registerPrototypeHandlers();
+registerStagingHandlers();
 registerScanHandlers();
 registerImageVectorHandlers();
+registerExecuteJsHandler();
 
 // Show the UI (establishes WebSocket connection to relay)
 figma.showUI(__html__, { visible: true, width: 320, height: 480 });
@@ -290,15 +305,13 @@ figma.ui.on('message', async (msg: { type: string; channelId?: string; mode?: st
     figma.ui.postMessage({ type: 'restore-mode', mode: saved || 'library' });
   } else if (msg.type === 'save-mode' && msg.mode) {
     await figma.clientStorage.setAsync(MODE_STORAGE_KEY, msg.mode);
-    invalidateModeCache();
+    clearAllCaches();
   } else if (msg.type === 'get-library') {
     const saved = await figma.clientStorage.getAsync(LIBRARY_STORAGE_KEY);
     figma.ui.postMessage({ type: 'restore-library', library: saved || null });
   } else if (msg.type === 'save-library') {
     await figma.clientStorage.setAsync(LIBRARY_STORAGE_KEY, msg.library || '');
-    clearDesignContextCache();
-    clearStyleRegistry();
-    invalidateModeCache();
+    clearAllCaches();
   } else if (msg.type === 'get-token') {
     const saved = await figma.clientStorage.getAsync(API_TOKEN_STORAGE_KEY);
     figma.ui.postMessage({ type: 'restore-token', token: saved || '' });
@@ -405,12 +418,11 @@ registerHandler('get_mode', async () => {
 registerHandler('set_mode', async (params) => {
   const mode = (params.mode as string) || 'library';
   await figma.clientStorage.setAsync(MODE_STORAGE_KEY, mode);
-  invalidateModeCache();
+  clearAllCaches();
   if (params.library !== undefined) {
     await figma.clientStorage.setAsync(LIBRARY_STORAGE_KEY, params.library as string);
     figma.ui.postMessage({ type: 'library-changed', library: params.library });
-    clearDesignContextCache();
-    clearStyleRegistry();
+    clearAllCaches();
   }
   figma.ui.postMessage({ type: 'mode-changed', mode });
   const library = await figma.clientStorage.getAsync(LIBRARY_STORAGE_KEY);
@@ -456,64 +468,90 @@ function safePostResponse(msg: Record<string, unknown>): void {
 // We serialize handler execution to prevent this.
 
 const MAX_QUEUE_SIZE = 100;
-let requestQueue: Array<{ id: string; method: string; params: Record<string, unknown>; timeoutMs?: number }> = [];
-let processingRequest = false;
-
-async function processNextRequest(): Promise<void> {
-  if (processingRequest || requestQueue.length === 0) return;
-  processingRequest = true;
-
-  const { id, method, params, timeoutMs } = requestQueue.shift()!;
-  const startTime = Date.now();
-  console.log(`[figcraft] → ${method} (id=${id}) [queue=${requestQueue.length}]`);
-
-  const handler = handlers.get(method);
-  if (!handler) {
-    console.warn(`[figcraft] ✗ ${method} — unknown method`);
-    figma.ui.postMessage({
-      id,
-      type: 'error',
-      error: { code: 'METHOD_NOT_FOUND', message: `Unknown method: ${method}` },
-    });
-    processingRequest = false;
-    processNextRequest();
-    return;
+class UnknownMethodError extends Error {
+  constructor(method: string) {
+    super(`Unknown method: ${method}`);
+    this.name = 'UnknownMethodError';
   }
+}
 
-  try {
-    const HANDLER_TIMEOUT_MS = timeoutMs ?? 25_000;
-    const handlerPromise = handler(params);
-    // NOTE: On timeout, the handler promise continues running in the background.
-    // Since Figma Plugin API is not concurrency-safe, the timed-out handler may
-    // still mutate state. The sequential queue prevents new requests from starting
-    // until this function returns, but the orphaned handler cannot be cancelled.
-    let handlerTimer: ReturnType<typeof setTimeout>;
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      handlerTimer = setTimeout(() => reject(new Error(`Handler ${method} timed out after ${HANDLER_TIMEOUT_MS}ms`)), HANDLER_TIMEOUT_MS);
-    });
-    const result = await Promise.race([
-      handlerPromise.finally(() => clearTimeout(handlerTimer!)),
-      timeoutPromise,
-    ]);
-    const elapsed = Date.now() - startTime;
-    console.log(`[figcraft] ✓ ${method} — ${elapsed}ms`);
-    safePostResponse({ id, type: 'response', result });
-  } catch (err) {
-    const elapsed = Date.now() - startTime;
-    console.warn(`[figcraft] ✗ ${method} — ${elapsed}ms — ${err instanceof Error ? err.message : String(err)}`);
+type QueuedRequest = {
+  id: string;
+  method: string;
+  params: Record<string, unknown>;
+  timeoutMs?: number;
+  startedAt?: number;
+};
+
+// ─── High-priority methods ───
+// These lightweight read-only methods skip ahead of the normal queue
+// so they don't get blocked behind long-running operations like lint.
+const HIGH_PRIORITY_METHODS = new Set([
+  'ping',
+  'get_mode',
+  'get_selection',
+  'get_document_info',
+  'list_fonts',
+]);
+
+const requestQueue = createSerialTaskQueue<QueuedRequest, unknown>({
+  onStart(item, queuedCount) {
+    item.startedAt = Date.now();
+    console.log(`[figcraft] → ${item.method} (id=${item.id}) [queue=${queuedCount}]`);
+  },
+  async run(item) {
+    const handler = handlers.get(item.method);
+    if (!handler) {
+      throw new UnknownMethodError(item.method);
+    }
+    return handler(item.params);
+  },
+  getTimeoutMs(item) {
+    return item.timeoutMs ?? 25_000;
+  },
+  isHighPriority(item) {
+    return HIGH_PRIORITY_METHODS.has(item.method);
+  },
+  async onResult(item, result) {
+    const elapsed = Date.now() - (item.startedAt ?? Date.now());
+    console.log(`[figcraft] ✓ ${item.method} — ${elapsed}ms`);
+    safePostResponse({ id: item.id, type: 'response', result });
+  },
+  async onError(item, error) {
+    const elapsed = Date.now() - (item.startedAt ?? Date.now());
+    const isUnknownMethod = error instanceof UnknownMethodError;
+    const isHandlerError = error instanceof HandlerError;
+    const code = isUnknownMethod
+      ? 'METHOD_NOT_FOUND'
+      : isHandlerError
+        ? (error as HandlerError).code
+        : 'HANDLER_ERROR';
+    console.warn(`[figcraft] ✗ ${item.method} — ${elapsed}ms — ${error instanceof Error ? error.message : String(error)}`);
     figma.ui.postMessage({
-      id,
+      id: item.id,
+      type: 'error',
+      error: {
+        code,
+        message: error instanceof Error ? error.message : String(error),
+      },
+    });
+  },
+  async onTimeout(item, timeoutMs) {
+    const elapsed = Date.now() - (item.startedAt ?? Date.now());
+    console.warn(`[figcraft] ✗ ${item.method} — ${elapsed}ms — timed out, waiting for handler to settle before draining queue`);
+    figma.ui.postMessage({
+      id: item.id,
       type: 'error',
       error: {
         code: 'HANDLER_ERROR',
-        message: err instanceof Error ? err.message : String(err),
+        message: `Handler ${item.method} timed out after ${timeoutMs}ms`,
       },
     });
-  }
-
-  processingRequest = false;
-  processNextRequest();
-}
+  },
+  async onLateError(item, error) {
+    console.warn(`[figcraft] late handler failure for ${item.method}:`, error instanceof Error ? error.message : String(error));
+  },
+});
 
 figma.ui.onmessage = async (msg: {
   id: string;
@@ -524,7 +562,7 @@ figma.ui.onmessage = async (msg: {
 }) => {
   if (msg.type !== 'request') return;
 
-  if (requestQueue.length >= MAX_QUEUE_SIZE) {
+  if (requestQueue.pendingCount() >= MAX_QUEUE_SIZE) {
     figma.ui.postMessage({
       id: msg.id,
       type: 'error',
@@ -533,6 +571,5 @@ figma.ui.onmessage = async (msg: {
     return;
   }
 
-  requestQueue.push({ id: msg.id, method: msg.method, params: msg.params, timeoutMs: msg._timeoutMs });
-  processNextRequest();
+  requestQueue.enqueue({ id: msg.id, method: msg.method, params: msg.params, timeoutMs: msg._timeoutMs });
 };

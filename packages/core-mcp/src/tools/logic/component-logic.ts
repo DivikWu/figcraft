@@ -1,6 +1,6 @@
 /**
  * Component logic functions — extracted from components.ts server.tool() callbacks.
- * Shared by both flat tools and endpoint tools.
+ * Used by endpoint tools for library component operations.
  */
 
 import type { Bridge } from '../../bridge.js';

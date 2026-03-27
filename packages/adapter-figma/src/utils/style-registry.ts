@@ -6,6 +6,8 @@
  * Keys persisted in clientStorage for lazy recovery after plugin restart.
  */
 
+import { registerCache } from './cache-manager.js';
+
 // ─── Types ───
 
 export interface RegisteredTextStyle {
@@ -213,10 +215,6 @@ export function getPaintStyleId(hex: string | undefined, name?: string): { id: s
   const entries = paintStyleMap.get(hex.toLowerCase());
   if (!entries || entries.length === 0) return null;
   return entries[0];
-}
-
-export function getEffectStyleId(effectType: string): { id: string; name: string } | null {
-  return effectStyleMap.get(effectType) ?? null;
 }
 
 // ─── Get registered styles summary (for get_mode response) ───
@@ -484,3 +482,6 @@ export function clearStyleRegistry(): void {
   effectStyleMap.clear();
   loadedLibrary = null;
 }
+
+// Register with centralized cache manager
+registerCache('style-registry', clearStyleRegistry);

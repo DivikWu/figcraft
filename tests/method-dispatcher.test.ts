@@ -15,7 +15,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../packages/core-mcp/src/tools/toolset-manager.js', () => ({
   getAccessLevel: vi.fn(() => 'edit'),
   isToolBlocked: vi.fn(() => null),
-  getApiMode: vi.fn(() => 'both'),
 }));
 
 // Mock node-logic functions
@@ -97,10 +96,9 @@ describe('Method_Dispatcher routing', () => {
     registeredTools = tools;
   });
 
-  it('registers all 6 endpoint tools', () => {
+  it('registers all 5 endpoint tools', () => {
     expect(registeredTools['nodes']).toBeDefined();
     expect(registeredTools['text']).toBeDefined();
-    expect(registeredTools['shapes']).toBeDefined();
     expect(registeredTools['components']).toBeDefined();
     expect(registeredTools['variables_ep']).toBeDefined();
     expect(registeredTools['styles_ep']).toBeDefined();
@@ -145,59 +143,11 @@ describe('Method_Dispatcher routing', () => {
 
       expect(mockBridge.request).toHaveBeenCalledWith('delete_nodes', { nodeIds });
     });
-
-    it('routes method "clone" to bridge.request with clone_node', async () => {
-      await registeredTools['nodes']({ method: 'clone', nodeId: '3:3' });
-
-      expect(mockBridge.request).toHaveBeenCalledWith('clone_node', { nodeId: '3:3' });
-    });
-
-    it('routes method "insert_child" to bridge.request with correct params', async () => {
-      await registeredTools['nodes']({
-        method: 'insert_child',
-        parentId: '1:1',
-        childId: '2:2',
-        index: 0,
-      });
-
-      expect(mockBridge.request).toHaveBeenCalledWith('insert_child', {
-        parentId: '1:1',
-        childId: '2:2',
-        index: 0,
-      });
-    });
   });
 
   // ── text endpoint routing ──
 
   describe('text endpoint', () => {
-    it('routes method "create" to bridge.request with create_text', async () => {
-      await registeredTools['text']({
-        method: 'create',
-        content: 'Hello',
-        name: 'Label',
-        x: 10,
-        y: 20,
-        fontSize: 16,
-        fontFamily: 'Inter',
-        fontStyle: 'Bold',
-        fill: '#000000',
-        parentId: '1:1',
-      });
-
-      expect(mockBridge.request).toHaveBeenCalledWith('create_text', {
-        content: 'Hello',
-        name: 'Label',
-        x: 10,
-        y: 20,
-        fontSize: 16,
-        fontFamily: 'Inter',
-        fontStyle: 'Bold',
-        fill: '#000000',
-        parentId: '1:1',
-      });
-    });
-
     it('routes method "set_content" to bridge.request with set_text_content', async () => {
       await registeredTools['text']({
         method: 'set_content',
@@ -209,84 +159,6 @@ describe('Method_Dispatcher routing', () => {
         nodeId: '5:5',
         content: 'Updated text',
       });
-    });
-  });
-
-  // ── shapes endpoint routing ──
-
-  describe('shapes endpoint', () => {
-    it('routes method "create_frame" to bridge.request with create_frame', async () => {
-      await registeredTools['shapes']({
-        method: 'create_frame',
-        name: 'Container',
-        width: 400,
-        height: 300,
-        autoLayout: true,
-        layoutDirection: 'VERTICAL',
-        itemSpacing: 8,
-        padding: 16,
-      });
-
-      expect(mockBridge.request).toHaveBeenCalledWith('create_frame', expect.objectContaining({
-        name: 'Container',
-        width: 400,
-        height: 300,
-        autoLayout: true,
-        layoutDirection: 'VERTICAL',
-        itemSpacing: 8,
-        padding: 16,
-      }));
-    });
-
-    it('routes method "create_rectangle" to bridge.request', async () => {
-      await registeredTools['shapes']({
-        method: 'create_rectangle',
-        name: 'Rect',
-        width: 100,
-        height: 50,
-        fill: '#FF0000',
-        cornerRadius: 8,
-      });
-
-      expect(mockBridge.request).toHaveBeenCalledWith('create_rectangle', expect.objectContaining({
-        name: 'Rect',
-        width: 100,
-        height: 50,
-        fill: '#FF0000',
-        cornerRadius: 8,
-      }));
-    });
-
-    it('routes method "create_ellipse" to bridge.request', async () => {
-      await registeredTools['shapes']({
-        method: 'create_ellipse',
-        name: 'Circle',
-        width: 50,
-        height: 50,
-        fill: '#00FF00',
-      });
-
-      expect(mockBridge.request).toHaveBeenCalledWith('create_ellipse', expect.objectContaining({
-        name: 'Circle',
-        width: 50,
-        height: 50,
-        fill: '#00FF00',
-      }));
-    });
-
-    it('routes method "create_vector" to bridge.request', async () => {
-      await registeredTools['shapes']({
-        method: 'create_vector',
-        svg: '<svg><path d="M0 0"/></svg>',
-        name: 'Icon',
-        resize: [24, 24],
-      });
-
-      expect(mockBridge.request).toHaveBeenCalledWith('create_vector', expect.objectContaining({
-        svg: '<svg><path d="M0 0"/></svg>',
-        name: 'Icon',
-        resize: [24, 24],
-      }));
     });
   });
 
@@ -319,22 +191,6 @@ describe('Method_Dispatcher routing', () => {
 
       expect(mockBridge.request).toHaveBeenCalledWith('get_component', {
         nodeId: '10:20',
-      });
-    });
-
-    it('routes method "create_instance" to bridge.request', async () => {
-      await registeredTools['components']({
-        method: 'create_instance',
-        componentKey: 'key123',
-        properties: { variant: 'primary' },
-        parentId: '1:1',
-      });
-
-      expect(mockBridge.request).toHaveBeenCalledWith('create_instance', {
-        componentId: undefined,
-        componentKey: 'key123',
-        properties: { variant: 'primary' },
-        parentId: '1:1',
       });
     });
 
@@ -377,8 +233,6 @@ describe('Method_Dispatcher invalid method rejection', () => {
     expect(parsed.error).toContain('list');
     expect(parsed.error).toContain('update');
     expect(parsed.error).toContain('delete');
-    expect(parsed.error).toContain('clone');
-    expect(parsed.error).toContain('insert_child');
   });
 
   it('text endpoint rejects invalid method with available methods list', async () => {
@@ -388,20 +242,7 @@ describe('Method_Dispatcher invalid method rejection', () => {
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.error).toContain('Unknown method "delete"');
     expect(parsed.error).toContain('text');
-    expect(parsed.error).toContain('create');
     expect(parsed.error).toContain('set_content');
-  });
-
-  it('shapes endpoint rejects invalid method', async () => {
-    const result = await registeredTools['shapes']({ method: 'delete' }) as any;
-
-    expect(result.isError).toBe(true);
-    const parsed = JSON.parse(result.content[0].text);
-    expect(parsed.error).toContain('Unknown method "delete"');
-    expect(parsed.error).toContain('create_frame');
-    expect(parsed.error).toContain('create_rectangle');
-    expect(parsed.error).toContain('create_ellipse');
-    expect(parsed.error).toContain('create_vector');
   });
 
   it('components endpoint rejects invalid method', async () => {
@@ -412,7 +253,6 @@ describe('Method_Dispatcher invalid method rejection', () => {
     expect(parsed.error).toContain('Unknown method "rename"');
     expect(parsed.error).toContain('list');
     expect(parsed.error).toContain('get');
-    expect(parsed.error).toContain('create_instance');
   });
 
   it('variables_ep endpoint rejects invalid method', async () => {
@@ -496,56 +336,16 @@ describe('Method_Dispatcher parameter conversion', () => {
     );
   });
 
-  it('text "create" passes all text creation params to bridge', async () => {
+  it('text "set_content" passes params to bridge', async () => {
     await registeredTools['text']({
-      method: 'create',
-      content: 'Hello World',
-      fontSize: 24,
+      method: 'set_content',
+      nodeId: '5:5',
+      content: 'Updated text',
     });
 
-    expect(mockBridge.request).toHaveBeenCalledWith('create_text', expect.objectContaining({
-      content: 'Hello World',
-      fontSize: 24,
-    }));
-  });
-
-  it('shapes "create_frame" passes layout params correctly', async () => {
-    await registeredTools['shapes']({
-      method: 'create_frame',
-      name: 'Layout',
-      paddingLeft: 16,
-      paddingRight: 16,
-      paddingTop: 8,
-      paddingBottom: 8,
-      primaryAxisAlignItems: 'CENTER',
-      counterAxisAlignItems: 'CENTER',
-    });
-
-    expect(mockBridge.request).toHaveBeenCalledWith('create_frame', expect.objectContaining({
-      name: 'Layout',
-      paddingLeft: 16,
-      paddingRight: 16,
-      paddingTop: 8,
-      paddingBottom: 8,
-      primaryAxisAlignItems: 'CENTER',
-      counterAxisAlignItems: 'CENTER',
-    }));
-  });
-
-  it('components "create_instance" passes componentId and componentKey', async () => {
-    await registeredTools['components']({
-      method: 'create_instance',
-      componentId: 'local-123',
-      componentKey: undefined,
-      properties: { size: 'large' },
-      parentId: '1:1',
-    });
-
-    expect(mockBridge.request).toHaveBeenCalledWith('create_instance', {
-      componentId: 'local-123',
-      componentKey: undefined,
-      properties: { size: 'large' },
-      parentId: '1:1',
+    expect(mockBridge.request).toHaveBeenCalledWith('set_text_content', {
+      nodeId: '5:5',
+      content: 'Updated text',
     });
   });
 });
@@ -594,24 +394,14 @@ const ENDPOINT_METHOD_BRIDGE_MAP: Record<string, Record<string, { type: 'logic';
     list: { type: 'logic', fn: 'searchNodesLogic' },
     update: { type: 'bridge', method: 'patch_nodes' },
     delete: { type: 'bridge', method: 'delete_nodes' },
-    clone: { type: 'bridge', method: 'clone_node' },
-    insert_child: { type: 'bridge', method: 'insert_child' },
   },
   text: {
-    create: { type: 'bridge', method: 'create_text' },
     set_content: { type: 'bridge', method: 'set_text_content' },
-  },
-  shapes: {
-    create_frame: { type: 'bridge', method: 'create_frame' },
-    create_rectangle: { type: 'bridge', method: 'create_rectangle' },
-    create_ellipse: { type: 'bridge', method: 'create_ellipse' },
-    create_vector: { type: 'bridge', method: 'create_vector' },
   },
   components: {
     list: { type: 'bridge', method: 'list_components' },
     list_library: { type: 'logic', fn: 'listLibraryComponentsLogic' },
     get: { type: 'bridge', method: 'get_component' },
-    create_instance: { type: 'bridge', method: 'create_instance' },
     list_properties: { type: 'bridge', method: 'list_component_properties' },
   },
   variables_ep: {
