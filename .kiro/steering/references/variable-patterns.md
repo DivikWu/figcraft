@@ -1,14 +1,12 @@
 ---
 inclusion: fileMatch
-fileMatchPattern: "packages/adapter-figma/**,packages/core-mcp/src/tools/**,.kiro/steering/figma-*,.kiro/skills/figma-*"
+fileMatchPattern: "packages/adapter-figma/**,packages/core-mcp/src/tools/**,.kiro/skills/figma-*"
 description: "Figma 变量和 Token API 的正确使用模式"
 ---
 
 # Variable & Token API Patterns
 
-> Part of the [use_figma skill](../SKILL.md). How to correctly create, bind, scope, and alias variables using the Plugin API.
->
-> For design system context (aliasing strategy, mode decisions, code syntax philosophy, grouping conventions), see [wwds-variables](working-with-design-systems/wwds-variables.md).
+> FigCraft execute_js reference. How to correctly create, bind, scope, and alias variables using the Plugin API.
 
 ## Contents
 
@@ -66,15 +64,12 @@ boolVar.setValueForMode(modeId, true);
 
 ### Color Bindings (Fills, Strokes)
 
-`setBoundVariableForPaint` returns a **NEW paint** — you must capture the return value:
+`setBoundVariableForPaint` returns a **NEW paint** — you must capture the return value. See gotchas.md for WRONG/CORRECT examples.
 
 ```javascript
-// Create a base paint, bind the variable, assign the result
 const basePaint = { type: 'SOLID', color: { r: 0, g: 0, b: 0 } };
 const boundPaint = figma.variables.setBoundVariableForPaint(basePaint, "color", colorVar);
 node.fills = [boundPaint];
-
-// Only SOLID paints support color variable binding — gradients/images will throw
 ```
 
 ### Numeric Bindings (Spacing, Radii, Sizing)
@@ -145,7 +140,7 @@ variable.scopes = [];                              // hidden from all pickers
 **All valid scope values:**
 `ALL_SCOPES`, `TEXT_CONTENT`, `CORNER_RADIUS`, `WIDTH_HEIGHT`, `GAP`, `ALL_FILLS`, `FRAME_FILL`, `SHAPE_FILL`, `TEXT_FILL`, `STROKE_COLOR`, `STROKE_FLOAT`, `EFFECT_FLOAT`, `EFFECT_COLOR`, `OPACITY`, `FONT_FAMILY`, `FONT_STYLE`, `FONT_WEIGHT`, `FONT_SIZE`, `LINE_HEIGHT`, `LETTER_SPACING`, `PARAGRAPH_SPACING`, `PARAGRAPH_INDENT`
 
-**Always set scopes explicitly** — `ALL_SCOPES` is the default but almost never what you want. For a comprehensive scope-to-use-case mapping table, see [token-creation.md § Variable Scopes — Complete Reference Table](../../figma-generate-library/references/token-creation.md).
+**Always set scopes explicitly** — `ALL_SCOPES` is the default but almost never what you want.
 
 **Always check the existing file's scope patterns before creating variables** — match whatever convention is already in use. See "Discovering Existing Variables" below.
 
@@ -175,16 +170,10 @@ variable.setVariableCodeSyntax('iOS', 'Color.bgDefault');
 // Read back: variable.codeSyntax → { WEB: '...', ANDROID: '...', iOS: '...' }
 ```
 
-**When deriving CSS names from Figma names**, replace both slashes AND spaces with hyphens:
+**When deriving CSS names from Figma names**, replace both slashes AND spaces with hyphens. See gotchas.md "CSS variable names must not contain spaces" for WRONG/CORRECT examples.
 
+Best practice: use the original CSS variable name from the source token file:
 ```javascript
-// WRONG — leaves spaces in CSS variable name
-`var(--${figmaName.replace(/\//g, '-').toLowerCase()})`
-
-// CORRECT — replace all whitespace and slashes
-`var(--${figmaName.replace(/[\s\/]+/g, '-').toLowerCase()})`
-
-// BEST — use the original CSS variable name from the source, not a derived one
 `var(${token.cssVar})`
 ```
 
@@ -361,7 +350,7 @@ async function setVariableValueForMode(variableId, modeId, value) {
 
 ## Effect Styles (For Shadows)
 
-Shadows can't be stored as variables. Use effect styles. For comprehensive patterns, see [effect-style-patterns.md](effect-style-patterns.md).
+Shadows can't be stored as variables. Use effect styles.
 
 ```javascript
 const shadow = figma.createEffectStyle();

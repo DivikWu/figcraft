@@ -1,14 +1,12 @@
 ---
 inclusion: fileMatch
-fileMatchPattern: "packages/adapter-figma/**,packages/core-mcp/src/tools/**,.kiro/steering/figma-*,.kiro/skills/figma-*"
+fileMatchPattern: "packages/adapter-figma/**,packages/core-mcp/src/tools/**,.kiro/skills/figma-*"
 description: "Figma 组件和变体 API 的正确使用模式"
 ---
 
 # Component & Variant API Patterns
 
-> Part of the [use_figma skill](../SKILL.md). How to correctly use the Plugin API for components, variants, and component properties.
->
-> For design system context (when to use variants vs properties, code-to-Figma translation, property model), see [wwds-components](working-with-design-systems/wwds-components.md).
+> FigCraft execute_js reference. How to correctly use the Plugin API for components, variants, and component properties.
 
 ## Contents
 
@@ -306,22 +304,9 @@ for (const t of textNodes) {
 
 ### detachInstance() invalidates ancestor node IDs
 
-**Warning:** When `detachInstance()` is called on a nested instance inside a library component instance, the parent instance may also get implicitly detached (converted from INSTANCE to FRAME with a **new ID**). Subsequent `getNodeByIdAsync(oldParentId)` returns null.
+See #[[file:.kiro/steering/references/gotchas.md]] "detachInstance() invalidates ancestor node IDs" for full WRONG/CORRECT code examples.
 
-```javascript
-// WRONG — cached parent ID becomes invalid after child detach
-const parentId = parentInstance.id;
-nestedChild.detachInstance();
-const parent = await figma.getNodeByIdAsync(parentId); // null!
-
-// CORRECT — re-discover nodes by traversal from a stable (non-instance) parent
-const stableFrame = await figma.getNodeByIdAsync(manualFrameId); // a frame YOU created
-nestedChild.detachInstance();
-// Re-find the parent by traversing from the stable frame
-const parent = stableFrame.findOne(n => n.name === "ParentName");
-```
-
-If you must detach multiple nested instances across sibling components, do it in a **single** `use_figma` call — discover all targets by traversal at the start before any detachment mutates the tree.
+If you must detach multiple nested instances across sibling components, do it in a single `execute_js` call — discover all targets by traversal at the start before any detachment mutates the tree.
 
 ## Inspecting Component Metadata (Deep Traversal)
 

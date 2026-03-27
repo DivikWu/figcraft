@@ -23,6 +23,20 @@ description: "FigCraft MCP 工具使用指南 — Figma 插件桥接工作流"
 1. 调用 `ping` 确认 Figma 插件已连接
 2. 调用 `get_mode` 获取当前模式、设计上下文和可用令牌
 
+## 页面操作顺序（必须遵守）
+
+当目标节点在非当前页面时，**必须先切换页面，再读取/操作节点**。
+
+正确顺序：
+1. `ping`
+2. `set_current_page("目标页面")` — 先切换
+3. `get_current_page(maxDepth=2)` — 再读取
+
+错误顺序（会导致 Node not found）：
+- ❌ `ping` → `nodes(get, nodeId)` → `set_current_page` — 在切换前读取，插件找不到节点
+
+原因：Figma 插件沙箱只能访问当前激活页面的节点。未切换页面时，目标页面的节点对插件不可见，即使 MCP 层可能通过 REST API 降级返回数据，插件通道仍会报错。
+
 ## 常用工作流
 
 ### 创建设计元素（figcraft 为主创建通道）

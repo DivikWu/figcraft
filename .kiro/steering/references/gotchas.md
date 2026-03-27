@@ -1,12 +1,12 @@
 ---
 inclusion: fileMatch
-fileMatchPattern: "packages/adapter-figma/**,packages/core-mcp/src/tools/**,.kiro/steering/figma-*,.kiro/skills/figma-*"
+fileMatchPattern: "packages/adapter-figma/**,packages/core-mcp/src/tools/**,.kiro/skills/figma-*"
 description: "Figma Plugin API common pitfalls with WRONG/CORRECT code examples"
 ---
 
 # Gotchas & Common Mistakes
 
-> Part of the [use_figma skill](../SKILL.md). Every known pitfall with WRONG/CORRECT code examples.
+> FigCraft execute_js reference. Every known pitfall with WRONG/CORRECT code examples.
 
 ## Contents
 

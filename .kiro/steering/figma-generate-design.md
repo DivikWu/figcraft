@@ -137,7 +137,7 @@ createdNodeIds.push(section.id);
 return { success: true, createdNodeIds };
 ```
 
-每个区块完成后用 `get_screenshot` 验证再继续。
+每个区块完成后用 `export_image` 验证再继续。
 
 ### 第 5 步：验证完整界面
 

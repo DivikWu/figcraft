@@ -48,7 +48,7 @@ description: "使用 FigCraft execute_js 构建设计系统库的工作流指南
 2. 构建基础组件（auto-layout + 完整变量绑定）
 3. 创建所有变体组合（combineAsVariants + 网格布局）
 4. 添加组件属性（TEXT、BOOLEAN、INSTANCE_SWAP）
-5. 验证：`get_current_page`（结构）+ `get_screenshot`（视觉）
+5. 验证：`get_current_page`（结构）+ `export_image`（视觉）
 
 ⛔ 每个组件的用户检查点
 

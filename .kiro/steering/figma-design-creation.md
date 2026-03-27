@@ -6,7 +6,9 @@ description: "Figma design creation optimization rules — efficiently creating 
 
 # Figma Design Creation Optimization Rules
 
-Core rules for creating Figma designs using FigCraft MCP tools. Incorporates official Figma Plugin API best practices.
+Core rules for creating Figma designs using FigCraft structured tools (`create_frame`, `create_text`, `nodes(method: "update")`).
+For `execute_js` scripting rules, see #[[file:.kiro/steering/execute-js-guide.md]].
+Incorporates official Figma Plugin API best practices.
 
 ## 1. Pre-Creation Checklist
 
@@ -55,7 +57,10 @@ This aligns with the [figma-generate-design](../skills/figma-generate-design/SKI
 
 ## 3. Maximize Parallelism, Minimize Turns
 
-### Principle: All independent calls within the same turn must be parallelized
+> This section applies to FigCraft structured tools (`create_frame`, `create_text`, `nodes(method: "update")`).
+> `execute_js` calls MUST be sequential — never parallel. See execute-js-guide.md for execute_js rules.
+
+### Principle: All independent structured tool calls within the same turn must be parallelized
 
 - Sibling frames created in parallel (e.g., 4 screens in one turn)
 - Sibling text nodes created in parallel (e.g., label + placeholder in same turn)

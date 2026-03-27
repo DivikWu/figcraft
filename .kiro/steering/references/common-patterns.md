@@ -1,12 +1,12 @@
 ---
 inclusion: fileMatch
-fileMatchPattern: "packages/adapter-figma/**,packages/core-mcp/src/tools/**,.kiro/steering/figma-*,.kiro/skills/figma-*"
+fileMatchPattern: "packages/adapter-figma/**,packages/core-mcp/src/tools/**,.kiro/skills/figma-*"
 description: "Figma Plugin API working code examples for common operations"
 ---
 
 # Common Patterns
 
-> Part of the [use_figma skill](../SKILL.md). Working code examples for frequently used operations.
+> FigCraft execute_js reference. Working code examples for frequently used operations.
 
 ## Contents
 
