@@ -1,67 +1,90 @@
 ---
-inclusion: fileMatch
-fileMatchPattern: "packages/adapter-figma/**,packages/quality-engine/**,.kiro/steering/figma-*"
-description: "Figma 设计质量规则 — FigCraft lint 引擎检查的布局与结构规范"
+inclusion: manual
+description: "Figma design quality rules — full version with detailed explanations. Use #figma-create-quality to load when needed."
 ---
 
-# Figma 设计质量规则
+# Figma Design Quality Rules
 
-以下规则由 FigCraft Quality Engine（35+ 条 lint 规则）自动检查和修复。无论设计是通过 Figma 官方 MCP 创建还是手动创建，这些规则都适用。
+These rules are automatically checked and fixed by the FigCraft Quality Engine (35+ lint rules). They apply regardless of whether designs are created via Figma MCP, execute_js, or manually.
 
-运行 `lint_fix_all` 可一键检查并自动修复所有可修复的问题。
+Run `lint_fix_all` to auto-check and fix all fixable violations in one call.
 
-## 1. 禁止空 Spacer Frame
+## 1. No Empty Spacer Frames (HIGHEST PRIORITY)
 
-不要用空 frame（Top Spacer、Bottom Spacer、Flex Spacer）撑开间距。应通过 auto-layout 的 `itemSpacing` 和 `padding` 控制间距。
+**NEVER** use empty frames (Top Spacer, Bottom Spacer, Flex Spacer, Middle Spacer, Spacer, etc.) to create spacing or push content into position. This includes:
+- Any frame with "Spacer" in its name
+- Empty frames with `layoutGrow = 1` used to push content to opposite ends
+- Any frame with no meaningful content that exists solely for spacing/positioning
 
-## 2. 响应式子元素使用 STRETCH
+**Correct alternatives:**
+- Distribute content to opposite ends → set parent `primaryAxisAlignItems: "SPACE_BETWEEN"`
+- Center content → set parent `primaryAxisAlignItems: "CENTER"`
+- Top/bottom whitespace → set parent `paddingTop` / `paddingBottom`
+- Spacing between children → set parent `itemSpacing`
+- Internal spacing within a section → set that section frame's own `padding`
 
-auto-layout 容器中的输入框、按钮、分割线、内容区域应使用 `layoutAlign: STRETCH`。
+**Before writing any execute_js script, verify the layout plan does NOT rely on any empty frames.**
 
-## 3. HUG/STRETCH 悖论
+## 2. Responsive Children Must Use STRETCH
 
-父容器交叉轴为 HUG 时，子元素不能用 STRETCH（没有尺寸可填充）。给父容器设明确的交叉轴尺寸，或让父容器自身 STRETCH/FILL。
+Input fields, buttons, dividers, and content sections inside auto-layout containers MUST use `layoutAlign: STRETCH`.
 
-## 4. FILL 需要 auto-layout 父容器
+## 3. HUG/STRETCH Paradox
 
-不要在非 auto-layout 父容器的子元素上使用 FILL sizing。
+When a parent's cross-axis is HUG, children CANNOT use STRETCH (there is no size to fill). Give the parent an explicit cross-axis size, or make the parent itself STRETCH/FILL.
 
-## 5. 多子元素 Frame 必须有 auto-layout
+## 4. FILL Requires Auto-Layout Parent
 
-包含 2 个以上子元素的 frame 必须启用 auto-layout（装饰性重叠除外）。
+NEVER use FILL sizing on a child whose parent has no auto-layout.
 
-## 6. 按钮结构
+## 5. Frames with 2+ Children Must Have Auto-Layout
 
-按钮必须是 auto-layout frame，CENTER 对齐，显式高度（iOS ≥ 44pt / Android ≥ 48dp），有内部 padding。
+Every frame containing 2 or more children MUST enable auto-layout (except decorative overlays where overlap is intentional).
 
-## 7. 输入框结构
+## 6. Button Structure
 
-输入框必须是 auto-layout frame，有 stroke、cornerRadius、内部 padding 和文本子节点。
+Buttons MUST be auto-layout frames with CENTER alignment, explicit height (iOS ≥ 44pt / Android ≥ 48dp), and internal padding.
 
-## 8. 表单子元素一致性
+## 7. Input Field Structure
 
-表单中所有交互子元素必须使用 `layoutAlign: STRETCH`。
+Input fields MUST be auto-layout frames with stroke, cornerRadius, internal padding, and a text child for placeholder.
 
-## 9. 子元素不能溢出父容器
+## 8. Form Children Consistency
 
-子元素的交叉轴尺寸必须在父容器内部空间内。
+ALL interactive children in a form MUST use `layoutAlign: STRETCH`.
 
-## 10. 语义化命名
+## 9. Children Must Not Overflow Parent
 
-每个 frame 必须有描述性名称，不能保留默认名称（如 "Frame 1"）。
+Every child's cross-axis dimension must fit within the parent's inner space.
 
-## 11. 文字不能溢出或截断
+## 10. Semantic Frame Naming
 
-所有文本节点必须在父容器内完整显示。
+Every frame MUST have a descriptive name reflecting its purpose. Never leave default names like "Frame 1".
 
-## 12. 移动端屏幕尺寸
+## 11. No Text Overflow or Truncation
 
-iOS → 402×874（iPhone 16 Pro），Android → 412×915。
+All text nodes MUST fit completely within their parent container.
 
-## 13. System Bar 全出血
+## 12. Mobile Screen Dimensions
 
-System bar 必须贴顶，页面级 frame 的 padding 为零。
+iOS → 402×874 (iPhone 16 Pro), Android → 412×915.
 
-## 14. 填充元素需要 margin 时用 wrapper
+## 13. System Bar Full Bleed
 
-带背景填充的元素需要水平 margin 时，使用透明 wrapper frame + padding。
+System bars must sit flush at the top edge with zero padding on the page-level frame.
+
+## 14. Filled Elements with Margin Need a Wrapper
+
+When an element has a background fill and needs horizontal margin, use a transparent wrapper frame with padding.
+
+## 15. 8dp Grid Spacing
+
+ALL dimension values — padding, margin, gap, itemSpacing, width, height, cornerRadius — MUST be multiples of 4:
+- 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56...
+
+**NEVER use non-multiples-of-4 values** like 14, 15, 18, 22, 25, 30, etc. for spacing or sizing properties.
+
+Exceptions:
+- `strokeWeight`: 1px or 1.5px allowed
+- `fontSize`, `lineHeight`, `letterSpacing`: not constrained by this rule
+- Icon sizes: standard icon sizes (e.g., 18, 22) are acceptable

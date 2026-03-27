@@ -1457,24 +1457,34 @@
     // ─── WebSocket ───
     const RELAY_PORTS = [3055, 3056, 3057, 3058, 3059, 3060];
     let currentRelayPort = null;
+    var racingSockets = []; // Track in-flight parallel probe sockets
 
     function connect(silent) {
       channelId = channelTriggerLabel.textContent || DEFAULT_CHANNEL;
       parent.postMessage({ pluginMessage: { type: 'save-channel', channelId: channelId } }, '*');
 
       if (ws) { ws.onclose = null; ws.close(); }
+      // Abort any in-flight parallel probe from a previous connect() call
+      racingSockets.forEach(function(s) { s.onopen = null; s.onerror = null; s.close(); });
+      racingSockets = [];
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
 
       setStatus('connecting', 'Connecting...');
       if (!silent) log('Connecting (channel: ' + channelId + ')...', 'info');
 
-      tryConnectPort(currentRelayPort ? RELAY_PORTS.indexOf(currentRelayPort) : 0, silent);
+      tryConnectPorts(silent);
     }
 
-    function tryConnectPort(index, silent) {
-      if (index < 0) index = 0;
-      if (index >= RELAY_PORTS.length) {
+    function tryConnectPorts(silent) {
+      // Parallel port probe: race all candidate ports simultaneously.
+      // The first to open wins; the rest are closed immediately.
+      // Prioritize last-known port, then try all others
+      var candidates = currentRelayPort
+        ? [currentRelayPort].concat(RELAY_PORTS.filter(function(p) { return p !== currentRelayPort; }))
+        : RELAY_PORTS.slice(0);
+
+      if (candidates.length === 0) {
         setStatus('disconnected', 'Disconnected');
         if (!silent) {
           log(t('error.relay.unavailable'), 'error');
@@ -1487,73 +1497,113 @@
         return;
       }
 
-      const port = RELAY_PORTS[index];
-      ws = new WebSocket('ws://localhost:' + port);
+      var settled = false;
+      var openSockets = [];
+      var failCount = 0;
 
-      const timeout = setTimeout(function() {
-        ws.onopen = null; ws.onerror = null; ws.close();
-        tryConnectPort(index + 1, silent);
-      }, 1000);
-
-      ws.onopen = function() {
-        clearTimeout(timeout);
-        currentRelayPort = port;
-        ws.send(JSON.stringify({ type: 'join', channel: channelId, role: 'plugin' }));
-        // Announce on control channel so MCP Server auto-switches
-        ws.send(JSON.stringify({ type: 'join', channel: '__control__', role: 'plugin' }));
-        ws.send(JSON.stringify({ type: 'channel-announce', channel: '__control__', designChannel: channelId }));
-        if (savedApiToken) {
-          ws.send(JSON.stringify({ type: 'set-api-token', channel: channelId, token: savedApiToken }));
+      // Global timeout: if no port connects within 1.5s, all fail
+      var raceTimeout = setTimeout(function() {
+        if (settled) return;
+        settled = true;
+        openSockets.forEach(function(s) { s.onopen = null; s.onerror = null; s.close(); });
+        openSockets = [];
+        racingSockets = [];
+        setStatus('disconnected', 'Disconnected');
+        if (!silent) {
+          log(t('error.relay.unavailable'), 'error');
+          log(t('error.relay.suggestion'), 'info');
+        } else if (reconnectAttempt === 1) {
+          log(t('error.relay.unavailable') + ' ' + t('status.retrying'), 'error');
         }
-        // Sync all stored library fileKeys to MCP server
-        Object.keys(libraryEntries).forEach(function(fk) {
-          const entry = libraryEntries[fk];
-          if (entry && entry.name) {
-            ws.send(JSON.stringify({ type: 'set-library-file-key', channel: channelId, library: entry.name, fileKey: fk }));
-          }
-        });
-        setStatus('connected', 'Online');
-        // Clear stale error entries from failed reconnect attempts
-        var staleErrors = logEl.querySelectorAll('.log-entry.error');
-        staleErrors.forEach(function(el) { el.remove(); logCount = Math.max(0, logCount - 1); });
-        if (logCount > 0) { activityCount.textContent = logCount + ' events'; }
-        log('Connected on port ' + port, 'success');
-        connected = true;
-        reconnectAttempt = 0;
-        updateFixBtnTitle();
-        document.getElementById('info-port').textContent = String(port);
-        flushPendingResponses();
+        scheduleReconnect();
+      }, 1500);
 
-        ws.onmessage = function(event) {
-          var msg;
-          try { msg = JSON.parse(event.data); } catch(e) { return; }
-          if (msg.type === 'ping') { ws.send(JSON.stringify({ type: 'pong', channel: channelId })); return; }
-          if (msg.type === 'file-name-resolved') { handleFileNameResolved(msg); return; }
-          if (msg.type === 'request') {
-            log('\u2190 ' + msg.method + ' (id=' + msg.id + ')');
-            try {
-              parent.postMessage({ pluginMessage: msg }, '*');
-            } catch (postErr) {
-              log('\u2190 postMessage to sandbox failed: ' + postErr.message, 'error');
-              // Send error back so bridge doesn't hang
-              ws.send(JSON.stringify({ id: msg.id, type: 'error', channel: channelId, error: { code: 'POST_MESSAGE_FAILED', message: 'Failed to forward to plugin sandbox: ' + postErr.message } }));
+      candidates.forEach(function(port) {
+        var sock = new WebSocket('ws://localhost:' + port);
+        openSockets.push(sock);
+        racingSockets.push(sock);
+
+        sock.onopen = function() {
+          if (settled) { sock.close(); return; }
+          settled = true;
+          clearTimeout(raceTimeout);
+          // Close all other racing sockets
+          openSockets.forEach(function(s) { if (s !== sock) { s.onopen = null; s.onerror = null; s.close(); } });
+          racingSockets = [];
+          ws = sock;
+          currentRelayPort = port;
+          ws.send(JSON.stringify({ type: 'join', channel: channelId, role: 'plugin' }));
+          // Announce on control channel so MCP Server auto-switches
+          ws.send(JSON.stringify({ type: 'join', channel: '__control__', role: 'plugin' }));
+          ws.send(JSON.stringify({ type: 'channel-announce', channel: '__control__', designChannel: channelId }));
+          if (savedApiToken) {
+            ws.send(JSON.stringify({ type: 'set-api-token', channel: channelId, token: savedApiToken }));
+          }
+          // Sync all stored library fileKeys to MCP server
+          Object.keys(libraryEntries).forEach(function(fk) {
+            var entry = libraryEntries[fk];
+            if (entry && entry.name) {
+              ws.send(JSON.stringify({ type: 'set-library-file-key', channel: channelId, library: entry.name, fileKey: fk }));
             }
-            return;
+          });
+          setStatus('connected', 'Online');
+          // Clear stale error entries from failed reconnect attempts
+          var staleErrors = logEl.querySelectorAll('.log-entry.error');
+          staleErrors.forEach(function(el) { el.remove(); logCount = Math.max(0, logCount - 1); });
+          if (logCount > 0) { activityCount.textContent = logCount + ' events'; }
+          log('Connected on port ' + port, 'success');
+          connected = true;
+          reconnectAttempt = 0;
+          updateFixBtnTitle();
+          document.getElementById('info-port').textContent = String(port);
+          flushPendingResponses();
+
+          ws.onmessage = function(event) {
+            var msg;
+            try { msg = JSON.parse(event.data); } catch(e) { return; }
+            if (msg.type === 'ping') { ws.send(JSON.stringify({ type: 'pong', channel: channelId })); return; }
+            if (msg.type === 'file-name-resolved') { handleFileNameResolved(msg); return; }
+            if (msg.type === 'request') {
+              log('\u2190 ' + msg.method + ' (id=' + msg.id + ')');
+              try {
+                parent.postMessage({ pluginMessage: msg }, '*');
+              } catch (postErr) {
+                log('\u2190 postMessage to sandbox failed: ' + postErr.message, 'error');
+                ws.send(JSON.stringify({ id: msg.id, type: 'error', channel: channelId, error: { code: 'POST_MESSAGE_FAILED', message: 'Failed to forward to plugin sandbox: ' + postErr.message } }));
+              }
+              return;
+            }
+          };
+
+          ws.onclose = function() {
+            connected = false;
+            updateFixBtnTitle();
+            setStatus('disconnected', 'Disconnected');
+            // Only log on first disconnect; silent reconnects suppress noise
+            if (reconnectAttempt === 0) log('Disconnected', 'error');
+            scheduleReconnect();
+          };
+
+          ws.onerror = function() { log('Connection error', 'error'); };
+        };
+
+        sock.onerror = function() {
+          failCount++;
+          if (!settled && failCount >= candidates.length) {
+            settled = true;
+            clearTimeout(raceTimeout);
+            racingSockets = [];
+            setStatus('disconnected', 'Disconnected');
+            if (!silent) {
+              log(t('error.relay.unavailable'), 'error');
+              log(t('error.relay.suggestion'), 'info');
+            } else if (reconnectAttempt === 1) {
+              log(t('error.relay.unavailable') + ' ' + t('status.retrying'), 'error');
+            }
+            scheduleReconnect();
           }
         };
-
-        ws.onclose = function() {
-          connected = false;
-          updateFixBtnTitle();
-          setStatus('disconnected', 'Disconnected');
-          log('Disconnected', 'error');
-          scheduleReconnect();
-        };
-
-        ws.onerror = function() { log('Connection error', 'error'); };
-      };
-
-      ws.onerror = function() { clearTimeout(timeout); tryConnectPort(index + 1, silent); };
+      });
     }
 
     function disconnect() {
@@ -1569,8 +1619,8 @@
     let reconnectAttempt = 0;
     function scheduleReconnect() {
       if (reconnectTimer) return;
-      // Exponential backoff: 2s, 4s, 8s, 16s, capped at 30s
-      var delay = Math.min(2000 * Math.pow(2, reconnectAttempt), 30000);
+      // Exponential backoff: 1s, 2s, 4s, 8s, capped at 30s (matches Bridge-side timing)
+      var delay = Math.min(1000 * Math.pow(2, reconnectAttempt), 30000);
       reconnectAttempt++;
       reconnectTimer = setTimeout(function() { reconnectTimer = null; connect(true); }, delay);
     }

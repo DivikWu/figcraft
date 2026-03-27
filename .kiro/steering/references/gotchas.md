@@ -76,9 +76,9 @@ labelNode.componentPropertyReferences = { characters: propKey }
 
 The same applies to `COMPONENT_SET` nodes — `addComponentProperty` always returns the property key as a string.
 
-## MUST return ALL created/mutated node IDs
+## Return created/mutated node IDs
 
-Every script that creates or mutates nodes on the canvas must track and return all affected node IDs in the return value. Without these IDs, subsequent calls cannot reference, validate, or clean up those nodes.
+Every script that creates or mutates nodes on the canvas should return affected node IDs in the return value. For single-screen or small tasks, return all IDs. For multi-screen flows where context budget matters, return only the IDs that subsequent calls will reference (wrapper ID, screen IDs) — not every child node.
 
 ```js
 // WRONG — only returns the parent frame ID, loses track of children

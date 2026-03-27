@@ -1,29 +1,29 @@
 ---
 inclusion: fileMatch
 fileMatchPattern: "packages/adapter-figma/**,packages/core-mcp/src/tools/**,.kiro/steering/figma-*,.kiro/skills/figma-*"
-description: "使用 FigCraft execute_js 构建/更新 Figma 设计的工作流指南"
+description: "Workflow guide for building/updating Figma designs using FigCraft execute_js"
 ---
 
-# 使用 execute_js 构建/更新 Figma 设计
+# Building/Updating Figma Designs with execute_js
 
-本指南将官方 `figma-generate-design` skill 的工作流适配到 FigCraft 的 `execute_js` 工具。
-核心原则：复用设计系统中的组件、变量和样式，而不是用硬编码值画原始图形。
+This guide adapts the official `figma-generate-design` skill workflow to FigCraft's `execute_js` tool.
+Core principle: reuse design system components, variables, and styles instead of drawing primitives with hardcoded values.
 
-使用 `execute_js` 前必须先阅读 #[[file:.kiro/steering/execute-js-guide.md]]。
+You MUST read #[[file:.kiro/steering/execute-js-guide.md]] before using `execute_js`.
 
-## 工作流
+## Workflow
 
-### 第 1 步：理解要构建的界面
+### Step 1: Understand the Screen to Build
 
-1. 如果从代码构建，阅读相关源文件理解页面结构
-2. 识别主要区块（Header、Hero、Content、Footer 等）
-3. 列出每个区块涉及的 UI 组件
+1. If building from code, read the relevant source files to understand page structure
+2. Identify major sections (Header, Hero, Content, Footer, etc.)
+3. List the UI components involved in each section
 
-### 第 2 步：发现设计系统资产
+### Step 2: Discover Design System Assets
 
-#### 2a：发现组件
+#### 2a: Discover components
 
-优先检查文件中已有的界面。用 `execute_js` 遍历现有 frame 的实例：
+Prefer inspecting existing screens in the file first. Use `execute_js` to traverse instances in an existing frame:
 
 ```js
 const frame = figma.currentPage.findOne(n => n.name === "Existing Screen");
@@ -40,11 +40,11 @@ frame.findAll(n => n.type === "INSTANCE").forEach(inst => {
 return [...uniqueSets.values()];
 ```
 
-如果文件中没有现有界面，用 FigCraft 的 `load_toolset("library")` → `list_library_components` 搜索库组件。
+If no existing screens are available, use FigCraft's `load_toolset("library")` → `list_library_components` to search library components.
 
-#### 2b：发现变量
+#### 2b: Discover variables
 
-检查现有界面绑定的变量：
+Inspect variables bound to existing screens:
 
 ```js
 const frame = figma.currentPage.findOne(n => n.name === "Existing Screen");
@@ -65,15 +65,15 @@ for (const node of frame.findAll(() => true)) {
 return [...varMap.values()];
 ```
 
-也可以用 `load_toolset("library")` → `list_library_variables` 搜索库变量。
+You can also use `load_toolset("library")` → `list_library_variables` to search library variables.
 
-#### 2c：发现样式
+#### 2c: Discover styles
 
-用 FigCraft 的 `scan_styles` 或 `list_library_styles` 发现文本样式和效果样式。
+Use FigCraft's `scan_styles` or `list_library_styles` to discover text styles and effect styles.
 
-### 第 3 步：创建页面包裹 Frame
+### Step 3: Create the Page Wrapper Frame
 
-用单独的 `execute_js` 调用创建包裹 frame，定位到远离现有内容的位置：
+Create the wrapper frame in its own `execute_js` call, positioned away from existing content. For multi-screen flows, the wrapper MUST use `counterAxisAlignItems=MIN` (left-align), have a background fill, cornerRadius, and `clipsContent=false` (see figma-essential-rules.md Rule #24 and Multi-Screen Flow Strategy):
 
 ```js
 let maxX = 0;
@@ -83,70 +83,88 @@ for (const child of figma.currentPage.children) {
 const wrapper = figma.createFrame();
 wrapper.name = "Homepage";
 wrapper.layoutMode = "VERTICAL";
-wrapper.primaryAxisAlignItems = "CENTER";
-wrapper.counterAxisAlignItems = "CENTER";
+wrapper.primaryAxisAlignItems = "MIN";
+wrapper.counterAxisAlignItems = "MIN";
 wrapper.resize(1440, 100);
 wrapper.layoutSizingHorizontal = "FIXED";
 wrapper.layoutSizingVertical = "HUG";
+wrapper.cornerRadius = 24;
+wrapper.fills = [{ type: "SOLID", color: { r: 0.96, g: 0.96, b: 0.96 } }];
+wrapper.clipsContent = false;
 wrapper.x = maxX + 200;
 wrapper.y = 0;
 return { wrapperId: wrapper.id };
 ```
 
-### 第 4 步：逐区块构建
+**After creating the wrapper, ALWAYS verify:**
+1. Structure-verify with `get_current_page(maxDepth=1)` — confirm page has exactly the expected number of top-level nodes (catches orphan nodes from failed previous attempts)
+2. For multi-screen skeletons, also visual-verify with `export_image` — the skeleton is the foundation, never skip this
 
-每个区块一次 `execute_js` 调用。每次脚本开头通过 ID 获取 wrapper：
+### Step 4: Build Section by Section (Scale-Appropriate)
+
+Match granularity to task scale (see execute-js-guide.md for full details):
+- Single page with sections → one `execute_js` call per section
+- Multi-screen flow → one `execute_js` call per FULL SCREEN (all sections in one script)
+
+Each script starts by fetching the wrapper by ID:
 
 ```js
 const createdNodeIds = [];
 const wrapper = await figma.getNodeByIdAsync("WRAPPER_ID");
 
-// 导入设计系统组件
+// Import design system components
 const buttonSet = await figma.importComponentSetByKeyAsync("BUTTON_KEY");
 const primaryButton = buttonSet.children.find(c =>
   c.type === "COMPONENT" && c.name.includes("variant=primary")
 ) || buttonSet.defaultVariant;
 
-// 导入变量
+// Import variables
 const bgColorVar = await figma.variables.importVariableByKeyAsync("BG_VAR_KEY");
 const spacingVar = await figma.variables.importVariableByKeyAsync("SPACING_VAR_KEY");
 
-// 构建区块
+// Build section
 const section = figma.createFrame();
 section.name = "Header";
 section.layoutMode = "HORIZONTAL";
 section.setBoundVariable("paddingLeft", spacingVar);
 section.setBoundVariable("paddingRight", spacingVar);
 
-// 绑定背景色变量
+// Bind background color variable
 const bgPaint = figma.variables.setBoundVariableForPaint(
   { type: 'SOLID', color: { r: 0, g: 0, b: 0 } }, 'color', bgColorVar
 );
 section.fills = [bgPaint];
 
-// 创建组件实例
+// Create component instances
 const btnInstance = primaryButton.createInstance();
 section.appendChild(btnInstance);
 createdNodeIds.push(btnInstance.id);
 
-// 添加到 wrapper
+// Append to wrapper
 wrapper.appendChild(section);
-section.layoutSizingHorizontal = "FILL"; // 必须在 appendChild 之后
+section.layoutSizingHorizontal = "FILL"; // MUST be after appendChild
 
 createdNodeIds.push(section.id);
 return { success: true, createdNodeIds };
 ```
 
-每个区块完成后用 `export_image` 验证再继续。
+Verify each write with `get_current_page(maxDepth=1)` (structure check — catches orphan nodes). Visual-verify with `export_image` at key milestones (after skeleton, after each complete screen).
 
-### 第 5 步：验证完整界面
+### Step 5: Validate the Complete Screen
 
-所有区块完成后，对整个页面 frame 截图比对。用针对性的 `execute_js` 修复问题，不要重建整个界面。
+After all sections are done:
+1. Run `lint_fix_all` on each individual screen (NOT on the wrapper)
+2. Post-lint structural verification — `execute_js` to inspect each screen's child hierarchy AND page-level children (`figma.currentPage.children`) for orphan nodes
+3. Screenshot the full page frame and compare. Use targeted `execute_js` calls to fix issues — do NOT rebuild the entire screen.
 
-## 关键原则
+## Key Principles
 
-- 永远不要硬编码 hex 颜色或像素间距——用变量绑定
-- 优先使用组件实例而非手动构建
-- 每次只构建一个区块
-- 每次调用都返回节点 ID
-- 匹配文件中已有的命名和布局约定
+- Never hardcode hex colors or pixel spacing — use variable bindings
+- Prefer component instances over manual construction
+- Match script granularity to task scale — one section per call for single pages, one full screen per call for multi-screen flows
+- **Structure-verify after EVERY write** — `get_current_page(maxDepth=1)` is lightweight and non-negotiable; catches orphan nodes before they compound
+- **Visual-verify at key milestones** — `export_image` after skeleton, after each complete screen, and at the end; skeleton verification is mandatory
+- **On `execute_js` failure: STOP, inspect page, clean up orphans, THEN fix and retry** — failed scripts are NOT always atomic
+- Return only node IDs needed by subsequent calls — keep return values minimal
+- Match existing naming and layout conventions in the file
+- For multi-screen flows, use shared helper functions (makeText, makeButton, makeField) to ensure visual consistency
