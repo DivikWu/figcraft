@@ -10,7 +10,7 @@
  * Usage: node scripts/sync-auto-approve.mjs
  */
 
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -19,6 +19,12 @@ const root = resolve(__dirname, '..');
 
 const registryPath = resolve(root, 'packages/core-mcp/src/tools/_registry.ts');
 const mcpConfigPath = resolve(root, '.mcp.json');
+
+// Skip in CI or when .mcp.json doesn't exist (it's gitignored)
+if (!existsSync(mcpConfigPath)) {
+  console.log('⏭️  .mcp.json not found (gitignored) — skipping autoApprove sync');
+  process.exit(0);
+}
 
 // Extract all quoted tool names from Set/array declarations in _registry.ts
 const registry = readFileSync(registryPath, 'utf8');
