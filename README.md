@@ -2,7 +2,7 @@
 
 English | [中文](README.zh-CN.md)
 
-AI-powered Figma plugin for design quality. Two-way bridge between AI IDEs and Figma — design review, token sync, compliance linting, audit, and auto-fix, all via natural language. UI creation is handled by the [official Figma MCP server](https://developers.figma.com/docs/figma-mcp-server/), while FigCraft focuses on the quality layer that Figma MCP doesn't cover.
+AI-powered Figma plugin for design quality. Two-way bridge between AI IDEs and Figma — create UI, review designs, sync tokens, lint for compliance, audit, and auto-fix, all via natural language. Works great on its own, and even better alongside the [official Figma MCP server](https://developers.figma.com/docs/figma-mcp-server/).
 
 ## What can you do with it?
 
@@ -16,12 +16,12 @@ Describe what you want in natural language, and FigCraft + Figma MCP make it hap
 
 ## Features
 
+- 🎨 **From creation to delivery, fully covered** — Create UI directly in Figma, pair with the [official Figma MCP server](https://developers.figma.com/docs/figma-mcp-server/) for even more power. Check quality right after you create, fix issues on the spot
 - 🔍 **Automated design audit** — token bindings, color contrast, spacing, component health — all checked in one pass
-- 🔧 **Lint + fix in one step** — 35+ rules covering token compliance, WCAG, layout structure — one command to batch-fix everything flagged
+- 🔧 **Lint + fix in one step** — 36 rules covering token compliance, WCAG, layout structure — one command to batch-fix everything flagged
 - 🔄 **Two-way token sync** — DTCG JSON ↔ Figma variables, Light/Dark multi-mode in one step. Changed tokens in code? Just sync
 - 🔀 **Dual mode for any team** — Library mode for Figma shared libraries, Spec mode for DTCG JSON — pick what fits your workflow
 - 📐 **Prototype → dev docs** — parse prototype interactions into Mermaid flow diagrams + interaction specs, no more manual handoff docs
-- 🎨 **Create via Figma MCP** — UI creation is handled by the [official Figma MCP server](https://developers.figma.com/docs/figma-mcp-server/); FigCraft provides the quality layer on top (review, lint, audit, token sync)
 
 ## Quick Start
 
@@ -44,7 +44,7 @@ Then in Figma Desktop:
 
 ### 2. Add MCP Servers to your IDE
 
-FigCraft handles design quality (review, lint, audit, token sync). For UI creation, add the [official Figma MCP server](https://developers.figma.com/docs/figma-mcp-server/) alongside it. Both servers run in parallel — the AI IDE routes creation to Figma MCP and quality tasks to FigCraft.
+FigCraft handles both UI creation and design quality on its own. For even more creation capabilities, you can add the [official Figma MCP server](https://developers.figma.com/docs/figma-mcp-server/) alongside it — both servers run in parallel and complement each other.
 
 FigCraft config (same for all IDEs):
 
@@ -59,10 +59,10 @@ FigCraft config (same for all IDEs):
 }
 ```
 
-> FigCraft alone is sufficient if you only need review/lint/audit/token sync. Add the Figma MCP server when you also want AI-driven UI creation.
+> FigCraft works standalone for both UI creation and design quality. Adding the Figma MCP server gives you even more creation capabilities.
 
 <details>
-<summary><strong>Adding the official Figma MCP server (for UI creation)</strong></summary>
+<summary><strong>Adding the official Figma MCP server (for extra creation capabilities)</strong></summary>
 
 Figma provides two deployment options:
 
@@ -178,21 +178,22 @@ Switch modes via `set_mode` tool or the plugin UI.
 
 ## UI Creation
 
-UI creation (frames, shapes, text, components) is handled by the [official Figma MCP server](https://developers.figma.com/docs/figma-mcp-server/). FigCraft complements it with quality tools:
+FigCraft can create UI directly in Figma (frames, shapes, text, components). It also pairs well with the [official Figma MCP server](https://developers.figma.com/docs/figma-mcp-server/) for broader creation capabilities. Either way, FigCraft's quality tools have you covered:
 
-- After creating UI with Figma MCP, run `lint_fix_all` to check and auto-fix layout, token, and accessibility issues
+- After creating UI, run `lint_fix_all` to check and auto-fix layout, token, and accessibility issues
 - Use `audit_node` for deep quality inspection of specific elements
 - Use `get_design_guidelines` to review design rules before creating
 
-## Lint Rules (30)
+## Lint Rules (36)
 
-Current lint coverage spans token compliance, WCAG accessibility, layout structure, naming, component health, and screen-level quality checks.
+Current lint coverage spans token compliance, WCAG accessibility, layout structure, screen-level quality, naming, and component health.
 
-- Token compliance: color, typography, spacing, radius, hardcoded token usage, missing text style
-- WCAG accessibility: contrast, target size, text size, line height
-- Layout structure: auto-layout misuse, spacer frames, nesting depth, overflow, button/input/form consistency
-- Screen quality: header fragmentation, header placement, CTA width consistency, section spacing collapse, bottom overflow, social/nav/stats crowding
-- Naming and component health: default names, component binding checks
+- Token compliance (6): color, typography, spacing, radius, hardcoded token usage, missing text style
+- WCAG accessibility (4): contrast, target size, text size, line height
+- Layout structure (16): fixed-in-autolayout, empty container, spacer frames, nesting depth, button structure, text overflow, form consistency, CTA width consistency, overflow parent, HUG/STRETCH paradox, missing auto-layout, section spacing collapse, input field structure, mobile dimensions, system bar fullbleed, no-autolayout enforcement
+- Screen quality (8): header fragmentation, header placement, misclassified interactive root, nested interactive shell, invalid screen shell, bottom overflow, social/nav/stats row crowding
+- Naming (1): default name detection
+- Component (1): component binding checks
 
 ## Environment Variables
 
