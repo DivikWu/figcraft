@@ -19,6 +19,8 @@ STEP 2: get_mode → DESIGN DECISIONS (⛔ BLOCKING — must complete before ANY
         └─ no library       → readFile design-creator.md
         Then: complete the Design Thinking checklist (see §Design Direction below)
         and define the COL (color palette) object BEFORE writing any execute_js code.
+        ⛔ HARD STOP: present design plan to user and WAIT for explicit confirmation.
+        Do NOT proceed to STEP 3 or any write operations until user approves.
         ❌ FORBIDDEN: skipping this step or using hardcoded colors without design justification
 STEP 3: CLASSIFY TASK SCALE                           → count screens, pick granularity:
         ├─ single element   → 1 execute_js call
@@ -202,7 +204,7 @@ If you sense the conversation is getting long (15+ tool calls already made):
    - **Complete the Design Thinking checklist** (see §Design Direction above): Purpose, Platform, Language, Density, Tone
    - **Define the color palette** — choose dominant + accent colors serving the Tone, document the `COL` object that will be used in all execute_js scripts
    - **Choose typography** — heading vs body distinction, font weights
-   - **Output the design decisions to the user** — before writing any code, present the design plan as a brief summary: chosen Tone, color palette (hex values), typography choices, icon style. This makes the decisions explicit and reviewable. If the user disagrees, adjust before proceeding.
+   - **⛔ HARD STOP — Output the design decisions to the user and WAIT for confirmation** — before writing any code, present the design plan as a brief summary: chosen Tone, color palette (hex values), typography choices, icon style, screen list, and style preset. This makes the decisions explicit and reviewable. You MUST stop here, output a text response, and wait for the user's explicit approval before proceeding to any write operations. If the user disagrees or requests changes, adjust the plan and present it again. Do NOT call any more tools until the user confirms. Violating this HARD STOP is a critical error.
    - Apply ALL Design Direction rules (Color, Typography, Content, Iconography, Composition, Anti-AI Slop, Accessibility) BEFORE writing any execute_js code
    - If `get_mode` result contradicts user intent (e.g., user says "use my design system" but get_mode returns no library), alert the user to check plugin settings before proceeding
    - Skip this step only for non-creation tasks (inspect, lint, audit, token sync)
