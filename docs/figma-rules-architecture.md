@@ -76,7 +76,7 @@ Layer 3  自动兜底        Quality Engine（lint_fix_all / audit_node）
 |------|------|----------|------|
 | `multi-screen-flow-guide.md` | ~146 | `#multi-screen-flow-guide` 或 Workflow 步骤 4 的 readFile | Style Presets（soft/square/device-mockup/flat-wireframe）、Layer Hierarchy、Helper 函数模板（makeButton/makeInput/makePill）、Build Order |
 | `figma-design-creation.md` | ~518 | `#figma-design-creation` | 完整版创建规则。Pre-Creation Checklist（含 skill 加载表）、Wrapper Strategy、Build Order 详细版、Screen Layout §6（SPACE_BETWEEN 模板）、Input/Button/Link 模板、Mobile Screen Modes（概念 vs 高保真）、Multi-Screen Flow 数据驱动策略 |
-| `figma-create-quality.md` | ~90 | `#figma-create-quality` | 完整版质量规则。15 条 MUST/SHOULD/NEVER 规则，含 8dp 网格详细说明 |
+| `figma-create-quality.md` | ~10 | `#figma-create-quality` | 已合并到 `figma-essential-rules.md`，现为重定向文件 |
 
 ---
 

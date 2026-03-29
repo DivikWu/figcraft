@@ -26,7 +26,7 @@ vi.mock('../packages/core-mcp/src/tools/toolset-manager.js', () => ({
 
 vi.mock('../packages/core-mcp/src/tools/logic/component-logic.js', () => ({
   listLibraryComponentsLogic: vi.fn().mockResolvedValue({
-    content: [{ type: 'text', text: '{"count":0,"components":[]}' }],
+    content: [{ type: 'text', text: '{"componentSetCount":0,"standaloneCount":0,"componentSets":[],"standalone":[]}' }],
   }),
 }));
 

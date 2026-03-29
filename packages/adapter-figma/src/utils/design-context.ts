@@ -162,12 +162,39 @@ async function getEffectiveMappings(libraryName: string): Promise<Record<string,
   return DEFAULT_MAPPINGS;
 }
 
+// ─── Variable library name resolution ───
+
+/**
+ * Resolve the variable API library name for a given display name.
+ * When a library file is duplicated, the variable API may report a different
+ * libraryName than the file's display name. We store this mapping as
+ * `variableLibraryName` in the library entries.
+ */
+async function resolveVariableLibraryName(displayName: string): Promise<string> {
+  if (displayName === '__local__') return displayName;
+  try {
+    const entriesRaw = await figma.clientStorage.getAsync(STORAGE_KEYS.LIBRARY_URLS) as
+      Record<string, { name: string; variableLibraryName?: string }> | null;
+    if (entriesRaw && typeof entriesRaw === 'object') {
+      for (const entry of Object.values(entriesRaw)) {
+        if (entry && entry.name === displayName && entry.variableLibraryName) {
+          return entry.variableLibraryName;
+        }
+      }
+    }
+  } catch { /* ignore storage errors */ }
+  return displayName;
+}
+
 // ─── Collection index (lightweight) ───
 
 async function getCollectionIndex(libraryName: string): Promise<CollectionInfo[]> {
   if (indexCache && indexCache.library === libraryName) {
     return indexCache.collections;
   }
+  // Resolve the actual variable API name (may differ from display name)
+  const resolvedName = await resolveVariableLibraryName(libraryName);
+
   const all = await withTimeout(
     figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync(),
     API_CALL_TIMEOUT_MS,
@@ -175,7 +202,7 @@ async function getCollectionIndex(libraryName: string): Promise<CollectionInfo[]
     'getAvailableLibraryVariableCollections',
   );
   const collections = all
-    .filter((c) => c.libraryName === libraryName)
+    .filter((c) => c.libraryName === resolvedName)
     .map((c) => ({ key: c.key, name: c.name, libraryName: c.libraryName }));
   indexCache = { library: libraryName, collections };
   return collections;

@@ -85,7 +85,7 @@ get_mode:
     IMPORTANT: Call this before creating elements to get available design tokens and components.
     Returns { connected, mode, selectedLibrary, designContext, libraryComponents? }.
     designContext contains grouped tokens (text/surface/fill/border) and defaults mapping.
-    libraryComponents (when library file URL is configured) lists available components with keys for create_instance.
+    libraryComponents (when library file URL is configured) lists available component sets with variants grouped by set, plus standalone components.
   toolset: core
   write: false
   handler: custom
@@ -109,19 +109,50 @@ get_mode:
         type: record
         valueType: unknown
       libraryComponents:
-        type: array
-        items:
-          type: object
-          fields:
-            key:
-              type: string
-              required: true
-            name:
-              type: string
-              required: true
-            description:
-              type: string
-              required: true
+        type: object
+        fields:
+          componentSets:
+            type: array
+            items:
+              type: object
+              fields:
+                key:
+                  type: string
+                  required: true
+                name:
+                  type: string
+                  required: true
+                description:
+                  type: string
+                  required: true
+                variants:
+                  type: array
+                  items:
+                    type: object
+                    fields:
+                      key:
+                        type: string
+                        required: true
+                      name:
+                        type: string
+                        required: true
+                      properties:
+                        type: record
+                        valueType: string
+          standalone:
+            type: array
+            items:
+              type: object
+              fields:
+                key:
+                  type: string
+                  required: true
+                name:
+                  type: string
+                  required: true
+                description:
+                  type: string
+                  required: true
       libraryComponentsError:
         type: string
       libraryComponentsUnavailable:
@@ -141,9 +172,21 @@ get_mode:
           - name: "Color"
             key: "VariableCollectionId:1:2"
       libraryComponents:
-        - key: "component-key"
-          name: "Button / Primary"
-          description: "Primary CTA button"
+        componentSets:
+          - key: "component-set-key"
+            name: "Button"
+            description: "Primary CTA button"
+            variants:
+              - key: "variant-key-1"
+                name: "Type=Primary, Size=Medium, State=Default"
+                properties:
+                  Type: "Primary"
+                  Size: "Medium"
+                  State: "Default"
+        standalone:
+          - key: "standalone-key"
+            name: "Logo"
+            description: "Brand logo"
       _hint: "Library mode — tokens and components loaded. NEXT: Reply to user to gather missing preferences (UI type, platform). Do NOT call any more tools. If user provided everything, reply with design proposal instead."
     - connected: false
       error: "Not connected to Figma. Open the FigCraft plugin in Figma and try again."

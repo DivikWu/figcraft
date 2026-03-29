@@ -46,14 +46,17 @@ npm run build
 
 FigCraft 本身就能创建 UI 和管理设计质量。如果想获得更多创建能力，可以同时添加 [Figma 官方 MCP server](https://developers.figma.com/docs/figma-mcp-server/)，两个 server 并行运行、互相补充。
 
+> **注意**：`figcraft-design` 尚未发布到 npm，目前需要从源码构建后使用。下面的配置中 `cwd` 需要替换为你本地 clone 的实际绝对路径。
+
 FigCraft 配置（所有 IDE 通用）：
 
 ```json
 {
   "mcpServers": {
     "figcraft": {
-      "command": "npx",
-      "args": ["figcraft-design"]
+      "command": "node",
+      "args": ["dist/mcp-server/index.js"],
+      "cwd": "/your/absolute/path/to/figcraft"
     }
   }
 }
@@ -90,17 +93,13 @@ Figma 提供两种部署方式：
 <details>
 <summary><strong>Cursor</strong> — <code>.cursor/mcp.json</code></summary>
 
-在项目根目录创建 `.cursor/mcp.json`，写入上面的配置即可。
+在项目根目录创建 `.cursor/mcp.json`，写入上面的通用配置即可。
 </details>
 
 <details>
 <summary><strong>Claude Code</strong> — <code>.mcp.json</code></summary>
 
-```bash
-claude mcp add figcraft -s project -- npx figcraft-design
-```
-
-或在项目根目录创建 `.mcp.json`，写入上面的配置。
+在项目根目录创建 `.mcp.json`，写入上面的通用配置。
 </details>
 
 <details>
@@ -112,8 +111,9 @@ claude mcp add figcraft -s project -- npx figcraft-design
 {
   "mcpServers": {
     "figcraft": {
-      "command": "npx",
-      "args": ["figcraft-design"],
+      "command": "node",
+      "args": ["dist/mcp-server/index.js"],
+      "cwd": "/your/absolute/path/to/figcraft",
       "disabled": false,
       "autoApprove": []
     }
@@ -129,7 +129,7 @@ claude mcp add figcraft -s project -- npx figcraft-design
 <details>
 <summary><strong>Antigravity (Google)</strong> — MCP Server 管理面板</summary>
 
-打开 Antigravity → Agent 下拉菜单 → **Manage MCP Servers** → **View raw config**，写入上面的配置。
+打开 Antigravity → Agent 下拉菜单 → **Manage MCP Servers** → **View raw config**，写入上面的通用配置。
 </details>
 
 <details>
@@ -137,8 +137,9 @@ claude mcp add figcraft -s project -- npx figcraft-design
 
 ```toml
 [mcp_servers.figcraft]
-command = "npx"
-args = ["figcraft-design"]
+command = "node"
+args = ["dist/mcp-server/index.js"]
+cwd = "/your/absolute/path/to/figcraft"
 ```
 </details>
 

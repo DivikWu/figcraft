@@ -6,7 +6,28 @@ description: "FigCraft execute_js tool usage rules and key pitfalls"
 
 # execute_js — Figma Plugin API Execution Guide
 
-FigCraft's `execute_js` tool executes arbitrary JavaScript in the Figma Plugin sandbox, equivalent to the official Figma MCP's `use_figma`.
+FigCraft's `execute_js` tool executes arbitrary JavaScript in the Figma Plugin sandbox, equivalent to the official Figma MCP's `use_figma`. All code patterns from the official `figma-use` skill apply directly — just replace `use_figma` with `execute_js`.
+
+## Official Reference Docs (from figma-use skill)
+
+These docs contain authoritative API patterns and pitfalls. Read on demand, not all at once:
+
+| Doc | Path | When to load |
+|-----|------|-------------|
+| Gotchas | `.kiro/skills/figma-use/references/gotchas.md` | Before any execute_js — every known pitfall |
+| Common patterns | `.kiro/skills/figma-use/references/common-patterns.md` | Need working code templates |
+| Component patterns | `.kiro/skills/figma-use/references/component-patterns.md` | Importing, variants, setProperties, text overrides |
+| Variable patterns | `.kiro/skills/figma-use/references/variable-patterns.md` | Creating/binding variables, scopes |
+| Plugin API patterns | `.kiro/skills/figma-use/references/plugin-api-patterns.md` | Fills, strokes, auto layout, effects |
+| Validation | `.kiro/skills/figma-use/references/validation-and-recovery.md` | Error recovery workflow |
+
+## Key Difference from use_figma: Non-Atomic Failure
+
+`execute_js` does NOT guarantee atomic failure. If a script errors midway, nodes created before the error persist as orphans. This requires an extra verification step after every write:
+
+```
+execute_js (write) → get_current_page(maxDepth=1) → [if orphans] execute_js to clean up
+```
 
 ## When to Use execute_js vs Other FigCraft Tools
 

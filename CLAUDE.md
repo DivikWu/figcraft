@@ -13,9 +13,12 @@ STEP 0: ping                                          → 验证插件连接
 STEP 1: get_current_page(maxDepth=1)                  → 检查现有内容，确定放置位置
 STEP 2: get_mode                                      → 检查是否有 design system
 STEP 3: 判断任务规模                                    → 单元素 / 单屏 / 多屏流程(3-5) / 大型流程(6+)
-STEP 4: 多屏流程必须读取 multi-screen-flow-guide.md     → 包含层级结构、PRESET、helper 模板
+STEP 4: 决定 wrapper 和 PRESET:
+        ├─ 单元素 → 无 wrapper，无需 PRESET
+        ├─ 单屏   → Screen 即 wrapper（VERTICAL, FIXED, SPACE_BETWEEN），定义简化 PRESET（圆角）
+        └─ 多屏   → 读取 multi-screen-flow-guide.md（必须）
+                    Wrapper → Header → Flow Row → Stage → Screen 层级
         ❌ 禁止：多屏流程使用 create_frame/create_text 逐个创建
-        ❌ 禁止：跳过 Wrapper → Header → Flow Row → Stage → Screen 层级
         ✅ 必须：使用 execute_js，一个脚本创建一整个屏幕
 STEP 5: 每次写操作后验证                                → get_current_page + export_image
 STEP 6: 完成后 lint_fix_all                            → 在回复用户之前

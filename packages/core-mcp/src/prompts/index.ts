@@ -161,7 +161,8 @@ Apply the mode-specific design rules from the appropriate prompt (generate-eleme
 
 ## Query (library mode with components)
 8. For local components, call components(method: "list_properties") to discover available variants.
-   For library components, use the description field from get_mode's libraryComponents to understand usage.
+   For library components, use get_mode's libraryComponents.componentSets to find component sets and their variants.
+   Each component set has a key (for importComponentSetByKeyAsync) and variants with parsed properties.
    Skip this step entirely in Design Creator mode (no library selected).
 
 ## Create
@@ -201,7 +202,7 @@ Apply the mode-specific design rules from the appropriate prompt (generate-eleme
 ${DESIGN_GUARDIAN_RULES}
 
 Draft must include: layout structure, which library tokens to use (colors, typography, spacing),
-which library components to reuse from the libraryComponents list,
+which library components to reuse from the libraryComponents.componentSets list,
 composition strategy (focal point, visual hierarchy), elevation approach (shadow levels),
 icon style (outline/filled/duotone), and content strategy (realistic text examples).
 

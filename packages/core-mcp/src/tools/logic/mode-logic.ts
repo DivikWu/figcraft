@@ -4,7 +4,7 @@
  */
 
 import type { Bridge } from '../../bridge.js';
-import { fetchLibraryComponents } from '../../figma-api.js';
+import { fetchLibraryComponents, fetchLibraryComponentSets, groupComponentsBySet } from '../../figma-api.js';
 import { getToken } from '../../auth.js';
 import { setFileContext } from '../../rest-fallback.js';
 import { VERSION as SERVER_VERSION } from '@figcraft/shared';
@@ -102,12 +102,12 @@ export async function getModeLogic(
   if (fileKey) {
     try {
       const token = await getToken();
-      const components = await fetchLibraryComponents(fileKey, token);
-      (result as Record<string, unknown>).libraryComponents = components.map((c) => ({
-        key: c.key,
-        name: c.name,
-        description: c.description,
-      }));
+      const [components, componentSets] = await Promise.all([
+        fetchLibraryComponents(fileKey, token),
+        fetchLibraryComponentSets(fileKey, token),
+      ]);
+      const grouped = groupComponentsBySet(components, componentSets);
+      (result as Record<string, unknown>).libraryComponents = grouped;
     } catch (err) {
       console.warn('[FigCraft] Failed to fetch library components:', err);
       (result as Record<string, unknown>).libraryComponentsError =

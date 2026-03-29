@@ -19,9 +19,9 @@ In Kiro, the auto-loaded `figma-essential-rules.md` steering already covers all 
 |-----------|---------------|
 | Create/edit a single component, card, form, button in Figma | None (auto-loaded steering is sufficient) |
 | Create full page, multi-screen flow, mobile/web screens (no design system) | None (auto-loaded steering is sufficient) |
-| Create full page using a design system | `figma-generate-design` |
+| Create full page using a design system | `figma-generate-design` (uses Figma Power for component discovery/import via `inspectFileStructure`, `importComponentSetByKeyAsync`, `bindVariablesToComponent`) |
 | Create a new blank Figma file then design in it | `figma-create-new-file` |
-| Build design system, tokens, variables, component library | `figma-generate-library` |
+| Build design system, tokens, variables, component library | `figma-generate-library` (uses Figma Power helper scripts) |
 | Generate project-level design system rules | `figma-create-design-system-rules` |
 | Map Figma components to code components (Code Connect) | `figma-code-connect-components` |
 | Generate frontend code from a Figma design | `figma-implement-design` (not for drawing in Figma) |
@@ -30,10 +30,10 @@ Use `readFile` on individual reference files (gotchas.md, common-patterns.md, et
 
 ### Tool and context setup
 
-1. `ping` to confirm connection
+1. `ping` to confirm FigCraft plugin connection
 2. `get_current_page(maxDepth=1)` to understand existing page content, find clear placement position, and observe naming/color/spacing conventions
-3. If a library is selected in the plugin: `get_mode` to get design context and available tokens
-4. If no library is selected: skip `get_mode`, use hardcoded colors/spacing directly
+3. If creating UI with a design system library: load `figma-generate-design` skill — it uses Figma Power (official Figma MCP) for component discovery and import via fileKey, bypassing library name matching issues
+4. If no design system: skip `get_mode`, use hardcoded colors/spacing directly
 
 ## 2. Wrapper Frame Strategy — Decide Before Building
 

@@ -29,7 +29,7 @@ export function registerModeTools(server: McpServer, bridge: Bridge): void {
       'IMPORTANT: Call this before creating elements to get available design tokens and components. ' +
       'Returns { connected, mode, selectedLibrary, designContext, libraryComponents? }. ' +
       'designContext contains grouped tokens (text/surface/fill/border) and defaults mapping. ' +
-      'libraryComponents (when library file URL is configured) lists available components with keys and descriptions.',
+      'libraryComponents (when library file URL is configured) lists component sets with variants grouped by set, plus standalone components.',
     {},
     async () => {
       return getModeLogic(bridge);

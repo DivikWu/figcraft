@@ -66,10 +66,31 @@ registerHandler('create_component', async (params) => {
 registerHandler('create_instance', async (params) => {
   const componentId = params.componentId as string;
   const componentKey = params.componentKey as string | undefined;
+  const componentSetKey = params.componentSetKey as string | undefined;
 
   let component: ComponentNode | null = null;
 
-  if (componentKey) {
+  if (componentSetKey) {
+    // Import component set from library, then find the matching variant
+    const imported = await figma.importComponentSetByKeyAsync(componentSetKey);
+    if (params.properties && typeof params.properties === 'object') {
+      // Find variant matching the requested properties
+      const requestedProps = params.properties as Record<string, string>;
+      const match = imported.children.find((child) => {
+        if (child.type !== 'COMPONENT') return false;
+        // Parse variant name "Prop1=Val1, Prop2=Val2" into a map
+        const variantProps: Record<string, string> = {};
+        for (const part of child.name.split(',')) {
+          const eq = part.indexOf('=');
+          if (eq > 0) variantProps[part.slice(0, eq).trim()] = part.slice(eq + 1).trim();
+        }
+        return Object.entries(requestedProps).every(([k, v]) => variantProps[k] === v);
+      });
+      component = (match as ComponentNode) ?? (imported.defaultVariant as ComponentNode);
+    } else {
+      component = imported.defaultVariant as ComponentNode;
+    }
+  } else if (componentKey) {
     // Import from library by key
     const imported = await figma.importComponentByKeyAsync(componentKey);
     component = imported;

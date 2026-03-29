@@ -27,11 +27,23 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
       mode: z.enum(['library', 'spec']).optional(),
       selectedLibrary: z.string().optional(),
       designContext: z.record(z.unknown()).optional(),
-      libraryComponents: z.array(z.object({
+      libraryComponents: z.object({
+        componentSets: z.array(z.object({
+          key: z.string(),
+          name: z.string(),
+          description: z.string(),
+          variants: z.array(z.object({
+          key: z.string(),
+          name: z.string(),
+          properties: z.record(z.string()).optional(),
+        })).optional(),
+        })).optional(),
+        standalone: z.array(z.object({
           key: z.string(),
           name: z.string(),
           description: z.string(),
         })).optional(),
+      }).optional(),
       libraryComponentsError: z.string().optional(),
       libraryComponentsUnavailable: z.boolean().optional(),
       _hint: z.string().optional(),
@@ -704,13 +716,33 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
           }
         ]
       },
-      "libraryComponents": [
-        {
-          "key": "component-key",
-          "name": "Button / Primary",
-          "description": "Primary CTA button"
-        }
-      ],
+      "libraryComponents": {
+        "componentSets": [
+          {
+            "key": "component-set-key",
+            "name": "Button",
+            "description": "Primary CTA button",
+            "variants": [
+              {
+                "key": "variant-key-1",
+                "name": "Type=Primary, Size=Medium, State=Default",
+                "properties": {
+                  "Type": "Primary",
+                  "Size": "Medium",
+                  "State": "Default"
+                }
+              }
+            ]
+          }
+        ],
+        "standalone": [
+          {
+            "key": "standalone-key",
+            "name": "Logo",
+            "description": "Brand logo"
+          }
+        ]
+      },
       "_hint": "Library mode — tokens and components loaded. NEXT: Reply to user to gather missing preferences (UI type, platform). Do NOT call any more tools. If user provided everything, reply with design proposal instead."
     },
     {

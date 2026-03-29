@@ -4,7 +4,7 @@
  */
 
 import type { Bridge } from '../../bridge.js';
-import { fetchLibraryComponents } from '../../figma-api.js';
+import { fetchLibraryComponents, fetchLibraryComponentSets, groupComponentsBySet } from '../../figma-api.js';
 import { getToken } from '../../auth.js';
 import type { McpResponse } from './node-logic.js';
 
@@ -37,9 +37,17 @@ export async function listLibraryComponentsLogic(
       };
     }
     const token = await getToken();
-    const components = await fetchLibraryComponents(resolvedKey, token);
+    const [components, componentSets] = await Promise.all([
+      fetchLibraryComponents(resolvedKey, token),
+      fetchLibraryComponentSets(resolvedKey, token),
+    ]);
+    const grouped = groupComponentsBySet(components, componentSets);
     return {
-      content: [{ type: 'text' as const, text: JSON.stringify({ count: components.length, components }, null, 2) }],
+      content: [{ type: 'text' as const, text: JSON.stringify({
+        componentSetCount: grouped.componentSets.length,
+        standaloneCount: grouped.standalone.length,
+        ...grouped,
+      }, null, 2) }],
     };
   } catch (err) {
     return {

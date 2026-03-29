@@ -46,14 +46,17 @@ Then in Figma Desktop:
 
 FigCraft handles both UI creation and design quality on its own. For even more creation capabilities, you can add the [official Figma MCP server](https://developers.figma.com/docs/figma-mcp-server/) alongside it — both servers run in parallel and complement each other.
 
+> **Note**: `figcraft-design` is not yet published to npm. You need to build from source first (step 1 above). Replace `cwd` below with the absolute path to your local clone.
+
 FigCraft config (same for all IDEs):
 
 ```json
 {
   "mcpServers": {
     "figcraft": {
-      "command": "npx",
-      "args": ["figcraft-design"]
+      "command": "node",
+      "args": ["dist/mcp-server/index.js"],
+      "cwd": "/your/absolute/path/to/figcraft"
     }
   }
 }
@@ -96,11 +99,7 @@ Create `.cursor/mcp.json` in your project root with the config above.
 <details>
 <summary><strong>Claude Code</strong> — <code>.mcp.json</code></summary>
 
-```bash
-claude mcp add figcraft -s project -- npx figcraft-design
-```
-
-Or create `.mcp.json` in your project root with the config above.
+Create `.mcp.json` in your project root with the config above.
 </details>
 
 <details>
@@ -112,8 +111,9 @@ Create `.kiro/settings/mcp.json` in your project root. Kiro supports additional 
 {
   "mcpServers": {
     "figcraft": {
-      "command": "npx",
-      "args": ["figcraft-design"],
+      "command": "node",
+      "args": ["dist/mcp-server/index.js"],
+      "cwd": "/your/absolute/path/to/figcraft",
       "disabled": false,
       "autoApprove": []
     }
@@ -137,8 +137,9 @@ Open Antigravity → Agent dropdown → **Manage MCP Servers** → **View raw co
 
 ```toml
 [mcp_servers.figcraft]
-command = "npx"
-args = ["figcraft-design"]
+command = "node"
+args = ["dist/mcp-server/index.js"]
+cwd = "/your/absolute/path/to/figcraft"
 ```
 </details>
 

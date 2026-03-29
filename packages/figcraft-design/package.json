@@ -1,6 +1,6 @@
 {
   "name": "figcraft-design",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "AI-powered Figma MCP bridge for design creation, token sync, linting, and auto-fix",
   "type": "module",
   "main": "./dist/index.js",

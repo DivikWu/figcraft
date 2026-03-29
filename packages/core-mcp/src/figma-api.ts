@@ -174,7 +174,7 @@ export interface FigmaComponentMeta {
   key: string;
   name: string;
   description: string;
-  containing_frame: { name: string } | null;
+  containing_frame: { name: string; containingComponentSet?: string } | null;
 }
 
 export async function fetchLibraryComponents(
@@ -185,6 +185,111 @@ export async function fetchLibraryComponents(
     meta: { components: FigmaComponentMeta[] };
   };
   return data.meta.components ?? [];
+}
+
+/**
+ * Fetch published component set metadata from a Figma file.
+ * GET /v1/files/:fileKey/component_sets
+ */
+export interface FigmaComponentSetMeta {
+  key: string;
+  name: string;
+  description: string;
+  node_id: string;
+  containing_frame: { name: string } | null;
+}
+
+export async function fetchLibraryComponentSets(
+  fileKey: string,
+  token: string,
+): Promise<FigmaComponentSetMeta[]> {
+  const data = (await figmaFetch(`/v1/files/${fileKey}/component_sets`, token)) as {
+    meta: { component_sets: FigmaComponentSetMeta[] };
+  };
+  return data.meta.component_sets ?? [];
+}
+
+/**
+ * Group components by their component set, parsing variant properties from names.
+ * Returns a structured view: component sets with their variants, plus standalone components.
+ */
+export interface GroupedLibraryComponents {
+  componentSets: Array<{
+    key: string;
+    name: string;
+    description: string;
+    variants: Array<{
+      key: string;
+      name: string;
+      properties: Record<string, string>;
+    }>;
+  }>;
+  standalone: Array<{
+    key: string;
+    name: string;
+    description: string;
+  }>;
+}
+
+export function groupComponentsBySet(
+  components: FigmaComponentMeta[],
+  componentSets: FigmaComponentSetMeta[],
+): GroupedLibraryComponents {
+  // Build a map of component set node_id → set metadata
+  const setByNodeId = new Map(componentSets.map((s) => [s.node_id, s]));
+
+  // Group components by their containing component set
+  const setComponents = new Map<string, FigmaComponentMeta[]>();
+  const standalone: FigmaComponentMeta[] = [];
+
+  for (const comp of components) {
+    const setNodeId = comp.containing_frame?.containingComponentSet;
+    if (setNodeId && setByNodeId.has(setNodeId)) {
+      if (!setComponents.has(setNodeId)) setComponents.set(setNodeId, []);
+      setComponents.get(setNodeId)!.push(comp);
+    } else {
+      standalone.push(comp);
+    }
+  }
+
+  // Build grouped result
+  const groupedSets = componentSets.map((set) => {
+    const variants = (setComponents.get(set.node_id) || []).map((comp) => ({
+      key: comp.key,
+      name: comp.name,
+      properties: parseVariantName(comp.name),
+    }));
+    return {
+      key: set.key,
+      name: set.name,
+      description: set.description,
+      variants,
+    };
+  }).filter((s) => s.variants.length > 0);
+
+  return {
+    componentSets: groupedSets,
+    standalone: standalone.map((c) => ({
+      key: c.key,
+      name: c.name,
+      description: c.description,
+    })),
+  };
+}
+
+/**
+ * Parse a Figma variant name like "Type=Primary, Size=Small, State=Default"
+ * into a property map: { Type: "Primary", Size: "Small", State: "Default" }
+ */
+function parseVariantName(name: string): Record<string, string> {
+  const props: Record<string, string> = {};
+  for (const part of name.split(',')) {
+    const eq = part.indexOf('=');
+    if (eq > 0) {
+      props[part.slice(0, eq).trim()] = part.slice(eq + 1).trim();
+    }
+  }
+  return props;
 }
 
 /**

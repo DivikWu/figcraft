@@ -1,34 +1,53 @@
 ---
-inclusion: fileMatch
-fileMatchPattern: "packages/adapter-figma/**,packages/core-mcp/src/tools/**"
-description: "Workflow guide for building/updating Figma designs using FigCraft execute_js"
+inclusion: manual
+description: "Workflow for building/updating Figma screens using design system components. Adapted from official figma-generate-design skill for Kiro + FigCraft environment."
 ---
 
-# Building/Updating Figma Designs with execute_js
+# Building Screens from Design System — Kiro Adaptation
 
-This guide is the FigCraft-adapted version of the `figma-generate-design` skill workflow.
-**When this steering file conflicts with the skill, this file takes precedence.**
+Adapted from the official `figma-generate-design` skill. Core principle: **discover and reuse** design system components, variables, and styles — don't draw primitives with hardcoded values.
 
-Core principle: reuse design system components, variables, and styles instead of drawing primitives with hardcoded values.
+## Kiro Environment Adaptations
 
-You MUST read #[[file:.kiro/steering/execute-js-guide.md]] before using `execute_js`.
+| Official tool | Kiro equivalent | Notes |
+|--------------|----------------|-------|
+| `use_figma` | `mcp_figcraft_execute_js` | Code is 100% compatible. Not atomic on failure — verify after every write. |
+| `search_design_system` | `execute_js` (traverse existing instances) or `get_mode` / `load_toolset("library")` | See Step 2 alternatives below. |
+| `get_metadata` | `mcp_figcraft_get_current_page(maxDepth=N)` + `mcp_figcraft_nodes(method: "get")` | Returns compressed node tree, not XML. |
+| `get_screenshot` | `mcp_figcraft_export_image` | Returns base64 PNG. |
+| `get_variable_defs` | Figma Power `get_variable_defs(nodeId, fileKey)` | Available in Kiro — uses REST API, no library name matching. |
+
+## Critical Difference: Non-Atomic Failure
+
+`execute_js` does NOT guarantee atomic failure. Nodes created before an error may persist as orphans.
+
+**Required after EVERY `execute_js` write:**
+```
+execute_js (write)
+  → get_current_page(maxDepth=1)  — confirm no unexpected top-level nodes
+  → [if orphans found] execute_js to remove them
+```
 
 ## Workflow
 
-### Step 1: Understand the Screen to Build
+### Step 1: Understand the Screen
 
-1. If building from code, read the relevant source files to understand page structure
+Before touching Figma:
+1. Read source files or description to understand page structure
 2. Identify major sections (Header, Hero, Content, Footer, etc.)
-3. List the UI components involved in each section
+3. List UI components per section (buttons, inputs, cards, nav, etc.)
 
 ### Step 2: Discover Design System Assets
 
-#### 2a: Discover components
+Three things to discover: **components**, **variables**, **styles**.
 
-Prefer inspecting existing screens in the file first. Use `execute_js` to traverse instances in an existing frame:
+#### 2a: Components — Inspect existing screens first (preferred)
 
 ```js
+// execute_js — read-only
 const frame = figma.currentPage.findOne(n => n.name === "Existing Screen");
+if (!frame) return { found: false, hint: "No existing screens. Use get_mode libraryComponents or load_toolset('library')." };
+
 const uniqueSets = new Map();
 frame.findAll(n => n.type === "INSTANCE").forEach(inst => {
   const mc = inst.mainComponent;
@@ -42,42 +61,71 @@ frame.findAll(n => n.type === "INSTANCE").forEach(inst => {
 return [...uniqueSets.values()];
 ```
 
-If no existing screens are available, use FigCraft's `load_toolset("library")` → `list_library_components` to search library components.
+**Fallback when no existing screens:**
+- `get_mode` → `libraryComponents` (grouped by component set with variant properties)
+- `load_toolset("library")` → `list_library_collections` / `list_library_variables`
 
-#### 2b: Discover variables
-
-Inspect variables bound to existing screens:
+#### 2b: Component properties — Create temp instance to read structure
 
 ```js
+// execute_js — read then clean up
+const set = await figma.importComponentSetByKeyAsync("COMPONENT_SET_KEY");
+const sample = set.defaultVariant.createInstance();
+const props = sample.componentProperties;
+const nested = sample.findAll(n => n.type === "INSTANCE").map(ni => ({
+  name: ni.name, properties: ni.componentProperties
+}));
+sample.remove();
+return { props, nested };
+```
+
+#### 2c: Variables — Inspect bound variables on existing nodes
+
+```js
+// execute_js — read-only
 const frame = figma.currentPage.findOne(n => n.name === "Existing Screen");
-const varMap = new Map();
+const vars = new Map();
 for (const node of frame.findAll(() => true)) {
   const bv = node.boundVariables;
   if (!bv) continue;
-  for (const [prop, binding] of Object.entries(bv)) {
+  for (const [, binding] of Object.entries(bv)) {
     const bindings = Array.isArray(binding) ? binding : [binding];
     for (const b of bindings) {
-      if (b?.id && !varMap.has(b.id)) {
+      if (b?.id && !vars.has(b.id)) {
         const v = await figma.variables.getVariableByIdAsync(b.id);
-        if (v) varMap.set(b.id, { name: v.name, id: v.id, key: v.key, resolvedType: v.resolvedType });
+        if (v) vars.set(b.id, { name: v.name, key: v.key, type: v.resolvedType, remote: v.remote });
       }
     }
   }
 }
-return [...varMap.values()];
+return [...vars.values()];
 ```
 
-You can also use `load_toolset("library")` → `list_library_variables` to search library variables.
+Also available: Figma Power `get_variable_defs(nodeId, fileKey)` — uses REST API, no library name matching issues.
 
-#### 2c: Discover styles
-
-Use FigCraft's `scan_styles` or `list_library_styles` to discover text styles and effect styles.
-
-### Step 3: Create the Page Wrapper Frame
-
-Create the wrapper frame in its own `execute_js` call, positioned away from existing content. For multi-screen flows, the wrapper MUST use `counterAxisAlignItems=MIN` (left-align), have a background fill, cornerRadius, and `clipsContent=false` (see figma-essential-rules.md Rule #24 and Multi-Screen Flow Strategy):
+#### 2d: Styles — Inspect text and effect styles
 
 ```js
+// execute_js — read-only
+const frame = figma.currentPage.findOne(n => n.name === "Existing Screen");
+const styles = { text: new Map(), effect: new Map() };
+frame.findAll(() => true).forEach(node => {
+  if ('textStyleId' in node && node.textStyleId) {
+    const s = figma.getStyleById(node.textStyleId);
+    if (s) styles.text.set(s.id, { name: s.name, key: s.key });
+  }
+  if ('effectStyleId' in node && node.effectStyleId) {
+    const s = figma.getStyleById(node.effectStyleId);
+    if (s) styles.effect.set(s.id, { name: s.name, key: s.key });
+  }
+});
+return { textStyles: [...styles.text.values()], effectStyles: [...styles.effect.values()] };
+```
+
+### Step 3: Create Page Wrapper
+
+```js
+// execute_js — write
 let maxX = 0;
 for (const child of figma.currentPage.children) {
   maxX = Math.max(maxX, child.x + child.width);
@@ -85,88 +133,113 @@ for (const child of figma.currentPage.children) {
 const wrapper = figma.createFrame();
 wrapper.name = "Homepage";
 wrapper.layoutMode = "VERTICAL";
-wrapper.primaryAxisAlignItems = "MIN";
-wrapper.counterAxisAlignItems = "MIN";
+wrapper.primaryAxisAlignItems = "CENTER";
+wrapper.counterAxisAlignItems = "CENTER";
 wrapper.resize(1440, 100);
 wrapper.layoutSizingHorizontal = "FIXED";
 wrapper.layoutSizingVertical = "HUG";
-wrapper.cornerRadius = 24;
-wrapper.fills = [{ type: "SOLID", color: { r: 0.96, g: 0.96, b: 0.96 } }];
-wrapper.clipsContent = false;
 wrapper.x = maxX + 200;
 wrapper.y = 0;
 return { wrapperId: wrapper.id };
 ```
 
-**After creating the wrapper, ALWAYS verify:**
-1. Structure-verify with `get_current_page(maxDepth=1)` — confirm page has exactly the expected number of top-level nodes (catches orphan nodes from failed previous attempts)
-2. For multi-screen skeletons, also visual-verify with `export_image` — the skeleton is the foundation, never skip this
+→ `get_current_page(maxDepth=1)` to verify
 
-### Step 4: Build Section by Section (Scale-Appropriate)
+### Step 4: Build Sections (one per `execute_js` call)
 
-Match granularity to task scale (see execute-js-guide.md for full details):
-- Single page with sections → one `execute_js` call per section
-- Multi-screen flow → one `execute_js` call per FULL SCREEN (all sections in one script)
-
-Each script starts by fetching the wrapper by ID:
+Each call: fetch wrapper → import components/variables/styles → build section → append → return IDs.
 
 ```js
-const createdNodeIds = [];
+// execute_js — write one section
 const wrapper = await figma.getNodeByIdAsync("WRAPPER_ID");
+await figma.loadFontAsync({ family: "GT Walsheim", style: "Regular" });
 
-// Import design system components
-const buttonSet = await figma.importComponentSetByKeyAsync("BUTTON_KEY");
-const primaryButton = buttonSet.children.find(c =>
+// Import components by key
+const buttonSet = await figma.importComponentSetByKeyAsync("BUTTON_SET_KEY");
+const primaryBtn = buttonSet.children.find(c =>
   c.type === "COMPONENT" && c.name.includes("variant=primary")
 ) || buttonSet.defaultVariant;
 
-// Import variables
-const bgColorVar = await figma.variables.importVariableByKeyAsync("BG_VAR_KEY");
+// Import variables by key
+const bgVar = await figma.variables.importVariableByKeyAsync("BG_VAR_KEY");
 const spacingVar = await figma.variables.importVariableByKeyAsync("SPACING_VAR_KEY");
 
-// Build section
+// Import and apply styles
+const shadowStyle = await figma.importStyleByKeyAsync("SHADOW_STYLE_KEY");
+
+// Build section with variable bindings (not hardcoded values)
 const section = figma.createFrame();
 section.name = "Header";
 section.layoutMode = "HORIZONTAL";
 section.setBoundVariable("paddingLeft", spacingVar);
 section.setBoundVariable("paddingRight", spacingVar);
-
-// Bind background color variable
 const bgPaint = figma.variables.setBoundVariableForPaint(
-  { type: 'SOLID', color: { r: 0, g: 0, b: 0 } }, 'color', bgColorVar
+  { type: 'SOLID', color: { r: 0, g: 0, b: 0 } }, 'color', bgVar
 );
 section.fills = [bgPaint];
+section.effectStyleId = shadowStyle.id;
 
-// Create component instances
-const btnInstance = primaryButton.createInstance();
-section.appendChild(btnInstance);
-createdNodeIds.push(btnInstance.id);
+// Create component instance
+const btn = primaryBtn.createInstance();
+section.appendChild(btn);
+
+// Override text via setProperties (not direct node.characters)
+btn.setProperties({ "Label#2:0": "Get Started" });
 
 // Append to wrapper
 wrapper.appendChild(section);
-section.layoutSizingHorizontal = "FILL"; // MUST be after appendChild
+section.layoutSizingHorizontal = "FILL"; // AFTER appendChild
 
-createdNodeIds.push(section.id);
-return { success: true, createdNodeIds };
+return { createdNodeIds: [section.id, btn.id] };
 ```
 
-Verify each write with `get_current_page(maxDepth=1)` (structure check — catches orphan nodes). Visual-verify with `export_image` at key milestones (after skeleton, after each complete screen).
+→ `get_current_page(maxDepth=1)` after each write
+→ `export_image` at key milestones (after skeleton, after each complete screen)
 
-### Step 5: Validate the Complete Screen
+### Step 5: Validate
 
-After all sections are done:
-1. Run `lint_fix_all` on each individual screen (NOT on the wrapper)
-2. Post-lint structural verification — `execute_js` to inspect each screen's child hierarchy AND page-level children (`figma.currentPage.children`) for orphan nodes
-3. Screenshot the full page frame and compare. Use targeted `execute_js` calls to fix issues — do NOT rebuild the entire screen.
+1. `lint_fix_all(nodeIds: ["screen-id"])` — auto-fix quality issues
+2. `execute_js` — inspect child hierarchy for lint side effects (orphan nodes, reparented elements)
+3. `export_image` — final visual check. Look for:
+   - Cropped/clipped text
+   - Placeholder text not overridden
+   - Wrong component variants
+   - Overlapping elements
 
-## Key Principles
+### Step 6: Updating Existing Screens
 
-- Never hardcode hex colors or pixel spacing — use variable bindings
-- Prefer component instances over manual construction
-- Match script granularity to task scale — one section per call for single pages, one full screen per call for multi-screen flows
-- **Structure-verify after EVERY write** — `get_current_page(maxDepth=1)` is lightweight and non-negotiable; catches orphan nodes before they compound
-- **Visual-verify at key milestones** — `export_image` after skeleton, after each complete screen, and at the end; skeleton verification is mandatory
-- **On `execute_js` failure: STOP, inspect page, clean up orphans, THEN fix and retry** — failed scripts are NOT always atomic
-- Return only node IDs needed by subsequent calls — keep return values minimal
-- Match existing naming and layout conventions in the file
-- For multi-screen flows, use shared helper functions (makeText, makeButton, makeField) to ensure visual consistency
+```js
+// execute_js — targeted modification
+const existingBtn = await figma.getNodeByIdAsync("BUTTON_INSTANCE_ID");
+if (existingBtn?.type === "INSTANCE") {
+  const buttonSet = await figma.importComponentSetByKeyAsync("BUTTON_SET_KEY");
+  const newVariant = buttonSet.children.find(c =>
+    c.name.includes("variant=primary") && c.name.includes("size=lg")
+  ) || buttonSet.defaultVariant;
+  existingBtn.swapComponent(newVariant);
+}
+return { mutatedNodeIds: [existingBtn.id] };
+```
+
+## What to Build Manually vs Import
+
+| Build manually | Import from design system |
+|----------------|--------------------------|
+| Page wrapper frame | Components (buttons, cards, inputs, nav) |
+| Section container frames | Variables (colors, spacing, radii) via `setBoundVariable` / `setBoundVariableForPaint` |
+| Layout grids (rows, columns) | Text styles via `node.textStyleId` |
+| | Effect styles via `node.effectStyleId` |
+
+## Official Reference Docs (read on demand)
+
+These are from the official Figma MCP `figma-use` skill — all patterns apply to `execute_js`:
+
+| Doc | When to load |
+|-----|-------------|
+| `.kiro/skills/figma-use/references/component-patterns.md` | Importing components, finding variants, setProperties, text overrides |
+| `.kiro/skills/figma-use/references/variable-patterns.md` | Creating/binding variables, importing library variables, scopes |
+| `.kiro/skills/figma-use/references/gotchas.md` | Every known pitfall with WRONG/CORRECT examples |
+| `.kiro/skills/figma-use/references/common-patterns.md` | Working code templates for common operations |
+| `.kiro/skills/figma-use/references/text-style-patterns.md` | Creating/applying text styles |
+| `.kiro/skills/figma-use/references/effect-style-patterns.md` | Creating/applying effect styles |
+| `.kiro/skills/figma-use/references/validation-and-recovery.md` | Verification workflow and error recovery |

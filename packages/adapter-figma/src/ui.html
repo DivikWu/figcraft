@@ -1081,6 +1081,7 @@
     let selectedLibrary = null;
     let savedApiToken = '';
     let libraryEntries = {};  // { fileKey: { name, url } } — synced from plugin sandbox
+    let pendingNameRefresh = {};  // { fileKey: oldName } — tracks in-flight name refresh requests
     let logCount = 0;
 
     // ─── Pending response queue ───
@@ -1663,6 +1664,18 @@
           libraryEntries[lib.fileKey] = { name: lib.name, url: '' };
         });
         populateLibraryDropdown(msg.libraries || [], msg.inUseLibraries || [], msg.savedLibrary, msg.hasLocal || false);
+
+        // ─── Auto-refresh library names via REST API ───
+        // Detect if any library file was renamed since it was added.
+        // Only refresh once per plugin session to avoid repeated API calls.
+        if (ws && ws.readyState === WebSocket.OPEN && savedApiToken) {
+          (msg.libraries || []).forEach(function(lib) {
+            if (lib.fileKey && !(lib.fileKey in pendingNameRefresh)) {
+              pendingNameRefresh[lib.fileKey] = lib.name;
+              ws.send(JSON.stringify({ type: 'resolve-file-name', channel: channelId, fileKey: lib.fileKey, url: '' }));
+            }
+          });
+        }
         return;
       }
 
@@ -1991,6 +2004,28 @@
     }
 
     function handleFileNameResolved(msg) {
+      // ─── Handle name refresh (auto-sync on plugin open) ───
+      if (pendingNameRefresh[msg.fileKey] !== undefined) {
+        var oldName = pendingNameRefresh[msg.fileKey];
+        pendingNameRefresh[msg.fileKey] = null; // mark as done (not undefined, so it won't re-trigger)
+        if (msg.name && msg.name !== oldName) {
+          log('Library renamed: ' + oldName + ' \u2192 ' + msg.name, 'info');
+          parent.postMessage({ pluginMessage: {
+            type: 'save-library-entry',
+            fileKey: msg.fileKey,
+            name: msg.name,
+            url: msg.url || '',
+          } }, '*');
+          // If the renamed library is currently selected, update the selection too
+          if (selectedLibrary === oldName) {
+            parent.postMessage({ pluginMessage: { type: 'save-library', library: msg.name } }, '*');
+            selectedLibrary = msg.name;
+          }
+        }
+        return;
+      }
+
+      // ─── Handle new library add ───
       const input = libraryPopup.querySelector('.library-popup-add-row .input');
       const btn = libraryPopup.querySelector('.library-popup-add-btn');
       if (input) { input.disabled = false; input.value = ''; }

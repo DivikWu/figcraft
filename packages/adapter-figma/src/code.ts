@@ -81,7 +81,7 @@ const LIBRARY_URLS_STORAGE_KEY = STORAGE_KEYS.LIBRARY_URLS;
 const LANG_STORAGE_KEY = STORAGE_KEYS.LANG;
 
 // Library entries storage: { fileKey: { name, url } }
-interface LibraryEntry { name: string; url: string; }
+interface LibraryEntry { name: string; url: string; variableLibraryName?: string; }
 
 async function getLibraryEntries(): Promise<Record<string, LibraryEntry>> {
   const raw = await figma.clientStorage.getAsync(LIBRARY_URLS_STORAGE_KEY);
@@ -142,6 +142,26 @@ async function sendLibraryList() {
         .filter((c) => remoteCollectionKeys.has(c.key))
         .map((c) => c.libraryName),
     )];
+    // ─── Auto-sync library names ───
+    // When a library file is renamed after being added, the stored name becomes stale.
+    // Detect mismatches and update the variableLibraryName field for accurate variable matching.
+    const apiLibraryNames = [...new Set(availableCollections.map((c) => c.libraryName))];
+    let nameUpdated = false;
+    for (const [, entry] of Object.entries(entries)) {
+      // If we already have a variableLibraryName, check if it's still valid
+      if (entry.variableLibraryName && !apiLibraryNames.includes(entry.variableLibraryName)) {
+        entry.variableLibraryName = undefined;
+        nameUpdated = true;
+      }
+      // If no variableLibraryName yet, try exact match by entry.name
+      if (!entry.variableLibraryName && apiLibraryNames.includes(entry.name)) {
+        entry.variableLibraryName = entry.name;
+        nameUpdated = true;
+      }
+    }
+    if (nameUpdated) {
+      await figma.clientStorage.setAsync(LIBRARY_URLS_STORAGE_KEY, entries);
+    }
   } catch (err) {
     console.warn('[figcraft] sendLibraryList: failed to get available collections:', err);
   }
@@ -324,6 +344,35 @@ figma.ui.on('message', async (msg: { type: string; channelId?: string; mode?: st
     if (fk && name) {
       const entries = await getLibraryEntries();
       entries[fk] = { name, url };
+      // Resolve the variable API library name — it may differ from the file name
+      // (e.g. when a file is duplicated, variables may retain the original library name)
+      try {
+        const availCols = await Promise.race([
+          figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync(),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), 5_000),
+          ),
+        ]);
+        const apiNames = [...new Set(availCols.map((c) => c.libraryName))];
+        // 1. Try exact match first
+        const exactMatch = apiNames.find((n) => n === name);
+        if (exactMatch) {
+          entries[fk].variableLibraryName = exactMatch;
+        } else {
+          // 2. Elimination: remove API names already claimed by other entries,
+          //    if exactly one unclaimed name remains, it must be this library.
+          const claimedNames = new Set(
+            Object.entries(entries)
+              .filter(([key, e]) => key !== fk && e.variableLibraryName)
+              .map(([, e]) => e.variableLibraryName!),
+          );
+          const unclaimed = apiNames.filter((n) => !claimedNames.has(n));
+          if (unclaimed.length === 1) {
+            entries[fk].variableLibraryName = unclaimed[0];
+            console.warn(`[figcraft] Resolved variableLibraryName by elimination: "${name}" → "${unclaimed[0]}"`);
+          }
+        }
+      } catch { /* timeout or error — skip, will be resolved on next sendLibraryList */ }
       await figma.clientStorage.setAsync(LIBRARY_URLS_STORAGE_KEY, entries);
     }
     await sendLibraryList();
