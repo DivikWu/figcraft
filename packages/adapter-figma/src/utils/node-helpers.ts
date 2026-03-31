@@ -855,3 +855,22 @@ export async function applyCornerRadius(
   }
   return bound;
 }
+
+// ─── Component property helpers ───
+
+/**
+ * Set component properties on an instance, matching keys with Figma's `name#id` suffix format.
+ * Silently skips unknown or type-mismatched properties.
+ */
+export function setComponentProperties(
+  instance: InstanceNode,
+  props: Record<string, string | boolean>,
+): void {
+  const defs = instance.componentProperties;
+  for (const [key, value] of Object.entries(props)) {
+    const matchKey = Object.keys(defs).find(k => k.startsWith(key + '#') || k === key);
+    if (matchKey) {
+      try { instance.setProperties({ [matchKey]: value }); } catch { /* skip */ }
+    }
+  }
+}

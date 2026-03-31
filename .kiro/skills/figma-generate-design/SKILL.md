@@ -6,9 +6,9 @@ disable-model-invocation: false
 
 # Build / Update Screens from Design System
 
-**In Kiro, `use_figma` is not available. All Plugin API scripts must be executed via `execute_js`.**
-
 Use this skill to create or update full-page screens in Figma by **reusing the published design system** — components, variables, and styles — rather than drawing primitives with hardcoded values. The key insight: the Figma file likely has a published design system with components, color/spacing variables, and text/effect styles that correspond to the codebase's UI components and tokens. Find and use those instead of drawing boxes with hex colors.
+
+All Plugin API scripts are executed via `execute_js` (100% compatible with official Figma MCP's `use_figma`).
 
 **MANDATORY**: You MUST also load [figma-use](../figma-use/SKILL.md) before any `execute_js` call. That skill contains critical rules (color ranges, font loading, etc.) that apply to every script you write. *(In Kiro: this is overridden — the auto-loaded `figma-essential-rules.md` steering already covers these rules. Do NOT load figma-use separately.)*
 
@@ -21,7 +21,7 @@ Use this skill to create or update full-page screens in Figma by **reusing the p
 
 ## Prerequisites
 
-- Figma MCP server must be connected
+- FigCraft plugin must be running in Figma (verify with `ping`)
 - The target Figma file must have a published design system with components (or access to a team library)
 - User should provide either:
   - A Figma file URL / file key to work in

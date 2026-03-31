@@ -40,13 +40,19 @@ export class Bridge {
   private connecting = false;
   private apiToken: string | null = null;
   private libraryFileKeys = new Map<string, string>();
+  private _selectedLibrary: string | null | undefined = undefined;
+  private _modeQueried = false;
   private reconnectAttempts = 0;
+  private evicted = false;
   private missedPongs = 0;
   private lastPongTs = 0;
   private connectionWaiters: Array<() => void> = [];
   private intentionalDisconnect = false;
   private static readonly MAX_MISSED_PONGS = 3;
   private static readonly MAX_REQUEST_RECONNECT_ATTEMPTS = 2;
+
+  /** Access level for two-path authoring (injected into _caps on every request). */
+  _accessLevel: 'read' | 'create' | 'edit' = 'edit';
 
   constructor(
     private relayUrl: string,
@@ -92,6 +98,7 @@ export class Bridge {
         this.connected = true;
         this.connecting = false;
         this.reconnectAttempts = 0;
+        this.evicted = false;
         this.missedPongs = 0;
         // Join data channel + control channel
         ws.send(JSON.stringify({ type: 'join', channel: this.channel, role: 'mcp' }));
@@ -204,21 +211,27 @@ export class Bridge {
         clearTimeout(connectTimeout);
         // Ignore close events from stale sockets replaced by a newer connection.
         if (this.ws !== ws) return;
-        // code 4001 = same_role_eviction: this socket was replaced by another MCP
-        // instance on the same channel. Do NOT reconnect — it would create an
-        // infinite eviction loop. Log a clear warning instead.
+        // code 4001 = same_role_eviction: another MCP instance joined the
+        // same channel and the Relay evicted us (last-writer-wins).
+        // Do NOT reconnect — reconnecting would just evict the other
+        // instance, which would reconnect and evict us, ad infinitum.
+        // The process stays alive (stdio MCP transport is still open)
+        // but all subsequent tool calls will fail with "Bridge not connected",
+        // giving the user a clear signal to remove duplicate configs.
         if (code === 4001) {
-          console.error(`[FigCraft bridge] evicted by another MCP instance (4001: ${reason?.toString()}). Check for duplicate figcraft server configs in .mcp.json / .kiro/settings/mcp.json / .vscode/mcp.json.`);
+          this.evicted = true;
           this.connected = false;
           this.connecting = false;
           this.stopHeartbeat();
-          this.rejectAllPending('Connection closed');
-          if (!this.intentionalDisconnect) {
-            this.scheduleReconnect();
-          }
+          this.rejectAllPending('Evicted by another MCP instance');
+          console.error(
+            `[FigCraft bridge] evicted by another MCP instance (4001: ${reason?.toString()}). ` +
+            `This instance will NOT reconnect. Remove duplicate figcraft server configs ` +
+            `from .mcp.json / .kiro/settings/mcp.json / .vscode/mcp.json, then restart.`,
+          );
           if (!settled) {
             settled = true;
-            reject(new Error('Connection closed during handshake'));
+            reject(new Error('Evicted by another MCP instance'));
           }
           return;
         }
@@ -249,16 +262,31 @@ export class Bridge {
     });
   }
 
+  /** UI creation methods that require get_mode to be called first. */
+  private static readonly DESIGN_PREFLIGHT_METHODS = new Set([
+    'create_frame', 'create_text', 'create_svg', 'execute_js',
+  ]);
+
   /** Send a request to the Plugin and await its response. */
   async request(method: string, params: Record<string, unknown> = {}, timeoutMs?: number): Promise<unknown> {
+    // Guard: UI creation tools require get_mode to be called first.
+    // This ensures the design preflight workflow is followed across all IDEs.
+    if (Bridge.DESIGN_PREFLIGHT_METHODS.has(method) && !this._modeQueried) {
+      throw new Error(
+        `[FigCraft] Cannot call ${method} before get_mode. ` +
+        'Design preflight required: call get_mode first to check library status and get workflow instructions, ' +
+        'then present a design proposal to the user and wait for confirmation before creating UI elements.',
+      );
+    }
     // If disconnected, wait for reconnection (up to 10s)
     if (!this.ws || !this.connected) {
       await this.waitForConnection(10_000);
     }
     // Active reconnection: if still disconnected and not intentionally disconnected,
-    // attempt to reconnect (like ping/get_mode do) before giving up.
+    // attempt to reconnect before giving up.  Skip if we were evicted (4001) —
+    // reconnecting would just restart the eviction loop.
     if (!this.ws || !this.connected) {
-      if (!this.intentionalDisconnect) {
+      if (!this.intentionalDisconnect && !this.evicted) {
         for (let attempt = 0; attempt < Bridge.MAX_REQUEST_RECONNECT_ATTEMPTS; attempt++) {
           console.error(`[FigCraft bridge] request() triggering active reconnect for ${method} (attempt ${attempt + 1}/${Bridge.MAX_REQUEST_RECONNECT_ATTEMPTS})`);
           try {
@@ -308,8 +336,9 @@ export class Bridge {
             channel: this.channel,
             method,
             // Inject _commandId so the plugin can reference it in progress messages.
-            // Handlers that don't use it simply ignore the extra field.
-            params: { ...params, _commandId: id },
+            // Inject _caps so handlers can branch on access tier (two-path authoring).
+            // Handlers that don't use these simply ignore the extra fields.
+            params: { ...params, _commandId: id, _caps: { edit: this._accessLevel === 'edit' } },
             ...(timeoutMs != null ? { _timeoutMs: timeoutMs } : {}),
           }),
         );
@@ -388,9 +417,38 @@ export class Bridge {
     return this.libraryFileKeys.get(library) ?? null;
   }
 
+  /** Get the first available library file key (any library). */
+  getFirstLibraryFileKey(): string | null {
+    const first = this.libraryFileKeys.values().next();
+    return first.done ? null : first.value;
+  }
+
   /** Set the file key for a library (from plugin response or UI). */
   setLibraryFileKey(library: string, fileKey: string): void {
     this.libraryFileKeys.set(library, fileKey);
+  }
+
+  /**
+   * Currently selected library name (cached from get_mode / set_mode).
+   * - `undefined` = unknown (never queried this session)
+   * - `null` = explicitly no library selected
+   * - `string` = library name or '__local__'
+   */
+  get selectedLibrary(): string | null | undefined {
+    return this._selectedLibrary;
+  }
+
+  set selectedLibrary(value: string | null) {
+    this._selectedLibrary = value;
+  }
+
+  /** Whether get_mode or set_mode has been called this session. */
+  get modeQueried(): boolean {
+    return this._modeQueried;
+  }
+
+  set modeQueried(value: boolean) {
+    this._modeQueried = value;
   }
 
   /**
@@ -540,7 +598,8 @@ export class Bridge {
   }
 
   private scheduleReconnect(): void {
-    if (this.reconnectTimer) return;    // Exponential backoff: 1s, 2s, 4s, 8s … capped at 60s, with ±20% jitter
+    if (this.reconnectTimer) return;
+    // Exponential backoff: 1s, 2s, 4s, 8s … capped at 60s, with ±20% jitter
     const base = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 60_000);
     const jitter = base * 0.2 * (Math.random() * 2 - 1);
     const delay = Math.round(base + jitter);
@@ -551,7 +610,8 @@ export class Bridge {
       try {
         await this.connect();
         console.error('[FigCraft bridge] reconnected');
-      } catch {
+      } catch (err) {
+        console.warn('[figcraft] reconnect failed:', err instanceof Error ? err.message : String(err));
         this.scheduleReconnect();
       }
     }, delay);

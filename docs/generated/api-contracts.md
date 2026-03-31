@@ -4,7 +4,7 @@ This document is generated from `schema/tools.yaml`, `packages/core-mcp/src/tool
 
 ## Tool Response Coverage
 
-Covered flat/custom tools: 88
+Covered flat/custom tools: 101
 
 ### `add_collection_mode`
 
@@ -214,6 +214,10 @@ Covered flat/custom tools: 88
 }
 ```
 
+### `create_component_from_node`
+
+- Example payloads: 0
+
 ### `create_component_set`
 
 - Example payloads: 1
@@ -224,6 +228,21 @@ Covered flat/custom tools: 88
   "name": "Button",
   "type": "COMPONENT_SET",
   "width": 320,
+  "height": 48,
+  "visible": true
+}
+```
+
+### `create_ellipse`
+
+- Example payloads: 1
+
+```json
+{
+  "id": "90:5",
+  "name": "Avatar",
+  "type": "ELLIPSE",
+  "width": 48,
   "height": 48,
   "visible": true
 }
@@ -243,6 +262,22 @@ Covered flat/custom tools: 88
   "visible": true
 }
 ```
+
+### `create_instance`
+
+- Example payloads: 1
+
+```json
+{
+  "id": "60:1",
+  "name": "Button",
+  "type": "INSTANCE"
+}
+```
+
+### `create_instances`
+
+- Example payloads: 0
 
 ### `create_line`
 
@@ -285,6 +320,21 @@ Covered flat/custom tools: 88
 }
 ```
 
+### `create_rectangle`
+
+- Example payloads: 1
+
+```json
+{
+  "id": "90:4",
+  "name": "Card Background",
+  "type": "RECTANGLE",
+  "width": 320,
+  "height": 200,
+  "visible": true
+}
+```
+
 ### `create_section`
 
 - Example payloads: 1
@@ -312,6 +362,10 @@ Covered flat/custom tools: 88
   "visible": true
 }
 ```
+
+### `create_svg`
+
+- Example payloads: 0
 
 ### `create_text`
 
@@ -829,6 +883,26 @@ Covered flat/custom tools: 88
 }
 ```
 
+### `icon_collections`
+
+- Example payloads: 0
+
+### `icon_create`
+
+- Example payloads: 0
+
+### `icon_search`
+
+- Example payloads: 0
+
+### `image_preview`
+
+- Example payloads: 0
+
+### `image_search`
+
+- Example payloads: 0
+
 ### `import_library_style`
 
 - Example payloads: 1
@@ -1238,6 +1312,10 @@ Covered flat/custom tools: 88
 }
 ```
 
+### `search_design_system`
+
+- Example payloads: 0
+
 ### `set_annotation`
 
 - Example payloads: 1
@@ -1462,6 +1540,10 @@ Covered flat/custom tools: 88
 }
 ```
 
+### `text_scan`
+
+- Example payloads: 0
+
 ### `update_component`
 
 - Example payloads: 1
@@ -1493,7 +1575,7 @@ Covered flat/custom tools: 88
 
 ## Endpoint Response Coverage
 
-Covered endpoint methods: 29
+Covered endpoint methods: 31
 
 ### `components.get`
 
@@ -1563,6 +1645,21 @@ Covered endpoint methods: 29
 }
 ```
 
+### `nodes.clone`
+
+- Example payloads: 1
+
+```json
+{
+  "results": [
+    {
+      "id": "50:1",
+      "ok": true
+    }
+  ]
+}
+```
+
 ### `nodes.delete`
 
 - Example payloads: 1
@@ -1611,6 +1708,21 @@ Covered endpoint methods: 29
       "id": "1:10",
       "name": "Login Button",
       "type": "FRAME"
+    }
+  ]
+}
+```
+
+### `nodes.reparent`
+
+- Example payloads: 1
+
+```json
+{
+  "results": [
+    {
+      "id": "30:1",
+      "ok": true
     }
   ]
 }
@@ -1965,11 +2077,12 @@ Covered endpoint methods: 29
 
 ## Flat To Endpoint Migration Map
 
-Mapped flat tools: 29
+Mapped flat tools: 31
 
 | Flat Tool | Replacement | Toolset | Write | Access |
 | --- | --- | --- | --- | --- |
 | `batch_create_variables` | `variables_ep(method: "batch_create")` | `variables` | `true` | `create` |
+| `clone_nodes` | `nodes(method: "clone")` | `core` | `true` | `create` |
 | `create_collection` | `variables_ep(method: "create_collection")` | `variables` | `true` | `create` |
 | `create_paint_style` | `styles_ep(method: "create_paint")` | `styles` | `true` | `create` |
 | `create_variable` | `variables_ep(method: "create")` | `variables` | `true` | `create` |
@@ -1990,6 +2103,7 @@ Mapped flat tools: 29
 | `list_styles` | `styles_ep(method: "list")` | `styles` | `false` | `read` |
 | `list_variables` | `variables_ep(method: "list")` | `variables` | `false` | `read` |
 | `patch_nodes` | `nodes(method: "update")` | `core` | `true` | `edit` |
+| `reparent_nodes` | `nodes(method: "reparent")` | `core` | `true` | `edit` |
 | `search_nodes` | `nodes(method: "list")` | `core` | `false` | `read` |
 | `set_text_content` | `text(method: "set_content")` | `core` | `true` | `edit` |
 | `set_variable_binding` | `variables_ep(method: "set_binding")` | `variables` | `true` | `edit` |

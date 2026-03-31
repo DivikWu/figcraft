@@ -14,6 +14,7 @@ import { hexToFigmaRgb, figmaRgbaToHex } from '../utils/color.js';
 import { ensureLoaded, getTextStyleId } from '../utils/style-registry.js';
 import { isVariableAlias, isRgbaLike, setSpacingProp } from '../utils/type-guards.js';
 import { getCachedModeLibrary } from './write-nodes.js';
+import { LOCAL_LIBRARY } from '../constants.js';
 
 // Cache last-built LintContext Maps to avoid redundant Map construction on repeated calls
 // with the same tokenContext (common in iterative lint workflows).
@@ -30,7 +31,7 @@ registerHandler('lint_check', async (params) => {
   const limit = params.limit as number | undefined;
   const maxViolations = params.maxViolations as number | undefined;
   const annotate = params.annotate as boolean | undefined;
-  const minSeverity = params.minSeverity as 'error' | 'warning' | 'info' | 'hint' | undefined;
+  const minSeverity = params.minSeverity as 'error' | 'unsafe' | 'heuristic' | 'style' | 'verbose' | undefined;
 
   // Token context (passed from MCP Server or loaded from cache)
   const tokenContext = params.tokenContext as {
@@ -215,7 +216,7 @@ registerHandler('lint_fix', async (params) => {
               return typeof val === 'number' ? val : null;
             };
 
-            if (libraryName === '__local__') {
+            if (libraryName === LOCAL_LIBRARY) {
               const localCollections = await figma.variables.getLocalVariableCollectionsAsync();
               for (const col of localCollections) {
                 for (const varId of col.variableIds) {
@@ -327,7 +328,7 @@ registerHandler('lint_fix', async (params) => {
                 }
               };
 
-              if (libraryName === '__local__') {
+              if (libraryName === LOCAL_LIBRARY) {
                 // Local file: scan local color variables
                 const localCollections = await figma.variables.getLocalVariableCollectionsAsync();
                 for (const col of localCollections) {
@@ -475,7 +476,7 @@ registerHandler('lint_fix', async (params) => {
           let bestStyle: TextStyle | null = null;
           let bestSizeDist = Infinity;
 
-          if (libraryName === '__local__') {
+          if (libraryName === LOCAL_LIBRARY) {
             const localStyles = await figma.getLocalTextStylesAsync();
             for (const style of localStyles) {
               const dist = Math.abs(style.fontSize - targetSize);

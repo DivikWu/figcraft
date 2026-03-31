@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Bridge } from '../bridge.js';
+import { jsonResponse } from './response-helpers.js';
 
 export function registerStagingTools(server: McpServer, bridge: Bridge): void {
   server.tool(
@@ -16,9 +17,7 @@ export function registerStagingTools(server: McpServer, bridge: Bridge): void {
     },
     async ({ nodeIds }) => {
       const result = await bridge.request('stage_changes', { nodeIds });
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-      };
+      return jsonResponse(result);
     },
   );
 
@@ -31,9 +30,7 @@ export function registerStagingTools(server: McpServer, bridge: Bridge): void {
     },
     async ({ nodeIds }) => {
       const result = await bridge.request('commit_changes', { nodeIds });
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-      };
+      return jsonResponse(result);
     },
   );
 
@@ -46,9 +43,7 @@ export function registerStagingTools(server: McpServer, bridge: Bridge): void {
     },
     async ({ nodeIds }) => {
       const result = await bridge.request('discard_changes', { nodeIds });
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-      };
+      return jsonResponse(result);
     },
   );
 
@@ -58,9 +53,7 @@ export function registerStagingTools(server: McpServer, bridge: Bridge): void {
     {},
     async () => {
       const result = await bridge.request('list_staged', {});
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-      };
+      return jsonResponse(result);
     },
   );
 }

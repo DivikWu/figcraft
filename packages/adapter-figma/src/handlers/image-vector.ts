@@ -6,6 +6,63 @@ import { registerHandler } from '../registry.js';
 import { simplifyNode } from '../adapters/node-simplifier.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
 import { assertHandler, HandlerError } from '../utils/handler-error.js';
+import { applyFill, applyStroke, applyCornerRadius } from '../utils/node-helpers.js';
+import { getCachedModeLibrary } from './write-nodes.js';
+import { ensureLoaded } from '../utils/style-registry.js';
+
+// Shared helper for shape creation (rectangle, ellipse) to avoid duplication
+async function createShape(
+  factory: () => SceneNode & GeometryMixin & MinimalFillsMixin & MinimalStrokesMixin & BlendMixin & LayoutMixin,
+  defaultName: string,
+  params: Record<string, unknown>,
+  applyExtras?: (node: ReturnType<typeof factory>, libraryBindings: string[], useLib: boolean) => void | Promise<void>,
+): Promise<Record<string, unknown>> {
+  const [mode, library] = await getCachedModeLibrary();
+  const useLib = mode === 'library' && !!library;
+  if (useLib) await ensureLoaded(library!);
+  const libraryBindings: string[] = [];
+
+  const node = factory();
+  node.name = (params.name as string) ?? defaultName;
+  (node as any).resize((params.width as number) ?? 100, (params.height as number) ?? 100);
+  if (params.x != null) (node as any).x = params.x as number;
+  if (params.y != null) (node as any).y = params.y as number;
+
+  // Fill with token auto-binding
+  const fillInput = params.fillVariableName ? { _variable: params.fillVariableName }
+    : params.fillStyleName ? { _style: params.fillStyleName }
+    : params.fill;
+  if (fillInput != null) {
+    const fillResult = await applyFill(node as any, fillInput as any, 'background', useLib, library);
+    if (fillResult.autoBound) libraryBindings.push(fillResult.autoBound);
+  }
+
+  // Stroke with token auto-binding
+  const strokeInput = params.strokeVariableName ? { _variable: params.strokeVariableName }
+    : params.strokeColor;
+  if (strokeInput != null) {
+    const bound = await applyStroke(node as any, strokeInput as any, (params.strokeWeight as number) ?? 1, useLib, library);
+    if (bound) libraryBindings.push(bound);
+  }
+
+  if (params.opacity != null) (node as any).opacity = params.opacity as number;
+  if (params.rotation != null) (node as any).rotation = params.rotation as number;
+  if (params.visible === false) (node as any).visible = false;
+
+  // Shape-specific properties (corner radius, stroke details, etc.)
+  if (applyExtras) await applyExtras(node as any, libraryBindings, useLib);
+
+  if (params.parentId) {
+    const parent = await findNodeByIdAsync(params.parentId as string);
+    if (parent && 'appendChild' in parent) (parent as FrameNode).appendChild(node as SceneNode);
+  }
+
+  const result = simplifyNode(node as SceneNode) as unknown as Record<string, unknown>;
+  if (libraryBindings.length > 0) {
+    result._libraryBindings = libraryBindings;
+  }
+  return result;
+}
 
 export function registerImageVectorHandlers(): void {
 
@@ -111,6 +168,41 @@ registerHandler('create_polygon', async (params) => {
   }
 
   return simplifyNode(polygon);
+});
+
+registerHandler('create_rectangle', async (params) => {
+  return createShape(
+    () => figma.createRectangle() as any,
+    'Rectangle',
+    params,
+    async (rect, libraryBindings, useLib) => {
+      // Rectangle-specific: stroke details
+      if (params.strokeAlign) rect.strokeAlign = params.strokeAlign as 'INSIDE' | 'OUTSIDE' | 'CENTER';
+      if (params.strokeDashes && Array.isArray(params.strokeDashes)) {
+        (rect as any).dashPattern = params.strokeDashes as number[];
+      }
+      if (params.strokeCap) (rect as any).strokeCap = params.strokeCap as string;
+      if (params.strokeJoin) (rect as any).strokeJoin = params.strokeJoin as string;
+      // Rectangle-specific: corner radius with token binding
+      if (params.cornerRadius != null) {
+        const radiusBound = await applyCornerRadius(rect as any, params.cornerRadius as any, useLib);
+        libraryBindings.push(...radiusBound);
+      }
+      // Per-corner overrides
+      if (params.topLeftRadius != null) (rect as any).topLeftRadius = params.topLeftRadius as number;
+      if (params.topRightRadius != null) (rect as any).topRightRadius = params.topRightRadius as number;
+      if (params.bottomRightRadius != null) (rect as any).bottomRightRadius = params.bottomRightRadius as number;
+      if (params.bottomLeftRadius != null) (rect as any).bottomLeftRadius = params.bottomLeftRadius as number;
+    },
+  );
+});
+
+registerHandler('create_ellipse', async (params) => {
+  return createShape(
+    () => figma.createEllipse() as any,
+    'Ellipse',
+    params,
+  );
 });
 
 } // registerImageVectorHandlers

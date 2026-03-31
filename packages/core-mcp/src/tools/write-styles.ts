@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Bridge } from '../bridge.js';
+import { jsonResponse } from './response-helpers.js';
 
 export function registerWriteStyleTools(server: McpServer, bridge: Bridge): void {
   server.tool(
@@ -37,7 +38,7 @@ export function registerWriteStyleTools(server: McpServer, bridge: Bridge): void
     },
     async ({ library, styles }) => {
       const result = await bridge.request('register_library_styles', { library, styles });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
 }

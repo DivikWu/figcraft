@@ -6,11 +6,9 @@ disable-model-invocation: false
 
 # Design System Builder — Figma MCP Skill
 
-**In Kiro, `use_figma` is not available. All Plugin API scripts must be executed via `execute_js`.**
+Build professional-grade design systems in Figma that match code. This skill orchestrates multi-phase workflows across 20–100+ `execute_js` calls, enforcing quality patterns from real-world design systems (Material 3, Polaris, Figma UI3, Simple DS). `execute_js` is 100% compatible with official Figma MCP's `execute_js` — same Plugin API code works in both.
 
-Build professional-grade design systems in Figma that match code. This skill orchestrates multi-phase workflows across 20–100+ `execute_js` calls, enforcing quality patterns from real-world design systems (Material 3, Polaris, Figma UI3, Simple DS).
-
-**Prerequisites**: The `figma-use` skill MUST also be loaded for every `execute_js` call. It provides Plugin API syntax rules (return pattern, page reset, ID return, font loading, color range). This skill provides design system domain knowledge and workflow orchestration. *(In Kiro: this is overridden — the auto-loaded `figma-essential-rules.md` steering already covers these rules. Do NOT load figma-use separately.)*
+**Prerequisites**: The `figma-use` skill MUST also be loaded for every `execute_js` call. It provides Plugin API syntax rules (return pattern, page reset, ID return, font loading, color range). This skill provides design system domain knowledge and workflow orchestration.
 
 ---
 

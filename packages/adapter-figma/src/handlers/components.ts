@@ -3,6 +3,7 @@
  */
 
 import { registerHandler } from '../registry.js';
+import { handlers } from '../registry.js';
 import { simplifyNode } from '../adapters/node-simplifier.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
 import { assertHandler, HandlerError } from '../utils/handler-error.js';
@@ -50,14 +51,73 @@ registerHandler('get_component', async (params) => {
 
 registerHandler('create_component', async (params) => {
   const name = (params.name as string) ?? 'Component';
-  const width = (params.width as number) ?? 100;
-  const height = (params.height as number) ?? 100;
+  const description = params.description as string | undefined;
 
-  const component = figma.createComponent();
-  component.name = name;
-  component.resize(width, height);
-  if (params.description) {
-    component.description = params.description as string;
+  // Delegate frame creation to create_frame handler (gets all smart defaults,
+  // token binding, recursive children, sizing inference for free)
+  const createFrameHandler = handlers.get('create_frame');
+  assertHandler(createFrameHandler, 'create_frame handler not registered');
+
+  // Build frame params from component params (exclude component-specific fields)
+  const frameParams: Record<string, unknown> = { ...params };
+  delete frameParams.description;
+  delete frameParams.properties;
+  // create_frame will handle: name, width, height, layoutMode, padding, itemSpacing,
+  // fill, strokeColor, cornerRadius, children, primaryAxisAlignItems, etc.
+
+  const frameResult = await createFrameHandler(frameParams) as { id: string };
+  const frameNode = await findNodeByIdAsync(frameResult.id);
+  assertHandler(frameNode && frameNode.type === 'FRAME', `Frame creation failed`);
+
+  // Convert frame to component
+  const component = figma.createComponentFromNode(frameNode as SceneNode);
+  if (description) component.description = description;
+
+  // Bind text children to component TEXT properties via componentPropertyName
+  // Recursively search all children definitions for componentPropertyName
+  if (Array.isArray(params.children)) {
+    function collectTextBindings(defs: Array<Record<string, unknown>>): Array<{ propName: string; textContent: string }> {
+      const bindings: Array<{ propName: string; textContent: string }> = [];
+      for (const def of defs) {
+        if (def.componentPropertyName && (def.type === 'text' || !def.type)) {
+          bindings.push({
+            propName: def.componentPropertyName as string,
+            textContent: (def.content as string) ?? (def.text as string) ?? '',
+          });
+        }
+        if (Array.isArray(def.children)) {
+          bindings.push(...collectTextBindings(def.children as Array<Record<string, unknown>>));
+        }
+      }
+      return bindings;
+    }
+
+    const textBindings = collectTextBindings(params.children as Array<Record<string, unknown>>);
+    for (const { propName, textContent } of textBindings) {
+      const textNode = component.findOne(n =>
+        n.type === 'TEXT' && (n.name === propName || (n as TextNode).characters === textContent),
+      ) as TextNode | null;
+      if (textNode) {
+        try {
+          const propKey = component.addComponentProperty(propName, 'TEXT', textNode.characters);
+          textNode.componentPropertyReferences = { characters: propKey };
+        } catch { /* skip duplicate */ }
+      }
+    }
+  }
+
+  // Add non-text component properties (BOOLEAN, INSTANCE_SWAP)
+  if (Array.isArray(params.properties)) {
+    for (const prop of params.properties as Array<Record<string, unknown>>) {
+      const propName = prop.propertyName as string;
+      const propType = prop.type as string;
+      const defaultValue = prop.defaultValue;
+      if (propName && propType && propType !== 'TEXT') {
+        try {
+          component.addComponentProperty(propName, propType as any, defaultValue as any);
+        } catch { /* skip */ }
+      }
+    }
   }
 
   return simplifyNode(component);

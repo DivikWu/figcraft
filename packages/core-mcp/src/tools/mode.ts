@@ -49,14 +49,19 @@ export function registerModeTools(server: McpServer, bridge: Bridge): void {
       const params: Record<string, unknown> = { mode };
       if (library !== undefined) params.library = library;
       const result = await bridge.request('set_mode', params) as { mode: string; selectedLibrary: string | null };
+      // Mark mode as queried (unlocks UI creation tools) and cache selectedLibrary
+      bridge.modeQueried = true;
+      bridge.selectedLibrary = result.selectedLibrary;
       return {
         content: [{
           type: 'text' as const,
           text: JSON.stringify({
             mode: result.mode,
+            selectedLibrary: result.selectedLibrary,
             description: result.mode === 'library'
               ? 'Using Figma shared library as token source. Lint checks variable/style bindings.'
               : 'Using DTCG spec documents as token source. Lint checks against DTCG token values.',
+            _nextAction: 'Call get_mode to load design context, tokens, and workflow instructions for the new mode.',
           }, null, 2),
         }],
       };

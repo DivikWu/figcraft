@@ -32,6 +32,10 @@ import { registerStagingTools } from './staging.js';
 import { registerAuthTools } from './auth.js';
 import { registerGeneratedTools } from './_generated.js';
 import { registerExecuteJsTools } from './execute-js.js';
+import { registerIconTools } from './iconify.js';
+import { registerPexelsTools } from './pexels.js';
+import { registerSearchDesignSystemTool } from './search-design-system.js';
+import { registerHelpTool } from './help.js';
 
 
 // ─── Generated registry (single source of truth from schema/tools.yaml) ───
@@ -226,8 +230,20 @@ export function registerAllTools(server: McpServer, bridge: Bridge): void {
   registerStagingTools(server, bridge);
   registerExecuteJsTools(server, bridge);
 
+  // Register icon tools (Iconify integration)
+  registerIconTools(server, bridge);
+
+  // Register image tools (Pexels integration)
+  registerPexelsTools(server);
+
+  // Register design system search
+  registerSearchDesignSystemTool(server, bridge);
+
   // Register endpoint tools (resource-oriented API)
   registerEndpointTools(server, bridge);
+
+  // Register help tool (AI can query tool usage at runtime)
+  registerHelpTool(server);
 
   // Register ghost tools for removed flat tools (Phase 3 migration guidance)
   registerRemovedToolGhosts(server);

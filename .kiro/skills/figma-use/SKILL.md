@@ -1,14 +1,12 @@
 ---
 name: figma-use
-description: "Figma Plugin API reference for `execute_js` scripting — color ranges, font loading, layout sizing, variable binding, and common pitfalls. In Kiro, the auto-loaded `figma-essential-rules.md` steering already covers these core rules, so this skill is NOT needed for routine UI creation. Only load when you need the full reference docs (gotchas, component-patterns, variable-patterns) for complex or unfamiliar API patterns. For canvas writes via `use_figma`, use `figma-use`."
+description: "Figma Plugin API reference for `execute_js` scripting — color ranges, font loading, layout sizing, variable binding, and common pitfalls. In Kiro, the auto-loaded `figma-essential-rules.md` steering already covers these core rules, so this skill is NOT needed for routine UI creation. Only load when you need the full reference docs (gotchas, component-patterns, variable-patterns) for complex or unfamiliar API patterns."
 disable-model-invocation: false
 ---
 
 # execute_js — Figma Plugin API Skill
 
-> **In Kiro, `use_figma` is not available. All Plugin API scripts must be executed via `execute_js` (i.e., `mcp_figcraft_execute_js`).**
-
-Use `execute_js` to execute JavaScript in Figma files via the Plugin API. All detailed reference docs live in `references/`.
+Use `execute_js` to execute JavaScript in Figma files via the Plugin API. All detailed reference docs live in `references/`. `execute_js` is 100% compatible with official Figma MCP's `use_figma` — same Plugin API code works in both.
 
 **If the task involves building or updating a full page, screen, or multi-section layout in Figma from code**, also load [figma-generate-design](../figma-generate-design/SKILL.md). It provides the workflow for discovering design system components via `search_design_system`, importing them, and assembling screens incrementally. Both skills work together: this one for the API rules, that one for the screen-building workflow.
 

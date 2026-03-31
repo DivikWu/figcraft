@@ -9,6 +9,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Bridge } from '../bridge.js';
+import { jsonResponse } from './response-helpers.js';
 
 // ─── Types ───
 
@@ -361,15 +362,10 @@ export function registerPrototypeTools(server: McpServer, bridge: Bridge): void 
       const { graph, nameMap, count } = await fetchAndBuildGraph(bridge, nodeId);
 
       if (count === 0) {
-        return {
-          content: [{
-            type: 'text' as const,
-            text: JSON.stringify({
-              message: 'No prototype interactions found on this page/node.',
-              hint: 'Add interactions in Figma\'s Prototype tab first.',
-            }, null, 2),
-          }],
-        };
+        return jsonResponse({
+          message: 'No prototype interactions found on this page/node.',
+          hint: 'Add interactions in Figma\'s Prototype tab first.',
+        });
       }
 
       const output: Record<string, unknown> = {};
@@ -377,9 +373,7 @@ export function registerPrototypeTools(server: McpServer, bridge: Bridge): void 
       if (format === 'mermaid' || format === 'all') output.mermaid = generateMermaid(graph, nameMap);
       if (format === 'markdown' || format === 'all') output.markdown = generateMarkdownDoc(graph, nameMap);
 
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
-      };
+      return jsonResponse(output);
     },
   );
 
@@ -467,9 +461,7 @@ export function registerPrototypeTools(server: McpServer, bridge: Bridge): void 
         }
       }
 
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(output, null, 2) }],
-      };
+      return jsonResponse(output);
     },
   );
 }

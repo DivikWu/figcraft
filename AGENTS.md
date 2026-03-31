@@ -1,6 +1,6 @@
 # FigCraft — Agent Instructions
 
-AI-powered Figma plugin. Bridges AI IDEs to Figma via MCP for design review, lint, audit, token sync, and inspection. Creation capabilities are delegated to the official Figma MCP. In endpoint mode, 4 additional core endpoint tools are available.
+AI-powered Figma plugin. Bridges AI IDEs to Figma via MCP for design review, lint, audit, token sync, UI creation, and inspection. Declarative creation tools (`create_frame` + `children`) are the primary UI creation method. `execute_js` is the escape hatch for complex logic.
 
 ## ⛔ Figma UI Creation — Mandatory Pre-Flight (ALL AI IDEs)
 
@@ -12,16 +12,16 @@ STEP 1: get_current_page(maxDepth=1)                  → inspect existing conte
 STEP 2: get_mode                                      → check library/token status
         ├─ library selected → readFile design-guardian.md + load design system discovery workflow
         └─ no library       → readFile design-creator.md (make intentional design choices)
-STEP 3: CLASSIFY TASK SCALE                           → count screens, pick granularity:
-        ├─ single element   → 1 execute_js call
-        ├─ single screen    → 2-4 execute_js calls (1 per section)
-        ├─ multi-screen 3-5 → 1 execute_js per FULL SCREEN
-        └─ large flow 6+    → batch 2-3 screens per conversation turn
+STEP 3: CLASSIFY TASK SCALE → pick creation method:
+        ├─ DEFAULT: use create_frame + children (declarative)
+        │   ├─ single element   → 1 create_frame call
+        │   ├─ single screen    → 1 create_frame call with full children tree
+        │   ├─ multi-screen 3-5 → 1 create_frame per screen
+        │   └─ large flow 6+    → batch 2-3 screens per conversation turn
+        └─ ESCAPE HATCH: use execute_js ONLY for complex conditionals/loops/unwrapped API
 STEP 4: IF multi-screen flow →
-        Read the multi-screen-flow-guide (see Reference Docs below)
-        ❌ FORBIDDEN: using create_frame/create_text individually for multi-screen flows
-        ❌ FORBIDDEN: skipping the Wrapper → Header → Flow Row → Stage → Screen hierarchy
-        ✅ REQUIRED: use execute_js with PRESET variable, shared helpers, one screen per call
+        Build wrapper with nested screen children via create_frame + children
+        Each screen uses FIXED sizing, wrapper uses clipsContent: false
 ```
 
 During execution: verify after every write (`get_current_page(maxDepth=1)` + `export_image` at milestones). Run `lint_fix_all` before replying to user.
@@ -72,7 +72,7 @@ Core tools are enabled by default, including `audit_node` and `get_design_guidel
 Use `load_toolset` to enable, `unload_toolset` to disable, `list_toolsets` to see status.
 Load multiple at once: `load_toolset({ names: "tokens,variables" })`
 
-> **Note:** Code generation, design system search, Code Connect, and canvas write capabilities are now provided by Figma Power (Kiro platform). FigCraft focuses on Plugin Channel capabilities: lint, audit, token sync, and node operations.
+> **Note:** FigCraft provides self-sufficient capabilities: design system search (`search_design_system`), UI creation (`create_frame`, `execute_js`), lint, audit, token sync, and node operations. Code generation and Code Connect are optionally provided by Figma Power (official Figma MCP) when available.
 
 ## Rules
 
@@ -137,7 +137,7 @@ IDE → MCP Server (stdio) ──→ │ WS Relay (:3055) → Figma Plugin │  
 
 - Plugin Channel: WebSocket relay to Figma Plugin sandbox. Required for lint/audit (needs full node tree traversal).
 - `ping` checks Plugin Channel connectivity and reports status.
-- Code generation, design system search, Code Connect, and canvas write are provided by Figma Power (Kiro platform), not by FigCraft.
+- Design system search (`search_design_system`) and UI creation are built into FigCraft. Code generation and Code Connect are optionally available via Figma Power.
 
 ## Dual Mode
 
@@ -211,4 +211,4 @@ New tool work should target `packages/core-mcp/src/tools/` and `packages/adapter
 - Linter runs in Plugin sandbox, not MCP Server
 - DTCG parsing runs only on MCP Server
 - Composite tokens (typography/shadow) → Figma Styles, not Variables
-- UI creation is delegated to the official Figma MCP — FigCraft focuses on review, lint, audit, and token sync
+- UI creation uses declarative tools (`create_frame` + `children`) as the primary method, with `execute_js` as escape hatch for complex logic

@@ -12,7 +12,7 @@
  * Usage: npx tsx scripts/compile-schema.ts
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { mkdirSync } from 'node:fs';
@@ -28,6 +28,7 @@ interface ParamDef {
   items?: string | ParamDef; // for array
   fields?: Record<string, ParamDef>; // for object
   valueType?: string;      // for record
+  additionalProperties?: boolean; // for object: generate .passthrough()
 }
 
 interface ToolDef {
@@ -44,6 +45,7 @@ interface ToolDef {
   guard_hints?: string[];
   deprecated?: boolean;
   replaced_by?: string;
+  timeoutMs?: number;
 }
 
 interface EndpointMethodDef {
@@ -85,7 +87,30 @@ const GENERATED_TARGETS = [
 ] as const;
 
 const raw = readFileSync(SCHEMA_PATH, 'utf-8');
-const schema = parseYaml(raw) as Schema;
+const schema = parseYaml(raw, { merge: true }) as Schema;
+
+// ─── Multi-file schema loading ───
+// Load additional tool definitions from schema/tools/*.yaml (if directory exists).
+// Each file defines one or more tools that get merged into the main schema.
+// This enables modular schema organization without splitting the main file.
+const TOOLS_DIR = resolve(ROOT, 'schema/tools');
+if (existsSync(TOOLS_DIR)) {
+  const yamlFiles = readdirSync(TOOLS_DIR).filter(f => f.endsWith('.yaml') || f.endsWith('.yml')).sort();
+  for (const file of yamlFiles) {
+    const filePath = resolve(TOOLS_DIR, file);
+    const fileRaw = readFileSync(filePath, 'utf-8');
+    const fileSchema = parseYaml(fileRaw, { merge: true });
+    if (fileSchema && typeof fileSchema === 'object') {
+      for (const [key, value] of Object.entries(fileSchema)) {
+        if (key in schema) {
+          console.warn(`WARNING: schema/tools/${file} redefines "${key}" (overriding main schema)`);
+        }
+        (schema as Record<string, unknown>)[key] = value;
+      }
+    }
+    console.error(`[schema] loaded schema/tools/${file}`);
+  }
+}
 
 // Separate tool definitions from metadata
 const toolDefs: Record<string, ToolDef> = {};
@@ -94,7 +119,10 @@ const toolsetDescriptions: Record<string, string> = {};
 const paramDefinitions: Record<string, ParamDef> = {};
 
 for (const [key, value] of Object.entries(schema)) {
-  if (key === '_toolset_descriptions') {
+  if (key === '_mixins') {
+    // YAML anchors — already resolved by merge: true, skip
+    continue;
+  } else if (key === '_toolset_descriptions') {
     Object.assign(toolsetDescriptions, value);
   } else if (key === '_param_definitions') {
     Object.assign(paramDefinitions, value);
@@ -234,7 +262,8 @@ function buildZodExpr(name: string, def: ParamDef, indent: string, applyOptional
         const fieldLines = Object.entries(def.fields).map(([fn, fd]) => {
           return `${indent}    ${fn}: ${paramToZod(fn, fd, indent + '  ')}`;
         });
-        zodExpr = `z.object({\n${fieldLines.join(',\n')},\n${indent}  })`;
+        const suffix = def.additionalProperties ? '.passthrough()' : '';
+        zodExpr = `z.object({\n${fieldLines.join(',\n')},\n${indent}  })${suffix}`;
       } else {
         zodExpr = 'z.record(z.unknown())';
       }
@@ -321,6 +350,7 @@ let genCode = `/**
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Bridge } from '../bridge.js';
+import { jsonResponse } from './response-helpers.js';
 
 `;
 
@@ -377,13 +407,13 @@ for (const [toolName, def] of bridgeTools) {
 
   let handlerBody: string;
   if (paramEntries.length === 0) {
-    handlerBody = `const result = await bridge.request('${bridgeMethod}', {});${deprecationSuffix}
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };`;
+    handlerBody = `const result = await bridge.request('${bridgeMethod}', {}${def.timeoutMs ? `, ${def.timeoutMs}` : ''});${deprecationSuffix}
+      return jsonResponse(result);`;
   } else if (allParamNames.length <= 4 && !paramEntries.some(([, p]) => p.type === 'array' || p.type === 'object')) {
     // Destructured params for simple tools
     const destructure = `{ ${allParamNames.join(', ')} }`;
-    handlerBody = `const result = await bridge.request('${bridgeMethod}', { ${allParamNames.join(', ')} });${deprecationSuffix}
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };`;
+    handlerBody = `const result = await bridge.request('${bridgeMethod}', { ${allParamNames.join(', ')} }${def.timeoutMs ? `, ${def.timeoutMs}` : ''});${deprecationSuffix}
+      return jsonResponse(result);`;
     genCode += `  if (shouldRegisterGeneratedTool(include, '${toolName}')) {
     server.tool(
     '${toolName}',
@@ -398,8 +428,8 @@ for (const [toolName, def] of bridgeTools) {
 `;
     continue;
   } else {
-    handlerBody = `const result = await bridge.request('${bridgeMethod}', params);${deprecationSuffix}
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };`;
+    handlerBody = `const result = await bridge.request('${bridgeMethod}', params${def.timeoutMs ? `, ${def.timeoutMs}` : ''});${deprecationSuffix}
+      return jsonResponse(result);`;
   }
 
   genCode += `  if (shouldRegisterGeneratedTool(include, '${toolName}')) {
@@ -809,6 +839,135 @@ for (const target of GENERATED_TARGETS) {
   writeFileSync(target.regPath, regCode, 'utf-8');
   writeFileSync(target.contractPath, contractCode, 'utf-8');
 }
+
+// ─── Generate help database ───
+
+function generateHelpCode(): string {
+  const lines: string[] = [];
+  lines.push('// AUTO-GENERATED by schema compiler — do not edit');
+  lines.push('');
+
+  // Build directory
+  const dirLines: string[] = [];
+  dirLines.push('# FigCraft Tools');
+  dirLines.push('');
+
+  // Group tools by toolset
+  const byToolset = new Map<string, string[]>();
+  for (const [name, def] of Object.entries(toolDefs)) {
+    const ts = def.toolset || 'core';
+    const list = byToolset.get(ts) ?? [];
+    list.push(`  ${name.padEnd(28)} ${def.description.split('.')[0]}`);
+    byToolset.set(ts, list);
+  }
+  for (const [name, def] of Object.entries(endpointDefs)) {
+    const ts = def.toolset || 'core';
+    const list = byToolset.get(ts) ?? [];
+    const methods = Object.keys(def.methods).join(', ');
+    list.push(`  ${name.padEnd(28)} ${def.description.split('.')[0]} [methods: ${methods}]`);
+    byToolset.set(ts, list);
+  }
+
+  for (const [toolset, tools] of byToolset) {
+    const desc = toolsetDescriptions[toolset] ?? '';
+    dirLines.push(`[${toolset}]${desc ? ' — ' + desc : ''}`);
+    dirLines.push(...tools);
+    dirLines.push('');
+  }
+
+  dirLines.push('Use help(topic: "<tool>") for tool details.');
+  dirLines.push('Use help(topic: "<endpoint>.<method>") for method details.');
+
+  // Build per-tool details
+  const toolDetails: Record<string, string> = {};
+  for (const [name, def] of Object.entries(toolDefs)) {
+    const detail: string[] = [];
+    detail.push(`# ${name}`);
+    detail.push(def.description);
+    detail.push(`Toolset: ${def.toolset || 'core'}`);
+    detail.push(`Write: ${def.write ? 'yes' : 'no'}${def.access ? ` (access: ${def.access})` : ''}`);
+    if (def.params && Object.keys(def.params).length > 0) {
+      detail.push('');
+      detail.push('Params:');
+      for (const [pName, pDef] of Object.entries(def.params)) {
+        const req = pDef.required ? 'required' : 'optional';
+        const type = pDef.values ? pDef.values.join(' | ') : (pDef.type ?? 'string');
+        detail.push(`  ${pName} (${type}, ${req})${pDef.description ? ' — ' + pDef.description : ''}`);
+      }
+    }
+    toolDetails[name] = detail.join('\n');
+  }
+
+  // Build per-endpoint details with methods
+  const endpointDetails: Record<string, { summary: string; methods: Record<string, string> }> = {};
+  for (const [name, def] of Object.entries(endpointDefs)) {
+    const summary: string[] = [];
+    summary.push(`# ${name}`);
+    summary.push(def.description);
+    summary.push(`Toolset: ${def.toolset || 'core'}`);
+    summary.push('');
+    summary.push('Methods:');
+    for (const [mName, mDef] of Object.entries(def.methods)) {
+      summary.push(`  ${mName.padEnd(20)} ${mDef.description ?? ''}`);
+    }
+
+    const methods: Record<string, string> = {};
+    for (const [mName, mDef] of Object.entries(def.methods)) {
+      const mDetail: string[] = [];
+      mDetail.push(`# ${name}.${mName}`);
+      mDetail.push(mDef.description ?? '');
+      mDetail.push(`Maps to: ${mDef.maps_to ?? 'N/A'}`);
+      mDetail.push(`Write: ${mDef.write ? 'yes' : 'no'}${mDef.access ? ` (access: ${mDef.access})` : ''}`);
+      if (mDef.params && Object.keys(mDef.params).length > 0) {
+        mDetail.push('');
+        mDetail.push('Params:');
+        for (const [pName, pDef] of Object.entries(mDef.params)) {
+          if (typeof pDef !== 'object') continue;
+          const req = pDef.required ? 'required' : 'optional';
+          const type = pDef.values ? pDef.values.join(' | ') : (pDef.type ?? 'string');
+          mDetail.push(`  ${pName} (${type}, ${req})${pDef.description ? ' — ' + pDef.description : ''}`);
+        }
+      }
+      methods[mName] = mDetail.join('\n');
+    }
+
+    endpointDetails[name] = { summary: summary.join('\n'), methods };
+  }
+
+  lines.push(`export const helpDirectory: string = ${JSON.stringify(dirLines.join('\n'))};`);
+  lines.push('');
+  lines.push(`export const helpTools: Record<string, string> = ${JSON.stringify(toolDetails, null, 2)};`);
+  lines.push('');
+  lines.push(`export const helpEndpoints: Record<string, { summary: string; methods: Record<string, string> }> = ${JSON.stringify(endpointDetails, null, 2)};`);
+  lines.push('');
+  lines.push(`/** Resolve a help query. Returns help text. */`);
+  lines.push(`export function resolveHelp(topic?: string): string {`);
+  lines.push(`  if (!topic) return helpDirectory;`);
+  lines.push(`  const dot = topic.indexOf('.');`);
+  lines.push(`  if (dot === -1) {`);
+  lines.push(`    if (helpTools[topic]) return helpTools[topic];`);
+  lines.push(`    const ep = helpEndpoints[topic];`);
+  lines.push(`    if (ep) return ep.summary;`);
+  lines.push(`    const all = [...Object.keys(helpTools), ...Object.keys(helpEndpoints)];`);
+  lines.push(`    return 'Unknown topic: ' + topic + '. Available: ' + all.join(', ');`);
+  lines.push(`  }`);
+  lines.push(`  const epName = topic.slice(0, dot);`);
+  lines.push(`  const methodName = topic.slice(dot + 1);`);
+  lines.push(`  const ep = helpEndpoints[epName];`);
+  lines.push(`  if (!ep) return 'Unknown endpoint: ' + epName;`);
+  lines.push(`  const method = ep.methods[methodName];`);
+  lines.push(`  if (method) return method;`);
+  lines.push(`  return 'Unknown method: ' + methodName + ' on ' + epName + '. Available: ' + Object.keys(ep.methods).join(', ');`);
+  lines.push(`}`);
+  lines.push('');
+
+  return lines.join('\n');
+}
+
+const helpCode = generateHelpCode();
+const helpPath = resolve(ROOT, 'packages/core-mcp/src/tools/_help.ts');
+writeFileSync(helpPath, helpCode, 'utf-8');
+console.log(`   → ${helpPath}`);
 
 // ─── Auto-sync version.ts from package.json ───
 

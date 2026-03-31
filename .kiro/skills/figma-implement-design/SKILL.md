@@ -1,6 +1,6 @@
 ---
 name: figma-implement-design
-description: Translates Figma designs into production-ready application code with 1:1 visual fidelity. Use when implementing UI code from Figma files, when user mentions "implement design", "generate code", "implement component", provides Figma URLs, or asks to build components matching Figma specs. For Figma canvas writes via `use_figma`, use `figma-use`.
+description: Translates Figma designs into production-ready application code with 1:1 visual fidelity. Use when implementing UI code from Figma files, when user mentions "implement design", "generate code", "implement component", provides Figma URLs, or asks to build components matching Figma specs. Requires official Figma MCP for get_design_context/get_screenshot. For Figma canvas writes, use figma-use.
 disable-model-invocation: false
 ---
 
@@ -20,7 +20,9 @@ This skill provides a structured workflow for translating Figma designs into pro
 
 ## Prerequisites
 
-- Figma MCP server must be connected and accessible
+> **Requires official Figma MCP** — This skill uses `get_design_context`, `get_metadata`, and `get_screenshot` to read design data from Figma files by fileKey. These are REST API tools provided by the official Figma MCP server, not available in FigCraft alone. If the official Figma MCP is not configured, use FigCraft's `export_image` + `nodes(method: "get")` as a partial alternative for the currently open file.
+
+- Official Figma MCP server must be connected and accessible
 - User must provide a Figma URL in the format: `https://figma.com/design/:fileKey/:fileName?node-id=1-2`
   - `:fileKey` is the file key
   - `1-2` is the node ID (the specific component or frame to implement)

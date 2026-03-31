@@ -11,7 +11,7 @@ import { getRegisteredStylesSummary } from './utils/style-registry.js';
 import { createSerialTaskQueue } from './utils/serial-task-queue.js';
 import { HandlerError } from './utils/handler-error.js';
 import { clearAllCaches } from './utils/cache-manager.js';
-import { STORAGE_KEYS, PLUGIN_VERSION } from './constants.js';
+import { STORAGE_KEYS, PLUGIN_VERSION, LOCAL_LIBRARY } from './constants.js';
 
 // ─── P1 handlers (read) ───
 import { registerNodeHandlers } from './handlers/nodes.js';
@@ -20,8 +20,10 @@ import { registerStyleHandlers } from './handlers/styles.js';
 import { registerLibraryHandlers } from './handlers/library.js';
 import { registerExportHandlers } from './handlers/export.js';
 
-// ─── P2 handlers (write — patch/delete only, creation removed) ───
+// ─── P2 handlers (write) ───
 import { registerWriteNodeHandlers } from './handlers/write-nodes.js';
+import { registerCreateHandlers } from './handlers/write-nodes-create.js';
+import { registerInstanceHandlers } from './handlers/write-nodes-instance.js';
 import { registerWriteVariableHandlers } from './handlers/write-variables.js';
 import { registerWriteStyleHandlers } from './handlers/write-styles.js';
 import { registerComponentHandlers } from './handlers/components.js';
@@ -45,8 +47,14 @@ import { registerScanHandlers } from './handlers/scan.js';
 // ─── P5 handlers (image/vector) ───
 import { registerImageVectorHandlers } from './handlers/image-vector.js';
 
+// ─── P5b handlers (icon SVG) ───
+import { registerIconSvgHandler } from './handlers/icon-svg.js';
+
 // ─── P7 handlers (execute JS) ───
 import { registerExecuteJsHandler } from './handlers/execute-js.js';
+
+// ─── P8 handlers (design system search) ───
+import { registerSearchDesignSystemHandler } from './handlers/search-design-system.js';
 
 // ─── Register all handlers ───
 registerNodeHandlers();
@@ -55,6 +63,8 @@ registerStyleHandlers();
 registerLibraryHandlers();
 registerExportHandlers();
 registerWriteNodeHandlers();
+registerCreateHandlers();
+registerInstanceHandlers();
 registerWriteVariableHandlers();
 registerWriteStyleHandlers();
 registerComponentHandlers();
@@ -67,7 +77,9 @@ registerPrototypeHandlers();
 registerStagingHandlers();
 registerScanHandlers();
 registerImageVectorHandlers();
+registerIconSvgHandler();
 registerExecuteJsHandler();
+registerSearchDesignSystemHandler();
 
 // Show the UI (establishes WebSocket connection to relay)
 figma.showUI(__html__, { visible: true, width: 320, height: 480 });
@@ -413,7 +425,7 @@ registerHandler('get_mode', async () => {
     try {
       // Race design context loading against a 10s timeout to prevent hanging
       // Clean up timer on resolve to avoid leaks
-      const contextPromise = library === '__local__'
+      const contextPromise = library === LOCAL_LIBRARY
         ? getLocalDesignContext()
         : getLibraryDesignContext(library);
       let contextTimer: ReturnType<typeof setTimeout>;
@@ -450,7 +462,7 @@ registerHandler('get_mode', async () => {
     } catch (err) { console.warn('[figcraft] get_mode designContext failed:', err); }
 
     // Resolve fileKey for the selected library from stored entries
-    if (library && library !== '__local__') {
+    if (library && library !== LOCAL_LIBRARY) {
       const entries = await getLibraryEntries();
       for (const [fk, entry] of Object.entries(entries)) {
         if (entry.name === library) {
@@ -477,6 +489,61 @@ registerHandler('set_mode', async (params) => {
   const library = await figma.clientStorage.getAsync(LIBRARY_STORAGE_KEY);
   return { mode, selectedLibrary: library || null };
 });
+
+// ─── Auto-Focus ─────────────────────────────────────────────────
+// After create/modify commands, auto-select affected nodes and scroll
+// viewport to show them. Fire-and-forget — never blocks the response.
+// Next command waits for pending focus to complete (serialized).
+
+const SKIP_FOCUS = new Set([
+  'ping', 'join', 'set_selection', 'get_current_page', 'get_document_info',
+  'get_selection', 'get_node_info', 'get_available_fonts', 'list_fonts',
+  'scan_text_nodes', 'export_node_as_image', 'lint_node', 'lint_check', 'lint_fix',
+  'get_node_variables', 'set_current_page', 'search_nodes',
+  'get_mode', 'set_mode', 'get_channel', 'join_channel',
+  'text_scan', 'save_version_history',
+]);
+
+function extractNodeIds(result: unknown, params: Record<string, unknown>): string[] {
+  const ids: string[] = [];
+  const r = result as Record<string, unknown> | null;
+  if (r?.id && typeof r.id === 'string') ids.push(r.id);
+  if (Array.isArray(r?.results)) {
+    for (const item of r.results as Array<Record<string, unknown>>) {
+      if (item?.id && typeof item.id === 'string') ids.push(item.id);
+    }
+  }
+  if (Array.isArray(r?.items)) {
+    for (const item of r.items as Array<Record<string, unknown>>) {
+      if (item?.id && typeof item.id === 'string') ids.push(item.id);
+    }
+  }
+  // Fallback: from params (modify commands use patches[].nodeId or items[].nodeId)
+  if (ids.length === 0) {
+    const sources = [params.patches, params.items].filter(Array.isArray);
+    for (const arr of sources) {
+      for (const item of arr as Array<Record<string, unknown>>) {
+        if (item?.nodeId && typeof item.nodeId === 'string') ids.push(item.nodeId as string);
+      }
+    }
+  }
+  return ids;
+}
+
+async function autoFocus(nodeIds: string[]): Promise<void> {
+  const resolved = await Promise.all(
+    nodeIds.map((id) => figma.getNodeByIdAsync(id).catch(() => null)),
+  );
+  const nodes = resolved.filter(
+    (n): n is SceneNode => n != null && 'x' in n,
+  );
+  if (nodes.length > 0) {
+    figma.currentPage.selection = nodes;
+    figma.viewport.scrollAndZoomIntoView(nodes);
+  }
+}
+
+let pendingAutoFocus: Promise<void> | null = null;
 
 // ─── Message routing ───
 
@@ -549,6 +616,12 @@ const requestQueue = createSerialTaskQueue<QueuedRequest, unknown>({
     console.log(`[figcraft] → ${item.method} (id=${item.id}) [queue=${queuedCount}]`);
   },
   async run(item) {
+    // Wait for any pending auto-focus from the previous command
+    // to prevent race conditions with node lookups
+    if (pendingAutoFocus) {
+      await pendingAutoFocus;
+      pendingAutoFocus = null;
+    }
     const handler = handlers.get(item.method);
     if (!handler) {
       throw new UnknownMethodError(item.method);
@@ -565,6 +638,13 @@ const requestQueue = createSerialTaskQueue<QueuedRequest, unknown>({
     const elapsed = Date.now() - (item.startedAt ?? Date.now());
     console.log(`[figcraft] ✓ ${item.method} — ${elapsed}ms`);
     safePostResponse({ id: item.id, type: 'response', result });
+    // Auto-focus: select + scroll to created/modified nodes (non-blocking)
+    if (!SKIP_FOCUS.has(item.method)) {
+      const ids = extractNodeIds(result, item.params);
+      if (ids.length > 0) {
+        pendingAutoFocus = autoFocus(ids).catch(() => {});
+      }
+    }
   },
   async onError(item, error) {
     const elapsed = Date.now() - (item.startedAt ?? Date.now());
@@ -602,14 +682,19 @@ const requestQueue = createSerialTaskQueue<QueuedRequest, unknown>({
   },
 });
 
-figma.ui.onmessage = async (msg: {
-  id: string;
+// ─── Bridge request routing ───
+// NOTE: We use figma.ui.on('message', ...) — NOT figma.ui.onmessage = ...
+// The setter form overwrites any prior on('message') listeners, which would
+// silently break UI-initiated messages (focus-node, annotate, lint UI, etc.).
+figma.ui.on('message', async (msg: {
+  id?: string;
   type: string;
-  method: string;
-  params: Record<string, unknown>;
+  method?: string;
+  params?: Record<string, unknown>;
   _timeoutMs?: number;
 }) => {
   if (msg.type !== 'request') return;
+  if (!msg.id || !msg.method) return;
 
   if (requestQueue.pendingCount() >= MAX_QUEUE_SIZE) {
     figma.ui.postMessage({
@@ -620,5 +705,5 @@ figma.ui.onmessage = async (msg: {
     return;
   }
 
-  requestQueue.enqueue({ id: msg.id, method: msg.method, params: msg.params, timeoutMs: msg._timeoutMs });
-};
+  requestQueue.enqueue({ id: msg.id, method: msg.method, params: msg.params ?? {}, timeoutMs: msg._timeoutMs });
+});

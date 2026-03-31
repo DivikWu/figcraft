@@ -173,5 +173,8 @@ export function generateId(): RequestId {
 /** Default timeout for a request awaiting response (ms). */
 export const REQUEST_TIMEOUT_MS = 30_000;
 
+/** Extended timeout for heavy operations like batch creation or lint (ms). */
+export const HEAVY_REQUEST_TIMEOUT_MS = 60_000;
+
 /** Heartbeat interval (ms). */
 export const HEARTBEAT_INTERVAL_MS = 30_000;

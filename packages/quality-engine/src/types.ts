@@ -75,19 +75,53 @@ export interface LintContext {
   selectedLibrary?: string | null;
 }
 
-export type LintSeverity = 'error' | 'warning' | 'info' | 'hint';
+/**
+ * 5-level severity system:
+ * - error:     breakage that must be fixed (component binding errors)
+ * - unsafe:    layout issues that cause visual bugs (overflow, unbounded HUG)
+ * - heuristic: best-practice violations detected by tooling (hardcoded tokens, no auto-layout)
+ * - style:     cosmetic / naming preferences (empty container, default name)
+ * - verbose:   WCAG AAA & enhancement checks (excluded by default)
+ */
+export type LintSeverity = 'error' | 'unsafe' | 'heuristic' | 'style' | 'verbose';
 export type LintCategory = 'token' | 'layout' | 'naming' | 'wcag' | 'component';
 
 /** Severity ordering from most to least severe (used for downgrade logic). */
-export const SEVERITY_ORDER: readonly LintSeverity[] = ['error', 'warning', 'info', 'hint'] as const;
+export const SEVERITY_ORDER: readonly LintSeverity[] = ['error', 'unsafe', 'heuristic', 'style', 'verbose'] as const;
 
 /**
  * Downgrade a severity by one level.
- * error → warning, warning → info, info → hint, hint → hint (floor).
+ * error → unsafe, unsafe → heuristic, heuristic → style, style → verbose, verbose → verbose (floor).
  */
 export function downgradeSeverity(severity: LintSeverity): LintSeverity {
   const idx = SEVERITY_ORDER.indexOf(severity);
   return SEVERITY_ORDER[Math.min(idx + 1, SEVERITY_ORDER.length - 1)];
+}
+
+/** Node types that are always considered leaf (no meaningful children). */
+const LEAF_TYPES = new Set(['TEXT', 'VECTOR', 'LINE', 'ELLIPSE', 'RECTANGLE', 'STAR', 'POLYGON', 'BOOLEAN_OPERATION']);
+
+/** Check if a node is a leaf (no children or inherently childless type). */
+export function isLeafNode(node: AbstractNode): boolean {
+  if (LEAF_TYPES.has(node.type)) return true;
+  return !node.children || node.children.length === 0;
+}
+
+/** Check if a node is small (width or height < 48px). */
+export function isSmallNode(node: AbstractNode): boolean {
+  return (node.width != null && node.width < 48)
+    || (node.height != null && node.height < 48);
+}
+
+/**
+ * Compute context-aware severity for a violation.
+ * Leaf nodes and small nodes get downgraded by one level to reduce noise.
+ */
+export function getContextSeverity(baseSeverity: LintSeverity, node: AbstractNode): LintSeverity {
+  if (isLeafNode(node) || isSmallNode(node)) {
+    return downgradeSeverity(baseSeverity);
+  }
+  return baseSeverity;
 }
 
 export interface LintViolation {
@@ -103,6 +137,8 @@ export interface LintViolation {
   autoFixable: boolean;
   /** Fix data for auto-fix handler. */
   fixData?: Record<string, unknown>;
+  /** Structured fix call that can be directly executed by the AI agent. */
+  fixCall?: { tool: string; params: Record<string, unknown> };
 }
 
 export interface LintRule {

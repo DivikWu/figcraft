@@ -11,7 +11,8 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Bridge } from '../bridge.js';
-import type { McpResponse } from './logic/node-logic.js';
+import type { McpResponse } from './response-helpers.js';
+import { jsonResponse, errorResponse } from './response-helpers.js';
 import { getNodeInfoLogic, searchNodesLogic } from './logic/node-logic.js';
 import { listLibraryComponentsLogic } from './logic/component-logic.js';
 import {
@@ -27,19 +28,6 @@ import {
   variables_epEndpointSchema,
   styles_epEndpointSchema,
 } from './_generated.js';
-
-// ─── Shared helpers ───
-
-function jsonResponse(result: unknown): McpResponse {
-  return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-}
-
-function errorResponse(message: string): McpResponse {
-  return {
-    content: [{ type: 'text' as const, text: JSON.stringify({ ok: false, error: message }, null, 2) }],
-    isError: true,
-  };
-}
 
 /**
  * Build an access-aware description for an endpoint.
@@ -148,7 +136,7 @@ function createMethodDispatcher(
  * Register all endpoint tools on the MCP server.
  * Each endpoint uses a generated Zod schema and a method dispatcher.
  *
- * Removed endpoints: shapes (all creation), text.create, nodes.clone,
+ * Removed endpoints: shapes (all creation), text.create,
  * nodes.insert_child, components.create_instance.
  */
 export function registerEndpointTools(server: McpServer, bridge: Bridge): void {
@@ -164,12 +152,14 @@ export function registerEndpointTools(server: McpServer, bridge: Bridge): void {
       }),
       update: (b, p) => bridgeRequestLogic(b, 'patch_nodes', { patches: p.patches }),
       delete: (b, p) => bridgeRequestLogic(b, 'delete_nodes', { nodeIds: p.nodeIds }),
+      clone: (b, p) => bridgeRequestLogic(b, 'clone_nodes', { items: p.items }),
+      reparent: (b, p) => bridgeRequestLogic(b, 'reparent_nodes', { items: p.items }),
     },
   }, bridge);
 
   server.tool(
     'nodes',
-    buildEndpointDescription('nodes', 'Node operations — get, list, update, delete.'),
+    buildEndpointDescription('nodes', 'Node operations — get, list, update, delete, clone, reparent.'),
     nodesEndpointSchema,
     async (params) => nodesDispatcher(params as Record<string, unknown>),
   );

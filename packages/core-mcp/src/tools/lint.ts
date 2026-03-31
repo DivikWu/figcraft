@@ -5,6 +5,8 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Bridge } from '../bridge.js';
+import { jsonResponse } from './response-helpers.js';
+import { HEAVY_REQUEST_TIMEOUT_MS } from '@figcraft/shared';
 
 /** Load cached tokens and build a token context for lint rules. */
 async function loadTokenContext(bridge: Bridge, useStoredTokens?: string): Promise<Record<string, unknown> | undefined> {
@@ -33,7 +35,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
       maxViolations: z.number().optional().describe('Stop after collecting this many violations (performance optimization for large pages)'),
       annotate: z.boolean().optional().describe('Add annotations to violated nodes in Figma'),
       useStoredTokens: z.string().optional().describe('Name of cached token set to use'),
-      minSeverity: z.enum(['error', 'warning', 'info', 'hint']).optional().describe('Minimum severity to include (default: all). Use "warning" to hide hints/info.'),
+      minSeverity: z.enum(['error', 'unsafe', 'heuristic', 'style', 'verbose']).optional().describe('Minimum severity to include (default: all). Use "warning" to hide hints/info.'),
     },
     async ({ nodeIds, rules, categories, offset, limit, maxViolations, annotate, useStoredTokens, minSeverity }) => {
       const tokenContext = await loadTokenContext(bridge, useStoredTokens);
@@ -50,9 +52,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         minSeverity,
       });
 
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-      };
+      return jsonResponse(result);
     },
   );
 
@@ -65,8 +65,8 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         nodeId: z.string(),
         nodeName: z.string(),
         rule: z.string(),
-        severity: z.enum(['error', 'warning', 'info', 'hint']).optional(),
-        baseSeverity: z.enum(['error', 'warning', 'info', 'hint']).optional(),
+        severity: z.enum(['error', 'unsafe', 'heuristic', 'style', 'verbose']).optional(),
+        baseSeverity: z.enum(['error', 'unsafe', 'heuristic', 'style', 'verbose']).optional(),
         currentValue: z.unknown(),
         expectedValue: z.unknown().optional(),
         suggestion: z.string(),
@@ -77,9 +77,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
     async ({ violations }) => {
       const fixable = violations.filter((v) => v.autoFixable);
       const result = await bridge.request('lint_fix', { violations: fixable });
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-      };
+      return jsonResponse(result);
     },
   );
 
@@ -101,7 +99,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
       // Step 1: lint_check
       const report = await bridge.request('lint_check', {
         nodeIds, rules, categories, tokenContext, maxViolations,
-      }) as {
+      }, HEAVY_REQUEST_TIMEOUT_MS) as {
         summary: { total: number; pass: number; violations: number; bySeverity?: Record<string, number> };
         categories: Array<{ rule: string; nodes: Array<Record<string, unknown>> }>;
       };
@@ -129,18 +127,36 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         });
       }
 
-      return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            lint: report.summary,
-            fixable: fixable.length,
-            fixed: fixResult.fixed,
-            fixFailed: fixResult.failed,
-            remaining: report.summary.violations - fixResult.fixed,
-          }, null, 2),
-        }],
+      // Collect remaining violations with fixCall for AI follow-up
+      const remainingCount = report.summary.violations - fixResult.fixed;
+      const remainingWithFixCall: Array<Record<string, unknown>> = [];
+      if (remainingCount > 0) {
+        for (const cat of report.categories) {
+          for (const v of cat.nodes) {
+            if (v.fixCall && !v.autoFixable) {
+              remainingWithFixCall.push({
+                nodeId: v.nodeId, nodeName: v.nodeName,
+                rule: v.rule, severity: v.severity,
+                suggestion: v.suggestion,
+                fixCall: v.fixCall,
+              });
+            }
+          }
+        }
+      }
+
+      const result: Record<string, unknown> = {
+        lint: report.summary,
+        fixable: fixable.length,
+        fixed: fixResult.fixed,
+        fixFailed: fixResult.failed,
+        remaining: remainingCount,
       };
+      if (remainingWithFixCall.length > 0) {
+        result.remainingFixCalls = remainingWithFixCall.slice(0, 10);
+      }
+
+      return jsonResponse(result);
     },
   );
 
@@ -209,12 +225,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         },
       };
 
-      return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify(report, null, 2),
-        }],
-      };
+      return jsonResponse(report);
     },
   );
 }

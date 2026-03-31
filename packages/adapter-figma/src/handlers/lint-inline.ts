@@ -11,6 +11,7 @@ import type { AbstractNode, LintContext, LintViolation, LintOptions } from '@fig
 import { figmaRgbaToHex } from '../utils/color.js';
 import { getCachedModeLibrary } from './write-nodes.js';
 import { registerCache } from '../utils/cache-manager.js';
+import { setSpacingProp } from '../utils/type-guards.js';
 
 /**
  * Map from validateTree/inferStructure rule names to quality-engine rule names.
@@ -437,8 +438,7 @@ async function applyFixDirect(
       case 'spec-spacing': {
         const prop = violation.fixData.property as string;
         const value = violation.fixData.value as number;
-        if (isSpacingProp(node, prop)) {
-          setSpacingPropDirect(node, prop, value);
+        if (setSpacingProp(node, prop, value)) {
           return { fixed: true };
         }
         return { fixed: false, error: `Cannot set ${prop}` };
@@ -455,15 +455,6 @@ async function applyFixDirect(
   }
 }
 
-/** Check if a spacing property can be set on a node. */
-function isSpacingProp(node: SceneNode, prop: string): boolean {
-  return prop in node;
-}
-
-/** Set a spacing property directly on a Figma node. */
-function setSpacingPropDirect(node: SceneNode, prop: string, value: number): void {
-  (node as any)[prop] = value;
-}
 
 /** Build a node ID → SceneNode map from created node IDs. */
 function buildNodeMap(nodeIds: string[]): Map<string, SceneNode> {
@@ -475,6 +466,106 @@ function buildNodeMap(nodeIds: string[]): Map<string, SceneNode> {
     }
   }
   return map;
+}
+
+/** Lightweight lint summary for post-creation feedback (no fixing, minimal overhead). */
+export interface QuickLintSummary {
+  violations: number;
+  autoFixable: number;
+  topIssues: Array<{ rule: string; count: number; severity: string }>;
+  /** Component reuse suggestions — existing components that match created nodes. */
+  componentSuggestions?: Array<{ nodeName: string; componentName: string; componentId: string; isSet: boolean }>;
+}
+
+/**
+ * Run a lightweight lint scan on a node and return a summary.
+ * Does NOT fix anything — just counts violations and top issues.
+ * Returns null if no violations found (to avoid bloating the response).
+ */
+export async function quickLintSummary(nodeId: string, autoFix = false): Promise<QuickLintSummary | null> {
+  const node = figma.getNodeById(nodeId);
+  if (!node || !('type' in node) || node.type === 'PAGE' || node.type === 'DOCUMENT') return null;
+
+  const ctx = await buildLintContextFromStorage();
+  const abstractNode = figmaNodeToAbstract(node as SceneNode);
+  const report = runLint([abstractNode], ctx, {
+    maxViolations: 20,
+    minSeverity: 'heuristic',
+  });
+
+  if (report.summary.violations === 0) return null;
+
+  const allViolations = report.categories.flatMap(c => c.nodes);
+  const autoFixable = allViolations.filter(v => v.autoFixable).length;
+
+  // ── Auto-fix deterministic layout issues (no library lookups) ──
+  let autoFixed = 0;
+  if (autoFix && autoFixable > 0) {
+    const fixableViolations = allViolations.filter(v => v.autoFixable);
+    // Only fix layout/structural rules that don't need library imports
+    const INLINE_FIXABLE_RULES = new Set([
+      'no-autolayout', 'text-overflow', 'overflow-parent', 'unbounded-hug',
+      'section-spacing-collapse', 'spacer-frame', 'button-structure',
+      'input-field-structure', 'system-bar-fullbleed', 'screen-shell-invalid',
+      'wcag-line-height', 'wcag-text-size', 'mobile-dimensions',
+      'form-consistency', 'cta-width-inconsistent',
+    ]);
+    for (const v of fixableViolations) {
+      if (!INLINE_FIXABLE_RULES.has(v.rule)) continue;
+      const fixNode = figma.getNodeById(v.nodeId);
+      if (!fixNode || !('type' in fixNode)) continue;
+      const result = await applyFixDirect(fixNode as SceneNode, v);
+      if (result.fixed) autoFixed++;
+    }
+  }
+
+  // Top issues: grouped by rule, sorted by count descending, max 5
+  const topIssues = report.categories
+    .map(c => ({ rule: c.rule, count: c.count, severity: c.nodes[0]?.severity ?? 'heuristic' }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  // ── Component reuse suggestions ──
+  // Check if any child node names match existing components (lightweight scan)
+  const suggestions: QuickLintSummary['componentSuggestions'] = [];
+  try {
+    const sceneNode = node as SceneNode;
+    if ('children' in sceneNode) {
+      const childNames = new Set<string>();
+      for (const child of (sceneNode as FrameNode).children) {
+        childNames.add(child.name.toLowerCase());
+      }
+      if (childNames.size > 0) {
+        // Walk page-level components (shallow — only top-level and their direct children)
+        for (const pageChild of figma.currentPage.children) {
+          if (pageChild.type === 'COMPONENT' || pageChild.type === 'COMPONENT_SET') {
+            const compName = pageChild.name.toLowerCase();
+            for (const cn of childNames) {
+              if (compName === cn || compName.includes(cn) || cn.includes(compName)) {
+                suggestions.push({
+                  nodeName: cn,
+                  componentName: pageChild.name,
+                  componentId: pageChild.id,
+                  isSet: pageChild.type === 'COMPONENT_SET',
+                });
+                break;
+              }
+            }
+            if (suggestions.length >= 3) break; // limit suggestions
+          }
+        }
+      }
+    }
+  } catch { /* component scan is best-effort */ }
+
+  const result: QuickLintSummary = {
+    violations: autoFix ? report.summary.violations - autoFixed : report.summary.violations,
+    autoFixable: autoFix ? autoFixable - autoFixed : autoFixable,
+    topIssues,
+  };
+  if (autoFixed > 0) (result as any).autoFixed = autoFixed;
+  if (suggestions.length > 0) result.componentSuggestions = suggestions;
+  return result;
 }
 
 export interface InlineLintResult {
@@ -505,7 +596,7 @@ export async function runInlineLintAndFix(
     skipRules?: Set<string>;
     maxViolations?: number;
     includeRemainingViolations?: boolean;
-    minSeverity?: 'error' | 'warning' | 'info' | 'hint';
+    minSeverity?: 'error' | 'unsafe' | 'heuristic' | 'style' | 'verbose';
   } = {},
 ): Promise<InlineLintResult> {
   const ctx = await buildLintContextFromStorage();
@@ -520,7 +611,7 @@ export async function runInlineLintAndFix(
   }
 
   if (rootNodes.length === 0) {
-    const empty = { total: 0, pass: 0, violations: 0, bySeverity: { error: 0, warning: 0, info: 0, hint: 0 } };
+    const empty = { total: 0, pass: 0, violations: 0, bySeverity: { error: 0, unsafe: 0, heuristic: 0, style: 0, verbose: 0 } };
     return {
       initial: empty,
       fixable: 0,
@@ -538,7 +629,7 @@ export async function runInlineLintAndFix(
   // Run initial lint
   const lintOptions: LintOptions = {
     maxViolations: options.maxViolations ?? 200,
-    minSeverity: options.minSeverity ?? 'warning',
+    minSeverity: options.minSeverity ?? 'heuristic',
     skipRules: options.skipRules,
   };
   const initialReport = runLint(abstractNodes, ctx, lintOptions);

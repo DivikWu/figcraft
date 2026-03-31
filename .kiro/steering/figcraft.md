@@ -7,28 +7,34 @@ description: "FigCraft MCP tool usage guide — Figma plugin bridge workflow"
 
 Tool names are prefixed with `mcp_figcraft_`. The IDE auto-loads all tool definitions.
 
-## FigCraft vs Figma Power (Official Figma MCP) — Division of Labor
+## UI Creation Strategy
 
-| Task | Use |
-|------|-----|
-| Reading design data from nodes | Figma Power (`get_design_context`) |
-| Reading variable definitions by fileKey | Figma Power (`get_variable_defs`) |
-| Capturing screenshots by fileKey | Figma Power (`get_screenshot`) |
-| Design-to-code generation | Figma Power (`get_design_context`, `figma-implement-design` skill) |
-| Code Connect mapping | Figma Power (`figma-code-connect-components` skill) |
-| Plugin connection & page inspection | FigCraft (`ping`, `get_current_page`, `get_mode`) |
-| Plugin API scripting (component import, variable binding, node creation) | FigCraft `execute_js` (equivalent to `use_figma`, code 100% compatible) |
-| Design quality (lint, audit) | FigCraft (`lint_fix_all`, `audit_node`) |
-| Token sync (DTCG JSON ↔ Figma) | FigCraft (`load_toolset("tokens")`) |
-| Node CRUD operations | FigCraft (`nodes`, `text`, `execute_js`) |
-| Image export | FigCraft (`export_image`) |
+**Declarative tools are the primary creation method.** Use `create_frame` with inline `children` to build entire node trees in one call. Smart defaults handle sizing, token binding, and layout inference automatically.
 
-Note: `use_figma` and `search_design_system` are NOT available in Kiro. All Plugin API execution goes through FigCraft's `execute_js`. Follow the official `figma-use` skill rules — code is 100% compatible, only the tool name differs.
+`execute_js` is the escape hatch — use it only when declarative tools can't express the logic (complex conditionals, loops over dynamic data, Plugin API methods not wrapped by any tool). `execute_js` is 100% compatible with official Figma MCP's `use_figma` — same Plugin API code works in both.
 
-## use_figma Is Not Available in Kiro
+See `figma-declarative-creation.md` (auto-loaded) for the full declarative creation guide.
 
-All Plugin API scripts must use FigCraft's `execute_js` (`mcp_figcraft_execute_js`), not the official Figma MCP's `use_figma`.
-Screenshots: FigCraft `export_image` or official Figma MCP `get_screenshot`.
+## FigCraft Tool Reference
+
+| Task | Tool |
+|------|------|
+| UI creation (screens, forms, cards, flows) | `create_frame` + `children`, `create_text`, `create_instance` |
+| Searching design system assets | `search_design_system` — searches components, variables, styles across all subscribed libraries |
+| Icons | `icon_search` → `icon_create` |
+| Images | `image_search` → `create_frame` with `imageUrl` |
+| SVG creation | `create_svg` |
+| Text scanning | `text_scan` |
+| Node-to-component | `create_component_from_node` |
+| Plugin connection & page inspection | `ping`, `get_current_page`, `get_mode` |
+| Plugin API scripting (escape hatch) | `execute_js` |
+| Design quality (lint, audit) | `lint_fix_all`, `audit_node` |
+| Token sync (DTCG JSON ↔ Figma) | `load_toolset("tokens")` |
+| Node CRUD operations | `nodes` endpoint — get, list, update, delete, clone, reparent |
+| Image export | `export_image` |
+
+**Optional Figma Power tools** (available when official Figma MCP is also configured):
+`get_design_context`, `get_variable_defs`, `get_screenshot` — these provide additional data via REST API. FigCraft equivalents: `nodes(get)`, `variables_ep(list)`, `export_image`.
 
 ## Page Operation Order (Must Follow)
 

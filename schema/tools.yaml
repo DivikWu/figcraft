@@ -25,6 +25,74 @@
 #   tuple  → items: [number, number]
 #   ref    → ref: shared_definition_name
 
+# ─── Reusable param groups (YAML anchors) ───
+# Use <<: *anchor_name in tool params to merge shared param definitions.
+# For multiple merges: <<: [*anchor_a, *anchor_b]
+
+_mixins:
+  shape_fill: &shape_fill
+    fill:
+      type: string
+      description: "Fill color as hex (e.g. '#FFFFFF') — auto-binds to matching token"
+    fillVariableName:
+      type: string
+      description: "Bind fill to a color variable by name (e.g. 'bg/primary')"
+    fillStyleName:
+      type: string
+      description: "Apply paint style by name (e.g. 'Surface/Primary')"
+  shape_stroke: &shape_stroke
+    strokeColor:
+      type: string
+      description: "Stroke color hex — auto-binds to matching variable/style"
+    strokeVariableName:
+      type: string
+      description: "Bind stroke to a color variable by name"
+    strokeWeight:
+      type: number
+      description: "Stroke weight (default: 1)"
+  shape_appearance: &shape_appearance
+    opacity:
+      type: number
+      description: "Opacity 0-1"
+    rotation:
+      type: number
+      description: Rotation in degrees
+    visible:
+      type: boolean
+      description: "Show/hide (default: true)"
+  shape_position: &shape_position
+    x:
+      type: number
+      description: X position
+    y:
+      type: number
+      description: Y position
+    width:
+      type: number
+      description: "Width (default: 100)"
+    height:
+      type: number
+      description: "Height (default: 100)"
+  node_response: &node_response
+    id:
+      type: string
+      required: true
+    name:
+      type: string
+      required: true
+    type:
+      type: string
+      required: true
+    width:
+      type: number
+      required: true
+    height:
+      type: number
+      required: true
+    visible:
+      type: boolean
+      required: true
+
 _param_definitions:
   # node_role, node_type, node_spec removed — creation tools removed
 
@@ -578,12 +646,28 @@ list_fonts:
 
 create_frame:
   description: >-
-    Create a frame node with optional auto-layout, fills, corner radius, and parent.
-    Supports all common layout properties for building UI structures.
+    Create a frame node with optional auto-layout, fills, stroke, corner radius, and parent.
+    Supports token auto-binding (fillVariableName, strokeVariableName), smart defaults,
+    and inline children for building entire node trees in one call.
+
+    Opinion Engine (automatic inferences — no manual handling needed):
+    1. layoutMode → auto-inferred as VERTICAL when padding/spacing/alignment/children present
+    2. layoutSizingHorizontal/Vertical → cross-axis FILL, primary-axis HUG inside auto-layout parent
+    3. FILL ordering → internally sets FILL AFTER appendChild (avoids Figma API error)
+    4. Parent promotion → when children declare FILL/HUG but parent has no layoutMode, auto-promotes to VERTICAL
+    5. Cross-level FILL→HUG downgrade → when parent HUGs on cross-axis, child FILL is downgraded to HUG (prevents 0-collapse)
+    6. FILL+width conflict detection → rejects contradictory params (e.g. FILL + explicit width)
+    7. Token auto-binding → fillVariableName/strokeVariableName matched to library variables/styles
+    8. Font preloading → all text fonts collected and loaded in parallel before creation
+    9. Per-child error cleanup → failed child creation auto-removes orphan nodes
+    10. Auto-preview → 0.25× PNG thumbnail embedded in response for visual verification
+
+    Use dryRun:true to preview all inferences BEFORE creating nodes.
   toolset: core
   write: true
   access: create
   handler: bridge
+  timeoutMs: 60000
   params:
     name:
       type: string
@@ -596,20 +680,61 @@ create_frame:
       description: Y position
     width:
       type: number
-      description: "Width (default: 100)"
+      description: "Width in px (omit to shrink-to-content via HUG when auto-layout)"
     height:
       type: number
-      description: "Height (default: 100)"
+      description: "Height in px (omit to shrink-to-content via HUG when auto-layout)"
+    # ── Fill (5 formats: hex, variableName, styleName, Paint[], or omit for transparent) ──
     fill:
       type: string
-      description: Fill color as hex (e.g. "#FFFFFF")
+      description: "Fill color as hex (e.g. '#FFFFFF') or variable/style name — auto-binds to matching token"
+    fillVariableName:
+      type: string
+      description: "Bind fill to a color variable by name (e.g. 'bg/primary')"
+    fillStyleName:
+      type: string
+      description: "Apply paint style by name (e.g. 'Surface/Primary')"
+    gradient:
+      type: object
+      description: >-
+        Gradient fill. {type:'LINEAR'|'RADIAL', stops:[{color:'#hex', position:0-1}, ...], angle?: degrees (LINEAR only, default 180=top-to-bottom)}.
+        Example: {type:'LINEAR', stops:[{color:'#FF0000',position:0},{color:'#0000FF',position:1}], angle:90}
+    # ── Stroke ──
+    strokeColor:
+      type: string
+      description: "Stroke color hex — auto-binds to matching variable/style"
+    strokeVariableName:
+      type: string
+      description: "Bind stroke to a color variable by name"
+    strokeWeight:
+      type: number
+      description: "Stroke thickness (default: 1 when stroke specified)"
+    strokeAlign:
+      type: enum
+      values: [INSIDE, OUTSIDE, CENTER]
+      description: "Stroke position (default: INSIDE)"
+    strokeDashes:
+      type: array
+      description: "Dash pattern array [dash, gap] (e.g. [10, 5] for dashed, [2, 2] for dotted)"
+    strokeCap:
+      type: enum
+      values: [NONE, ROUND, SQUARE, ARROW_LINES, ARROW_EQUILATERAL]
+      description: "Stroke end cap style"
+    strokeJoin:
+      type: enum
+      values: [MITER, BEVEL, ROUND]
+      description: "Stroke corner join style"
+    # ── Layout ──
     layoutMode:
       type: enum
       values: [HORIZONTAL, VERTICAL]
-      description: Auto-layout direction
+      description: "Auto-layout direction. Smart default: auto-inferred as VERTICAL when padding/spacing/alignment params are present."
     itemSpacing:
       type: number
       description: Spacing between children
+    padding:
+      type: number
+      description: "Shorthand — sets all 4 padding edges"
     paddingLeft:
       type: number
       description: Left padding
@@ -624,18 +749,30 @@ create_frame:
       description: Bottom padding
     cornerRadius:
       type: number
-      description: Corner radius
+      description: Corner radius (number or variable name string) — sets all 4 corners uniformly
+    topLeftRadius:
+      type: number
+      description: Top-left corner radius (overrides cornerRadius for this corner)
+    topRightRadius:
+      type: number
+      description: Top-right corner radius (overrides cornerRadius for this corner)
+    bottomRightRadius:
+      type: number
+      description: Bottom-right corner radius (overrides cornerRadius for this corner)
+    bottomLeftRadius:
+      type: number
+      description: Bottom-left corner radius (overrides cornerRadius for this corner)
     parentId:
       type: string
       description: Parent node ID to append into
     layoutSizingHorizontal:
       type: enum
       values: [FIXED, HUG, FILL]
-      description: Horizontal sizing mode (set AFTER parent append)
+      description: "Horizontal sizing. Smart default: FILL on cross-axis, HUG on primary-axis when inside auto-layout parent."
     layoutSizingVertical:
       type: enum
       values: [FIXED, HUG, FILL]
-      description: Vertical sizing mode (set AFTER parent append)
+      description: "Vertical sizing. Smart default: FILL on cross-axis, HUG on primary-axis when inside auto-layout parent."
     primaryAxisAlignItems:
       type: enum
       values: [MIN, CENTER, MAX, SPACE_BETWEEN]
@@ -644,6 +781,96 @@ create_frame:
       type: enum
       values: [MIN, CENTER, MAX]
       description: Counter axis alignment
+    layoutWrap:
+      type: enum
+      values: [NO_WRAP, WRAP]
+      description: "Wrap children to new rows (HORIZONTAL layout only)"
+    counterAxisSpacing:
+      type: number
+      description: "Gap between wrapped rows (requires layoutWrap: WRAP)"
+    # ── Appearance ──
+    opacity:
+      type: number
+      description: "Opacity 0-1"
+    visible:
+      type: boolean
+      description: "Show/hide (default: true)"
+    rotation:
+      type: number
+      description: "Rotation in degrees"
+    blendMode:
+      type: enum
+      values: [PASS_THROUGH, NORMAL, DARKEN, MULTIPLY, SCREEN, OVERLAY, SOFT_LIGHT, HARD_LIGHT]
+      description: Layer blend mode
+    effectStyleName:
+      type: string
+      description: "Effect style name for shadows/blurs"
+    clipsContent:
+      type: boolean
+      description: "Clip children to frame bounds (default: true)"
+    # ── Responsive constraints ──
+    minWidth:
+      type: number
+      description: "Min width for responsive auto-layout"
+    maxWidth:
+      type: number
+      description: "Max width for responsive auto-layout"
+    minHeight:
+      type: number
+      description: "Min height for responsive auto-layout"
+    maxHeight:
+      type: number
+      description: "Max height for responsive auto-layout"
+    layoutPositioning:
+      type: enum
+      values: [AUTO, ABSOLUTE]
+      description: "ABSOLUTE = floating inside auto-layout parent"
+    # ── Image fill ──
+    imageUrl:
+      type: string
+      description: "Image URL — public URL for image fill. Use image_search to find Pexels photos."
+    imageScaleMode:
+      type: enum
+      values: [FILL, FIT, CROP, TILE]
+      description: "How the image is scaled within the frame (default: FILL)"
+    # ── Inline children (build entire node tree in one call) ──
+    children:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+        fields:
+          type:
+            type: enum
+            values: [frame, text, rectangle, ellipse, star, polygon, instance, svg]
+            description: "Child node type"
+      description: >-
+        Inline child nodes to create recursively. Each item: {type:'frame'|'text'|'rectangle'|'ellipse'|'instance'|'svg'|'star'|'polygon', ...params, children?}.
+        Frame children accept all create_frame params. Text children accept all create_text params (incl. textCase, textDecoration).
+        Rectangle/ellipse children accept: name, width, height, fill, fillVariableName, fillStyleName, strokeColor, strokeVariableName, strokeWeight, cornerRadius (rect only), opacity, rotation.
+        Instance children accept: componentId (required), name, width, height, variantProperties, properties, layoutSizingHorizontal/Vertical.
+        SVG children accept: svg (required), name, width, height.
+        Star children accept: name, width, height, fill, pointCount, innerRadius, opacity, rotation.
+        Polygon children accept: name, width, height, fill, pointCount, opacity, rotation.
+        Smart defaults apply: cross-axis FILL, primary-axis HUG inside auto-layout parents. Max depth: 10 levels.
+    # ── Dry run (staging preview) ──
+    dryRun:
+      type: boolean
+      description: >-
+        When true, validates params and previews inferences WITHOUT creating any nodes.
+        Returns {dryRun:true, valid, inferences?, ambiguous?, diff?, correctedPayload?}.
+        Use correctedPayload for the actual creation call to avoid ambiguity.
+    noPreview:
+      type: boolean
+      description: "Skip auto-preview thumbnail in response (default: false). Preview is a low-res PNG returned as an image content block for visual verification."
+    # ── Batch mode ──
+    items:
+      type: array
+      description: >-
+        Batch mode: array of create_frame param objects. When provided, creates multiple frames in one call.
+        Each item accepts the same params as create_frame (name, width, height, layoutMode, children, etc.).
+        Pre-creation validation runs per item — conflicting items return error without blocking others.
+        Max 20 frames per batch. Returns {created, total, items: [{id, name, ok, error?}]}.
   response:
     type: object
     fields:
@@ -665,6 +892,30 @@ create_frame:
       visible:
         type: boolean
         required: true
+      _libraryBindings:
+        type: array
+        description: "Token/style bindings applied during creation"
+      _hints:
+        type: array
+        description: "Smart default inferences applied (sizing, layoutMode)"
+      _warnings:
+        type: array
+        description: "Non-fatal issues during creation (e.g. image load failed, style not found)"
+      _children:
+        type: array
+        description: "Created child node IDs (when children param used)"
+      _inferences:
+        type: array
+        description: "Layout inferences applied during creation (deterministic or ambiguous)"
+      _correctedPayload:
+        type: object
+        description: "Corrected params when ambiguous inferences detected — use this in your next call to avoid ambiguity"
+      _diff:
+        type: string
+        description: "Git-style diff of ambiguous inferences (only present when ambiguity detected)"
+      _lintSummary:
+        type: object
+        description: "Quick lint summary after creation (only present when children created and violations found). Run lint_fix_all to fix."
   examples:
     - id: "50:1"
       name: "Login Screen"
@@ -673,10 +924,12 @@ create_frame:
       height: 812
       visible: true
 
+
 create_text:
   description: >-
     Create a text node with specified content, font, size, and color.
-    Supports font family/style selection with fallback chain.
+    Supports token auto-binding (fontColorVariableName, textStyleName), smart defaults
+    (auto FILL width + HEIGHT resize inside vertical auto-layout), and font fallback chain.
   toolset: core
   write: true
   access: create
@@ -694,6 +947,9 @@ create_text:
     y:
       type: number
       description: Y position
+    width:
+      type: number
+      description: "Fixed width in px — implies textAutoResize: HEIGHT"
     fontSize:
       type: number
       description: "Font size (default: 14)"
@@ -702,10 +958,24 @@ create_text:
       description: 'Font family (default: "Inter")'
     fontStyle:
       type: string
-      description: 'Font style (default: "Regular")'
+      description: 'Font style e.g. "Bold", "Italic" (default: "Regular")'
+    fontWeight:
+      type: number
+      description: "100-900 (default: 400). Ignored when fontStyle is set."
+    # ── Color (5 formats: hex, variableName, styleName, or omit for default) ──
     fill:
       type: string
-      description: Text color as hex (e.g. "#000000")
+      description: "Text color as hex (e.g. '#000000') or variable/style name — auto-binds"
+    fontColorVariableName:
+      type: string
+      description: "Bind text color to a variable by name (e.g. 'text/primary')"
+    fontColorStyleName:
+      type: string
+      description: "Apply paint style for text color"
+    # ── Typography style ──
+    textStyleName:
+      type: string
+      description: "Apply text style by name — overrides fontSize/fontWeight"
     lineHeight:
       type: number
       description: Line height in pixels
@@ -716,9 +986,48 @@ create_text:
       type: enum
       values: [LEFT, CENTER, RIGHT, JUSTIFIED]
       description: Horizontal text alignment
+    textAlignVertical:
+      type: enum
+      values: [TOP, CENTER, BOTTOM]
+      description: Vertical text alignment
+    textAutoResize:
+      type: enum
+      values: [NONE, WIDTH_AND_HEIGHT, HEIGHT, TRUNCATE]
+      description: "NONE (fixed box), WIDTH_AND_HEIGHT (grow both), HEIGHT (fixed width, auto height), TRUNCATE (ellipsis)"
+    textCase:
+      type: enum
+      values: [ORIGINAL, UPPER, LOWER, TITLE, SMALL_CAPS, SMALL_CAPS_FORCED]
+      description: "Text case transform (UPPER=uppercase, LOWER=lowercase, TITLE=capitalize)"
+    textDecoration:
+      type: enum
+      values: [NONE, UNDERLINE, STRIKETHROUGH]
+      description: "Text decoration (underline or strikethrough)"
+    # ── Layout sizing ──
+    layoutSizingHorizontal:
+      type: enum
+      values: [FIXED, HUG, FILL]
+      description: "Smart default: FILL inside vertical auto-layout parent"
+    layoutSizingVertical:
+      type: enum
+      values: [FIXED, HUG, FILL]
+      description: "Vertical sizing in auto-layout parent"
     parentId:
       type: string
       description: Parent node ID to append into
+    # ── Appearance ──
+    opacity:
+      type: number
+      description: "Opacity 0-1"
+    visible:
+      type: boolean
+      description: "Show/hide (default: true)"
+    # ── Batch mode ──
+    items:
+      type: array
+      description: >-
+        Batch mode: array of create_text param objects. When provided, creates multiple text nodes in one call.
+        Each item accepts the same params as create_text (content, fontSize, fontFamily, fill, parentId, etc.).
+        Max 50 text nodes per batch. Returns {created, total, items: [{id, name, ok, error?}]}.
   response:
     type: object
     fields:
@@ -740,6 +1049,12 @@ create_text:
       visible:
         type: boolean
         required: true
+      _libraryBindings:
+        type: array
+        description: "Token/style bindings applied during creation"
+      _hints:
+        type: array
+        description: "Smart default inferences applied (sizing, textAutoResize)"
   examples:
     - id: "51:1"
       name: "Welcome back"
@@ -809,6 +1124,9 @@ lint_fix_all:
       remaining:
         type: number
         required: true
+      remainingFixCalls:
+        type: array
+        description: "Remaining violations with structured fixCall for AI follow-up (max 10). Each: {nodeId, nodeName, rule, severity, suggestion, fixCall: {tool, params}}"
   examples:
     - lint:
         total: 24
@@ -975,7 +1293,8 @@ execute_js:
     or wrap code in an async IIFE — this is handled for you.
     Colors are 0–1 range (not 0–255). Fills/strokes are read-only arrays — clone, modify, reassign.
     Font MUST be loaded before any text operation: await figma.loadFontAsync({family, style}).
-    Failed scripts are atomic — if a script errors, no changes are made to the file.
+    Failed scripts are NOT always atomic — partial nodes may remain after errors.
+    Always inspect page state after a failed script and clean up orphan nodes.
   toolset: core
   write: true
   access: edit
@@ -1014,6 +1333,295 @@ execute_js:
           - "Components"
     - ok: false
       error: "figma.notify is not a function"
+
+# ═══════════════════════════════════════════════════════════════
+# CORE: Icons (Iconify integration)
+# ═══════════════════════════════════════════════════════════════
+
+icon_search:
+  description: >-
+    Search icons by keyword across 200k+ open-source icons via Iconify.
+    Common sets: lucide, mdi, tabler, heroicons, ph.
+    Returns icon names in "prefix:name" format.
+  toolset: core
+  write: false
+  handler: custom
+  params:
+    query:
+      type: string
+      required: true
+      description: 'Search keyword (e.g. "home", "arrow", "user")'
+    prefix:
+      type: string
+      description: 'Restrict to one icon set (e.g. "lucide", "mdi")'
+    limit:
+      type: number
+      description: "Max results (default: 64)"
+  response:
+    type: object
+    fields:
+      icons:
+        type: array
+        items: string
+      total:
+        type: number
+
+icon_collections:
+  description: >-
+    List available Iconify icon sets with name, total count, and category.
+  toolset: core
+  write: false
+  handler: custom
+  params:
+    query:
+      type: string
+      description: "Filter by name or prefix"
+    limit:
+      type: number
+      description: "Max results"
+  response:
+    type: object
+    fields:
+      collections:
+        type: array
+      total:
+        type: number
+
+icon_create:
+  description: >-
+    Create an icon node in Figma from an Iconify icon name.
+    Fetches the SVG and inserts it as a vector node.
+    Use icon_search to find icons first.
+  toolset: core
+  write: true
+  access: create
+  handler: custom
+  params:
+    icon:
+      type: string
+      required: true
+      description: 'Icon name — "prefix:name" e.g. "lucide:home", "mdi:account"'
+    size:
+      type: number
+      description: "Icon size in px (default: 24, square)"
+    name:
+      type: string
+      description: "Layer name (default: icon name)"
+    parentId:
+      type: string
+      description: "Parent node ID"
+    x:
+      type: number
+      description: "X position"
+    y:
+      type: number
+      description: "Y position"
+    colorVariableName:
+      type: string
+      description: "Color variable for the icon (e.g. 'text/primary')"
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+
+# ═══════════════════════════════════════════════════════════════
+# CORE: Images (Pexels integration)
+# ═══════════════════════════════════════════════════════════════
+
+image_search:
+  description: >-
+    Search stock photos by keyword via Pexels.
+    Returns photo metadata (id, alt, dimensions, photographer).
+    To place a photo in Figma: use create_frame with set_image_fill or execute_js.
+    Requires PEXELS_API_KEY environment variable.
+  toolset: core
+  write: false
+  handler: custom
+  params:
+    query:
+      type: string
+      required: true
+      description: 'Search keyword (e.g. "sunset", "office", "nature")'
+    orientation:
+      type: enum
+      values: [landscape, portrait, square]
+      description: "Filter by photo orientation"
+    size:
+      type: enum
+      values: [large, medium, small]
+      description: "Minimum photo size"
+    color:
+      type: string
+      description: "Filter by color — hex or named: red, blue, green, etc."
+    page:
+      type: number
+      description: "Page number (default: 1)"
+    per_page:
+      type: number
+      description: "Results per page (default: 15, max: 80)"
+  response:
+    type: object
+    fields:
+      photos:
+        type: array
+      total_results:
+        type: number
+      page:
+        type: number
+
+image_preview:
+  description: >-
+    Preview a Pexels photo by ID — returns the actual image so you can see it before placing.
+  toolset: core
+  write: false
+  handler: custom
+  params:
+    id:
+      type: number
+      required: true
+      description: "Photo ID from image_search results"
+    size:
+      type: enum
+      values: [small, medium, large]
+      description: "Preview size (default: medium)"
+  response:
+    type: object
+    description: "Image content (base64) + photo metadata"
+
+# ─── SVG Creation (core) ───
+
+create_svg:
+  description: >-
+    Create a vector node from raw SVG markup string.
+    Figma converts the SVG to native vector nodes.
+  toolset: core
+  write: true
+  access: create
+  handler: bridge
+  params:
+    svg:
+      type: string
+      required: true
+      description: "SVG markup string (e.g. '<svg>...</svg>')"
+    name:
+      type: string
+      description: "Layer name (default: 'SVG')"
+    parentId:
+      type: string
+      description: "Parent node ID"
+    x:
+      type: number
+      description: "X position"
+    y:
+      type: number
+      description: "Y position"
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+
+# ─── Text Scan (core) ───
+
+text_scan:
+  description: >-
+    Scan all text nodes within a subtree. Returns text content, font info, and optional layer path.
+    Useful for inspecting text content before editing or for component text discovery.
+  toolset: core
+  write: false
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: "Root node ID to scan"
+    limit:
+      type: number
+      description: "Max text nodes to return (default: 100)"
+    includePath:
+      type: boolean
+      description: "Include layer hierarchy path (e.g. 'Frame > Card > Label')"
+  response:
+    type: object
+    fields:
+      nodeId:
+        type: string
+        required: true
+      count:
+        type: number
+        required: true
+      textNodes:
+        type: array
+        items:
+          type: object
+          fields:
+            id:
+              type: string
+            name:
+              type: string
+            characters:
+              type: string
+            fontSize:
+              type: number
+            fontFamily:
+              type: string
+            path:
+              type: string
+
+# ─── Design System Search (core) ───
+
+search_design_system:
+  description: >-
+    Search design system assets (components, variables, styles) across all
+    subscribed team libraries by keyword. Returns matching results ranked by
+    relevance. Use this to discover reusable design tokens, components, and
+    styles before creating UI elements.
+  toolset: core
+  write: false
+  handler: custom
+  params:
+    query:
+      type: string
+      required: true
+      description: 'Search keyword (e.g. "primary", "button", "heading")'
+    types:
+      type: array
+      items: string
+      description: 'Asset types to include: "components", "variables", "styles". Default: all three.'
+    limit:
+      type: number
+      description: "Max results per type (default: 20)"
+  response:
+    type: object
+    fields:
+      query:
+        type: string
+        required: true
+      components:
+        type: array
+        description: "Matching components with key, name, description"
+      variables:
+        type: array
+        description: "Matching variables with key, name, resolvedType, collection"
+      styles:
+        type: array
+        description: "Matching styles with key, name, styleType"
+      summary:
+        type: object
+        fields:
+          components:
+            type: number
+          variables:
+            type: number
+          styles:
+            type: number
 
 # ═══════════════════════════════════════════════════════════════
 # TOOLSET: variables (18 tools)
@@ -1892,7 +2500,10 @@ get_registered_styles:
 # ═══════════════════════════════════════════════════════════════
 
 create_component:
-  description: Create a new component with specified dimensions.
+  description: >-
+    Create a component with layout, fill, stroke, inline children, and component properties in one call.
+    A component IS a frame — build it directly with all layout properties.
+    TEXT properties auto-bind to child text nodes via componentPropertyName.
   toolset: components-advanced
   write: true
   access: create
@@ -1903,13 +2514,56 @@ create_component:
       description: 'Component name (default: "Component")'
     width:
       type: number
-      description: "Width in px (default: 100)"
+      description: "Width in px"
     height:
       type: number
-      description: "Height in px (default: 100)"
+      description: "Height in px"
     description:
       type: string
       description: Component description
+    # ── Layout ──
+    layoutMode:
+      type: enum
+      values: [HORIZONTAL, VERTICAL]
+      description: "Auto-layout direction (auto-inferred from padding/spacing/children)"
+    itemSpacing:
+      type: number
+      description: "Spacing between children"
+    padding:
+      type: number
+      description: "Shorthand — sets all 4 padding edges"
+    paddingTop: { type: number }
+    paddingRight: { type: number }
+    paddingBottom: { type: number }
+    paddingLeft: { type: number }
+    primaryAxisAlignItems:
+      type: enum
+      values: [MIN, CENTER, MAX, SPACE_BETWEEN]
+    counterAxisAlignItems:
+      type: enum
+      values: [MIN, CENTER, MAX]
+    cornerRadius:
+      type: number
+    # ── Fill ──
+    fill:
+      type: string
+      description: "Fill color hex (e.g. '#FFFFFF') or omit for transparent"
+    # ── Parent ──
+    parentId:
+      type: string
+      description: "Parent node ID"
+    # ── Inline children ──
+    children:
+      type: array
+      description: >-
+        Inline child nodes [{type:'frame'|'text', ...params, componentPropertyName?}].
+        Text children with componentPropertyName auto-create and bind TEXT component properties.
+    # ── Component properties (BOOLEAN, INSTANCE_SWAP) ──
+    properties:
+      type: array
+      description: >-
+        Non-text component properties: [{propertyName, type:'BOOLEAN'|'INSTANCE_SWAP', defaultValue}].
+        TEXT properties are created automatically from children with componentPropertyName.
   response:
     type: object
     fields:
@@ -2054,6 +2708,117 @@ delete_component:
         required: true
   examples:
     - ok: true
+
+create_instance:
+  description: >-
+    Create component instances with optional variant selection, property overrides, and smart sizing.
+    Workflow: components(method:"list") → create_instance with componentId + properties.
+  toolset: components-advanced
+  write: true
+  access: create
+  handler: bridge
+  params:
+    componentId:
+      type: string
+      required: true
+      description: "Component or component set ID"
+    variantProperties:
+      type: object
+      description: 'Pick variant e.g. {"Style":"Secondary","Size":"Large"}'
+    properties:
+      type: object
+      description: 'Set component properties inline e.g. {"Label":"Click me","ShowIcon":true}'
+    parentId:
+      type: string
+      description: "Parent node ID"
+    x:
+      type: number
+      description: "X position"
+    y:
+      type: number
+      description: "Y position"
+    width:
+      type: number
+      description: "Override width (resize)"
+    height:
+      type: number
+      description: "Override height (resize)"
+    layoutSizingHorizontal:
+      type: enum
+      values: [FIXED, HUG, FILL]
+      description: "Horizontal sizing in auto-layout parent"
+    layoutSizingVertical:
+      type: enum
+      values: [FIXED, HUG, FILL]
+      description: "Vertical sizing in auto-layout parent"
+    name:
+      type: string
+      description: "Instance layer name"
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+      type:
+        type: string
+  examples:
+    - id: "60:1"
+      name: "Button"
+      type: "INSTANCE"
+
+create_instances:
+  description: >-
+    Batch create component instances with variant selection, property overrides, and contextual sizing.
+    Pass sizing:"contextual" to auto-infer FILL on cross-axis from parent auto-layout.
+  toolset: components-advanced
+  write: true
+  access: create
+  handler: bridge
+  params:
+    items:
+      type: array
+      required: true
+      description: 'Array of {componentId, variantProperties?, properties?, parentId?, sizing?, layoutSizingHorizontal?, ...}'
+      items:
+        type: object
+  response:
+    type: object
+    fields:
+      results:
+        type: array
+        required: true
+
+create_component_from_node:
+  description: >-
+    Convert an existing frame/group to a component.
+    When exposeText is true (default), all text children are auto-discovered and
+    exposed as editable TEXT component properties.
+  toolset: components-advanced
+  write: true
+  access: create
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: "Node ID to convert to component"
+    name:
+      type: string
+      description: "Rename the component (default: keeps current name)"
+    exposeText:
+      type: boolean
+      description: "Auto-expose text children as editable TEXT properties (default: true)"
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
 
 swap_instance:
   description: Swap an existing instance to a different component.
@@ -2910,6 +3675,87 @@ create_polygon:
       type: "POLYGON"
       width: 100
       height: 100
+      visible: true
+
+create_rectangle:
+  description: >-
+    Create a rectangle shape node with optional fill, stroke, corner radius, and opacity.
+    For simple shapes that don't need auto-layout or children — use create_frame for containers.
+  toolset: shapes-vectors
+  write: true
+  access: create
+  handler: bridge
+  params:
+    name:
+      type: string
+      description: 'Node name (default: "Rectangle")'
+    <<: [*shape_position, *shape_fill, *shape_stroke, *shape_appearance]
+    strokeAlign:
+      type: enum
+      values: [INSIDE, OUTSIDE, CENTER]
+      description: "Stroke position (default: INSIDE)"
+    cornerRadius:
+      type: number
+      description: Corner radius — sets all 4 corners uniformly
+    topLeftRadius:
+      type: number
+      description: Top-left corner radius
+    topRightRadius:
+      type: number
+      description: Top-right corner radius
+    bottomRightRadius:
+      type: number
+      description: Bottom-right corner radius
+    bottomLeftRadius:
+      type: number
+      description: Bottom-left corner radius
+    parentId:
+      type: string
+      description: Parent node ID
+  response:
+    type: object
+    fields:
+      <<: *node_response
+      _libraryBindings:
+        type: array
+        description: "Token/style bindings applied during creation"
+  examples:
+    - id: "90:4"
+      name: "Card Background"
+      type: "RECTANGLE"
+      width: 320
+      height: 200
+      visible: true
+
+create_ellipse:
+  description: >-
+    Create an ellipse (circle) shape node with optional fill, stroke, and opacity.
+    For circles, set equal width and height. Supports token auto-binding.
+  toolset: shapes-vectors
+  write: true
+  access: create
+  handler: bridge
+  params:
+    name:
+      type: string
+      description: 'Node name (default: "Ellipse")'
+    <<: [*shape_position, *shape_fill, *shape_stroke, *shape_appearance]
+    parentId:
+      type: string
+      description: Parent node ID
+  response:
+    type: object
+    fields:
+      <<: *node_response
+      _libraryBindings:
+        type: array
+        description: "Token/style bindings applied during creation"
+  examples:
+    - id: "90:5"
+      name: "Avatar"
+      type: "ELLIPSE"
+      width: 48
+      height: 48
       visible: true
 
 create_section:
@@ -4211,6 +5057,100 @@ nodes:
           type: array
           required: true
           items: string
+    clone:
+      description: Duplicate nodes with optional reparenting and repositioning
+      maps_to: clone_nodes
+      write: true
+      access: create
+      response:
+        type: object
+        fields:
+          results:
+            type: array
+            required: true
+            items:
+              type: object
+              fields:
+                id:
+                  type: string
+                  required: true
+                ok:
+                  type: boolean
+                  required: true
+                error:
+                  type: string
+      examples:
+        - results:
+            - id: "50:1"
+              ok: true
+      params:
+        items:
+          type: array
+          required: true
+          description: "Array of {id, name?, parentId?, x?, y?}"
+          items:
+            type: object
+            fields:
+              id:
+                type: string
+                required: true
+                description: "Node ID to clone"
+              name:
+                type: string
+                description: "Rename the clone"
+              parentId:
+                type: string
+                description: "Target parent (default: same parent)"
+              x:
+                type: number
+                description: "X position"
+              y:
+                type: number
+                description: "Y position"
+    reparent:
+      description: Move nodes into a new parent container
+      maps_to: reparent_nodes
+      write: true
+      access: edit
+      response:
+        type: object
+        fields:
+          results:
+            type: array
+            required: true
+            items:
+              type: object
+              fields:
+                id:
+                  type: string
+                  required: true
+                ok:
+                  type: boolean
+                  required: true
+                error:
+                  type: string
+      examples:
+        - results:
+            - id: "30:1"
+              ok: true
+      params:
+        items:
+          type: array
+          required: true
+          description: "Array of {id, parentId, index?}"
+          items:
+            type: object
+            fields:
+              id:
+                type: string
+                required: true
+              parentId:
+                type: string
+                required: true
+                description: "New parent node ID"
+              index:
+                type: number
+                description: "Insert position (default: append at end)"
 
 text:
   description: >-

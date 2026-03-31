@@ -7,7 +7,7 @@
  * - Typography mapping built on first text creation (imports font-size vars to read values)
  */
 
-import { STORAGE_KEYS } from '../constants.js';
+import { STORAGE_KEYS, LOCAL_LIBRARY } from '../constants.js';
 import { registerCache } from './cache-manager.js';
 
 // ─── Types ───
@@ -157,7 +157,7 @@ async function getEffectiveMappings(libraryName: string): Promise<Record<string,
       customMappingsCache = { library: libraryName, mappings: merged };
       return merged;
     }
-  } catch { /* ignore parse errors */ }
+  } catch (err) { console.warn('[figcraft] storage parse error:', err instanceof Error ? err.message : String(err)); }
   customMappingsCache = { library: libraryName, mappings: null };
   return DEFAULT_MAPPINGS;
 }
@@ -171,7 +171,7 @@ async function getEffectiveMappings(libraryName: string): Promise<Record<string,
  * `variableLibraryName` in the library entries.
  */
 async function resolveVariableLibraryName(displayName: string): Promise<string> {
-  if (displayName === '__local__') return displayName;
+  if (displayName === LOCAL_LIBRARY) return displayName;
   try {
     const entriesRaw = await figma.clientStorage.getAsync(STORAGE_KEYS.LIBRARY_URLS) as
       Record<string, { name: string; variableLibraryName?: string }> | null;
@@ -182,7 +182,7 @@ async function resolveVariableLibraryName(displayName: string): Promise<string> 
         }
       }
     }
-  } catch { /* ignore storage errors */ }
+  } catch (err) { console.warn('[figcraft] storage write error:', err instanceof Error ? err.message : String(err)); }
   return displayName;
 }
 
@@ -414,7 +414,7 @@ export async function getLocalDesignContext(): Promise<DesignContextResult> {
   }
   const nameMap = new Map(allVars.map((v) => [v.name, v]));
   const defaults: Record<string, DesignVariable | null> = {};
-  const mappings = await getEffectiveMappings('__local__');
+  const mappings = await getEffectiveMappings(LOCAL_LIBRARY);
   for (const [role, candidates] of Object.entries(mappings)) {
     defaults[role] = null;
     for (const name of candidates) {
@@ -493,14 +493,14 @@ async function _autoBindDefaultImpl(
   libraryName: string,
 ): Promise<string | null> {
   try {
-    const defaults = libraryName === '__local__'
+    const defaults = libraryName === LOCAL_LIBRARY
       ? (await getLocalDesignContext()).defaults
       : await resolveDefaults(libraryName);
 
     const defaultVar = defaults[role];
     if (!defaultVar) return null;
 
-    const variable = libraryName === '__local__'
+    const variable = libraryName === LOCAL_LIBRARY
       ? await figma.variables.getVariableByIdAsync(defaultVar.key)
       : await cachedImportVariable(defaultVar.key, `importVariable(${defaultVar.name})`);
 
@@ -527,14 +527,14 @@ async function _autoBindStrokeDefaultImpl(
   libraryName: string,
 ): Promise<string | null> {
   try {
-    const defaults = libraryName === '__local__'
+    const defaults = libraryName === LOCAL_LIBRARY
       ? (await getLocalDesignContext()).defaults
       : await resolveDefaults(libraryName);
 
     const defaultVar = defaults[role];
     if (!defaultVar) return null;
 
-    const variable = libraryName === '__local__'
+    const variable = libraryName === LOCAL_LIBRARY
       ? await figma.variables.getVariableByIdAsync(defaultVar.key)
       : await cachedImportVariable(defaultVar.key, `importVariable(${defaultVar.name})`);
 
@@ -792,7 +792,7 @@ export async function autoBindTypography(
   libraryName: string,
   options?: { skipFontFamily?: boolean },
 ): Promise<TypographyBindResult | null> {
-  if (libraryName === '__local__') return null;
+  if (libraryName === LOCAL_LIBRARY) return null;
 
   return withTimeout(
     _autoBindTypographyImpl(node, fontSize, libraryName, options),

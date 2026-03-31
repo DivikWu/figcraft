@@ -21,3 +21,6 @@ export const PLUGIN_DATA_KEYS = {
 
 /** Plugin version — re-exported from shared single source of truth. */
 export { VERSION as PLUGIN_VERSION } from '@figcraft/shared';
+
+/** Sentinel value identifying the current file's local styles/variables as the design system source. */
+export const LOCAL_LIBRARY = '__local__';

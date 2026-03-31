@@ -10,6 +10,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Bridge } from '../bridge.js';
+import { jsonResponse } from './response-helpers.js';
 
 
 export interface GeneratedToolRegistrationOptions {
@@ -33,7 +34,7 @@ export function registerGeneratedTools(
     {},
     async (params) => {
       const result = await bridge.request('get_selection', {});
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -47,7 +48,7 @@ export function registerGeneratedTools(
     },
     async ({ family }) => {
       const result = await bridge.request('list_fonts', { family });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -55,30 +56,66 @@ export function registerGeneratedTools(
   if (shouldRegisterGeneratedTool(include, 'create_frame')) {
     server.tool(
     'create_frame',
-    "Create a frame node with optional auto-layout, fills, corner radius, and parent. Supports all common layout properties for building UI structures.",
+    "Create a frame node with optional auto-layout, fills, stroke, corner radius, and parent. Supports token auto-binding (fillVariableName, strokeVariableName), smart defaults (auto-infers layoutMode from padding/spacing, auto-infers child sizing in auto-layout), and inline children for building entire node trees in one call.",
     {
       name: z.string().optional().describe("Frame name (default: \"Frame\")"),
       x: z.number().optional().describe("X position"),
       y: z.number().optional().describe("Y position"),
-      width: z.number().optional().describe("Width (default: 100)"),
-      height: z.number().optional().describe("Height (default: 100)"),
-      fill: z.string().optional().describe("Fill color as hex (e.g. \"#FFFFFF\")"),
-      layoutMode: z.enum(['HORIZONTAL', 'VERTICAL']).optional().describe("Auto-layout direction"),
+      width: z.number().optional().describe("Width in px (omit to shrink-to-content via HUG when auto-layout)"),
+      height: z.number().optional().describe("Height in px (omit to shrink-to-content via HUG when auto-layout)"),
+      fill: z.string().optional().describe("Fill color as hex (e.g. '#FFFFFF') or variable/style name — auto-binds to matching token"),
+      fillVariableName: z.string().optional().describe("Bind fill to a color variable by name (e.g. 'bg/primary')"),
+      fillStyleName: z.string().optional().describe("Apply paint style by name (e.g. 'Surface/Primary')"),
+      gradient: z.record(z.unknown()).optional().describe("Gradient fill. {type:'LINEAR'|'RADIAL', stops:[{color:'#hex', position:0-1}, ...], angle?: degrees (LINEAR only, default 180=top-to-bottom)}. Example: {type:'LINEAR', stops:[{color:'#FF0000',position:0},{color:'#0000FF',position:1}], angle:90}"),
+      strokeColor: z.string().optional().describe("Stroke color hex — auto-binds to matching variable/style"),
+      strokeVariableName: z.string().optional().describe("Bind stroke to a color variable by name"),
+      strokeWeight: z.number().optional().describe("Stroke thickness (default: 1 when stroke specified)"),
+      strokeAlign: z.enum(['INSIDE', 'OUTSIDE', 'CENTER']).optional().describe("Stroke position (default: INSIDE)"),
+      strokeDashes: z.array(z.unknown()).optional().describe("Dash pattern array [dash, gap] (e.g. [10, 5] for dashed, [2, 2] for dotted)"),
+      strokeCap: z.enum(['NONE', 'ROUND', 'SQUARE', 'ARROW_LINES', 'ARROW_EQUILATERAL']).optional().describe("Stroke end cap style"),
+      strokeJoin: z.enum(['MITER', 'BEVEL', 'ROUND']).optional().describe("Stroke corner join style"),
+      layoutMode: z.enum(['HORIZONTAL', 'VERTICAL']).optional().describe("Auto-layout direction. Smart default: auto-inferred as VERTICAL when padding/spacing/alignment params are present."),
       itemSpacing: z.number().optional().describe("Spacing between children"),
+      padding: z.number().optional().describe("Shorthand — sets all 4 padding edges"),
       paddingLeft: z.number().optional().describe("Left padding"),
       paddingRight: z.number().optional().describe("Right padding"),
       paddingTop: z.number().optional().describe("Top padding"),
       paddingBottom: z.number().optional().describe("Bottom padding"),
-      cornerRadius: z.number().optional().describe("Corner radius"),
+      cornerRadius: z.number().optional().describe("Corner radius (number or variable name string) — sets all 4 corners uniformly"),
+      topLeftRadius: z.number().optional().describe("Top-left corner radius (overrides cornerRadius for this corner)"),
+      topRightRadius: z.number().optional().describe("Top-right corner radius (overrides cornerRadius for this corner)"),
+      bottomRightRadius: z.number().optional().describe("Bottom-right corner radius (overrides cornerRadius for this corner)"),
+      bottomLeftRadius: z.number().optional().describe("Bottom-left corner radius (overrides cornerRadius for this corner)"),
       parentId: z.string().optional().describe("Parent node ID to append into"),
-      layoutSizingHorizontal: z.enum(['FIXED', 'HUG', 'FILL']).optional().describe("Horizontal sizing mode (set AFTER parent append)"),
-      layoutSizingVertical: z.enum(['FIXED', 'HUG', 'FILL']).optional().describe("Vertical sizing mode (set AFTER parent append)"),
+      layoutSizingHorizontal: z.enum(['FIXED', 'HUG', 'FILL']).optional().describe("Horizontal sizing. Smart default: FILL on cross-axis, HUG on primary-axis when inside auto-layout parent."),
+      layoutSizingVertical: z.enum(['FIXED', 'HUG', 'FILL']).optional().describe("Vertical sizing. Smart default: FILL on cross-axis, HUG on primary-axis when inside auto-layout parent."),
       primaryAxisAlignItems: z.enum(['MIN', 'CENTER', 'MAX', 'SPACE_BETWEEN']).optional().describe("Primary axis alignment"),
       counterAxisAlignItems: z.enum(['MIN', 'CENTER', 'MAX']).optional().describe("Counter axis alignment"),
+      layoutWrap: z.enum(['NO_WRAP', 'WRAP']).optional().describe("Wrap children to new rows (HORIZONTAL layout only)"),
+      counterAxisSpacing: z.number().optional().describe("Gap between wrapped rows (requires layoutWrap: WRAP)"),
+      opacity: z.number().optional().describe("Opacity 0-1"),
+      visible: z.boolean().optional().describe("Show/hide (default: true)"),
+      rotation: z.number().optional().describe("Rotation in degrees"),
+      blendMode: z.enum(['PASS_THROUGH', 'NORMAL', 'DARKEN', 'MULTIPLY', 'SCREEN', 'OVERLAY', 'SOFT_LIGHT', 'HARD_LIGHT']).optional().describe("Layer blend mode"),
+      effectStyleName: z.string().optional().describe("Effect style name for shadows/blurs"),
+      clipsContent: z.boolean().optional().describe("Clip children to frame bounds (default: true)"),
+      minWidth: z.number().optional().describe("Min width for responsive auto-layout"),
+      maxWidth: z.number().optional().describe("Max width for responsive auto-layout"),
+      minHeight: z.number().optional().describe("Min height for responsive auto-layout"),
+      maxHeight: z.number().optional().describe("Max height for responsive auto-layout"),
+      layoutPositioning: z.enum(['AUTO', 'ABSOLUTE']).optional().describe("ABSOLUTE = floating inside auto-layout parent"),
+      imageUrl: z.string().optional().describe("Image URL — public URL for image fill. Use image_search to find Pexels photos."),
+      imageScaleMode: z.enum(['FILL', 'FIT', 'CROP', 'TILE']).optional().describe("How the image is scaled within the frame (default: FILL)"),
+      children: z.array(z.object({
+          type: z.enum(['frame', 'text', 'rectangle', 'ellipse', 'star', 'polygon', 'instance', 'svg']).optional().describe("Child node type"),
+        }).passthrough()).optional().describe("Inline child nodes to create recursively. Each item: {type:'frame'|'text'|'rectangle'|'ellipse'|'instance'|'svg'|'star'|'polygon', ...params, children?}. Frame children accept all create_frame params. Text children accept all create_text params (incl. textCase, textDecoration). Rectangle/ellipse children accept: name, width, height, fill, fillVariableName, fillStyleName, strokeColor, strokeVariableName, strokeWeight, cornerRadius (rect only), opacity, rotation. Instance children accept: componentId (required), name, width, height, variantProperties, properties, layoutSizingHorizontal/Vertical. SVG children accept: svg (required), name, width, height. Star children accept: name, width, height, fill, pointCount, innerRadius, opacity, rotation. Polygon children accept: name, width, height, fill, pointCount, opacity, rotation. Smart defaults apply: cross-axis FILL, primary-axis HUG inside auto-layout parents. Max depth: 10 levels."),
+      dryRun: z.boolean().optional().describe("When true, validates params and previews inferences WITHOUT creating any nodes. Returns {dryRun:true, valid, inferences?, ambiguous?, diff?, correctedPayload?}. Use correctedPayload for the actual creation call to avoid ambiguity."),
+      noPreview: z.boolean().optional().describe("Skip auto-preview thumbnail in response (default: false). Preview is a low-res PNG returned as an image content block for visual verification."),
+      items: z.array(z.unknown()).optional().describe("Batch mode: array of create_frame param objects. When provided, creates multiple frames in one call. Each item accepts the same params as create_frame (name, width, height, layoutMode, children, etc.). Pre-creation validation runs per item — conflicting items return error without blocking others. Max 20 frames per batch. Returns {created, total, items: [{id, name, ok, error?}]}."),
     },
     async (params) => {
-      const result = await bridge.request('create_frame', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      const result = await bridge.request('create_frame', params, 60000);
+      return jsonResponse(result);
     },
   );
   }
@@ -86,24 +123,38 @@ export function registerGeneratedTools(
   if (shouldRegisterGeneratedTool(include, 'create_text')) {
     server.tool(
     'create_text',
-    "Create a text node with specified content, font, size, and color. Supports font family/style selection with fallback chain.",
+    "Create a text node with specified content, font, size, and color. Supports token auto-binding (fontColorVariableName, textStyleName), smart defaults (auto FILL width + HEIGHT resize inside vertical auto-layout), and font fallback chain.",
     {
       content: z.string().optional().describe("Text content to display"),
       name: z.string().optional().describe("Node name (defaults to content)"),
       x: z.number().optional().describe("X position"),
       y: z.number().optional().describe("Y position"),
+      width: z.number().optional().describe("Fixed width in px — implies textAutoResize: HEIGHT"),
       fontSize: z.number().optional().describe("Font size (default: 14)"),
       fontFamily: z.string().optional().describe("Font family (default: \"Inter\")"),
-      fontStyle: z.string().optional().describe("Font style (default: \"Regular\")"),
-      fill: z.string().optional().describe("Text color as hex (e.g. \"#000000\")"),
+      fontStyle: z.string().optional().describe("Font style e.g. \"Bold\", \"Italic\" (default: \"Regular\")"),
+      fontWeight: z.number().optional().describe("100-900 (default: 400). Ignored when fontStyle is set."),
+      fill: z.string().optional().describe("Text color as hex (e.g. '#000000') or variable/style name — auto-binds"),
+      fontColorVariableName: z.string().optional().describe("Bind text color to a variable by name (e.g. 'text/primary')"),
+      fontColorStyleName: z.string().optional().describe("Apply paint style for text color"),
+      textStyleName: z.string().optional().describe("Apply text style by name — overrides fontSize/fontWeight"),
       lineHeight: z.number().optional().describe("Line height in pixels"),
       letterSpacing: z.number().optional().describe("Letter spacing in pixels"),
       textAlignHorizontal: z.enum(['LEFT', 'CENTER', 'RIGHT', 'JUSTIFIED']).optional().describe("Horizontal text alignment"),
+      textAlignVertical: z.enum(['TOP', 'CENTER', 'BOTTOM']).optional().describe("Vertical text alignment"),
+      textAutoResize: z.enum(['NONE', 'WIDTH_AND_HEIGHT', 'HEIGHT', 'TRUNCATE']).optional().describe("NONE (fixed box), WIDTH_AND_HEIGHT (grow both), HEIGHT (fixed width, auto height), TRUNCATE (ellipsis)"),
+      textCase: z.enum(['ORIGINAL', 'UPPER', 'LOWER', 'TITLE', 'SMALL_CAPS', 'SMALL_CAPS_FORCED']).optional().describe("Text case transform (UPPER=uppercase, LOWER=lowercase, TITLE=capitalize)"),
+      textDecoration: z.enum(['NONE', 'UNDERLINE', 'STRIKETHROUGH']).optional().describe("Text decoration (underline or strikethrough)"),
+      layoutSizingHorizontal: z.enum(['FIXED', 'HUG', 'FILL']).optional().describe("Smart default: FILL inside vertical auto-layout parent"),
+      layoutSizingVertical: z.enum(['FIXED', 'HUG', 'FILL']).optional().describe("Vertical sizing in auto-layout parent"),
       parentId: z.string().optional().describe("Parent node ID to append into"),
+      opacity: z.number().optional().describe("Opacity 0-1"),
+      visible: z.boolean().optional().describe("Show/hide (default: true)"),
+      items: z.array(z.unknown()).optional().describe("Batch mode: array of create_text param objects. When provided, creates multiple text nodes in one call. Each item accepts the same params as create_text (content, fontSize, fontFamily, fill, parentId, etc.). Max 50 text nodes per batch. Returns {created, total, items: [{id, name, ok, error?}]}."),
     },
     async (params) => {
       const result = await bridge.request('create_text', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -117,7 +168,7 @@ export function registerGeneratedTools(
     },
     async ({ nameOrId }) => {
       const result = await bridge.request('set_current_page', { nameOrId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -132,7 +183,7 @@ export function registerGeneratedTools(
     },
     async ({ title, description }) => {
       const result = await bridge.request('save_version_history', { title, description });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -147,7 +198,41 @@ export function registerGeneratedTools(
     },
     async (params) => {
       const result = await bridge.request('set_selection', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
+    },
+  );
+  }
+
+  if (shouldRegisterGeneratedTool(include, 'create_svg')) {
+    server.tool(
+    'create_svg',
+    "Create a vector node from raw SVG markup string. Figma converts the SVG to native vector nodes.",
+    {
+      svg: z.string().describe("SVG markup string (e.g. '<svg>...</svg>')"),
+      name: z.string().optional().describe("Layer name (default: 'SVG')"),
+      parentId: z.string().optional().describe("Parent node ID"),
+      x: z.number().optional().describe("X position"),
+      y: z.number().optional().describe("Y position"),
+    },
+    async (params) => {
+      const result = await bridge.request('create_svg', params);
+      return jsonResponse(result);
+    },
+  );
+  }
+
+  if (shouldRegisterGeneratedTool(include, 'text_scan')) {
+    server.tool(
+    'text_scan',
+    "Scan all text nodes within a subtree. Returns text content, font info, and optional layer path. Useful for inspecting text content before editing or for component text discovery.",
+    {
+      nodeId: z.string().describe("Root node ID to scan"),
+      limit: z.number().optional().describe("Max text nodes to return (default: 100)"),
+      includePath: z.boolean().optional().describe("Include layer hierarchy path (e.g. 'Frame > Card > Label')"),
+    },
+    async ({ nodeId, limit, includePath }) => {
+      const result = await bridge.request('text_scan', { nodeId, limit, includePath });
+      return jsonResponse(result);
     },
   );
   }
@@ -163,7 +248,7 @@ export function registerGeneratedTools(
     },
     async ({ nodeId, collectionId, modeId }) => {
       const result = await bridge.request('set_explicit_variable_mode', { nodeId, collectionId, modeId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -178,7 +263,7 @@ export function registerGeneratedTools(
     },
     async ({ collectionId, name }) => {
       const result = await bridge.request('rename_collection', { collectionId, name });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -193,7 +278,7 @@ export function registerGeneratedTools(
     },
     async ({ collectionId, name }) => {
       const result = await bridge.request('add_collection_mode', { collectionId, name });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -209,7 +294,7 @@ export function registerGeneratedTools(
     },
     async ({ collectionId, modeId, name }) => {
       const result = await bridge.request('rename_collection_mode', { collectionId, modeId, name });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -224,7 +309,7 @@ export function registerGeneratedTools(
     },
     async ({ collectionId, modeId }) => {
       const result = await bridge.request('remove_collection_mode', { collectionId, modeId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -240,7 +325,7 @@ export function registerGeneratedTools(
     },
     async ({ variableId, targetVariableId, modeId }) => {
       const result = await bridge.request('create_variable_alias', { variableId, targetVariableId, modeId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -252,7 +337,7 @@ export function registerGeneratedTools(
     {},
     async (params) => {
       const result = await bridge.request('list_spec_tokens', {});
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -266,7 +351,7 @@ export function registerGeneratedTools(
     },
     async ({ name }) => {
       const result = await bridge.request('delete_spec_tokens', { name });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -278,7 +363,7 @@ export function registerGeneratedTools(
     {},
     async (params) => {
       const result = await bridge.request('scan_styles', {});
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -290,7 +375,7 @@ export function registerGeneratedTools(
     {},
     async (params) => {
       const result = await bridge.request('export_tokens', {});
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -308,7 +393,7 @@ export function registerGeneratedTools(
     },
     async (params) => {
       const result = await bridge.request('diff_styles', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -322,7 +407,7 @@ export function registerGeneratedTools(
     },
     async ({ library }) => {
       const result = await bridge.request('get_registered_styles', { library });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -330,16 +415,30 @@ export function registerGeneratedTools(
   if (shouldRegisterGeneratedTool(include, 'create_component')) {
     server.tool(
     'create_component',
-    "Create a new component with specified dimensions.",
+    "Create a component with layout, fill, stroke, inline children, and component properties in one call. A component IS a frame — build it directly with all layout properties. TEXT properties auto-bind to child text nodes via componentPropertyName.",
     {
       name: z.string().optional().describe("Component name (default: \"Component\")"),
-      width: z.number().optional().describe("Width in px (default: 100)"),
-      height: z.number().optional().describe("Height in px (default: 100)"),
+      width: z.number().optional().describe("Width in px"),
+      height: z.number().optional().describe("Height in px"),
       description: z.string().optional().describe("Component description"),
+      layoutMode: z.enum(['HORIZONTAL', 'VERTICAL']).optional().describe("Auto-layout direction (auto-inferred from padding/spacing/children)"),
+      itemSpacing: z.number().optional().describe("Spacing between children"),
+      padding: z.number().optional().describe("Shorthand — sets all 4 padding edges"),
+      paddingTop: z.number().optional(),
+      paddingRight: z.number().optional(),
+      paddingBottom: z.number().optional(),
+      paddingLeft: z.number().optional(),
+      primaryAxisAlignItems: z.enum(['MIN', 'CENTER', 'MAX', 'SPACE_BETWEEN']).optional(),
+      counterAxisAlignItems: z.enum(['MIN', 'CENTER', 'MAX']).optional(),
+      cornerRadius: z.number().optional(),
+      fill: z.string().optional().describe("Fill color hex (e.g. '#FFFFFF') or omit for transparent"),
+      parentId: z.string().optional().describe("Parent node ID"),
+      children: z.array(z.unknown()).optional().describe("Inline child nodes [{type:'frame'|'text', ...params, componentPropertyName?}]. Text children with componentPropertyName auto-create and bind TEXT component properties."),
+      properties: z.array(z.unknown()).optional().describe("Non-text component properties: [{propertyName, type:'BOOLEAN'|'INSTANCE_SWAP', defaultValue}]. TEXT properties are created automatically from children with componentPropertyName."),
     },
-    async ({ name, width, height, description }) => {
-      const result = await bridge.request('create_component', { name, width, height, description });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    async (params) => {
+      const result = await bridge.request('create_component', params);
+      return jsonResponse(result);
     },
   );
   }
@@ -354,7 +453,7 @@ export function registerGeneratedTools(
     },
     async (params) => {
       const result = await bridge.request('create_component_set', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -372,7 +471,7 @@ export function registerGeneratedTools(
     },
     async (params) => {
       const result = await bridge.request('update_component', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -386,7 +485,61 @@ export function registerGeneratedTools(
     },
     async ({ nodeId }) => {
       const result = await bridge.request('delete_component', { nodeId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
+    },
+  );
+  }
+
+  if (shouldRegisterGeneratedTool(include, 'create_instance')) {
+    server.tool(
+    'create_instance',
+    "Create component instances with optional variant selection, property overrides, and smart sizing. Workflow: components(method:\"list\") → create_instance with componentId + properties.",
+    {
+      componentId: z.string().describe("Component or component set ID"),
+      variantProperties: z.record(z.unknown()).optional().describe("Pick variant e.g. {\"Style\":\"Secondary\",\"Size\":\"Large\"}"),
+      properties: z.record(z.unknown()).optional().describe("Set component properties inline e.g. {\"Label\":\"Click me\",\"ShowIcon\":true}"),
+      parentId: z.string().optional().describe("Parent node ID"),
+      x: z.number().optional().describe("X position"),
+      y: z.number().optional().describe("Y position"),
+      width: z.number().optional().describe("Override width (resize)"),
+      height: z.number().optional().describe("Override height (resize)"),
+      layoutSizingHorizontal: z.enum(['FIXED', 'HUG', 'FILL']).optional().describe("Horizontal sizing in auto-layout parent"),
+      layoutSizingVertical: z.enum(['FIXED', 'HUG', 'FILL']).optional().describe("Vertical sizing in auto-layout parent"),
+      name: z.string().optional().describe("Instance layer name"),
+    },
+    async (params) => {
+      const result = await bridge.request('create_instance', params);
+      return jsonResponse(result);
+    },
+  );
+  }
+
+  if (shouldRegisterGeneratedTool(include, 'create_instances')) {
+    server.tool(
+    'create_instances',
+    "Batch create component instances with variant selection, property overrides, and contextual sizing. Pass sizing:\"contextual\" to auto-infer FILL on cross-axis from parent auto-layout.",
+    {
+      items: z.array(z.record(z.unknown())).describe("Array of {componentId, variantProperties?, properties?, parentId?, sizing?, layoutSizingHorizontal?, ...}"),
+    },
+    async (params) => {
+      const result = await bridge.request('create_instances', params);
+      return jsonResponse(result);
+    },
+  );
+  }
+
+  if (shouldRegisterGeneratedTool(include, 'create_component_from_node')) {
+    server.tool(
+    'create_component_from_node',
+    "Convert an existing frame/group to a component. When exposeText is true (default), all text children are auto-discovered and exposed as editable TEXT component properties.",
+    {
+      nodeId: z.string().describe("Node ID to convert to component"),
+      name: z.string().optional().describe("Rename the component (default: keeps current name)"),
+      exposeText: z.boolean().optional().describe("Auto-expose text children as editable TEXT properties (default: true)"),
+    },
+    async ({ nodeId, name, exposeText }) => {
+      const result = await bridge.request('create_component_from_node', { nodeId, name, exposeText });
+      return jsonResponse(result);
     },
   );
   }
@@ -401,7 +554,7 @@ export function registerGeneratedTools(
     },
     async ({ instanceId, componentKey }) => {
       const result = await bridge.request('swap_instance', { instanceId, componentKey });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -415,7 +568,7 @@ export function registerGeneratedTools(
     },
     async ({ instanceId }) => {
       const result = await bridge.request('detach_instance', { instanceId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -429,7 +582,7 @@ export function registerGeneratedTools(
     },
     async ({ instanceId }) => {
       const result = await bridge.request('reset_instance_overrides', { instanceId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -443,7 +596,7 @@ export function registerGeneratedTools(
     },
     async ({ nodeId }) => {
       const result = await bridge.request('get_instance_overrides', { nodeId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -458,7 +611,7 @@ export function registerGeneratedTools(
     },
     async (params) => {
       const result = await bridge.request('set_instance_overrides', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -475,7 +628,7 @@ export function registerGeneratedTools(
     },
     async ({ nodeId, propertyName, type, defaultValue }) => {
       const result = await bridge.request('add_component_property', { nodeId, propertyName, type, defaultValue });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -492,7 +645,7 @@ export function registerGeneratedTools(
     },
     async ({ nodeId, propertyName, newName, defaultValue }) => {
       const result = await bridge.request('update_component_property', { nodeId, propertyName, newName, defaultValue });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -507,7 +660,7 @@ export function registerGeneratedTools(
     },
     async ({ nodeId, propertyName }) => {
       const result = await bridge.request('delete_component_property', { nodeId, propertyName });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -521,7 +674,7 @@ export function registerGeneratedTools(
     },
     async (params) => {
       const result = await bridge.request('audit_components', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -533,7 +686,7 @@ export function registerGeneratedTools(
     {},
     async (params) => {
       const result = await bridge.request('list_library_collections', {});
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -547,7 +700,7 @@ export function registerGeneratedTools(
     },
     async ({ collectionKey }) => {
       const result = await bridge.request('list_library_variables', { collectionKey });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -561,7 +714,7 @@ export function registerGeneratedTools(
     },
     async ({ variableKey }) => {
       const result = await bridge.request('import_library_variable', { variableKey });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -582,7 +735,7 @@ export function registerGeneratedTools(
     },
     async (params) => {
       const result = await bridge.request('create_line', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -604,7 +757,7 @@ export function registerGeneratedTools(
     },
     async (params) => {
       const result = await bridge.request('create_star', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -625,7 +778,69 @@ export function registerGeneratedTools(
     },
     async (params) => {
       const result = await bridge.request('create_polygon', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
+    },
+  );
+  }
+
+  if (shouldRegisterGeneratedTool(include, 'create_rectangle')) {
+    server.tool(
+    'create_rectangle',
+    "Create a rectangle shape node with optional fill, stroke, corner radius, and opacity. For simple shapes that don't need auto-layout or children — use create_frame for containers.",
+    {
+      name: z.string().optional().describe("Node name (default: \"Rectangle\")"),
+      x: z.number().optional().describe("X position"),
+      y: z.number().optional().describe("Y position"),
+      width: z.number().optional().describe("Width (default: 100)"),
+      height: z.number().optional().describe("Height (default: 100)"),
+      fill: z.string().optional().describe("Fill color as hex (e.g. '#FFFFFF') — auto-binds to matching token"),
+      fillVariableName: z.string().optional().describe("Bind fill to a color variable by name (e.g. 'bg/primary')"),
+      fillStyleName: z.string().optional().describe("Apply paint style by name (e.g. 'Surface/Primary')"),
+      strokeColor: z.string().optional().describe("Stroke color hex — auto-binds to matching variable/style"),
+      strokeVariableName: z.string().optional().describe("Bind stroke to a color variable by name"),
+      strokeWeight: z.number().optional().describe("Stroke weight (default: 1)"),
+      opacity: z.number().optional().describe("Opacity 0-1"),
+      rotation: z.number().optional().describe("Rotation in degrees"),
+      visible: z.boolean().optional().describe("Show/hide (default: true)"),
+      strokeAlign: z.enum(['INSIDE', 'OUTSIDE', 'CENTER']).optional().describe("Stroke position (default: INSIDE)"),
+      cornerRadius: z.number().optional().describe("Corner radius — sets all 4 corners uniformly"),
+      topLeftRadius: z.number().optional().describe("Top-left corner radius"),
+      topRightRadius: z.number().optional().describe("Top-right corner radius"),
+      bottomRightRadius: z.number().optional().describe("Bottom-right corner radius"),
+      bottomLeftRadius: z.number().optional().describe("Bottom-left corner radius"),
+      parentId: z.string().optional().describe("Parent node ID"),
+    },
+    async (params) => {
+      const result = await bridge.request('create_rectangle', params);
+      return jsonResponse(result);
+    },
+  );
+  }
+
+  if (shouldRegisterGeneratedTool(include, 'create_ellipse')) {
+    server.tool(
+    'create_ellipse',
+    "Create an ellipse (circle) shape node with optional fill, stroke, and opacity. For circles, set equal width and height. Supports token auto-binding.",
+    {
+      name: z.string().optional().describe("Node name (default: \"Ellipse\")"),
+      x: z.number().optional().describe("X position"),
+      y: z.number().optional().describe("Y position"),
+      width: z.number().optional().describe("Width (default: 100)"),
+      height: z.number().optional().describe("Height (default: 100)"),
+      fill: z.string().optional().describe("Fill color as hex (e.g. '#FFFFFF') — auto-binds to matching token"),
+      fillVariableName: z.string().optional().describe("Bind fill to a color variable by name (e.g. 'bg/primary')"),
+      fillStyleName: z.string().optional().describe("Apply paint style by name (e.g. 'Surface/Primary')"),
+      strokeColor: z.string().optional().describe("Stroke color hex — auto-binds to matching variable/style"),
+      strokeVariableName: z.string().optional().describe("Bind stroke to a color variable by name"),
+      strokeWeight: z.number().optional().describe("Stroke weight (default: 1)"),
+      opacity: z.number().optional().describe("Opacity 0-1"),
+      rotation: z.number().optional().describe("Rotation in degrees"),
+      visible: z.boolean().optional().describe("Show/hide (default: true)"),
+      parentId: z.string().optional().describe("Parent node ID"),
+    },
+    async (params) => {
+      const result = await bridge.request('create_ellipse', params);
+      return jsonResponse(result);
     },
   );
   }
@@ -642,7 +857,7 @@ export function registerGeneratedTools(
     },
     async (params) => {
       const result = await bridge.request('create_section', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -656,7 +871,7 @@ export function registerGeneratedTools(
     },
     async ({ nodeId }) => {
       const result = await bridge.request('flatten_node', { nodeId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -672,7 +887,7 @@ export function registerGeneratedTools(
     },
     async (params) => {
       const result = await bridge.request('boolean_operation', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -686,7 +901,7 @@ export function registerGeneratedTools(
     },
     async ({ nodeId }) => {
       const result = await bridge.request('get_annotations', { nodeId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -702,7 +917,7 @@ export function registerGeneratedTools(
     },
     async ({ nodeId, label, replace }) => {
       const result = await bridge.request('set_annotation', { nodeId, label, replace });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -720,7 +935,7 @@ export function registerGeneratedTools(
     },
     async (params) => {
       const result = await bridge.request('set_multiple_annotations', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -734,7 +949,7 @@ export function registerGeneratedTools(
     },
     async (params) => {
       const result = await bridge.request('clear_annotations', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -748,7 +963,7 @@ export function registerGeneratedTools(
     },
     async ({ nodeId }) => {
       const result = await bridge.request('get_reactions', { nodeId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -785,7 +1000,7 @@ export function registerGeneratedTools(
     },
     async (params) => {
       const result = await bridge.request('add_reaction', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -802,7 +1017,7 @@ export function registerGeneratedTools(
     },
     async ({ nodeId, index, triggerType, removeAll }) => {
       const result = await bridge.request('remove_reaction', { nodeId, index, triggerType, removeAll });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -831,7 +1046,7 @@ export function registerGeneratedTools(
     },
     async (params) => {
       const result = await bridge.request('set_reactions', params);
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -843,7 +1058,7 @@ export function registerGeneratedTools(
     {},
     async (params) => {
       const result = await bridge.request('lint_rules', {});
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -857,7 +1072,7 @@ export function registerGeneratedTools(
     },
     async ({ name }) => {
       const result = await bridge.request('create_page', { name });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -872,7 +1087,7 @@ export function registerGeneratedTools(
     },
     async ({ pageId, name }) => {
       const result = await bridge.request('rename_page', { pageId, name });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -886,7 +1101,7 @@ export function registerGeneratedTools(
     },
     async ({ nodeId }) => {
       const result = await bridge.request('delete_node', { nodeId });
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      return jsonResponse(result);
     },
   );
   }
@@ -896,7 +1111,7 @@ export function registerGeneratedTools(
 // ─── Endpoint Zod Schemas ───
 
 export const nodesEndpointSchema = {
-      method: z.enum(['get', 'list', 'update', 'delete']).describe('Method to invoke on this endpoint'),
+      method: z.enum(['get', 'list', 'update', 'delete', 'clone', 'reparent']).describe('Method to invoke on this endpoint'),
       nodeId: z.string().optional().describe("Node ID or Figma URL"),
       query: z.string().optional().describe("Search query"),
       types: z.array(z.string()).optional().describe("Filter by node types"),
@@ -906,6 +1121,17 @@ export const nodesEndpointSchema = {
           props: z.record(z.unknown()),
         })).optional(),
       nodeIds: z.array(z.string()).optional(),
+      items: z.union([z.array(z.object({
+          id: z.string().describe("Node ID to clone"),
+          name: z.string().optional().describe("Rename the clone"),
+          parentId: z.string().optional().describe("Target parent (default: same parent)"),
+          x: z.number().optional().describe("X position"),
+          y: z.number().optional().describe("Y position"),
+        })), z.array(z.object({
+          id: z.string(),
+          parentId: z.string().describe("New parent node ID"),
+          index: z.number().optional().describe("Insert position (default: append at end)"),
+        }))]).optional().describe("Array of {id, name?, parentId?, x?, y?}"),
     };
 
 export const textEndpointSchema = {

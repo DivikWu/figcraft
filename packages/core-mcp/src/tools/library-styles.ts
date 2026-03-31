@@ -13,6 +13,7 @@ import {
   fetchStyleNodeDetails,
 } from '../figma-api.js';
 import { getToken } from '../auth.js';
+import { jsonResponse } from './response-helpers.js';
 
 export function registerLibraryStyleTools(server: McpServer, bridge: Bridge): void {
   server.tool(
@@ -34,14 +35,7 @@ export function registerLibraryStyleTools(server: McpServer, bridge: Bridge): vo
       try {
         const token = await getToken();
         const styles = await fetchLibraryStyles(fileKey, token, styleType);
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify({ count: styles.length, styles }, null, 2),
-            },
-          ],
-        };
+        return jsonResponse({ count: styles.length, styles });
       } catch (err) {
         return {
           isError: true,
@@ -77,14 +71,7 @@ export function registerLibraryStyleTools(server: McpServer, bridge: Bridge): vo
       try {
         const token = await getToken();
         const details = await fetchStyleNodeDetails(fileKey, token, styles);
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify({ count: details.length, styles: details }, null, 2),
-            },
-          ],
-        };
+        return jsonResponse({ count: details.length, styles: details });
       } catch (err) {
         return {
           isError: true,
@@ -201,28 +188,17 @@ export function registerLibraryStyleTools(server: McpServer, bridge: Bridge): vo
           result = { ok: true, registered: { textStyles: 0, paintStyles: 0, effectStyles: 0 }, skipped: 'no changes' };
         }
 
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  ok: true,
-                  discovered: { total: allStyles.length, text: textStyles.length, fill: paintStyles.length, effect: effectStyles.length },
-                  diff: {
-                    added: diff.added,
-                    removed: diff.removed,
-                    modified: diff.modified,
-                    unchanged: diff.unchanged,
-                  },
-                  registered: result,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
+        return jsonResponse({
+          ok: true,
+          discovered: { total: allStyles.length, text: textStyles.length, fill: paintStyles.length, effect: effectStyles.length },
+          diff: {
+            added: diff.added,
+            removed: diff.removed,
+            modified: diff.modified,
+            unchanged: diff.unchanged,
+          },
+          registered: result,
+        });
       } catch (err) {
         return {
           isError: true,
@@ -245,9 +221,7 @@ export function registerLibraryStyleTools(server: McpServer, bridge: Bridge): vo
     async ({ styleKey }) => {
       try {
         const result = await bridge.request('import_library_style', { styleKey });
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
-        };
+        return jsonResponse(result);
       } catch (err) {
         return {
           isError: true,

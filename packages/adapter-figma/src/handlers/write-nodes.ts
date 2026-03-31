@@ -1,9 +1,12 @@
 /**
- * Node write handlers — patch, set_text_content, delete, create_frame, create_text.
+ * Node write handlers — shared utilities + patch, delete, clone, reparent.
+ *
+ * Creation handlers split into:
+ *   write-nodes-create.ts   — create_frame, create_text
+ *   write-nodes-instance.ts — create_instance, create_instances, misc creation
  */
 
 import { registerHandler } from '../registry.js';
-import { simplifyNode } from '../adapters/node-simplifier.js';
 import { autoBindTypography } from '../utils/design-context.js';
 import { ensureLoaded, getTextStyleId } from '../utils/style-registry.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
@@ -256,264 +259,53 @@ registerHandler('delete_nodes', async (params) => {
   return { results };
 });
 
-registerHandler('create_frame', async (params) => {
-  const name = (params.name as string) ?? 'Frame';
-  const width = (params.width as number) ?? 100;
-  const height = (params.height as number) ?? 100;
-
-  // ── Library-aware creation: check mode & preload styles ──
-  const [createMode, createLibrary] = await getCachedModeLibrary();
-  const useLib = createMode === 'library' && !!createLibrary;
-  if (useLib) {
-    await ensureLoaded(createLibrary!);
-  }
-
-  const frame = figma.createFrame();
-  frame.name = name;
-  frame.resize(width, height);
-  if (params.x != null) frame.x = params.x as number;
-  if (params.y != null) frame.y = params.y as number;
-
-  // ── Fill: use applyFill for library token/style binding ──
-  const libraryBindings: string[] = [];
-  if (params.fill && typeof params.fill === 'string') {
-    const fillResult = await applyFill(
-      frame, params.fill as any, 'background', useLib, createLibrary,
-      { stylesPreloaded: true },
-    );
-    if (fillResult.autoBound) libraryBindings.push(fillResult.autoBound);
-  } else if (useLib) {
-    // No fill specified — try binding library default for background
-    const fillResult = await applyFill(
-      frame, undefined, 'background', useLib, createLibrary,
-      { stylesPreloaded: true },
-    );
-    if (fillResult.autoBound) libraryBindings.push(fillResult.autoBound);
-  }
-
-  if (params.layoutMode) {
-    frame.layoutMode = params.layoutMode as 'HORIZONTAL' | 'VERTICAL';
-  }
-
-  // ── Spacing & padding: bind to float tokens in library mode ──
-  const tokenFields: Array<[string, string]> = [
-    ['itemSpacing', 'itemSpacing'],
-    ['paddingLeft', 'paddingLeft'],
-    ['paddingRight', 'paddingRight'],
-    ['paddingTop', 'paddingTop'],
-    ['paddingBottom', 'paddingBottom'],
-  ];
-  for (const [paramKey, nodeKey] of tokenFields) {
-    if (params[paramKey] != null) {
-      if (useLib && typeof params[paramKey] === 'number') {
-        const bound = await applyTokenField(frame as SceneNode, nodeKey, params[paramKey] as number);
-        if (bound) libraryBindings.push(`${nodeKey}:${bound}`);
-      } else {
-        (frame as any)[nodeKey] = params[paramKey] as number;
-      }
-    }
-  }
-
-  // ── Corner radius: library-aware binding ──
-  if (params.cornerRadius != null && typeof params.cornerRadius === 'number') {
-    const radiusBound = await applyCornerRadius(frame as SceneNode, params.cornerRadius, useLib);
-    libraryBindings.push(...radiusBound);
-  }
-
-  if (params.parentId) {
-    const parent = await findNodeByIdAsync(params.parentId as string);
-    if (parent && 'appendChild' in parent) {
-      (parent as FrameNode).appendChild(frame);
-    }
-  }
-
-  // Set sizing AFTER appendChild
-  if (params.layoutSizingHorizontal) {
-    (frame as any).layoutSizingHorizontal = params.layoutSizingHorizontal as string;
-  }
-  if (params.layoutSizingVertical) {
-    (frame as any).layoutSizingVertical = params.layoutSizingVertical as string;
-  }
-  if (params.primaryAxisAlignItems) {
-    frame.primaryAxisAlignItems = params.primaryAxisAlignItems as 'MIN' | 'CENTER' | 'MAX' | 'SPACE_BETWEEN';
-  }
-  if (params.counterAxisAlignItems) {
-    frame.counterAxisAlignItems = params.counterAxisAlignItems as 'MIN' | 'CENTER' | 'MAX';
-  }
-
-  const result = simplifyNode(frame);
-  if (libraryBindings.length > 0) {
-    (result as unknown as Record<string, unknown>)._libraryBindings = libraryBindings;
-  }
-  return result;
-});
-
-registerHandler('create_text', async (params) => {
-  const content = (params.content as string) ?? '';
-  const name = (params.name as string) ?? (content || 'Text');
-  const fontSize = (params.fontSize as number) ?? 14;
-  const fontFamily = (params.fontFamily as string) ?? 'Inter';
-  const fontStyle = (params.fontStyle as string) ?? 'Regular';
-
-  // ── Library-aware creation: check mode & preload styles ──
-  const [createMode, createLibrary] = await getCachedModeLibrary();
-  const useLib = createMode === 'library' && !!createLibrary;
-  if (useLib) {
-    await ensureLoaded(createLibrary!);
-  }
-
-  const fontName = await loadFontWithFallback(fontFamily, fontStyle);
-
-  const text = figma.createText();
-  text.fontName = fontName;
-  text.name = name;
-  text.fontSize = fontSize;
-  text.characters = content;
-
-  if (params.x != null) text.x = params.x as number;
-  if (params.y != null) text.y = params.y as number;
-
-  // ── Fill: use applyFill for library token/style binding ──
-  const libraryBindings: string[] = [];
-  if (params.fill && typeof params.fill === 'string') {
-    const fillResult = await applyFill(
-      text, params.fill as any, 'textColor', useLib, createLibrary,
-      { stylesPreloaded: true },
-    );
-    if (fillResult.autoBound) libraryBindings.push(fillResult.autoBound);
-  } else if (useLib) {
-    // No fill specified — try binding library default for text color
-    const fillResult = await applyFill(
-      text, undefined, 'textColor', useLib, createLibrary,
-      { stylesPreloaded: true },
-    );
-    if (fillResult.autoBound) libraryBindings.push(fillResult.autoBound);
-  }
-
-  // ── Explicit lineHeight must be set BEFORE typography binding ──
-  // so that autoBindTypography can override it with a variable if matched.
-  if (params.lineHeight != null) {
-    text.lineHeight = { value: params.lineHeight as number, unit: 'PIXELS' };
-  }
-
-  // ── Typography: bind fontSize/fontFamily/lineHeight to library tokens ──
-  if (useLib) {
-    const fontHints = { fontFamily: fontName.family, fontWeight: fontName.style };
-    const styleMatch = getTextStyleId(fontSize, fontHints);
-    if (styleMatch) {
-      try {
-        await (text as any).setTextStyleIdAsync(styleMatch.id);
-        libraryBindings.push(`textStyle:${styleMatch.name}`);
-      } catch { /* skip */ }
-    } else {
-      try {
-        const typoResult = await autoBindTypography(text, fontSize, createLibrary!, {
-          skipFontFamily: params.fontFamily !== undefined,
-        });
-        if (typoResult?.scale) {
-          libraryBindings.push(`typo:${typoResult.scale}`);
+// ─── Clone nodes ───
+registerHandler('clone_nodes', async (params) => {
+  const items = params.items as Array<{ id: string; name?: string; parentId?: string; x?: number; y?: number }>;
+  const results: Array<{ id: string; ok: boolean; error?: string }> = [];
+  for (const item of items) {
+    try {
+      const node = await findNodeByIdAsync(item.id);
+      assertHandler(node, `Node not found: ${item.id}`, 'NOT_FOUND');
+      const clone = (node as SceneNode).clone();
+      if (item.name) clone.name = item.name;
+      if (item.x != null) clone.x = item.x;
+      if (item.y != null) clone.y = item.y;
+      if (item.parentId) {
+        const parent = await findNodeByIdAsync(item.parentId);
+        if (parent && 'appendChild' in parent) {
+          (parent as FrameNode).appendChild(clone);
         }
-      } catch { /* skip */ }
-    }
-  }
-  if (params.letterSpacing != null) {
-    text.letterSpacing = { value: params.letterSpacing as number, unit: 'PIXELS' };
-  }
-  if (params.textAlignHorizontal) {
-    text.textAlignHorizontal = params.textAlignHorizontal as 'LEFT' | 'CENTER' | 'RIGHT' | 'JUSTIFIED';
-  }
-
-  if (params.parentId) {
-    const parent = await findNodeByIdAsync(params.parentId as string);
-    if (parent && 'appendChild' in parent) {
-      (parent as FrameNode).appendChild(text);
-    }
-  }
-
-  const result = simplifyNode(text);
-  if (libraryBindings.length > 0) {
-    (result as unknown as Record<string, unknown>)._libraryBindings = libraryBindings;
-  }
-  return result;
-});
-
-registerHandler('save_version_history', async (params) => {
-  const title = (params.title as string) ?? 'FigCraft checkpoint';
-  const description = (params.description as string) ?? '';
-  await figma.saveVersionHistoryAsync(title, description);
-  return { ok: true, title, description };
-});
-
-registerHandler('create_line', async (params) => {
-  const line = figma.createLine();
-  line.name = (params.name as string) ?? 'Line';
-  const length = (params.length as number) ?? 100;
-  line.resize(length, 0);
-  if (params.x != null) line.x = params.x as number;
-  if (params.y != null) line.y = params.y as number;
-  if (params.rotation != null) line.rotation = params.rotation as number;
-
-  const [lineMode, lineLibrary] = await getCachedModeLibrary();
-  const useLib = lineMode === 'library' && !!lineLibrary;
-  const strokeInput = params.stroke ?? '#000000';
-  await applyStroke(line, strokeInput as any, (params.strokeWeight as number) ?? 1, useLib, lineLibrary);
-
-  if (params.parentId) {
-    const parent = await findNodeByIdAsync(params.parentId as string);
-    if (parent && 'appendChild' in parent) {
-      (parent as FrameNode).appendChild(line);
-    }
-  }
-
-  return simplifyNode(line);
-});
-
-registerHandler('create_section', async (params) => {
-  const section = figma.createSection();
-  section.name = (params.name as string) ?? 'Section';
-
-  if (params.x != null) section.x = params.x as number;
-  if (params.y != null) section.y = params.y as number;
-
-  if (params.childIds) {
-    const ids = params.childIds as string[];
-    for (const id of ids) {
-      const child = await findNodeByIdAsync(id);
-      if (child && 'parent' in child) {
-        section.appendChild(child as SceneNode);
       }
+      results.push({ id: clone.id, ok: true });
+    } catch (err) {
+      results.push({ id: item.id, ok: false, error: err instanceof Error ? err.message : String(err) });
     }
   }
-
-  return { id: section.id, name: section.name, x: section.x, y: section.y };
+  return { results };
 });
 
-registerHandler('boolean_operation', async (params) => {
-  const nodeIds = params.nodeIds as string[];
-  const operation = params.operation as 'UNION' | 'SUBTRACT' | 'INTERSECT' | 'EXCLUDE';
-
-  const resolved = await Promise.all(nodeIds.map((id) => findNodeByIdAsync(id)));
-  const nodes = resolved.filter((n): n is SceneNode =>
-    n !== null && 'type' in n && n.type !== 'PAGE' && n.type !== 'DOCUMENT',
-  );
-
-  assertHandler(nodes.length >= 2, 'boolean_operation requires at least 2 valid nodes');
-
-  const parent = nodes[0].parent as (BaseNode & ChildrenMixin) | null;
-  assertHandler(parent, 'Nodes have no parent');
-
-  let result: BooleanOperationNode;
-  switch (operation) {
-    case 'UNION':      result = figma.union(nodes, parent); break;
-    case 'SUBTRACT':   result = figma.subtract(nodes, parent); break;
-    case 'INTERSECT':  result = figma.intersect(nodes, parent); break;
-    case 'EXCLUDE':    result = figma.exclude(nodes, parent); break;
-    default: throw new Error(`Unknown operation: ${operation}`);
+// ─── Reparent nodes ───
+registerHandler('reparent_nodes', async (params) => {
+  const items = params.items as Array<{ id: string; parentId: string; index?: number }>;
+  const results: Array<{ id: string; ok: boolean; error?: string }> = [];
+  for (const item of items) {
+    try {
+      const node = await findNodeByIdAsync(item.id);
+      assertHandler(node, `Node not found: ${item.id}`, 'NOT_FOUND');
+      const parent = await findNodeByIdAsync(item.parentId);
+      assertHandler(parent && 'appendChild' in parent, `Parent not found or not a container: ${item.parentId}`, 'NOT_FOUND');
+      if (item.index != null) {
+        (parent as FrameNode).insertChild(item.index, node as SceneNode);
+      } else {
+        (parent as FrameNode).appendChild(node as SceneNode);
+      }
+      results.push({ id: item.id, ok: true });
+    } catch (err) {
+      results.push({ id: item.id, ok: false, error: err instanceof Error ? err.message : String(err) });
+    }
   }
-
-  if (params.name) result.name = params.name as string;
-
-  return simplifyNode(result);
+  return { results };
 });
 
 } // registerWriteNodeHandlers

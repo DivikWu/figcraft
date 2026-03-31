@@ -3,43 +3,48 @@
  */
 
 import type { AbstractNode, LintContext, LintViolation, LintRule, LintCategory as LintRuleCategory, LintSeverity } from './types.js';
-import { downgradeSeverity } from './types.js';
-import { specColorRule } from './rules/spec-color.js';
-import { specTypographyRule } from './rules/spec-typography.js';
-import { specSpacingRule } from './rules/spec-spacing.js';
-import { specBorderRadiusRule } from './rules/spec-border-radius.js';
-import { wcagContrastRule } from './rules/wcag-contrast.js';
-import { wcagTargetSizeRule } from './rules/wcag-target-size.js';
-import { defaultNameRule } from './rules/default-name.js';
-import { emptyContainerRule } from './rules/empty-container.js';
-import { noTextStyleRule } from './rules/no-text-style.js';
-import { wcagTextSizeRule } from './rules/wcag-text-size.js';
-import { wcagLineHeightRule } from './rules/wcag-line-height.js';
-import { fixedInAutolayoutRule } from './rules/fixed-in-autolayout.js';
-import { hardcodedTokenRule } from './rules/hardcoded-token.js';
-import { componentBindingsRule } from './rules/component-bindings.js';
-import { maxNestingDepthRule } from './rules/max-nesting-depth.js';
-import { spacerFrameRule } from './rules/spacer-frame.js';
-import { buttonStructureRule } from './rules/button-structure.js';
-import { textOverflowRule } from './rules/text-overflow.js';
-import { formConsistencyRule } from './rules/form-consistency.js';
-import { overflowParentRule } from './rules/overflow-parent.js';
-import { unboundedHugRule } from './rules/unbounded-hug.js';
-import { noAutolayoutRule } from './rules/no-autolayout.js';
-import { headerFragmentedRule } from './rules/header-fragmented.js';
-import { ctaWidthInconsistentRule } from './rules/cta-width-inconsistent.js';
-import { sectionSpacingCollapseRule } from './rules/section-spacing-collapse.js';
-import { headerOutOfBandRule } from './rules/header-out-of-band.js';
-import { screenBottomOverflowRule } from './rules/screen-bottom-overflow.js';
-import { socialRowCrampedRule } from './rules/social-row-cramped.js';
-import { navOvercrowdedRule } from './rules/nav-overcrowded.js';
-import { statsRowCrampedRule } from './rules/stats-row-cramped.js';
-import { rootMisclassifiedInteractiveRule } from './rules/root-misclassified-interactive.js';
-import { nestedInteractiveShellRule } from './rules/nested-interactive-shell.js';
-import { screenShellInvalidRule } from './rules/screen-shell-invalid.js';
-import { inputFieldStructureRule } from './rules/input-field-structure.js';
-import { mobileDimensionsRule } from './rules/mobile-dimensions.js';
-import { systemBarFullbleedRule } from './rules/system-bar-fullbleed.js';
+import { downgradeSeverity, getContextSeverity } from './types.js';
+// Token / spec compliance
+import { specColorRule } from './rules/spec/spec-color.js';
+import { specTypographyRule } from './rules/spec/spec-typography.js';
+import { specSpacingRule } from './rules/spec/spec-spacing.js';
+import { specBorderRadiusRule } from './rules/spec/spec-border-radius.js';
+import { hardcodedTokenRule } from './rules/spec/hardcoded-token.js';
+import { noTextStyleRule } from './rules/spec/no-text-style.js';
+// WCAG accessibility
+import { wcagContrastRule } from './rules/wcag/wcag-contrast.js';
+import { wcagTargetSizeRule } from './rules/wcag/wcag-target-size.js';
+import { wcagTextSizeRule } from './rules/wcag/wcag-text-size.js';
+import { wcagLineHeightRule } from './rules/wcag/wcag-line-height.js';
+// Layout
+import { fixedInAutolayoutRule } from './rules/layout/fixed-in-autolayout.js';
+import { emptyContainerRule } from './rules/layout/empty-container.js';
+import { spacerFrameRule } from './rules/layout/spacer-frame.js';
+import { maxNestingDepthRule } from './rules/layout/max-nesting-depth.js';
+import { textOverflowRule } from './rules/layout/text-overflow.js';
+import { overflowParentRule } from './rules/layout/overflow-parent.js';
+import { unboundedHugRule } from './rules/layout/unbounded-hug.js';
+import { noAutolayoutRule } from './rules/layout/no-autolayout.js';
+import { sectionSpacingCollapseRule } from './rules/layout/section-spacing-collapse.js';
+import { mobileDimensionsRule } from './rules/layout/mobile-dimensions.js';
+import { systemBarFullbleedRule } from './rules/layout/system-bar-fullbleed.js';
+import { screenBottomOverflowRule } from './rules/layout/screen-bottom-overflow.js';
+// Structure
+import { buttonStructureRule } from './rules/structure/button-structure.js';
+import { inputFieldStructureRule } from './rules/structure/input-field-structure.js';
+import { formConsistencyRule } from './rules/structure/form-consistency.js';
+import { ctaWidthInconsistentRule } from './rules/structure/cta-width-inconsistent.js';
+import { headerFragmentedRule } from './rules/structure/header-fragmented.js';
+import { headerOutOfBandRule } from './rules/structure/header-out-of-band.js';
+import { screenShellInvalidRule } from './rules/structure/screen-shell-invalid.js';
+import { socialRowCrampedRule } from './rules/structure/social-row-cramped.js';
+import { navOvercrowdedRule } from './rules/structure/nav-overcrowded.js';
+import { statsRowCrampedRule } from './rules/structure/stats-row-cramped.js';
+import { rootMisclassifiedInteractiveRule } from './rules/structure/root-misclassified-interactive.js';
+import { nestedInteractiveShellRule } from './rules/structure/nested-interactive-shell.js';
+import { componentBindingsRule } from './rules/structure/component-bindings.js';
+// Naming
+import { defaultNameRule } from './rules/naming/default-name.js';
 
 const ALL_RULES: LintRule[] = [
   // Token compliance (require tokens/library to activate)
@@ -140,9 +145,9 @@ export function runLint(
   // Token rules get downgraded when running without token context AND without a library
   const shouldDowngradeTokenRules = !hasTokens && !hasLibrary;
 
-  // Severity filter
-  const SEVERITY_RANK: Record<LintSeverity, number> = { error: 0, warning: 1, info: 2, hint: 3 };
-  const minRank = options.minSeverity ? SEVERITY_RANK[options.minSeverity] : 3;
+  // Severity filter (5-level: error=0, unsafe=1, heuristic=2, style=3, verbose=4)
+  const SEVERITY_RANK: Record<LintSeverity, number> = { error: 0, unsafe: 1, heuristic: 2, style: 3, verbose: 4 };
+  const minRank = options.minSeverity ? SEVERITY_RANK[options.minSeverity] : 3; // default: up to 'style' (excludes verbose)
 
   const allViolations: LintViolation[] = [];
   const maxV = options.maxViolations ?? Infinity;
@@ -160,6 +165,16 @@ export function runLint(
             v.baseSeverity = v.severity;
             v.severity = downgraded;
           }
+        }
+        // Context-aware severity: leaf nodes and small nodes get downgraded
+        const contextSev = getContextSeverity(v.severity, node);
+        if (contextSev !== v.severity) {
+          if (!v.baseSeverity) v.baseSeverity = v.severity;
+          v.severity = contextSev;
+        }
+        // Generate structured fix call for AI agents
+        if (v.autoFixable && !v.fixCall) {
+          v.fixCall = generateFixCall(v);
         }
         // Filter by minimum severity
         if (SEVERITY_RANK[v.severity] <= minRank) {
@@ -253,7 +268,7 @@ export function runLint(
   nodes.forEach(countNodes);
 
   // Count violations by severity
-  const bySeverity: Record<LintSeverity, number> = { error: 0, warning: 0, info: 0, hint: 0 };
+  const bySeverity: Record<LintSeverity, number> = { error: 0, unsafe: 0, heuristic: 0, style: 0, verbose: 0 };
   for (const v of allViolations) {
     bySeverity[v.severity]++;
   }
@@ -269,6 +284,113 @@ export function runLint(
     categories: paginatedCategories,
     pagination,
   };
+}
+
+/**
+ * Generate a structured fixCall from violation data.
+ * Maps known rule + fixData patterns to MCP tool calls the AI can execute directly.
+ */
+function generateFixCall(v: LintViolation): LintViolation['fixCall'] {
+  if (!v.autoFixable || !v.fixData) return undefined;
+
+  const nodeId = v.nodeId;
+
+  switch (v.rule) {
+    case 'no-autolayout':
+      return {
+        tool: 'nodes',
+        params: { method: 'update', nodeId, props: { layoutMode: v.fixData.layoutMode } },
+      };
+
+    case 'spec-color':
+      if (v.fixData.property === 'fills' && v.fixData.tokenName) {
+        return {
+          tool: 'nodes',
+          params: { method: 'update', nodeId, props: { fillVariableName: v.fixData.tokenName } },
+        };
+      }
+      if (v.fixData.property === 'strokes' && v.fixData.tokenName) {
+        return {
+          tool: 'nodes',
+          params: { method: 'update', nodeId, props: { strokeVariableName: v.fixData.tokenName } },
+        };
+      }
+      break;
+
+    case 'hardcoded-token':
+      if (v.fixData.property === 'fills') {
+        return {
+          tool: 'nodes',
+          params: { method: 'update', nodeId, props: { fillVariableName: '__auto__' } },
+        };
+      }
+      if (v.fixData.property === 'cornerRadius') {
+        return {
+          tool: 'nodes',
+          params: { method: 'update', nodeId, props: { cornerRadiusVariableName: '__auto__' } },
+        };
+      }
+      break;
+
+    case 'wcag-line-height':
+      if (v.fixData.lineHeight != null) {
+        return {
+          tool: 'text',
+          params: { method: 'set_content', nodeId, lineHeight: v.fixData.lineHeight },
+        };
+      }
+      break;
+
+    case 'spacer-frame':
+      return {
+        tool: 'nodes',
+        params: { method: 'delete', nodeId },
+      };
+
+    case 'unbounded-hug':
+      if (v.fixData.fix === 'stretch-self') {
+        return {
+          tool: 'nodes',
+          params: { method: 'update', nodeId, props: { layoutAlign: 'STRETCH' } },
+        };
+      }
+      break;
+
+    case 'wcag-text-size':
+      return {
+        tool: 'nodes',
+        params: { method: 'update', nodeId, props: { fontSize: 12 } },
+      };
+
+    case 'text-overflow':
+      if (v.fixData.textAutoResize) {
+        return {
+          tool: 'nodes',
+          params: { method: 'update', nodeId, props: { textAutoResize: v.fixData.textAutoResize } },
+        };
+      }
+      break;
+
+    case 'overflow-parent':
+      if (v.fixData.fix === 'stretch') {
+        return {
+          tool: 'nodes',
+          params: { method: 'update', nodeId, props: { layoutAlign: 'STRETCH' } },
+        };
+      }
+      break;
+
+    case 'section-spacing-collapse':
+      if (v.fixData.itemSpacing != null) {
+        return {
+          tool: 'nodes',
+          params: { method: 'update', nodeId, props: { itemSpacing: v.fixData.itemSpacing } },
+        };
+      }
+      break;
+  }
+
+  return undefined;
 }
 
 /** Get all available rule names. */

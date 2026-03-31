@@ -13,6 +13,6 @@ All design quality rules have been merged into `figma-essential-rules.md` (auto-
 - Reusable Factory Scripts (`.kiro/scripts/createScreen.js`, `createInput.js`, `createButton.js`, `createBottomLink.js`)
 - Mobile dimensions and touch targets
 
-Quality Engine lint rules (`lint_fix_all`) automatically enforce these at runtime — 35+ rules with auto-fix.
+Quality Engine lint rules (`lint_fix_all`) automatically enforce these at runtime — 37 rules with auto-fix + fixCall structured repairs.
 
 No need to load this file separately. If you're here via `#figma-create-quality`, the rules are already in your context.

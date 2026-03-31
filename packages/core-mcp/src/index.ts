@@ -18,6 +18,7 @@ import {
   registerAllTools,
   registerToolsetMetaTools,
   disableNonCoreTools,
+  getAccessLevel,
 } from './tools/toolset-manager.js';
 import { VERSION } from '@figcraft/shared';
 
@@ -37,6 +38,7 @@ function createRuntime(): McpRuntime {
   });
 
   const bridge = new Bridge(RELAY_URL, CHANNEL);
+  bridge._accessLevel = getAccessLevel();
   setBridgeTokenProvider(() => bridge.getApiToken());
 
   registerAllTools(server, bridge);

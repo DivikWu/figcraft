@@ -7,15 +7,15 @@ description: "Workflow for building/updating Figma screens using design system c
 
 Adapted from the official `figma-generate-design` skill. Core principle: **discover and reuse** design system components, variables, and styles — don't draw primitives with hardcoded values.
 
-## Kiro Environment Adaptations
+## Tool Mapping
 
-| Official tool | Kiro equivalent | Notes |
-|--------------|----------------|-------|
-| `use_figma` | `mcp_figcraft_execute_js` | Code is 100% compatible. Not atomic on failure — verify after every write. |
-| `search_design_system` | `execute_js` (traverse existing instances) or `get_mode` / `load_toolset("library")` | See Step 2 alternatives below. |
-| `get_metadata` | `mcp_figcraft_get_current_page(maxDepth=N)` + `mcp_figcraft_nodes(method: "get")` | Returns compressed node tree, not XML. |
-| `get_screenshot` | `mcp_figcraft_export_image` | Returns base64 PNG. |
-| `get_variable_defs` | Figma Power `get_variable_defs(nodeId, fileKey)` | Available in Kiro — uses REST API, no library name matching. |
+| Task | FigCraft Tool | Notes |
+|------|--------------|-------|
+| Plugin API scripting | `execute_js` | 100% compatible with `use_figma`. Not atomic on failure — verify after every write. |
+| Search design system | `search_design_system` | Searches components, variables, styles across all subscribed libraries. |
+| Read node tree | `get_current_page(maxDepth=N)` + `nodes(method: "get")` | Returns compressed node tree. |
+| Screenshot / export | `export_image` | Returns base64 PNG. |
+| Variable definitions | `variables_ep(method: "list")` + `list_library_variables` | Or Figma Power `get_variable_defs` if available. |
 
 ## Critical Difference: Non-Atomic Failure
 
@@ -39,31 +39,16 @@ Before touching Figma:
 
 ### Step 2: Discover Design System Assets
 
-Three things to discover: **components**, **variables**, **styles**.
+Use `search_design_system` to find components, variables, and styles in one call:
 
-#### 2a: Components — Inspect existing screens first (preferred)
-
-```js
-// execute_js — read-only
-const frame = figma.currentPage.findOne(n => n.name === "Existing Screen");
-if (!frame) return { found: false, hint: "No existing screens. Use get_mode libraryComponents or load_toolset('library')." };
-
-const uniqueSets = new Map();
-frame.findAll(n => n.type === "INSTANCE").forEach(inst => {
-  const mc = inst.mainComponent;
-  const cs = mc?.parent?.type === "COMPONENT_SET" ? mc.parent : null;
-  const key = cs ? cs.key : mc?.key;
-  const name = cs ? cs.name : mc?.name;
-  if (key && !uniqueSets.has(key)) {
-    uniqueSets.set(key, { name, key, isSet: !!cs, sampleVariant: mc.name });
-  }
-});
-return [...uniqueSets.values()];
+```
+search_design_system(query: "button")
+→ { components: [...], variables: [...], styles: [...] }
 ```
 
-**Fallback when no existing screens:**
-- `get_mode` → `libraryComponents` (grouped by component set with variant properties)
-- `load_toolset("library")` → `list_library_collections` / `list_library_variables`
+For broader discovery:
+- `get_mode` → returns `designContext` (grouped tokens) + `libraryComponents` (all published components)
+- `search_design_system(query: "primary", types: ["variables"])` → find specific tokens
 
 #### 2b: Component properties — Create temp instance to read structure
 
@@ -77,49 +62,6 @@ const nested = sample.findAll(n => n.type === "INSTANCE").map(ni => ({
 }));
 sample.remove();
 return { props, nested };
-```
-
-#### 2c: Variables — Inspect bound variables on existing nodes
-
-```js
-// execute_js — read-only
-const frame = figma.currentPage.findOne(n => n.name === "Existing Screen");
-const vars = new Map();
-for (const node of frame.findAll(() => true)) {
-  const bv = node.boundVariables;
-  if (!bv) continue;
-  for (const [, binding] of Object.entries(bv)) {
-    const bindings = Array.isArray(binding) ? binding : [binding];
-    for (const b of bindings) {
-      if (b?.id && !vars.has(b.id)) {
-        const v = await figma.variables.getVariableByIdAsync(b.id);
-        if (v) vars.set(b.id, { name: v.name, key: v.key, type: v.resolvedType, remote: v.remote });
-      }
-    }
-  }
-}
-return [...vars.values()];
-```
-
-Also available: Figma Power `get_variable_defs(nodeId, fileKey)` — uses REST API, no library name matching issues.
-
-#### 2d: Styles — Inspect text and effect styles
-
-```js
-// execute_js — read-only
-const frame = figma.currentPage.findOne(n => n.name === "Existing Screen");
-const styles = { text: new Map(), effect: new Map() };
-frame.findAll(() => true).forEach(node => {
-  if ('textStyleId' in node && node.textStyleId) {
-    const s = figma.getStyleById(node.textStyleId);
-    if (s) styles.text.set(s.id, { name: s.name, key: s.key });
-  }
-  if ('effectStyleId' in node && node.effectStyleId) {
-    const s = figma.getStyleById(node.effectStyleId);
-    if (s) styles.effect.set(s.id, { name: s.name, key: s.key });
-  }
-});
-return { textStyles: [...styles.text.values()], effectStyles: [...styles.effect.values()] };
 ```
 
 ### Step 3: Create Page Wrapper

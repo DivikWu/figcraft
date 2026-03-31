@@ -1,6 +1,9 @@
+<!-- DIVERGES FROM UPSTREAM: figma-skills-ref/skills/figma-use/references/gotchas.md
+     Reason: 70+ lines of FigCraft-specific auto-layout, spacer-frame, HUG/FILL gotchas.
+     When syncing upstream, manually merge — do NOT replace wholesale. -->
 # Gotchas & Common Mistakes
 
-> Part of the [use_figma skill](../SKILL.md). Every known pitfall with WRONG/CORRECT code examples.
+> Part of the [execute_js skill](../SKILL.md). Every known pitfall with WRONG/CORRECT code examples.
 
 ## Contents
 
@@ -166,7 +169,7 @@ figma.combineAsVariants([c1, c2], figma.currentPage)
 
 ## Page switching: sync setter throws
 
-The sync setter `figma.currentPage = page` **throws an error** in `use_figma` runtimes (MCP, evals, assistant). Use `await figma.setCurrentPageAsync(page)` instead — it switches the page and loads its content.
+The sync setter `figma.currentPage = page` **throws an error** in `execute_js` runtimes (MCP, evals, assistant). Use `await figma.setCurrentPageAsync(page)` instead — it switches the page and loads its content.
 
 ```js
 // WRONG — throws "Setting figma.currentPage is not supported in this runtime"
@@ -176,15 +179,15 @@ figma.currentPage = targetPage
 await figma.setCurrentPageAsync(targetPage)
 ```
 
-## `get_metadata` only sees one page — use `use_figma` to discover all pages
+## `get_current_page` only sees one page — use `execute_js` to discover all pages
 
-A Figma file can have multiple pages (canvas nodes). `get_metadata` operates on a single node/page — it cannot scan the entire document. To discover all pages and their top-level contents, use `use_figma`:
+A Figma file can have multiple pages (canvas nodes). `get_current_page` operates on a single node/page — it cannot scan the entire document. To discover all pages and their top-level contents, use `execute_js`:
 
 ```js
-// WRONG — calling get_metadata with the file root or expecting it to list all pages
-// get_metadata only returns the subtree of the node you pass it
+// WRONG — calling get_current_page with the file root or expecting it to list all pages
+// get_current_page only returns the subtree of the node you pass it
 
-// CORRECT — use use_figma to list pages, then inspect each one
+// CORRECT — use execute_js to list pages, then inspect each one
 const pages = figma.root.children.map(p => `${p.name} id=${p.id} children=${p.children.length}`);
 return pages.join('\n');
 ```
@@ -203,10 +206,10 @@ return "Done!"
 
 ## `getPluginData()` / `setPluginData()` are not supported
 
-These APIs are not available in the `use_figma` runtime. Use `getSharedPluginData()` / `setSharedPluginData()` instead (these ARE supported), or track nodes by returning IDs.
+These APIs are not available in the `execute_js` runtime. Use `getSharedPluginData()` / `setSharedPluginData()` instead (these ARE supported), or track nodes by returning IDs.
 
 ```js
-// WRONG — not supported in use_figma
+// WRONG — not supported in execute_js
 node.setPluginData('my_key', 'my_value')
 const val = node.getPluginData('my_key')
 
@@ -217,7 +220,7 @@ const val = node.getSharedPluginData('my_namespace', 'my_key')
 // ALSO CORRECT — return node IDs and track them across calls
 const rect = figma.createRectangle()
 return { nodeId: rect.id }
-// Then pass nodeId as a string literal in the next use_figma call
+// Then pass nodeId as a string literal in the next execute_js call
 ```
 
 ## Script must always return a value
@@ -252,12 +255,12 @@ const colorCollection = figma.variables.createVariableCollection("Colors")
 component.setExplicitVariableModeForCollection(colorCollection, targetModeId)
 ```
 
-## `TextStyle.setBoundVariable` is not available in headless use_figma
+## `TextStyle.setBoundVariable` is not available in headless execute_js
 
-`setBoundVariable` exists on `TextStyle` in the typed API but is **not available** when running scripts through `use_figma` (MCP, headless assistant mode). Calling it will throw `"not a function"`.
+`setBoundVariable` exists on `TextStyle` in the typed API but is **not available** when running scripts through `execute_js` (MCP, headless assistant mode). Calling it will throw `"not a function"`.
 
 ```js
-// WRONG — throws "not a function" in use_figma / headless
+// WRONG — throws "not a function" in execute_js / headless
 const ts = figma.createTextStyle()
 ts.setBoundVariable("fontSize", fontSizeVar)
 
@@ -268,7 +271,7 @@ ts.fontSize = 24
 
 This only affects `TextStyle`. Variable binding on **nodes** (`node.setBoundVariable(...)`) and on **paint objects** (`figma.variables.setBoundVariableForPaint(...)`) still works in headless mode as expected.
 
-If live variable binding on text styles is required, create the styles with raw values via `use_figma`, then bind variables interactively through the Figma Styles panel or a full interactive plugin.
+If live variable binding on text styles is required, create the styles with raw values via `execute_js`, then bind variables interactively through the Figma Styles panel or a full interactive plugin.
 
 ## `lineHeight` and `letterSpacing` must be objects, not bare numbers
 
@@ -288,7 +291,7 @@ style.letterSpacing = { value: -0.5, unit: "PIXELS" }  // tight
 style.letterSpacing = { value: 5, unit: "PERCENT" }    // percent-based
 ```
 
-This applies to both `TextStyle` and `TextNode` properties. The same rule applies inside `use_figma`, interactive plugins, and any other plugin API context.
+This applies to both `TextStyle` and `TextNode` properties. The same rule applies inside `execute_js`, interactive plugins, and any other plugin API context.
 
 ## Font style names are file-dependent — probe before assuming
 
@@ -691,4 +694,4 @@ nestedChild.detachInstance();
 const parent = stableFrame.findOne(n => n.name === "ParentName");
 ```
 
-If detaching multiple nested instances across siblings, do it in a **single** `use_figma` call — discover all targets by traversal before any detachment mutates the tree.
+If detaching multiple nested instances across siblings, do it in a **single** `execute_js` call — discover all targets by traversal before any detachment mutates the tree.

@@ -92,6 +92,11 @@ export async function getModeLogic(
     libraryFileKey?: string | null;
   };
 
+  // Mark mode as queried (unlocks UI creation tools)
+  bridge.modeQueried = true;
+  // Cache selectedLibrary state on bridge (used by search_design_system guard)
+  bridge.selectedLibrary = result.selectedLibrary ?? null;
+
   // Cache fileKey from plugin response (survives MCP restarts)
   if (result.selectedLibrary && result.libraryFileKey) {
     bridge.setLibraryFileKey(result.selectedLibrary, result.libraryFileKey);
@@ -124,18 +129,51 @@ export async function getModeLogic(
     (result as Record<string, unknown>).libraryComponentsUnavailable = true;
   }
 
-  // Short, actionable hint
-  if (result.selectedLibrary) {
-    (result as Record<string, unknown>)._hint =
-      'Library mode — tokens and components loaded. ' +
-      'NEXT: Reply to user to gather missing preferences (UI type, platform). ' +
-      'Do NOT call any more tools. If user provided everything, reply with design proposal instead.';
-  } else {
-    (result as Record<string, unknown>)._hint =
-      'Design Creator mode — no library selected, no tokens to query. ' +
-      'NEXT: Reply to user to gather missing preferences (UI type, platform, style tone). ' +
-      'Do NOT call any more tools. If user provided everything, reply with design proposal instead.';
-  }
+  // Structured workflow instructions — the single source of truth for all IDEs.
+  // Replaces the old _hint with actionable, enforceable steps.
+  const hasLibrary = !!result.selectedLibrary;
+  (result as Record<string, unknown>)._workflow = {
+    mode: hasLibrary ? 'design-guardian' : 'design-creator',
+    description: hasLibrary
+      ? 'Library mode — use library tokens and components. Exercise restraint, match existing patterns.'
+      : 'Creator mode — no library. Make intentional design choices, avoid AI defaults (blue/gray/Inter).',
+
+    // ⛔ BLOCKING: must complete before ANY write tool call
+    designPreflight: {
+      required: true,
+      instruction: 'Complete the design checklist below, then present a design proposal to the user and WAIT for explicit confirmation. Do NOT call create_frame/create_text/create_svg/execute_js until user approves.',
+      checklist: {
+        purpose: 'What problem does this solve? Who is the audience?',
+        platform: 'iOS (402×874) / Android (412×915) / Web? Determines touch targets and conventions.',
+        language: 'What language for UI text? Determines font choice and content.',
+        density: 'Sparse form vs dense dashboard — how much info per screen?',
+        tone: 'Minimal ← Elegant ← Warm → Bold → Maximal — pick a clear position.',
+      },
+      colorRules: hasLibrary
+        ? 'Use library color tokens. Match existing palette. Do not hardcode hex values when tokens are available.'
+        : '1 dominant + 1 accent, total ≤ 5. Dominant at 60%+. NEVER default to blue/gray without justification.',
+      typographyRules: hasLibrary
+        ? 'Use library text styles. Clear heading/body distinction via existing style tiers.'
+        : 'Clear heading/body distinction (different weight or size). ≤ 3 font weights. NEVER use only Inter without justification.',
+      contentRules: 'Realistic, contextually appropriate text. NEVER use "Lorem ipsum", "Text goes here", "Button", "Title".',
+      iconRules: 'Single icon style per design (outline/filled/duotone). Use icon_search + icon_create, NOT emoji placeholders.',
+      antiSlop: 'No cheap gradients/glow effects. Vary corner radius across hierarchy. Prefer asymmetry over symmetry.',
+    },
+
+    // After user confirms the design proposal:
+    creationSteps: [
+      'get_current_page(maxDepth=1) — inspect existing content, find placement position',
+      'Classify task scale: single element / single screen / multi-screen (3-5) / large flow (6+)',
+      'Use create_frame + children (declarative) as default. execute_js only for loops/conditionals/unsupported API.',
+      'Verify each create_frame response: check _children and _preview. Call export_image only if _preview shows issues.',
+      'lint_fix_all on completed screens before replying to user.',
+    ],
+
+    // What to do RIGHT NOW (next action for AI)
+    nextAction: hasLibrary
+      ? 'Reply to user: present design proposal based on available library tokens/components and user request. WAIT for confirmation.'
+      : 'Reply to user: gather missing preferences (platform, style tone, color palette) OR present design proposal if user provided enough detail. WAIT for confirmation.',
+  };
 
   // Add connectivity info to response
   const response: Record<string, unknown> = {

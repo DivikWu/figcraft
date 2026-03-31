@@ -11,9 +11,9 @@ describe('monorepo compatibility shell', () => {
     expect(tsupConfig).not.toContain("packages/core-mcp/src/prompts");
   });
 
-  it('keeps the root plugin build shell delegated to adapter-figma', () => {
-    const buildPlugin = readFileSync('build.plugin.mjs', 'utf-8');
-    expect(buildPlugin).toContain("./packages/adapter-figma/build.plugin.mjs");
+  it('keeps the root plugin build script delegated to adapter-figma', () => {
+    const pkg = JSON.parse(readFileSync('package.json', 'utf-8'));
+    expect(pkg.scripts['build:plugin']).toContain("packages/adapter-figma/build.plugin.mjs");
   });
 
   it('removes legacy src compatibility trees now that packages own the runtime sources', () => {

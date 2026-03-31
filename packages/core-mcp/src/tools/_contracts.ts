@@ -135,6 +135,14 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
       width: z.number(),
       height: z.number(),
       visible: z.boolean(),
+      _libraryBindings: z.array(z.unknown()).optional().describe("Token/style bindings applied during creation"),
+      _hints: z.array(z.unknown()).optional().describe("Smart default inferences applied (sizing, layoutMode)"),
+      _warnings: z.array(z.unknown()).optional().describe("Non-fatal issues during creation (e.g. image load failed, style not found)"),
+      _children: z.array(z.unknown()).optional().describe("Created child node IDs (when children param used)"),
+      _inferences: z.array(z.unknown()).optional().describe("Layout inferences applied during creation (deterministic or ambiguous)"),
+      _correctedPayload: z.record(z.unknown()).optional().describe("Corrected params when ambiguous inferences detected — use this in your next call to avoid ambiguity"),
+      _diff: z.string().optional().describe("Git-style diff of ambiguous inferences (only present when ambiguity detected)"),
+      _lintSummary: z.record(z.unknown()).optional().describe("Quick lint summary after creation (only present when children created and violations found). Run lint_fix_all to fix."),
     }),
   'create_text': z.object({
       id: z.string(),
@@ -143,6 +151,8 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
       width: z.number(),
       height: z.number(),
       visible: z.boolean(),
+      _libraryBindings: z.array(z.unknown()).optional().describe("Token/style bindings applied during creation"),
+      _hints: z.array(z.unknown()).optional().describe("Smart default inferences applied (sizing, textAutoResize)"),
     }),
   'lint_fix_all': z.object({
       lint: z.object({
@@ -155,6 +165,7 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
       fixed: z.number(),
       fixFailed: z.number(),
       remaining: z.number(),
+      remainingFixCalls: z.array(z.unknown()).optional().describe("Remaining violations with structured fixCall for AI follow-up (max 10). Each: {nodeId, nodeName, rule, severity, suggestion, fixCall: {tool, params}}"),
     }),
   'set_current_page': z.object({
       ok: z.boolean(),
@@ -183,6 +194,51 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
       error: z.string().optional(),
       stack: z.string().optional(),
       _warning: z.string().optional(),
+    }),
+  'icon_search': z.object({
+      icons: z.array(z.string()).optional(),
+      total: z.number().optional(),
+    }),
+  'icon_collections': z.object({
+      collections: z.array(z.unknown()).optional(),
+      total: z.number().optional(),
+    }),
+  'icon_create': z.object({
+      id: z.string(),
+      name: z.string().optional(),
+    }),
+  'image_search': z.object({
+      photos: z.array(z.unknown()).optional(),
+      total_results: z.number().optional(),
+      page: z.number().optional(),
+    }),
+  'image_preview': z.record(z.unknown()).describe("Image content (base64) + photo metadata"),
+  'create_svg': z.object({
+      id: z.string(),
+      name: z.string().optional(),
+    }),
+  'text_scan': z.object({
+      nodeId: z.string(),
+      count: z.number(),
+      textNodes: z.array(z.object({
+          id: z.string().optional(),
+          name: z.string().optional(),
+          characters: z.string().optional(),
+          fontSize: z.number().optional(),
+          fontFamily: z.string().optional(),
+          path: z.string().optional(),
+        })).optional(),
+    }),
+  'search_design_system': z.object({
+      query: z.string(),
+      components: z.array(z.unknown()).optional().describe("Matching components with key, name, description"),
+      variables: z.array(z.unknown()).optional().describe("Matching variables with key, name, resolvedType, collection"),
+      styles: z.array(z.unknown()).optional().describe("Matching styles with key, name, styleType"),
+      summary: z.object({
+        components: z.number().optional(),
+        variables: z.number().optional(),
+        styles: z.number().optional(),
+      }).optional(),
     }),
   'set_explicit_variable_mode': z.object({
       ok: z.boolean(),
@@ -372,6 +428,18 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
   'delete_component': z.object({
       ok: z.boolean(),
     }),
+  'create_instance': z.object({
+      id: z.string(),
+      name: z.string().optional(),
+      type: z.string().optional(),
+    }),
+  'create_instances': z.object({
+      results: z.array(z.unknown()),
+    }),
+  'create_component_from_node': z.object({
+      id: z.string(),
+      name: z.string().optional(),
+    }),
   'swap_instance': z.object({
       id: z.string(),
       name: z.string(),
@@ -517,6 +585,24 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
       width: z.number(),
       height: z.number(),
       visible: z.boolean(),
+    }),
+  'create_rectangle': z.object({
+      id: z.string(),
+      name: z.string(),
+      type: z.string(),
+      width: z.number(),
+      height: z.number(),
+      visible: z.boolean(),
+      _libraryBindings: z.array(z.unknown()).optional().describe("Token/style bindings applied during creation"),
+    }),
+  'create_ellipse': z.object({
+      id: z.string(),
+      name: z.string(),
+      type: z.string(),
+      width: z.number(),
+      height: z.number(),
+      visible: z.boolean(),
+      _libraryBindings: z.array(z.unknown()).optional().describe("Token/style bindings applied during creation"),
     }),
   'create_section': z.object({
       id: z.string(),
@@ -956,6 +1042,14 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
       "error": "figma.notify is not a function"
     }
   ],
+  'icon_search': [],
+  'icon_collections': [],
+  'icon_create': [],
+  'image_search': [],
+  'image_preview': [],
+  'create_svg': [],
+  'text_scan': [],
+  'search_design_system': [],
   'set_explicit_variable_mode': [
     {
       "ok": true
@@ -1252,6 +1346,15 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
       "ok": true
     }
   ],
+  'create_instance': [
+    {
+      "id": "60:1",
+      "name": "Button",
+      "type": "INSTANCE"
+    }
+  ],
+  'create_instances': [],
+  'create_component_from_node': [],
   'swap_instance': [
     {
       "id": "82:1",
@@ -1469,6 +1572,26 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
       "type": "POLYGON",
       "width": 100,
       "height": 100,
+      "visible": true
+    }
+  ],
+  'create_rectangle': [
+    {
+      "id": "90:4",
+      "name": "Card Background",
+      "type": "RECTANGLE",
+      "width": 320,
+      "height": 200,
+      "visible": true
+    }
+  ],
+  'create_ellipse': [
+    {
+      "id": "90:5",
+      "name": "Avatar",
+      "type": "ELLIPSE",
+      "width": 48,
+      "height": 48,
       "visible": true
     }
   ],
@@ -1802,6 +1925,20 @@ export const GENERATED_ENDPOINT_METHOD_RESPONSE_SCHEMAS: Record<string, Record<s
           error: z.string().optional(),
         })),
     }),
+    'clone': z.object({
+      results: z.array(z.object({
+          id: z.string(),
+          ok: z.boolean(),
+          error: z.string().optional(),
+        })),
+    }),
+    'reparent': z.object({
+      results: z.array(z.object({
+          id: z.string(),
+          ok: z.boolean(),
+          error: z.string().optional(),
+        })),
+    }),
   },
   'text': {
     'set_content': z.object({
@@ -2052,6 +2189,26 @@ export const GENERATED_ENDPOINT_METHOD_RESPONSE_EXAMPLES: Record<string, Record<
         "results": [
           {
             "nodeId": "30:1",
+            "ok": true
+          }
+        ]
+      }
+    ],
+    'clone': [
+      {
+        "results": [
+          {
+            "id": "50:1",
+            "ok": true
+          }
+        ]
+      }
+    ],
+    'reparent': [
+      {
+        "results": [
+          {
+            "id": "30:1",
             "ok": true
           }
         ]
