@@ -1700,6 +1700,13 @@
         return;
       }
 
+      if (msg.type === 'command_progress') {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          try { ws.send(JSON.stringify(Object.assign({}, msg, { channel: channelId }))); } catch(e) { /* best effort */ }
+        }
+        return;
+      }
+
       if (msg.type === 'response' || msg.type === 'error') {
         // Sandbox errors (e.g. "Node not found") are non-critical — show as info, not red
         log('\u2192 ' + (msg.type === 'error' ? 'ERR: ' + msg.error.message : 'OK'), msg.type === 'error' ? 'info' : 'success');

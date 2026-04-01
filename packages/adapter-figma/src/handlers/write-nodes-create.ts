@@ -18,7 +18,7 @@ import type { StructuredHint } from '../utils/hint-aggregator.js';
 import type { Hint } from '../utils/hint-aggregator.js';
 import { quickLintSummary, PRE_RULE_TO_LINT_RULE } from './lint-inline.js';
 import { assertHandler } from '../utils/handler-error.js';
-import { getCachedModeLibrary, loadFontWithFallback } from './write-nodes.js';
+import { getCachedModeLibrary, loadFontWithFallback, resolveFontAsync } from './write-nodes.js';
 import { applySizingOverrides, getLayoutSizing, setLayoutSizing, setLayoutWrap, setBlendMode, setLayoutPositioning, setStrokeProps, setEffectStyleIdAsync, setFillStyleIdAsync, setTextStyleIdAsync, resolveComponent } from '../utils/figma-compat.js';
 
 // ─── Shared context for library-aware creation ───
@@ -81,6 +81,12 @@ function normalizeAliases(p: Record<string, unknown>): void {
   }
 }
 
+// ─── Batch progress ───
+function sendBatchProgress(commandId: string | undefined, current: number, total: number): void {
+  if (!commandId) return;
+  figma.ui.postMessage({ type: 'command_progress', commandId, current, total });
+}
+
 // ─── Font style normalization: numeric weights → Figma style names ───
 const WEIGHT_TO_STYLE: Record<string, string> = {
   '100': 'Thin', '200': 'ExtraLight', '300': 'Light',
@@ -90,12 +96,14 @@ const WEIGHT_TO_STYLE: Record<string, string> = {
 function normalizeFontStyle(style: string): string {
   // Numeric weight (e.g. "700") → Figma style name (e.g. "Bold")
   if (/^\d{3}$/.test(style)) return WEIGHT_TO_STYLE[style] ?? 'Regular';
+  // CamelCase split: "SemiBold" → "Semi Bold", "ExtraLight" → "Extra Light"
+  const split = style.replace(/([a-z])([A-Z])/g, '$1 $2');
   // Common aliases
-  const lower = style.toLowerCase();
+  const lower = split.toLowerCase();
   if (lower === 'normal') return 'Regular';
   if (lower === 'bold italic' || lower === 'bolditalic') return 'Bold Italic';
   if (lower === 'italic') return 'Italic';
-  return style;
+  return split;
 }
 
 // ─── Local color matching (no library mode) ───
@@ -676,8 +684,9 @@ async function setupText(
   const fontFamily = (p.fontFamily as string) ?? 'Inter';
   const fontStyle = normalizeFontStyle((p.fontStyle as string) ?? 'Regular');
 
-  const fontName = await loadFontWithFallback(fontFamily, fontStyle);
-  text.fontName = fontName;
+  const fontResolution = await resolveFontAsync(fontFamily, fontStyle);
+  text.fontName = fontResolution.fontName;
+  if (fontResolution.fallbackNote) ctx.warnings.push(fontResolution.fallbackNote);
   text.name = name;
   text.fontSize = fontSize;
   text.characters = content;
@@ -751,7 +760,7 @@ async function setupText(
     }
   } else if (ctx.useLib) {
     // Auto-bind typography by fontSize
-    const fontHints = { fontFamily: fontName.family, fontWeight: fontName.style };
+    const fontHints = { fontFamily: fontResolution.fontName.family, fontWeight: fontResolution.fontName.style };
     const styleMatch = getTextStyleId(fontSize, fontHints);
     if (styleMatch) {
       try {
@@ -791,6 +800,31 @@ async function setupText(
   // ── Appearance ──
   if (p.opacity != null) text.opacity = p.opacity as number;
   if (p.visible === false) text.visible = false;
+
+  // ── Component text property auto-bind (best effort) ──
+  try {
+    const ancestorComp = findAncestorComponent(text);
+    if (ancestorComp) {
+      const defs = ancestorComp.componentPropertyDefinitions;
+      const matchingKey = Object.keys(defs).find(
+        k => defs[k].type === 'TEXT' && k.startsWith(text.name + '#'),
+      );
+      if (matchingKey) {
+        text.componentPropertyReferences = { characters: matchingKey };
+        ctx.warnings.push(`Auto-bound text "${text.name}" to component property`);
+      }
+    }
+  } catch { /* best effort — do not fail text creation */ }
+}
+
+/** Walk up the parent chain to find the nearest ComponentNode ancestor. */
+function findAncestorComponent(node: BaseNode): ComponentNode | null {
+  let current = node.parent;
+  while (current) {
+    if (current.type === 'COMPONENT') return current as ComponentNode;
+    current = current.parent;
+  }
+  return null;
 }
 
 // ─── Shape child helper (deduplicates rectangle/ellipse/star/polygon creation) ───
@@ -878,7 +912,7 @@ async function createInlineChildren(
     const fonts = collectTextFonts(children);
     const unique = [...new Map(fonts.map(f => [`${f.family}:${f.style}`, f])).values()];
     if (unique.length > 0) {
-      await Promise.all(unique.map(f => loadFontWithFallback(f.family, f.style)));
+      await Promise.all(unique.map(f => resolveFontAsync(f.family, f.style)));
     }
   }
 
@@ -1203,15 +1237,9 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
       } catch { /* lint failure should not block creation */ }
     }
 
-    // Auto-preview: export thumbnail for AI visual feedback (0.5x balances clarity vs size)
+    // Preview hint: node is auto-focused in Figma viewport; AI can call export_image for visual verification
     if (!skipLint && !params.noPreview) {
-      try {
-        const previewBytes = await (frame as SceneNode & { exportAsync: (s: ExportSettings) => Promise<Uint8Array> })
-          .exportAsync({ format: 'PNG', constraint: { type: 'SCALE', value: 0.5 } });
-        if (previewBytes.byteLength > 0) {
-          out._preview = { base64: figma.base64Encode(previewBytes) };
-        }
-      } catch { /* preview failure must never block creation */ }
+      out._previewHint = `Use export_image(nodeId:"${frame.id}", scale:0.5) for visual verification`;
     }
 
     return out;
@@ -1292,7 +1320,9 @@ registerHandler('create_frame', async (params) => {
     const results: Array<{ id: string; name: string; ok: boolean; error?: string }> = [];
     const allHints: Hint[] = [];
     const allInferences: Inference[] = [];
-    for (const item of items) {
+    const progressId = items.length > 3 ? (params._commandId as string | undefined) : undefined;
+    if (progressId) sendBatchProgress(progressId, 0, items.length);
+    for (const [idx, item] of items.entries()) {
       try {
         const out = await createSingleFrame(item, true); // skip per-item lint
         results.push({ id: (out as any).id, name: (out as any).name, ok: true });
@@ -1314,7 +1344,9 @@ registerHandler('create_frame', async (params) => {
           error: err instanceof Error ? err.message : String(err),
         });
       }
+      if (progressId && (idx + 1) % 3 === 0) sendBatchProgress(progressId, idx + 1, items.length);
     }
+    if (progressId) sendBatchProgress(progressId, items.length, items.length);
     // Run lint once for all created frames (instead of per-item)
     const createdIds = results.filter(r => r.ok && r.id).map(r => r.id);
     let batchLintSummary: unknown = undefined;
@@ -1376,7 +1408,9 @@ registerHandler('create_text', async (params) => {
 
     const results: Array<{ id: string; name: string; ok: boolean; error?: string }> = [];
     const allHints: Hint[] = [];
-    for (const item of items) {
+    const textProgressId = items.length > 3 ? (params._commandId as string | undefined) : undefined;
+    if (textProgressId) sendBatchProgress(textProgressId, 0, items.length);
+    for (const [idx, item] of items.entries()) {
       try {
         const out = await createSingleText(item);
         results.push({ id: out.id as string, name: out.name as string, ok: true });
@@ -1393,7 +1427,9 @@ registerHandler('create_text', async (params) => {
           error: err instanceof Error ? err.message : String(err),
         });
       }
+      if (textProgressId && (idx + 1) % 3 === 0) sendBatchProgress(textProgressId, idx + 1, items.length);
     }
+    if (textProgressId) sendBatchProgress(textProgressId, items.length, items.length);
     const batchResult: Record<string, unknown> = { created: results.filter(r => r.ok).length, total: items.length, items: results };
     const aggregated = aggregateHints(allHints);
     if (aggregated.length > 0) batchResult.warnings = aggregated;

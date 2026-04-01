@@ -8,6 +8,7 @@ import { wcagContrastRule } from '../../packages/quality-engine/src/rules/wcag/w
 import { wcagTargetSizeRule } from '../../packages/quality-engine/src/rules/wcag/wcag-target-size.js';
 import { wcagTextSizeRule } from '../../packages/quality-engine/src/rules/wcag/wcag-text-size.js';
 import { wcagLineHeightRule } from '../../packages/quality-engine/src/rules/wcag/wcag-line-height.js';
+import { wcagNonTextContrastRule } from '../../packages/quality-engine/src/rules/wcag/wcag-non-text-contrast.js';
 
 const emptyCtx: LintContext = {
   colorTokens: new Map(),
@@ -36,6 +37,9 @@ describe('wcag severity calibration', () => {
   it('wcag-line-height has heuristic severity', () => {
     expect(wcagLineHeightRule.severity).toBe('heuristic');
   });
+  it('wcag-non-text-contrast has heuristic severity', () => {
+    expect(wcagNonTextContrastRule.severity).toBe('heuristic');
+  });
 });
 
 // ─── preventionHint ───
@@ -52,6 +56,9 @@ describe('wcag preventionHint', () => {
   });
   it('wcag-line-height has preventionHint', () => {
     expect(wcagLineHeightRule.ai?.preventionHint).toBeDefined();
+  });
+  it('wcag-non-text-contrast has preventionHint', () => {
+    expect(wcagNonTextContrastRule.ai?.preventionHint).toBeDefined();
   });
 });
 
@@ -139,5 +146,87 @@ describe('wcag-contrast', () => {
     });
     const v = wcagContrastRule.check(node, emptyCtx);
     expect(v).toHaveLength(0);
+  });
+});
+
+// ─── wcag-non-text-contrast (WCAG 1.4.11) ───
+
+describe('wcag-non-text-contrast', () => {
+  it('flags low-contrast stroke on rectangle', () => {
+    const node = makeNode({
+      type: 'RECTANGLE', width: 100, height: 40,
+      strokes: [{ type: 'SOLID', color: '#e0e0e0', visible: true }],
+      strokeWeight: 1,
+      parentBgColor: '#ffffff',
+    });
+    const v = wcagNonTextContrastRule.check(node, emptyCtx);
+    expect(v.length).toBeGreaterThan(0);
+    expect(v[0].rule).toBe('wcag-non-text-contrast');
+    expect(v[0].currentValue).toContain('stroke');
+  });
+
+  it('passes adequate stroke contrast', () => {
+    const node = makeNode({
+      type: 'RECTANGLE', width: 100, height: 40,
+      strokes: [{ type: 'SOLID', color: '#333333', visible: true }],
+      strokeWeight: 1,
+      parentBgColor: '#ffffff',
+    });
+    const v = wcagNonTextContrastRule.check(node, emptyCtx);
+    expect(v).toHaveLength(0);
+  });
+
+  it('flags low-contrast fill on small element (icon-sized)', () => {
+    const node = makeNode({
+      type: 'ELLIPSE', width: 24, height: 24,
+      fills: [{ type: 'SOLID', color: '#cccccc', visible: true }],
+      parentBgColor: '#ffffff',
+    });
+    const v = wcagNonTextContrastRule.check(node, emptyCtx);
+    expect(v.length).toBeGreaterThan(0);
+    expect(v[0].currentValue).toContain('fill');
+  });
+
+  it('skips fill check on large containers (> 200px)', () => {
+    const node = makeNode({
+      type: 'FRAME', width: 400, height: 300,
+      fills: [{ type: 'SOLID', color: '#f5f5f5', visible: true }],
+      parentBgColor: '#ffffff',
+    });
+    const v = wcagNonTextContrastRule.check(node, emptyCtx);
+    expect(v).toHaveLength(0);
+  });
+
+  it('skips TEXT nodes (handled by wcag-contrast)', () => {
+    const node = makeNode({
+      type: 'TEXT', fontSize: 14,
+      fills: [{ type: 'SOLID', color: '#cccccc', visible: true }],
+      parentBgColor: '#ffffff',
+    });
+    const v = wcagNonTextContrastRule.check(node, emptyCtx);
+    expect(v).toHaveLength(0);
+  });
+
+  it('returns empty when no parentBgColor', () => {
+    const node = makeNode({
+      type: 'RECTANGLE', width: 50, height: 50,
+      strokes: [{ type: 'SOLID', color: '#e0e0e0', visible: true }],
+      strokeWeight: 1,
+    });
+    const v = wcagNonTextContrastRule.check(node, emptyCtx);
+    expect(v).toHaveLength(0);
+  });
+
+  it('checks both stroke and fill on small nodes', () => {
+    const node = makeNode({
+      type: 'RECTANGLE', width: 100, height: 40,
+      strokes: [{ type: 'SOLID', color: '#e0e0e0', visible: true }],
+      strokeWeight: 1,
+      fills: [{ type: 'SOLID', color: '#eeeeee', visible: true }],
+      parentBgColor: '#ffffff',
+    });
+    const v = wcagNonTextContrastRule.check(node, emptyCtx);
+    // Should flag both stroke and fill
+    expect(v.length).toBe(2);
   });
 });

@@ -16,6 +16,7 @@ import { wcagContrastRule } from './rules/wcag/wcag-contrast.js';
 import { wcagTargetSizeRule } from './rules/wcag/wcag-target-size.js';
 import { wcagTextSizeRule } from './rules/wcag/wcag-text-size.js';
 import { wcagLineHeightRule } from './rules/wcag/wcag-line-height.js';
+import { wcagNonTextContrastRule } from './rules/wcag/wcag-non-text-contrast.js';
 // Layout
 import { fixedInAutolayoutRule } from './rules/layout/fixed-in-autolayout.js';
 import { emptyContainerRule } from './rules/layout/empty-container.js';
@@ -59,6 +60,7 @@ const ALL_RULES: LintRule[] = [
   wcagTargetSizeRule,
   wcagTextSizeRule,
   wcagLineHeightRule,
+  wcagNonTextContrastRule,
   // Layout structure (always active)
   fixedInAutolayoutRule,
   emptyContainerRule,

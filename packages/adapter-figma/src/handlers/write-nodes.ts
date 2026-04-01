@@ -18,25 +18,113 @@ import { assertHandler } from '../utils/handler-error.js';
 const MODE_STORAGE_KEY = STORAGE_KEYS.MODE;
 const LIBRARY_STORAGE_KEY = STORAGE_KEYS.LIBRARY;
 
-/**
- * Load a font with fallback chain: requested style → Regular → Inter Regular.
- */
-export async function loadFontWithFallback(family: string, style: string): Promise<FontName> {
-  const requested = { family, style };
-  try {
-    await figma.loadFontAsync(requested);
-    return requested;
-  } catch { /* requested style unavailable */ }
-  if (style !== 'Regular') {
-    const regular = { family, style: 'Regular' };
-    try {
-      await figma.loadFontAsync(regular);
-      return regular;
-    } catch { /* family Regular unavailable */ }
+// ─── Font resolution with fuzzy matching ───
+
+export interface FontResolution {
+  fontName: FontName;
+  /** null if exact match; otherwise describes what happened */
+  fallbackNote: string | null;
+}
+
+let _fontCache: FontName[] | null = null;
+
+async function getAvailableFonts(): Promise<FontName[]> {
+  if (!_fontCache) {
+    const raw = await figma.listAvailableFontsAsync();
+    _fontCache = raw.map((f: { fontName: FontName }) => f.fontName);
   }
-  const fallback = { family: 'Inter', style: 'Regular' };
+  return _fontCache;
+}
+
+export function clearFontCache(): void { _fontCache = null; }
+
+/** Strip a font style to lowercase letters/digits only for fuzzy comparison. */
+function stripStyle(s: string): string {
+  return s.toLowerCase().replace(/[\s\-_]/g, '');
+}
+
+/**
+ * Resolve a font family + style with fuzzy matching.
+ * Chain: exact → camelCase split → fuzzy strip → case-insensitive family → Inter fallback.
+ */
+export async function resolveFontAsync(family: string, style: string): Promise<FontResolution> {
+  // 1. Exact match
+  try {
+    await figma.loadFontAsync({ family, style });
+    return { fontName: { family, style }, fallbackNote: null };
+  } catch { /* continue */ }
+
+  // 2. CamelCase split: "SemiBold" → "Semi Bold"
+  const camelSplit = style.replace(/([a-z])([A-Z])/g, '$1 $2');
+  if (camelSplit !== style) {
+    try {
+      await figma.loadFontAsync({ family, style: camelSplit });
+      return { fontName: { family, style: camelSplit }, fallbackNote: `Resolved "${style}" → "${camelSplit}"` };
+    } catch { /* continue */ }
+  }
+
+  // 3. Fuzzy match against available fonts for this family
+  const allFonts = await getAvailableFonts();
+  const familyFonts = allFonts.filter(f => f.family === family);
+  if (familyFonts.length > 0) {
+    const stripped = stripStyle(style);
+    const match = familyFonts.find(f => stripStyle(f.style) === stripped);
+    if (match) {
+      await figma.loadFontAsync(match);
+      return { fontName: match, fallbackNote: `Resolved "${style}" → "${match.style}" (fuzzy)` };
+    }
+  }
+
+  // 4. Case-insensitive family match ("inter" → "Inter")
+  if (familyFonts.length === 0) {
+    const looseFamilyFonts = allFonts.filter(f => f.family.toLowerCase() === family.toLowerCase());
+    if (looseFamilyFonts.length > 0) {
+      const correctedFamily = looseFamilyFonts[0].family;
+      // Retry exact + fuzzy with corrected family
+      const stripped = stripStyle(style);
+      const match = looseFamilyFonts.find(f => stripStyle(f.style) === stripped)
+        ?? looseFamilyFonts.find(f => f.style === style)
+        ?? looseFamilyFonts.find(f => f.style === camelSplit);
+      if (match) {
+        await figma.loadFontAsync(match);
+        return { fontName: match, fallbackNote: `Resolved "${family}" → "${correctedFamily}", style "${match.style}"` };
+      }
+      // Family found but no style match — try Regular
+      const regular = looseFamilyFonts.find(f => f.style === 'Regular');
+      if (regular) {
+        await figma.loadFontAsync(regular);
+        const available = [...new Set(looseFamilyFonts.map(f => f.style))];
+        return { fontName: regular, fallbackNote: `"${correctedFamily}" style "${style}" not found → Regular. Available: [${available.join(', ')}]` };
+      }
+    }
+  }
+
+  // 5. Family matched but style not found — fall back to Regular with hint
+  if (familyFonts.length > 0) {
+    const regular = familyFonts.find(f => f.style === 'Regular');
+    if (regular) {
+      await figma.loadFontAsync(regular);
+      const available = [...new Set(familyFonts.map(f => f.style))];
+      return { fontName: regular, fallbackNote: `"${family}" style "${style}" not found → Regular. Available: [${available.join(', ')}]` };
+    }
+  }
+
+  // Final fallback: Inter Regular
+  const fallback: FontName = { family: 'Inter', style: 'Regular' };
   await figma.loadFontAsync(fallback);
-  return fallback;
+  const available = familyFonts.length > 0
+    ? [...new Set(familyFonts.map(f => f.style))]
+    : [];
+  const hint = available.length > 0
+    ? `Font "${family}" style "${style}" not found → Inter Regular. Available styles for "${family}": [${available.join(', ')}]`
+    : `Font "${family}" not available → Inter Regular`;
+  return { fontName: fallback, fallbackNote: hint };
+}
+
+/** Legacy compat wrapper — returns just the FontName (no fallback note). */
+export async function loadFontWithFallback(family: string, style: string): Promise<FontName> {
+  const { fontName } = await resolveFontAsync(family, style);
+  return fontName;
 }
 
 // ─── Mode/Library cache ───
@@ -68,6 +156,7 @@ export function invalidateModeCache(): void {
 
 // Register with centralized cache manager
 registerCache('mode-library', invalidateModeCache);
+registerCache('font-cache', clearFontCache);
 
 export function registerWriteNodeHandlers(): void {
 
