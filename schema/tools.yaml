@@ -859,7 +859,9 @@ create_frame:
       description: >-
         When true, validates params and previews inferences WITHOUT creating any nodes.
         Returns {dryRun:true, valid, inferences?, ambiguous?, diff?, correctedPayload?}.
-        Use correctedPayload for the actual creation call to avoid ambiguity.
+        Pre-validates: layoutMode conflicts, sizing conflicts (FILL+width), cross-level FILL/HUG collapse,
+        spacer frame conversion, text overflow (WIDTH_AND_HEIGHT in fixed parent), invisible empty frames,
+        fontSize below 12px mobile minimum. Use correctedPayload for the actual creation call to avoid ambiguity.
     noPreview:
       type: boolean
       description: "Skip auto-preview thumbnail in response (default: false). Preview is a low-res PNG returned as an image content block for visual verification."
@@ -1295,7 +1297,7 @@ execute_js:
     Font MUST be loaded before any text operation: await figma.loadFontAsync({family, style}).
     Failed scripts are NOT always atomic — partial nodes may remain after errors.
     Always inspect page state after a failed script and clean up orphan nodes.
-  toolset: core
+  toolset: debug
   write: true
   access: edit
   handler: custom
@@ -1436,7 +1438,7 @@ image_search:
   description: >-
     Search stock photos by keyword via Pexels.
     Returns photo metadata (id, alt, dimensions, photographer).
-    To place a photo in Figma: use create_frame with set_image_fill or execute_js.
+    To place a photo in Figma: use create_frame with set_image_fill.
     Requires PEXELS_API_KEY environment variable.
   toolset: core
   write: false
@@ -3802,6 +3804,43 @@ create_section:
       x: 0
       y: 0
 
+group_nodes:
+  description: >-
+    Group multiple nodes into a Group node. All nodes must share the same parent.
+  toolset: shapes-vectors
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    nodeIds:
+      type: array
+      required: true
+      description: "Node IDs to group (must share the same parent, minimum 2)"
+      items: string
+    name:
+      type: string
+      description: "Group name (default: 'Group')"
+  response:
+    type: object
+    fields:
+      id:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      type:
+        type: string
+        required: true
+      childCount:
+        type: number
+        required: true
+  examples:
+    - id: "93:1"
+      name: "Group"
+      type: "GROUP"
+      childCount: 3
+
 flatten_node:
   description: >-
     Flatten a node (or group) into a single vector.
@@ -4564,6 +4603,33 @@ lint_rules:
           category: "naming"
           severity: "warning"
 
+set_lint_ignore:
+  description: >-
+    Set lint rule exclusions on a specific node.
+    Use to prevent specific lint rules from flagging a node (e.g. decorative elements that should not be treated as buttons).
+    Pass rules as comma-separated names or "*" to exclude all rules. Pass empty string to clear.
+  toolset: lint
+  write: true
+  access: edit
+  handler: custom
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: Node ID to set lint exclusion on
+    rules:
+      type: string
+      required: true
+      description: 'Comma-separated rule names to ignore (e.g. "button-structure,wcag-target-size") or "*" for all. Empty string to clear.'
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+  examples:
+    - ok: true
+
 compliance_report:
   description: >-
     Generate a comprehensive design system compliance report.
@@ -4987,7 +5053,14 @@ nodes:
           type: number
           description: Max results (default 50)
     update:
-      description: Update properties on one or more nodes
+      description: >-
+        Update properties on one or more nodes. Uses 5-phase ordered execution:
+        (1) simple props (name, x, y, opacity, visible, layoutMode, padding, itemSpacing, alignment, clipsContent, layoutPositioning)
+        → (2) fills/strokes/corners/effects
+        → (3) layout sizing (layoutSizingHorizontal/Vertical)
+        → (4) resize (width/height)
+        → (5) text props (fontSize, fontName, textDecoration, textCase, textAlign, paragraphSpacing).
+        Safe to send layoutMode + width + layoutSizing in the same patch — ordering is handled internally.
       maps_to: patch_nodes
       write: true
       access: edit
@@ -5026,6 +5099,9 @@ nodes:
                 type: record
                 required: true
                 valueType: unknown
+        strict:
+          type: boolean
+          description: "When true, reject the entire patch if any property name is not recognized. Default: false (unknown props reported in _unknownProps but patch succeeds)."
     delete:
       description: Delete nodes by ID
       maps_to: delete_nodes
@@ -5154,7 +5230,7 @@ nodes:
 
 text:
   description: >-
-    Text node operations — update text content.
+    Text node operations — update text content and style ranges.
   toolset: core
   handler: endpoint
   methods:
@@ -5182,6 +5258,74 @@ text:
           type: string
           required: true
           description: New text content
+    set_range:
+      description: >-
+        Apply styling to character ranges within a text node.
+        Supports fontSize, fontName, fills, insert, delete, letterSpacing, lineHeight, textDecoration, textCase.
+        Operations are applied sequentially — character indices may shift after insert/delete.
+      maps_to: set_text_range
+      write: true
+      access: edit
+      params:
+        nodeId:
+          type: string
+          required: true
+          description: Text node ID
+        operations:
+          type: array
+          required: true
+          description: "Array of range operations, applied sequentially"
+          items:
+            type: object
+            fields:
+              type:
+                type: string
+                required: true
+                description: "Operation type: fontSize, fontName, fills, insert, delete, letterSpacing, lineHeight, textDecoration, textCase"
+              start:
+                type: number
+                required: true
+                description: "Start character index (0-based)"
+              end:
+                type: number
+                description: "End character index (exclusive). Required for all types except insert."
+              value:
+                type: unknown
+                required: true
+                description: >-
+                  Value for the operation.
+                  fontSize: number. fontName: {family, style}.
+                  fills: Paint[] (Figma fill array, colors 0-1 range).
+                  insert: string (text to insert at start).
+                  delete: true (deletes characters from start to end).
+                  letterSpacing: {value, unit}. lineHeight: {value, unit}.
+                  textDecoration: "UNDERLINE"|"STRIKETHROUGH"|"NONE".
+                  textCase: "UPPER"|"LOWER"|"TITLE"|"ORIGINAL".
+      response:
+        type: object
+        fields:
+          ok:
+            type: boolean
+            required: true
+          characterCount:
+            type: number
+          results:
+            type: array
+            items:
+              type: object
+              fields:
+                index:
+                  type: number
+                ok:
+                  type: boolean
+                error:
+                  type: string
+      examples:
+        - ok: true
+          characterCount: 42
+          results:
+            - index: 0
+              ok: true
 
 components:
   description: >-
@@ -6111,4 +6255,5 @@ _toolset_descriptions:
   auth: "Figma OAuth — login, logout, check auth status."
   pages: "Page management — create and rename pages."
   staging: "Staged workflow — preview changes before finalizing. Stage, commit, discard, and list staged nodes."
+  debug: "Debug tools — execute arbitrary JS in the Plugin sandbox. Not available by default; use load_toolset('debug') to enable."
 

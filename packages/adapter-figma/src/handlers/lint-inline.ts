@@ -482,7 +482,7 @@ export interface QuickLintSummary {
  * Does NOT fix anything — just counts violations and top issues.
  * Returns null if no violations found (to avoid bloating the response).
  */
-export async function quickLintSummary(nodeId: string, autoFix = false): Promise<QuickLintSummary | null> {
+export async function quickLintSummary(nodeId: string, autoFix = false, skipRules?: Set<string>): Promise<QuickLintSummary | null> {
   const node = figma.getNodeById(nodeId);
   if (!node || !('type' in node) || node.type === 'PAGE' || node.type === 'DOCUMENT') return null;
 
@@ -491,6 +491,7 @@ export async function quickLintSummary(nodeId: string, autoFix = false): Promise
   const report = runLint([abstractNode], ctx, {
     maxViolations: 20,
     minSeverity: 'heuristic',
+    skipRules,
   });
 
   if (report.summary.violations === 0) return null;

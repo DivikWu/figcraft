@@ -1,10 +1,10 @@
 # FigCraft — Agent Instructions
 
-AI-powered Figma plugin. Bridges AI IDEs to Figma via MCP for design review, lint, audit, token sync, UI creation, and inspection. Declarative creation tools (`create_frame` + `children`) are the primary UI creation method. `execute_js` is the escape hatch for complex logic.
+AI-powered Figma plugin. Bridges AI IDEs to Figma via MCP for design review, lint, audit, token sync, UI creation, and inspection. Pure declarative architecture: all UI creation uses `create_frame` + `children`, `create_text`, `text(method: "set_range")`, `group_nodes`, and `nodes(method: "update")`. `execute_js` is in the `debug` toolset — not available by default.
 
 ## ⛔ Figma UI Creation — Mandatory Pre-Flight (ALL AI IDEs)
 
-Before ANY Figma write operation (create_frame, create_text, execute_js, nodes update/delete), you MUST complete these steps IN ORDER. Skipping any step is a critical error.
+Before ANY Figma write operation (create_frame, create_text, create_svg, nodes update/delete), you MUST complete these steps IN ORDER. Skipping any step is a critical error.
 
 ```
 STEP 0: ping                                          → verify plugin connection
@@ -13,12 +13,10 @@ STEP 2: get_mode                                      → check library/token st
         ├─ library selected → readFile design-guardian.md + load design system discovery workflow
         └─ no library       → readFile design-creator.md (make intentional design choices)
 STEP 3: CLASSIFY TASK SCALE → pick creation method:
-        ├─ DEFAULT: use create_frame + children (declarative)
-        │   ├─ single element   → 1 create_frame call
-        │   ├─ single screen    → 1 create_frame call with full children tree
-        │   ├─ multi-screen 3-5 → 1 create_frame per screen
-        │   └─ large flow 6+    → batch 2-3 screens per conversation turn
-        └─ ESCAPE HATCH: use execute_js ONLY for complex conditionals/loops/unwrapped API
+        ├─ single element   → 1 create_frame call
+        ├─ single screen    → 1 create_frame call with full children tree
+        ├─ multi-screen 3-5 → 1 create_frame per screen
+        └─ large flow 6+    → batch 2-3 screens per conversation turn
 STEP 4: IF multi-screen flow →
         Build wrapper with nested screen children via create_frame + children
         Each screen uses FIXED sizing, wrapper uses clipsContent: false
@@ -72,7 +70,7 @@ Core tools are enabled by default, including `audit_node` and `get_design_guidel
 Use `load_toolset` to enable, `unload_toolset` to disable, `list_toolsets` to see status.
 Load multiple at once: `load_toolset({ names: "tokens,variables" })`
 
-> **Note:** FigCraft provides self-sufficient capabilities: design system search (`search_design_system`), UI creation (`create_frame`, `execute_js`), lint, audit, token sync, and node operations. Code generation and Code Connect are optionally provided by Figma Power (official Figma MCP) when available.
+> **Note:** FigCraft provides self-sufficient capabilities: design system search (`search_design_system`), UI creation (`create_frame`, `create_text`, `create_svg`), text range styling (`text(method: "set_range")`), node grouping (`group_nodes`), lint, audit, token sync, and node operations. `execute_js` is available in the `debug` toolset for diagnostics only. Code generation and Code Connect are optionally provided by Figma Power (official Figma MCP) when available.
 
 ## Rules
 
@@ -87,6 +85,9 @@ Load multiple at once: `load_toolset({ names: "tokens,variables" })`
 3. **Prefer batch tools** — use `lint_fix_all` over `lint_check` + `lint_fix`. Use `nodes(method: "delete")` over individual delete calls.
 4. **Parallelize independent calls** — when multiple tool calls have no data dependency on each other, call them in the same turn (e.g. multiple `components(method: "list_properties")` calls). This cuts total latency significantly.
 5. **`nodes(method: "get")` accepts Figma URLs** — no need to call `get_document_info` first when user provides a URL.
+6. **`nodes(method: "update")` uses 5-phase ordered execution** — simple props → fills/strokes → layout sizing → resize → text. Safe to send `layoutMode` + `width` + `layoutSizing` in the same patch.
+7. **`nodes(method: "update", strict: true)`** — rejects patches with unrecognized property names (default: false, unknown props just reported in `_unknownProps`).
+8. **`create_frame(dryRun: true)`** — pre-validates without creating: layoutMode conflicts, sizing conflicts, cross-level FILL/HUG collapse, text overflow, invisible frames, fontSize < 12.
 
 ### Layout & Design (Lint Rules Reference)
 
@@ -211,4 +212,4 @@ New tool work should target `packages/core-mcp/src/tools/` and `packages/adapter
 - Linter runs in Plugin sandbox, not MCP Server
 - DTCG parsing runs only on MCP Server
 - Composite tokens (typography/shadow) → Figma Styles, not Variables
-- UI creation uses declarative tools (`create_frame` + `children`) as the primary method, with `execute_js` as escape hatch for complex logic
+- Pure declarative UI creation: `create_frame` + `children`, `create_text`, `text(method: "set_range")`, `group_nodes`, `nodes(method: "update")`. `execute_js` is in `debug` toolset — not available by default

@@ -17,6 +17,7 @@ export const STORAGE_KEYS = {
 /** Plugin data keys stored on Figma nodes for FigCraft-specific semantics. */
 export const PLUGIN_DATA_KEYS = {
   ROLE: 'figcraft_role',
+  LINT_IGNORE: 'figcraft_lint_ignore',
 } as const;
 
 /** Plugin version — re-exported from shared single source of truth. */

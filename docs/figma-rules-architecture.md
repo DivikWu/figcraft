@@ -49,7 +49,7 @@ Layer 3  自动兜底        Quality Engine（lint_fix_all / audit_node）
 
 | 文件 | 行数 | 作用 |
 |------|------|------|
-| `figma-essential-rules.md` | ~188 | **核心入口**。包含 15 条 execute_js Critical Rules、9 条 Layout & Quality Rules、Sizing Defaults 表、Context Budget 策略（含 Skill 加载禁止/允许清单）、12 步 Workflow（含 Step 0 Context Budget Gate）、Multi-Screen Flow PRESET 规则、Templates、Reference Docs 索引 |
+| `figma-essential-rules.md` | ~188 | **核心入口**。包含纯声明式创建规则、Layout & Quality Rules、Sizing Defaults 表、Context Budget 策略（含 Skill 加载禁止/允许清单）、Workflow（含 Step 0 Context Budget Gate）、Multi-Screen Flow 规则、Reference Docs 索引。execute_js 已移至 debug toolset |
 | `figcraft.md` | ~31 | FigCraft MCP 工具使用指南。`use_figma` 不可用说明、Page Operation Order、Dual Mode |
 
 **常驻 context 成本：~219 行**
@@ -58,8 +58,8 @@ Layer 3  自动兜底        Quality Engine（lint_fix_all / audit_node）
 
 | 文件 | 行数 | fileMatchPattern | 作用 |
 |------|------|-----------------|------|
-| `execute-js-guide.md` | ~189 | `packages/adapter-figma/**,packages/core-mcp/src/tools/**` | execute_js 详细指南。Key Rules 引用 essential-rules，独有内容：When to Use execute_js vs Other Tools、Incremental Workflow 详细版、Error Handling、Step Order（Single/Multi/Large 三种）、Section Creation Strategy（含完整代码示例）、Post-Creation Lint、Anti-Patterns |
-| `figma-generate-design.md` | ~172 | 同上 | 有设计系统时的页面组装工作流。覆盖 skill 的 Step 3-5，适配 FigCraft 的 execute_js + load_toolset |
+| `execute-js-guide.md` | ~189 | `packages/adapter-figma/**,packages/core-mcp/src/tools/**` | execute_js debug 工具参考（需 `load_toolset("debug")`）。仅用于诊断和节点检查，不用于 UI 创建 |
+| `figma-generate-design.md` | ~172 | 同上 | 有设计系统时的页面组装工作流。使用声明式工具（create_frame + children、nodes update）+ 组件/变量 toolset |
 | `figma-generate-library.md` | ~98 | 同上 | 建设计系统的多阶段工作流。覆盖 skill 的 FigCraft 适配版 |
 | `figma-layout.md` | ~29 | `packages/adapter-figma/src/handlers/write-nodes*,...` | write-nodes 实现注意事项 |
 | `ui-spacing.md` | ~30 | `packages/adapter-figma/src/ui.html,...` | Plugin UI 的 8dp 网格规则 |

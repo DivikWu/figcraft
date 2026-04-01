@@ -21,12 +21,12 @@ import fc from 'fast-check';
 
 // ─── Mock setup (same pattern as method-dispatcher.test.ts) ───
 
-vi.mock('../packages/core-mcp/src/tools/toolset-manager.js', () => ({
+vi.mock('../../packages/core-mcp/src/tools/toolset-manager.js', () => ({
   getAccessLevel: vi.fn(() => 'edit'),
   isToolBlocked: vi.fn(() => null),
 }));
 
-vi.mock('../packages/core-mcp/src/tools/logic/node-logic.js', () => ({
+vi.mock('../../packages/core-mcp/src/tools/logic/node-logic.js', () => ({
   getNodeInfoLogic: vi.fn().mockResolvedValue({
     content: [{ type: 'text', text: '{"id":"1:23"}' }],
   }),
@@ -38,7 +38,7 @@ vi.mock('../packages/core-mcp/src/tools/logic/node-logic.js', () => ({
   }),
 }));
 
-vi.mock('../packages/core-mcp/src/rest-fallback.js', () => ({
+vi.mock('../../packages/core-mcp/src/rest-fallback.js', () => ({
   requestWithFallback: vi.fn(),
   restGetNodeInfo: vi.fn(),
   restExportImage: vi.fn(),
@@ -46,13 +46,13 @@ vi.mock('../packages/core-mcp/src/rest-fallback.js', () => ({
   setFileContext: vi.fn(),
 }));
 
-vi.mock('../packages/core-mcp/src/figma-api.js', () => ({
+vi.mock('../../packages/core-mcp/src/figma-api.js', () => ({
   extractFileKeyFromUrl: vi.fn(),
   extractNodeIdFromUrl: vi.fn(),
 }));
 
 // Mock component-logic (listLibraryComponentsLogic used by components endpoint)
-vi.mock('../packages/core-mcp/src/tools/logic/component-logic.js', () => ({
+vi.mock('../../packages/core-mcp/src/tools/logic/component-logic.js', () => ({
   listLibraryComponentsLogic: vi.fn().mockResolvedValue({
     content: [{ type: 'text', text: '{"componentSetCount":0,"standaloneCount":0,"componentSets":[],"standalone":[]}' }],
   }),

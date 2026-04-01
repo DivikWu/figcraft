@@ -86,6 +86,8 @@ export interface CompressedNode {
   // Component properties
   componentPropertyDefinitions?: Record<string, { type: string; defaultValue?: unknown; variantOptions?: string[] }>;
   componentPropertyReferences?: Record<string, string>;
+  // Lint exclusion: comma-separated rule names or '*' to skip all rules
+  lintIgnore?: string;
   // Truncation indicator — set when node tree was cut short by depth/count/time limits
   truncated?: boolean;
   /** Number of direct children omitted due to limits. */

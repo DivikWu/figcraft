@@ -84,7 +84,8 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
   server.tool(
     'lint_fix_all',
     'Run lint on the page/selection, then auto-fix all fixable violations in one call. ' +
-      'Returns the lint report and fix results. Equivalent to lint_check + lint_fix.',
+      'Returns the lint report and fix results. Equivalent to lint_check + lint_fix. ' +
+      'Use dryRun: true to preview fixable violations without applying any changes.',
     {
       nodeIds: z.array(z.string()).optional().describe('Node IDs to lint (default: selection or page)'),
       rules: z.array(z.string()).optional().describe('Rule names to run (default: all)'),
@@ -92,8 +93,9 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
       useStoredTokens: z.string().optional().describe('Name of cached token set to use'),
       annotate: z.boolean().optional().describe('Add annotations to remaining (unfixable) violations'),
       maxViolations: z.number().optional().describe('Stop collecting after this many violations (performance optimization for large pages)'),
+      dryRun: z.boolean().optional().describe('Preview mode: return fixable violations without applying fixes'),
     },
-    async ({ nodeIds, rules, categories, useStoredTokens, annotate, maxViolations }) => {
+    async ({ nodeIds, rules, categories, useStoredTokens, annotate, maxViolations, dryRun }) => {
       const tokenContext = await loadTokenContext(bridge, useStoredTokens);
 
       // Step 1: lint_check
@@ -112,6 +114,22 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         }
       }
       const fixable = allViolations.filter((v) => v.autoFixable);
+
+      // dryRun: return preview without applying fixes
+      if (dryRun) {
+        const preview = fixable.map((v) => ({
+          nodeId: v.nodeId, nodeName: v.nodeName,
+          rule: v.rule, severity: v.severity,
+          suggestion: v.suggestion,
+          fixData: v.fixData,
+        }));
+        return jsonResponse({
+          dryRun: true,
+          lint: report.summary,
+          fixable: fixable.length,
+          preview,
+        });
+      }
 
       let fixResult = { fixed: 0, failed: 0, errors: [] as unknown[] };
       if (fixable.length > 0) {
@@ -156,6 +174,21 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         result.remainingFixCalls = remainingWithFixCall.slice(0, 10);
       }
 
+      return jsonResponse(result);
+    },
+  );
+
+  server.tool(
+    'set_lint_ignore',
+    'Set lint rule exclusions on a specific node. ' +
+      'Use to prevent specific lint rules from flagging a node (e.g. decorative elements that should not be treated as buttons). ' +
+      'Pass rules as comma-separated names or "*" to exclude all rules. Pass empty string to clear.',
+    {
+      nodeId: z.string().describe('Node ID to set lint exclusion on'),
+      rules: z.string().describe('Comma-separated rule names to ignore (e.g. "button-structure,wcag-target-size") or "*" for all. Empty string to clear.'),
+    },
+    async ({ nodeId, rules }) => {
+      const result = await bridge.request('set_lint_ignore', { nodeId, rules });
       return jsonResponse(result);
     },
   );

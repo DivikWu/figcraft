@@ -15,6 +15,7 @@ import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../t
 
 const BUTTON_NAME_RE = /button|btn|按钮|登录|注册|submit|sign.?in|sign.?up|log.?in/i;
 const SCREEN_NAME_RE = /welcome|sign.?in|sign.?up|forgot\s+password|create\s+account|onboarding|settings|profile|dashboard|checkout|pricing|empty\s+state/i;
+const PILL_TAG_NAME_RE = /pill|tag|badge|chip|label|step|标签|步骤/i;
 
 function looksLikeScreenContainer(node: AbstractNode): boolean {
   if (node.type !== 'FRAME') return false;
@@ -24,13 +25,23 @@ function looksLikeScreenContainer(node: AbstractNode): boolean {
   return frameLikeChildren >= 2;
 }
 
+function looksLikePill(node: AbstractNode): boolean {
+  if (node.type !== 'FRAME' || node.height == null || node.height >= MIN_BUTTON_HEIGHT) return false;
+  const cr = typeof node.cornerRadius === 'number' ? node.cornerRadius : 0;
+  return cr >= node.height / 2;
+}
+
 function looksLikeButton(node: AbstractNode): boolean {
+  if (PILL_TAG_NAME_RE.test(node.name)) return false;
+  if (looksLikePill(node)) return false;
   if (looksLikeScreenContainer(node)) return false;
   if (BUTTON_NAME_RE.test(node.name)) return true;
   // A frame with exactly one text child + a fill is likely a button
   if (node.type === 'FRAME' && node.children?.length === 1 &&
       node.children[0].type === 'TEXT' &&
       node.fills && node.fills.some(f => f.visible !== false && f.opacity !== 0)) {
+    // Exclude pill-shaped frames from structural heuristic too
+    if (looksLikePill(node)) return false;
     return true;
   }
   return false;

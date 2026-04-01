@@ -1,11 +1,11 @@
 ---
 inclusion: auto
-description: "Figma UI creation via declarative tools (create_frame + children) — preferred over execute_js"
+description: "Figma UI creation via pure declarative tools (create_frame + children, text set_range, group_nodes)"
 ---
 
-# Figma UI Creation — Declarative Tools (Preferred)
+# Figma UI Creation — Pure Declarative Architecture
 
-Use `create_frame` with inline `children` as the primary way to create UI in Figma. This produces higher quality output than `execute_js` because sizing, token binding, and layout inference are handled automatically by the tool.
+All UI creation uses declarative tools. `create_frame` with inline `children` builds complete node trees with automatic sizing, token binding, and layout inference. `text(method: "set_range")` handles character-range text styling. `group_nodes` handles node grouping. `nodes(method: "update")` with ordered execution handles property updates.
 
 ## When to Use What
 
@@ -18,8 +18,9 @@ Use `create_frame` with inline `children` as the primary way to create UI in Fig
 | Text scanning | `text_scan` | Find all text in a subtree |
 | Node-to-component conversion | `create_component_from_node` | Auto-exposes text as editable properties |
 | Decorative shapes | `create_frame` children: `star`, `polygon` | Star ratings, hex grids, badges |
-| Complex conditional logic, loops over dynamic data | `execute_js` (escape hatch) | Only when declarative tools can't express the logic |
-| Plugin API methods not wrapped by any tool | `execute_js` (escape hatch) | Rare — most operations have declarative equivalents |
+| Character-range text styling | `text(method: "set_range")` | Bold/color/size on specific character ranges |
+| Node grouping | `group_nodes` (requires `load_toolset("shapes-vectors")`) | Group 2+ nodes sharing same parent |
+| Property updates (ordered) | `nodes(method: "update")` | 5-phase ordered execution: simple → fills → layout → resize → text |
 
 ## Core Pattern: create_frame + children
 

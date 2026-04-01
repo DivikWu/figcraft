@@ -24,6 +24,7 @@ export function buildMinimalParams(endpoint: string, method: string): Record<str
   // text endpoint
   if (endpoint === 'text') {
     if (method === 'set_content') { params.nodeId = '1:1'; params.content = 'hi'; }
+    if (method === 'set_range') { params.nodeId = '1:1'; params.operations = []; }
   }
 
   // components endpoint

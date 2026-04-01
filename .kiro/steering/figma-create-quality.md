@@ -8,9 +8,8 @@ description: "Redirects to figma-essential-rules.md which now contains all quali
 All design quality rules have been merged into `figma-essential-rules.md` (auto-loaded), which is the single authoritative source for:
 
 - Layout & Quality Rules #16–24 (spacer prohibition, STRETCH, auto-layout, overflow, naming, 4dp grid, shadow clipping)
-- execute_js Critical Rules #1–15
-- Icon rules (no emoji — use `figma.createNodeFromSvg()` with the built-in ICONS library)
-- Reusable Factory Scripts (`.kiro/scripts/createScreen.js`, `createInput.js`, `createButton.js`, `createBottomLink.js`)
+- execute_js reference (debug toolset only)
+- Icon rules (no emoji — use `icon_search` → `icon_create` or `create_frame` SVG children)
 - Mobile dimensions and touch targets
 
 Quality Engine lint rules (`lint_fix_all`) automatically enforce these at runtime — 37 rules with auto-fix + fixCall structured repairs.

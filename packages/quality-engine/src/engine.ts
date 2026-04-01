@@ -155,7 +155,13 @@ export function runLint(
 
   function walk(node: AbstractNode) {
     if (earlyExit) return;
+    // Node-level lint exclusion via lintIgnore field
+    const ignoreAll = node.lintIgnore === '*';
+    const ignoreSet = !ignoreAll && node.lintIgnore
+      ? new Set(node.lintIgnore.split(',').map(s => s.trim()))
+      : undefined;
     for (const rule of activeRules) {
+      if (ignoreAll || ignoreSet?.has(rule.name)) continue;
       const violations = rule.check(node, ctx);
       // Apply context-based severity downgrade for token rules
       for (const v of violations) {

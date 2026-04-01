@@ -7,7 +7,7 @@
  * Re-generate: npm run schema
  */
 
-/** Core tools: always enabled (~30) */
+/** Core tools: always enabled (~29) */
 export const GENERATED_CORE_TOOLS = new Set([
   'ping',
   'get_mode',
@@ -27,7 +27,6 @@ export const GENERATED_CORE_TOOLS = new Set([
   'export_image',
   'save_version_history',
   'set_selection',
-  'execute_js',
   'icon_search',
   'icon_collections',
   'icon_create',
@@ -89,6 +88,7 @@ export const GENERATED_BRIDGE_TOOLS = new Set([
   'create_rectangle',
   'create_ellipse',
   'create_section',
+  'group_nodes',
   'flatten_node',
   'boolean_operation',
   'get_annotations',
@@ -140,6 +140,7 @@ export const GENERATED_CUSTOM_TOOLS = new Set([
   'connect_screens',
   'lint_check',
   'lint_fix',
+  'set_lint_ignore',
   'compliance_report',
   'figma_login',
   'figma_logout',
@@ -192,6 +193,7 @@ export const GENERATED_WRITE_TOOLS = new Set([
   'create_rectangle',
   'create_ellipse',
   'create_section',
+  'group_nodes',
   'flatten_node',
   'boolean_operation',
   'set_annotation',
@@ -202,6 +204,7 @@ export const GENERATED_WRITE_TOOLS = new Set([
   'set_reactions',
   'connect_screens',
   'lint_fix',
+  'set_lint_ignore',
   'create_page',
   'rename_page',
   'delete_node',
@@ -267,12 +270,14 @@ export const GENERATED_EDIT_TOOLS = new Set([
   'set_instance_overrides',
   'update_component_property',
   'delete_component_property',
+  'group_nodes',
   'flatten_node',
   'boolean_operation',
   'clear_annotations',
   'remove_reaction',
   'set_reactions',
   'lint_fix',
+  'set_lint_ignore',
   'rename_page',
   'delete_node',
   'stage_changes',
@@ -282,6 +287,12 @@ export const GENERATED_EDIT_TOOLS = new Set([
 
 /** Toolset definitions with tool lists */
 export const GENERATED_TOOLSETS: Record<string, { description: string; tools: string[] }> = {
+  'debug': {
+    description: "Debug tools — execute arbitrary JS in the Plugin sandbox. Not available by default; use load_toolset('debug') to enable.",
+    tools: [
+      'execute_js',
+    ],
+  },
   'variables': {
     description: "Variable & collection management — create, update, delete variables, collections, modes, aliases, bindings.",
     tools: [
@@ -360,6 +371,7 @@ export const GENERATED_TOOLSETS: Record<string, { description: string; tools: st
       'create_rectangle',
       'create_ellipse',
       'create_section',
+      'group_nodes',
       'flatten_node',
       'boolean_operation',
     ],
@@ -390,6 +402,7 @@ export const GENERATED_TOOLSETS: Record<string, { description: string; tools: st
       'lint_check',
       'lint_fix',
       'lint_rules',
+      'set_lint_ignore',
       'compliance_report',
     ],
   },
@@ -434,6 +447,7 @@ export const GENERATED_TOOLSET_DESCRIPTIONS: Record<string, string> = {
   'auth': "Figma OAuth — login, logout, check auth status.",
   'pages': "Page management — create and rename pages.",
   'staging': "Staged workflow — preview changes before finalizing. Stage, commit, discard, and list staged nodes.",
+  'debug': "Debug tools — execute arbitrary JS in the Plugin sandbox. Not available by default; use load_toolset('debug') to enable.",
 };
 
 /** Endpoint method-level access control mapping */
@@ -451,6 +465,7 @@ export const GENERATED_ENDPOINT_METHOD_ACCESS: Record<
   },
   'text': {
     'set_content': { write: true, access: 'edit' },
+    'set_range': { write: true, access: 'edit' },
   },
   'components': {
     'list': { write: false },
@@ -496,7 +511,7 @@ export const GENERATED_ENDPOINT_TOOLS = new Set<string>([
 /** Endpoint → flat tools it replaces (for API mode switching) */
 export const GENERATED_ENDPOINT_REPLACES: Record<string, string[]> = {
   'nodes': ['get_node_info', 'search_nodes', 'patch_nodes', 'delete_nodes', 'clone_nodes', 'reparent_nodes'],
-  'text': ['set_text_content'],
+  'text': ['set_text_content', 'set_text_range'],
   'components': ['list_components', 'list_library_components', 'get_component', 'list_component_properties'],
   'variables_ep': ['list_variables', 'get_variable', 'list_collections', 'get_node_variables', 'set_variable_binding', 'create_variable', 'update_variable', 'delete_variable', 'create_collection', 'delete_collection', 'batch_create_variables', 'export_variables'],
   'styles_ep': ['list_styles', 'get_style', 'create_paint_style', 'update_paint_style', 'update_text_style', 'update_effect_style', 'delete_style', 'sync_styles'],
@@ -514,6 +529,7 @@ export const GENERATED_FLAT_TOOL_MIGRATIONS: Record<
   'clone_nodes': { endpoint: 'nodes', method: 'clone', toolset: 'core', write: true, access: 'create' },
   'reparent_nodes': { endpoint: 'nodes', method: 'reparent', toolset: 'core', write: true, access: 'edit' },
   'set_text_content': { endpoint: 'text', method: 'set_content', toolset: 'core', write: true, access: 'edit' },
+  'set_text_range': { endpoint: 'text', method: 'set_range', toolset: 'core', write: true, access: 'edit' },
   'list_components': { endpoint: 'components', method: 'list', toolset: 'core', write: false },
   'list_library_components': { endpoint: 'components', method: 'list_library', toolset: 'core', write: false },
   'get_component': { endpoint: 'components', method: 'get', toolset: 'core', write: false },
@@ -553,6 +569,7 @@ export const GENERATED_REMOVED_TOOLS: Record<string, { endpoint: string; method:
   'clone_nodes': { endpoint: 'nodes', method: 'clone' },
   'reparent_nodes': { endpoint: 'nodes', method: 'reparent' },
   'set_text_content': { endpoint: 'text', method: 'set_content' },
+  'set_text_range': { endpoint: 'text', method: 'set_range' },
   'list_components': { endpoint: 'components', method: 'list' },
   'list_library_components': { endpoint: 'components', method: 'list_library' },
   'get_component': { endpoint: 'components', method: 'get' },

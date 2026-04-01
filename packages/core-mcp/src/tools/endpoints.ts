@@ -164,12 +164,15 @@ export function registerEndpointTools(server: McpServer, bridge: Bridge): void {
     async (params) => nodesDispatcher(params as Record<string, unknown>),
   );
 
-  // ── text endpoint (set_content only) ──
+  // ── text endpoint ──
   const textDispatcher = createMethodDispatcher({
     name: 'text',
     methods: {
       set_content: (b, p) => bridgeRequestLogic(b, 'set_text_content', {
         nodeId: p.nodeId, content: p.content,
+      }),
+      set_range: (b, p) => bridgeRequestLogic(b, 'set_text_range', {
+        nodeId: p.nodeId, operations: p.operations,
       }),
     },
   }, bridge);

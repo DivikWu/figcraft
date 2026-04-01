@@ -41,10 +41,10 @@ vi.mock('ws', () => {
 });
 
 // Mock figma-api and auth to avoid real network/file calls
-vi.mock('../packages/core-mcp/src/figma-api.js', () => ({
+vi.mock('../../packages/core-mcp/src/figma-api.js', () => ({
   fetchFileName: vi.fn(),
 }));
-vi.mock('../packages/core-mcp/src/auth.js', () => ({
+vi.mock('../../packages/core-mcp/src/auth.js', () => ({
   saveBridgeToken: vi.fn(),
 }));
 
@@ -125,14 +125,14 @@ describe('Bug Condition Exploration: Bridge reconnection', () => {
   /**
    * **Validates: Requirements 1.2, 2.2**
    *
-   * Property 2: Eviction (code 4001) leaves bridge permanently dead.
+   * Property 2: Eviction (code 4001) intentionally does NOT reconnect.
    *
-   * When a WebSocket close event fires with code 4001, the bridge should
-   * call scheduleReconnect() so it can recover. On UNFIXED code, the 4001
-   * handler returns early without calling scheduleReconnect(), leaving the
-   * bridge permanently dead.
+   * When a WebSocket close event fires with code 4001 (same_role_eviction),
+   * the bridge MUST NOT call scheduleReconnect(). Reconnecting would evict
+   * the other instance, creating an infinite eviction loop. Instead the bridge
+   * marks itself as evicted and rejects all pending requests.
    */
-  it('eviction (code 4001) should schedule a reconnect', async () => {
+  it('eviction (code 4001) should NOT schedule a reconnect (avoids eviction loop)', async () => {
     const bridge = new Bridge('ws://localhost:3055', 'test-channel');
 
     // Call connect() to register event handlers on the mock WebSocket
@@ -154,9 +154,10 @@ describe('Bug Condition Exploration: Bridge reconnection', () => {
     // Simulate eviction: fire close with code 4001
     wsInstance.handlers['close'](4001, Buffer.from('same_role_eviction'));
 
-    // The key assertion: scheduleReconnect() SHOULD have been called.
-    // On unfixed code, the 4001 handler returns early without calling it.
-    expect(scheduleReconnectSpy).toHaveBeenCalled();
+    // scheduleReconnect() should NOT be called — eviction is intentionally terminal
+    expect(scheduleReconnectSpy).not.toHaveBeenCalled();
+    expect(bridge.isConnected).toBe(false);
+    expect((bridge as any).evicted).toBe(true);
 
     scheduleReconnectSpy.mockRestore();
   });

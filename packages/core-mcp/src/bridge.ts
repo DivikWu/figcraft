@@ -264,7 +264,7 @@ export class Bridge {
 
   /** UI creation methods that require get_mode to be called first. */
   private static readonly DESIGN_PREFLIGHT_METHODS = new Set([
-    'create_frame', 'create_text', 'create_svg', 'execute_js',
+    'create_frame', 'create_text', 'create_svg',
   ]);
 
   /** Send a request to the Plugin and await its response. */

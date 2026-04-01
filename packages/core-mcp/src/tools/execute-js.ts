@@ -20,7 +20,7 @@ export function registerExecuteJsTools(server: McpServer, bridge: Bridge): void 
       'Do NOT call figma.closePlugin() or wrap in async IIFE. ' +
       'Colors are 0–1 range. Fills/strokes are read-only arrays. ' +
       'Load fonts before text ops: await figma.loadFontAsync({family, style}). ' +
-      'Failed scripts are atomic — no changes on error.',
+      'Failed scripts are NOT atomic — partial nodes may remain after errors. Inspect and clean up.',
     {
       code: z
         .string()

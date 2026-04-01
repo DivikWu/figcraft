@@ -29,11 +29,9 @@ STEP 3: CLASSIFY TASK SCALE → pick creation method:
         │   ├─ large flow 6+    → batch 2-3 screens per conversation turn
         │   └─ complex params?  → dryRun:true first to preview inferences, then use correctedPayload
         ├─ BATCH TEXT: create_text with items[] (up to 50 text nodes)
-        └─ ESCAPE HATCH: use execute_js ONLY when declarative tools can't express the logic:
-            ├─ complex conditionals or loops over dynamic data (e.g. generate N cards from array)
-            ├─ Plugin API methods not wrapped by create_frame (e.g. createNodeFromSvg, createComponentSet)
-            └─ create_frame failed AND correctedPayload couldn't resolve it
-            ❌ "more flexible", "more efficient", "more complex" are NOT valid reasons for execute_js
+        └─ DEBUG ONLY: execute_js requires load_toolset("debug") — NOT available by default
+            Only for: diagnostics, node inspection, Plugin API methods not wrapped by any declarative tool
+            ❌ NEVER for UI creation — use create_frame + children instead
 STEP 4: IF multi-screen flow →
         See figma-declarative-creation.md §Multi-Screen Flows (already in context)
         ✅ REQUIRED: wrapper with nested screen children, or wrapper first then screens via parentId
@@ -68,7 +66,7 @@ This section summarizes the core principles from `design-creator.md` / `design-g
 - Dominant color at 60%+, accent for key focal points only
 - NEVER more than 1 accent color per semantic role per view
 - NEVER default to blue/gray without justification — "Inter + blue + centered symmetry is the AI safe zone"
-- Define a color palette with hex values for the design decision. When using `execute_js`, define a `COL` object; when using declarative tools, pass hex values or token names directly.
+- Define a color palette with hex values for the design decision. Pass hex values or token names directly in `create_frame` children.
 
 ### Typography Rules
 
@@ -108,9 +106,9 @@ This section summarizes the core principles from `design-creator.md` / `design-g
 - Text contrast ratio ≥ 4.5:1
 - Minimum touch target: iOS ≥ 44×44pt, Android ≥ 48×48dp, Web ≥ 24×24px
 
-## execute_js Critical Rules (only when using execute_js — declarative tools handle these automatically)
+## execute_js Reference (debug toolset only — declarative tools handle these automatically)
 
-These rules apply ONLY when using `execute_js` as an escape hatch. When using `create_frame` + `children` (the default), all of these are handled internally by the tool.
+These rules apply ONLY when using `execute_js` from the `debug` toolset (`load_toolset("debug")`). When using `create_frame` + `children` (the default), all of these are handled internally by the tool.
 
 1. `return` to output data — no `figma.closePlugin()`, no async IIFE wrapper, no `console.log()`
 2. `figma.notify()` throws — never use it
@@ -131,7 +129,7 @@ These rules apply ONLY when using `execute_js` as an escape hatch. When using `c
 ## Layout & Quality Rules
 
 16. NEVER use empty spacer frames — use `itemSpacing`, `padding`, `SPACE_BETWEEN` instead. For top/bottom distribution, see figma-design-creation.md §6.
-17. Responsive children (inputs, buttons, dividers) → `layoutSizingHorizontal: 'FILL'` (declarative tools handle this automatically; for execute_js, set AFTER appendChild)
+17. Responsive children (inputs, buttons, dividers) → `layoutSizingHorizontal: 'FILL'` (declarative tools handle this automatically)
 18. HUG parent + FILL child = child collapses — parent must be FIXED or FILL
 19. FILL requires auto-layout parent
 20. Frames with 2+ children MUST have auto-layout
@@ -222,54 +220,25 @@ If you sense the conversation is getting long (15+ tool calls already made):
 5. **Lint** — `lint_fix_all` on each screen before replying to user.
 6. **Final verification** — `export_image` on the complete result (only if not already verified via `_preview`).
 
-### Escape Hatch: execute_js Workflow (only when declarative tools can't express the logic — "more flexible/efficient" is NOT a valid reason)
+### Debug: execute_js (requires `load_toolset("debug")` — diagnostics only)
 
-0. **Context budget gate** — Do NOT call `discloseContext` to pre-load skills. The auto-loaded steering is sufficient for UI creation without a design system. If `get_mode` (Step 2) reveals a design system, THEN load `discloseContext("figma-generate-design")`. See §Skill & Reference Loading below for the full policy.
-1. `ping` → `set_current_page` (if needed) → `get_current_page(maxDepth=1)` to inspect
-2. **⛔ DESIGN DECISIONS (mandatory, blocking for UI creation)** — call `get_mode` to check library status, then:
-   - Library selected → `readFile packages/core-mcp/src/prompts/design-guardian.md` (use existing tokens, exercise restraint) + `discloseContext("figma-generate-design")` (need component/variable/style discovery workflow)
-   - No library → `readFile packages/core-mcp/src/prompts/design-creator.md` (make intentional design choices, avoid AI defaults)
-   - **Complete the Design Thinking checklist** (see §Design Direction above): Purpose, Platform, Language, Density, Tone
-   - **Define the color palette** — choose dominant + accent colors serving the Tone, document the `COL` object that will be used in all execute_js scripts
-   - **Choose typography** — heading vs body distinction, font weights
-   - **⛔ HARD STOP — Output the design decisions to the user and WAIT for confirmation** — before writing any code, present the design plan as a brief summary: chosen Tone, color palette (hex values), typography choices, icon style, screen list, and style preset. This makes the decisions explicit and reviewable. You MUST stop here, output a text response, and wait for the user's explicit approval before proceeding to any write operations. If the user disagrees or requests changes, adjust the plan and present it again. Do NOT call any more tools until the user confirms. Violating this HARD STOP is a critical error.
-   - Apply ALL Design Direction rules (Color, Typography, Content, Iconography, Composition, Anti-AI Slop, Accessibility) BEFORE writing any execute_js code
-   - If `get_mode` result contradicts user intent (e.g., user says "use my design system" but get_mode returns no library), alert the user to check plugin settings before proceeding
-   - Skip this step only for non-creation tasks (inspect, lint, audit, token sync)
-   - ❌ FORBIDDEN: writing any execute_js code before completing this step
-   - ❌ FORBIDDEN: using hardcoded colors without design justification from the Design Thinking checklist
-3. **Estimate task scale** — count screens and sections. Pick granularity from the table above. If 6+ screens, tell user upfront you'll batch.
-4. Decide wrapper: multi-screen flow → HORIZONTAL wrapper (HUG/HUG), children FIXED. Single page → VERTICAL wrapper. Single element → no wrapper. For flows with a shared header/title above the screens, use a VERTICAL wrapper containing Header + HORIZONTAL Flow Row — **`readFile` `.kiro/steering/multi-screen-flow-guide.md` BEFORE writing any skeleton code** (contains required style presets, layer hierarchy, and helper templates).
-5. Create wrapper frame first, return its ID. **Verify with `get_current_page(maxDepth=1)`** — execute_js does not return `_preview`/`_children`, so explicit verification is required.
-6. Build content at the appropriate granularity (see table above). Use shared helper functions in every script. **After each write, verify with `get_current_page(maxDepth=1)`.**
-7. Visual verification (`export_image`) at key milestones (after wrapper, after first screen, at end of each batch).
-8. Fix before continuing — don't build on broken state
-9. `lint_fix_all` on each individual screen (NOT on the wrapper — linting a wrapper with many screens can timeout)
-10. **Post-lint structural verification (mandatory)** — after `lint_fix_all`, run `get_current_page(maxDepth=2)` to inspect each screen's child hierarchy (names, child counts). `lint_fix_all` auto-fixes can introduce side effects: duplicate wrapper nodes, reparented elements, hidden orphan frames, and unwanted padding injection. Compare the post-lint structure against the expected hierarchy and remove any unexpected nodes.
-    - **Padding injection pitfall**: lint may add `paddingLeft`/`paddingRight` to inner frames (e.g., header groups, link rows) that already inherit sufficient margin from an outer Screen shell's padding. This causes visible misalignment between sibling elements. After lint, verify that no inner frame received unexpected padding by checking `paddingLeft`/`paddingRight`/`paddingTop`/`paddingBottom` on all direct children of TopContent and BottomContent, and reset any values that were 0 before lint.
-11. Final `export_image` verification on the full wrapper
+`execute_js` is NOT for UI creation. Use it only for diagnostics, node inspection, or Plugin API methods not wrapped by declarative tools. When used:
+1. Verify page state with `get_current_page(maxDepth=1)` after every write — execute_js does not return `_preview`/`_children`
+2. Clean up orphan nodes — failed scripts are NOT atomic
+3. Return only IDs needed by subsequent calls
 
-Anti-patterns: ❌ ALL screens in one call (execute_js or create_frame) | ❌ one element per call | ❌ skip lint_fix_all | ❌ omit sizing on any node | ❌ empty spacer frames for spacing | ❌ skip checking _children and _preview from create_frame response | ❌ skip post-lint structure check | ❌ returning full node trees in return values | ❌ skip the PRE-FLIGHT CHECKLIST (Steps 0-4 at the top of this file) | ❌ starting any write operation without first calling ping + get_current_page | ❌ skip Step 2 Design Decisions — all visual choices become unjustified | ❌ hardcode colors/fonts without completing the Design Thinking checklist | ❌ emoji text nodes as icon placeholders (use icon_create instead) | ❌ calling get_current_page + export_image after every create_frame when _preview suffices
+Anti-patterns: ❌ ALL screens in one create_frame call | ❌ one element per call | ❌ skip lint_fix_all | ❌ omit sizing on any node | ❌ empty spacer frames for spacing | ❌ skip checking _children and _preview from create_frame response | ❌ skip post-lint structure check | ❌ skip the PRE-FLIGHT CHECKLIST (Steps 0-4 at the top of this file) | ❌ starting any write operation without first calling ping + get_current_page | ❌ skip Step 2 Design Decisions — all visual choices become unjustified | ❌ hardcode colors/fonts without completing the Design Thinking checklist | ❌ emoji text nodes as icon placeholders (use icon_create instead) | ❌ calling get_current_page + export_image after every create_frame when _preview suffices | ❌ using execute_js for UI creation (use create_frame + children instead)
 
 ## Multi-Screen Flow Generation Strategy
 
-For declarative tools: see `figma-declarative-creation.md` §Multi-Screen Flows — build wrapper with nested screen children.
+See `figma-declarative-creation.md` §Multi-Screen Flows — build wrapper with nested screen children using `create_frame` + `children`.
 
-For execute_js escape hatch: `readFile` the detailed guide at `.kiro/steering/multi-screen-flow-guide.md` BEFORE writing any code. That guide contains full code templates and helper examples.
+For detailed layer hierarchy and style presets: `readFile` `.kiro/steering/multi-screen-flow-guide.md`.
 
-**When using execute_js for multi-screen flows, these rules MUST be followed:**
-
-Every `execute_js` script in a multi-screen flow MUST start with a `PRESET` variable. Default to `soft` if user hasn't specified a style:
-```js
-const PRESET = {
-  screen: { radius: 28, shadow: null },
-  button: { radius: 12 }, input: { radius: 12 }, card: { radius: 20 }, pill: { radius: 100 },
-};
-```
-- Wrapper: `counterAxisAlignItems=MIN`, `clipsContent=false`, **must have a background fill** (e.g., light gray `{r:0.96,g:0.96,b:0.96}`), **must have `cornerRadius`** (use a presentation-level radius like 20–40, independent of `PRESET.screen.radius`)
+Key rules:
+- Wrapper: `counterAxisAlignItems=MIN`, `clipsContent=false`, background fill, `cornerRadius` 20–40
 - Flow Row + all Stage containers: `clipsContent=false`
-- Screen: `cornerRadius=PRESET.screen.radius`, `clipsContent=true`, `effects=[PRESET.screen.shadow]`
-- ALL corner radii in helpers (`makeButton`, `makeInput`, etc.) come from `PRESET` — **never hardcode**
+- Screen: `cornerRadius=28` (soft preset), `clipsContent=true`
 - ALL ancestor containers of shadowed elements: `clipsContent=false` (see Rule #24)
 
 ## Skill & Reference Loading (CRITICAL — Context Budget)
@@ -280,7 +249,7 @@ const PRESET = {
 - ❌ `discloseContext("figma-generate-design")` when there is NO design system — the workflow in this file (Steps 1-11) already covers the creation process
 
 **ALLOWED `discloseContext` calls:**
-- ✅ `discloseContext("figma-generate-design")` — ONLY when assembling pages WITH a design system (need Step 2a-2c component/variable/style discovery). Note: this skill's SKILL.md says "MUST also load figma-use" — **ignore that directive in Kiro**. The auto-loaded steering already covers all execute_js rules that figma-use provides. This override is authorized by the Precedence section above.
+- ✅ `discloseContext("figma-generate-design")` — ONLY when assembling pages WITH a design system (need component/variable/style discovery). Note: this skill's SKILL.md says "MUST also load figma-use" — **ignore that directive in Kiro**. The auto-loaded steering is sufficient. This override is authorized by the Precedence section above.
 - ✅ `discloseContext("figma-generate-library")` — ONLY when building a design system. Same override applies: ignore its "MUST load figma-use" directive in Kiro.
 - ✅ `discloseContext("figma-implement-design")` — when generating code FROM Figma designs
 
@@ -300,13 +269,11 @@ Exception: if the user manually loaded `figma-design-creation` (via #figma-desig
 |--------|------------|------|------|
 | `icon_search` → `icon_create` | Icons from standard sets (Lucide, MDI, etc.) | Simplest, auto color binding, 200k+ icons | Requires network (Iconify API) |
 | `create_frame` with `{type:'svg', svg:'...'}` child | Custom SVG inline with other children | Declarative, part of node tree, Opinion Engine sizing | No color variable binding on SVG internals |
-| `execute_js` + `figma.createNodeFromSvg()` | Dynamic SVG generation, complex path manipulation | Full Plugin API control | Manual sizing, no inference, orphan risk |
+**Default to `icon_create`** for standard icons. Use `create_frame` SVG children when embedding custom SVGs in a declarative tree.
 
-**Default to `icon_create`** for standard icons. Use `create_frame` SVG children when embedding custom SVGs in a declarative tree. Use `execute_js` only when SVG paths are generated dynamically (e.g., from data).
+### Icon Helper Pattern (for debug toolset execute_js only)
 
-### Icon Helper Pattern
-
-Every `execute_js` script that needs icons MUST include a `makeIcon` helper:
+When using `execute_js` from the debug toolset for icon operations, include a `makeIcon` helper:
 
 ```js
 function makeIcon(parent, name, svgPath, size, color) {
@@ -379,20 +346,13 @@ If a design requires an icon not in the built-in set, find its SVG path from a s
 
 For declarative tool templates (create_frame + children JSON), see `figma-declarative-creation.md` §Templates (already in context).
 
-For execute_js structural reference (escape hatch only):
-- Screen layout: `Frame(VERTICAL, FIXED 402×874, SPACE_BETWEEN, padding) → TopContent(VERTICAL, FILL, HUG) + BottomContent(HORIZONTAL, FILL, HUG)` — NEVER use empty spacer frames
-- Input field: `Frame(HORIZONTAL, cornerRadius, stroke, padding=12/16, FILL) → Text(placeholder)`
-- Button: `Frame(HORIZONTAL, cornerRadius, fill=primary, padding=14/24, CENTER, h≥52, FILL) → Text(label)`
-- Link row: `Frame(HORIZONTAL, itemSpacing=4, CENTER) → Text(desc) + Text(action, primary color)`
-- Pill / badge: `Frame(HORIZONTAL, cornerRadius=100, fill=pillBg, padding=8/14, HUG/HUG) → Text(label, 13px Medium, HUG/HUG)`
-
 ## Reference Docs (readFile on demand)
 
-- `.kiro/steering/multi-screen-flow-guide.md` — Style presets, layer hierarchy, helper templates for multi-screen flows (auth, onboarding, checkout)
-- `.kiro/steering/execute-js-guide.md` — Full execute_js workflow with code examples (Section Creation Strategy)
-- `.kiro/skills/figma-use/references/gotchas.md` — WRONG/CORRECT code examples for every pitfall
+- `.kiro/steering/figma-declarative-creation.md` — Declarative creation patterns, templates, smart defaults (auto-loaded)
+- `.kiro/steering/multi-screen-flow-guide.md` — Style presets, layer hierarchy for multi-screen flows
+- `.kiro/steering/figma-design-creation.md` — Full design creation rules, layout strategies
+- `.kiro/steering/execute-js-guide.md` — Debug toolset execute_js reference (diagnostics only)
+- `.kiro/skills/figma-use/references/gotchas.md` — Plugin API pitfalls with WRONG/CORRECT examples
 - `.kiro/skills/figma-use/references/common-patterns.md` — Working code scaffolds
 - `.kiro/skills/figma-use/references/component-patterns.md` — Components, variants, properties
 - `.kiro/skills/figma-use/references/variable-patterns.md` — Variable collections, bindings, scopes
-- `.kiro/skills/figma-use/references/text-style-patterns.md` — Text styles
-- `.kiro/skills/figma-use/references/plugin-api-standalone.d.ts` — Full API typings (grep, don't load all)

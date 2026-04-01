@@ -6,6 +6,7 @@
  */
 
 import type { StructuredHint } from '../utils/hint-aggregator.js';
+import { SPACER_RE } from '@figcraft/quality-engine';
 
 /** A single layout inference made during node creation. */
 export interface Inference {
@@ -131,15 +132,32 @@ export function validateParams(
     return { inferences, hasConflict: false };
   }
 
-  // ── 1. layoutMode conflict detection ──
+  // Shared checks used by multiple validation steps
   const hasALParams =
     params.itemSpacing != null || params.paddingTop != null || params.paddingRight != null ||
     params.paddingBottom != null || params.paddingLeft != null || params.padding != null ||
     params.primaryAxisAlignItems != null || params.counterAxisAlignItems != null ||
     (params.layoutWrap != null && params.layoutWrap !== 'NO_WRAP');
+  const hasChildren = Array.isArray(params.children) && params.children.length > 0;
   const hasHUGSizing =
     params.layoutSizingHorizontal === 'HUG' || params.layoutSizingVertical === 'HUG';
-  const hasChildren = Array.isArray(params.children) && params.children.length > 0;
+
+  // ── 0. Auto-downgrade: empty frame with fixed size but no layout → rectangle ──
+  const hasFixedSize = params.width != null || params.height != null;
+  if (!hasChildren && hasFixedSize && params.layoutMode == null && !hasALParams) {
+    inferences.push({
+      path: nodePath,
+      field: 'type',
+      from: 'frame',
+      to: 'rectangle',
+      confidence: 'deterministic',
+      reason: 'empty frame with fixed size and no layout — auto-downgraded to rectangle (avoids HUG error in auto-layout parents)',
+    });
+    params.type = 'rectangle';
+    return { inferences, hasConflict: false };
+  }
+
+  // ── 1. layoutMode conflict detection ──
 
   if (params.layoutMode === 'NONE' && (hasALParams || hasHUGSizing)) {
     const conflicting = [
@@ -241,14 +259,97 @@ export function validateParams(
     }
   }
 
-  // ── 5. Recursive children validation ──
+  // ── 4.5. Spacer frame prevention ──
+  // Detect children with spacer-like names and convert to parent itemSpacing.
   if (hasChildren) {
+    const childrenArr = params.children as Record<string, unknown>[];
+    const spacerIndices: number[] = [];
+    for (const [idx, child] of childrenArr.entries()) {
+      const name = child.name as string | undefined;
+      const childHasChildren = Array.isArray(child.children) && (child.children as unknown[]).length > 0;
+      if (name && SPACER_RE.test(name) && !childHasChildren) {
+        spacerIndices.push(idx);
+        const spacerDim = (child.height as number) ?? (child.width as number) ?? 0;
+        if (spacerDim > 0 && params.itemSpacing == null) {
+          params.itemSpacing = spacerDim;
+          inferences.push({
+            path: `${nodePath} > ${name}`,
+            field: 'itemSpacing',
+            from: undefined,
+            to: spacerDim,
+            confidence: 'deterministic',
+            reason: `spacer "${name}" (${spacerDim}px) converted to parent itemSpacing`,
+          });
+        }
+      }
+    }
+    for (const idx of spacerIndices.reverse()) {
+      childrenArr.splice(idx, 1);
+    }
+  }
+
+  // ── 5. Recursive children validation ──
+  // Re-check children length since spacer prevention (step 4.5) may have removed entries.
+  const remainingChildren = Array.isArray(params.children) && params.children.length > 0;
+  if (remainingChildren) {
     for (const [idx, childDef] of (params.children as Record<string, unknown>[]).entries()) {
       const child = childDef as Record<string, unknown>;
       const childName = (child.name as string) ?? `child[${idx}]`;
       const childResult = validateParams(child, `${nodePath} > ${childName}`);
       inferences.push(...childResult.inferences);
       if (childResult.hasConflict) return childResult;
+    }
+  }
+
+  // ── 6. Children structural pre-checks (detectable without creation) ──
+  if (remainingChildren) {
+    const parentWidth = params.width as number | undefined;
+    for (const [idx, childDef] of (params.children as Record<string, unknown>[]).entries()) {
+      const child = childDef as Record<string, unknown>;
+      const childName = (child.name as string) ?? `child[${idx}]`;
+      const childPath = `${nodePath} > ${childName}`;
+      const ct = (child.type as string) ?? 'frame';
+
+      // Text: WIDTH_AND_HEIGHT in fixed-width parent → will auto-heal to HEIGHT
+      if (ct === 'text' && child.textAutoResize === 'WIDTH_AND_HEIGHT' && parentWidth != null) {
+        inferences.push({
+          path: childPath,
+          field: 'textAutoResize',
+          from: 'WIDTH_AND_HEIGHT',
+          to: 'HEIGHT',
+          confidence: 'deterministic',
+          reason: 'text in fixed-width parent — WIDTH_AND_HEIGHT may overflow, will auto-heal to HEIGHT',
+        });
+      }
+
+      // Frame: no visual content and no children → will be invisible
+      if (ct === 'frame') {
+        const noFills = child.fill == null && child.fills == null && child.fillVariableName == null;
+        const noStrokes = child.stroke == null && child.strokes == null;
+        const noChildren = !Array.isArray(child.children) || (child.children as unknown[]).length === 0;
+        if (noFills && noStrokes && noChildren) {
+          inferences.push({
+            path: childPath,
+            field: '_structure',
+            from: undefined,
+            to: 'invisible',
+            confidence: 'ambiguous',
+            reason: 'empty frame with no fills/strokes/children — will be invisible',
+          });
+        }
+      }
+
+      // Text: fontSize < 12 → below mobile readability
+      if (ct === 'text' && child.fontSize != null && (child.fontSize as number) < 12) {
+        inferences.push({
+          path: childPath,
+          field: 'fontSize',
+          from: child.fontSize,
+          to: child.fontSize,
+          confidence: 'deterministic',
+          reason: `fontSize ${child.fontSize} below mobile minimum (12px) — may be intentional`,
+        });
+      }
     }
   }
 

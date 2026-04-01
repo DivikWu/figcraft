@@ -5,15 +5,14 @@ description: "Figma design creation optimization rules — full version with tem
 
 # Figma Design Creation Optimization Rules
 
-Core rules for creating Figma designs using FigCraft structured tools (`create_frame`, `create_text`, `nodes(method: "update")`).
-For `execute_js` scripting rules, see #[[file:.kiro/steering/execute-js-guide.md]].
-Incorporates official Figma Plugin API best practices.
+Core rules for creating Figma designs using FigCraft declarative tools (`create_frame` + `children`, `create_text`, `text(method: "set_range")`, `group_nodes`, `nodes(method: "update")`).
+Incorporates official Figma Plugin API best practices. All UI creation is declarative — `execute_js` is in the `debug` toolset and not available by default.
 
 ## 1. Pre-Creation Checklist
 
 ### Skill loading (must decide before any tool call)
 
-In Kiro, the auto-loaded `figma-essential-rules.md` steering already covers all execute_js rules. Do NOT call `discloseContext("figma-use")` — it duplicates ~60KB of content already in context. Load additional skills based on task type:
+In Kiro, the auto-loaded `figma-essential-rules.md` steering is sufficient for all UI creation. Do NOT call `discloseContext("figma-use")` — it duplicates ~60KB of content already in context. Load additional skills based on task type:
 
 | Task type | Skills to load |
 |-----------|---------------|
@@ -59,62 +58,35 @@ This aligns with the [figma-generate-design](../skills/figma-generate-design/SKI
 
 This follows Vibma's "parent-first rule" — dependent creates must be sequential because children need parent IDs.
 
-### For execute_js — Granularity by Task Scale
+### Granularity by Task Scale (create_frame + children)
 
-| Task scale | Script granularity | Verification frequency |
+| Task scale | Creation approach | Verification frequency |
 |------------|-------------------|----------------------|
-| Single screen | 1 call per section (2-4 calls) | export_image after each section |
-| Multi-screen flow (3-5 screens) | 1 call per FULL SCREEN | export_image after each complete screen |
+| Single element | 1 `create_frame` call | export_image after creation |
+| Single screen | 1 `create_frame` call with full children tree | export_image after creation |
+| Multi-screen flow (3-5 screens) | 1 `create_frame` per screen (with `parentId` for wrapper) | export_image after each screen |
 | Large flow (6+ screens) | Batch 2-3 screens per turn | export_image at end of each batch |
 
 #### Single Screen Example
 ```
-Call 1: Create screen shell frame, return ID
+Call 1: create_frame with full children tree (screen shell + all sections + all content)
+        → check _children and _preview in response
         → export_image to verify
-Call 2: Create header section with all children
-        → export_image to verify
-Call 3: Create form section with all children (inputs + buttons)
-        → export_image to verify
-Call 4: lint_fix_all → post-lint check → export_image
+Call 2: lint_fix_all → export_image
 ```
 
-#### Multi-Screen Flow Example (CONTEXT-OPTIMIZED)
+#### Multi-Screen Flow Example
 ```
-Call 1: Create wrapper + all screen shells (skeleton with shared helpers + loop)
+Call 1: create_frame — Wrapper with skeleton (Header + Flow Row + Stage shells + empty Screens)
         → export_image to verify skeleton
-Call 2: Fill Screen 1 entirely (TopContent + form + buttons + BottomContent)
-        → export_image to verify Screen 1
-Call 3: Fill Screen 2 entirely
-        → export_image to verify Screen 2
-...
-Call N: lint_fix_all on each screen → post-lint check → final export_image
+Call 2: create_frame — Fill Screen 1 (parentId=screen1Id, children=[TopContent, BottomContent])
+        → check _preview, export_image to verify
+Call 3-N: create_frame — Fill remaining screens, one per call
+        → export_image after each
+Final: lint_fix_all on each screen → export_image
 ```
 
-Each "fill screen" call re-defines shared helpers (makeText, makeButton, makeField) at the top of the script — they don't persist across calls. This ensures every screen has identical visual rhythm.
-
-**Why this matters**: A 5-screen flow with "one section per call" = ~20 execute_js + ~20 export_image = 40+ tool calls → context bloat → model stalls. With "one screen per call" = ~6 execute_js + ~6 export_image = 12 tool calls → fits comfortably in context.
-
-### For structured tools (create_frame, create_text)
-
-Maximize parallelism within each dependency level. All independent calls in the same turn must be parallelized.
-
-```
-Turn 1: Wrapper frame (if needed per §2) + all screen frames as wrapper children (parallel)
-Turn 2: All section container frames (parallel siblings)
-Turn 3: All leaf frames (inputs, buttons) + all text nodes (parallel)
-Turn 4: Remaining text nodes + batch property updates via nodes(method: "update") (parallel)
-Turn 5: lint_fix_all + export_image verification
-```
-
-### Choosing between execute_js and structured tools
-
-| Scenario | Recommended approach |
-|----------|---------------------|
-| Screen with 3+ sections, each with nested children | `execute_js` — fewer calls, complete sections per call |
-| Multi-screen flow (any size) | `execute_js` — one screen per call with shared helpers |
-| Simple layout with flat structure | Structured tools — parallelism across siblings |
-| Complex logic (loops, conditionals, variable bindings) | `execute_js` — only option |
-| Quick single-element addition | Structured tools — less overhead |
+`create_frame` + `children` builds entire subtrees in one call with automatic sizing inference, token binding, and conflict detection. Use `dryRun: true` to preview inferences before committing.
 
 ## 4. Set Complete Properties at Creation Time
 
@@ -167,47 +139,43 @@ Screen Shell (VERTICAL, FIXED 402×874, primaryAxisAlignItems=SPACE_BETWEEN, pad
 - `counterAxisAlignItems = "CENTER"` (or "MIN" as needed)
 - Use `paddingTop`, `paddingBottom`, `paddingLeft`, `paddingRight` for breathing room
 
-**execute_js example:**
-```js
-const screen = figma.createFrame();
-screen.name = "Login";
-screen.layoutMode = "VERTICAL";
-screen.primaryAxisAlignItems = "SPACE_BETWEEN"; // ← KEY: distributes top/bottom
-screen.counterAxisAlignItems = "CENTER";
-screen.resize(402, 874);
-screen.layoutSizingHorizontal = "FIXED";
-screen.layoutSizingVertical = "FIXED";
-screen.paddingTop = 56;
-screen.paddingBottom = 40;
-screen.paddingLeft = 28;
-screen.paddingRight = 28;
-screen.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
-
-// Top Content — groups header + form
-const topContent = figma.createFrame();
-topContent.name = "Top Content";
-topContent.layoutMode = "VERTICAL";
-topContent.itemSpacing = 40; // space between header and form
-topContent.fills = [];
-screen.appendChild(topContent);
-topContent.layoutSizingHorizontal = "FILL";
-topContent.layoutSizingVertical = "HUG";
-
-// ... add Header and Form as children of topContent ...
-
-// Bottom Content — register link row
-const bottomContent = figma.createFrame();
-bottomContent.name = "Bottom Content";
-bottomContent.layoutMode = "HORIZONTAL";
-bottomContent.primaryAxisAlignItems = "CENTER";
-bottomContent.counterAxisAlignItems = "CENTER";
-bottomContent.itemSpacing = 4;
-bottomContent.fills = [];
-screen.appendChild(bottomContent);
-bottomContent.layoutSizingHorizontal = "FILL";
-bottomContent.layoutSizingVertical = "HUG";
-
-// ... add text nodes as children of bottomContent ...
+**create_frame example:**
+```json
+create_frame({
+  "name": "Login",
+  "width": 402, "height": 874,
+  "layoutMode": "VERTICAL",
+  "primaryAxisAlignItems": "SPACE_BETWEEN",
+  "counterAxisAlignItems": "CENTER",
+  "paddingTop": 56, "paddingBottom": 40, "paddingLeft": 28, "paddingRight": 28,
+  "fill": "#FFFFFF",
+  "children": [
+    {
+      "type": "frame", "name": "Top Content",
+      "layoutMode": "VERTICAL", "itemSpacing": 40,
+      "children": [
+        { "type": "frame", "name": "Header", "layoutMode": "VERTICAL", "itemSpacing": 8,
+          "children": [
+            { "type": "text", "content": "Title", "fontSize": 28, "fontStyle": "Bold" },
+            { "type": "text", "content": "Subtitle", "fontSize": 16, "fill": "#666666" }
+          ]
+        },
+        { "type": "frame", "name": "Form", "layoutMode": "VERTICAL", "itemSpacing": 20,
+          "children": ["... form fields and buttons ..."]
+        }
+      ]
+    },
+    {
+      "type": "frame", "name": "Bottom Content",
+      "layoutMode": "HORIZONTAL", "itemSpacing": 4,
+      "primaryAxisAlignItems": "CENTER", "counterAxisAlignItems": "CENTER",
+      "children": [
+        { "type": "text", "content": "Don't have an account?", "fontSize": 14, "fill": "#666666" },
+        { "type": "text", "content": "Register", "fontSize": 14, "fill": "#3B82F6", "fontStyle": "SemiBold" }
+      ]
+    }
+  ]
+})
 ```
 
 ### ❌ WRONG — Empty spacer frame (FORBIDDEN)
@@ -254,35 +222,31 @@ Link Container (HORIZONTAL, itemSpacing=4, CENTER, no fill)
   └── Action Text (14px Semi Bold, fill/primary)
 ```
 
-## 10. Transparent Container Handling (structured tools only)
+## 10. Transparent Container Handling
 
-When using structured tools (`create_frame`), after creating container frames that don't need a background, batch-set `fillsVisible: false` in a single `nodes(method: "update")` call instead of updating individually.
+Container frames that don't need a background: batch-set `fillsVisible: false` in a single `nodes(method: "update")` call, or omit `fill` in `create_frame` children (frames default to no visible fill when no fill property is specified).
 
-When using `execute_js`, set `frame.fills = []` directly in the creation script — no separate batch call needed.
+## 11. Batch Stroke Setting
 
-## 11. Batch Stroke Setting (structured tools only)
-
-When using structured tools, set strokes for all input fields in a single `nodes(method: "update")` call:
+Set strokes for all input fields in a single `nodes(method: "update")` call:
 ```json
 {"strokes": [{"color": {"r": 0.898, "g": 0.906, "b": 0.922}, "opacity": 1, "type": "SOLID"}]}
 ```
-Note: stroke color must be an `{r, g, b}` object (0-1 range), not a hex string.
-
-When using `execute_js`, set strokes directly during creation — no separate batch call needed.
+Note: stroke color must be an `{r, g, b}` object (0-1 range), not a hex string. Or use `strokeColor` in `create_frame` children for hex shorthand.
 
 ## 12. Validation Strategy
 
 After all sections of a screen are complete:
 
 1. `lint_fix_all` with `nodeIds` set to each individual screen ID (NOT the wrapper — linting a wrapper with many screens can timeout and produces less targeted fixes)
-2. **Post-lint structural verification (mandatory)** — after `lint_fix_all`, run `execute_js` to inspect each screen's child hierarchy (names, child counts, visibility). `lint_fix_all` auto-fixes can introduce side effects: duplicate wrapper nodes, reparented elements, or hidden orphan frames. Compare the post-lint structure against the expected hierarchy and remove any unexpected nodes before proceeding
+2. **Post-lint structural verification (mandatory)** — after `lint_fix_all`, run `get_current_page(maxDepth=2)` to inspect structure. `lint_fix_all` auto-fixes can introduce side effects: duplicate wrapper nodes, reparented elements, or hidden orphan frames. Compare the post-lint structure against the expected hierarchy and fix any unexpected nodes with `nodes(method: "delete")` before proceeding
 3. `export_image` on both individual screens AND the full wrapper — final visual verification
-4. If lint introduced structural regressions (duplicate nodes, orphan frames), fix with targeted `execute_js` then `export_image` again
+4. If lint introduced structural regressions (duplicate nodes, orphan frames), fix with targeted `nodes(method: "update"/"delete")` then `export_image` again
 
-Per-section validation (during creation — single screen only):
-- `export_image` after each section is created — catch issues early
-- For multi-screen flows, verify per-screen instead (see §3 Granularity by Task Scale)
-- If a section looks wrong, fix it with a targeted `execute_js` before creating the next section
+Per-screen validation (during creation):
+- Check `_children` and `_preview` in each `create_frame` response — catch issues early
+- `export_image` at key milestones (after each complete screen)
+- If a screen looks wrong, fix with `nodes(method: "update")` before creating the next
 - Never build on top of broken state
 
 ## 13. Mobile Screen Specifications
@@ -342,178 +306,52 @@ Screen Shell (VERTICAL, FIXED 402×874, clipsContent=true)
 
 ## 15. Multi-Screen Flow Generation Strategy (Data-Driven)
 
-When building a multi-screen flow (auth, onboarding, checkout, walkthrough, etc.), use a data-driven approach to guarantee visual consistency across all screens. The key insight: define the screen list as structured data and loop it, rather than manually building each screen one by one.
+When building a multi-screen flow (auth, onboarding, checkout, walkthrough, etc.), use a consistent structure to guarantee visual consistency across all screens.
 
-### Why this matters
-
-Without this pattern, the model tends to:
-- Build each screen ad-hoc, leading to subtle inconsistencies (different padding, font sizes, button widths)
-- Skip the skeleton step and mix structure with content, making the layout fragile
-- Not use helper functions, so the same button/input/badge gets slightly different styling per screen
-
-### The three pillars
-
-#### Pillar 1: Screen definitions as data
-
-Before drawing anything, define the full screen list as a structured array. This forces you to think through the flow before touching the canvas:
-
-```js
-const screenDefs = [
-  { step: '01', label: 'Welcome',  fill: palette.dark },
-  { step: '02', label: 'Login',    fill: palette.white },
-  { step: '03', label: 'Register', fill: palette.white },
-  { step: '04', label: 'Verify',   fill: palette.white },
-  { step: '05', label: 'Done',     fill: palette.white },
-];
-```
-
-Loop this array to generate all shells uniformly. Never hardcode individual screens.
-
-#### Pillar 2: Strict layer hierarchy
+### Strict layer hierarchy
 
 All content lives inside a fixed tree structure. Content can ONLY be placed inside Screen's direct children (TopContent / BottomContent) — never directly on `Screen` or `Stage`:
 
 ```
-Wrapper (VERTICAL, padding=56, itemSpacing=40, cornerRadius=40)
-  ├── Header (VERTICAL, FILL width, HUG height)
-  │     ├── Title text
-  │     └── Description text
-  └── Flow Row (HORIZONTAL, itemSpacing=48, HUG/HUG)
-        └── Stage / {label} (VERTICAL, itemSpacing=16, HUG/HUG) — one per screenDef
-              ├── Step Pill — badge showing "01 Welcome"
-              └── Screen / {label} (VERTICAL, FIXED width×height, cornerRadius=32, clipsContent=true, padding for safe area, SPACE_BETWEEN)
-                    ├── Top Content (VERTICAL, FILL/HUG) — header, form, etc.
-                    └── Bottom Content (HORIZONTAL or VERTICAL, FILL/HUG) — links, actions
+Wrapper (VERTICAL, HUG/HUG, counterAxisAlignItems=MIN, clipsContent=false, cornerRadius=20-40, fill=lightGray, padding, itemSpacing)
+  ├── Header (title + description)
+  └── Flow Row (HORIZONTAL, HUG/HUG, clipsContent=false, itemSpacing between screens)
+        └── Stage / {label} (VERTICAL, HUG/HUG, clipsContent=false) — one per screen
+              ├── Step Pill (badge: "01 Welcome")
+              └── Screen / {label} (VERTICAL, FIXED 402×874, cornerRadius=28, clipsContent=true, padding, SPACE_BETWEEN, dropShadow)
+                    ├── Top Content (VERTICAL, FILL/HUG)
+                    └── Bottom Content (HORIZONTAL or VERTICAL, FILL/HUG)
 ```
 
-Key sizing rules for this hierarchy:
-- Wrapper: `VERTICAL`, `HUG/HUG`, padding on all sides, `itemSpacing` between Header and Flow Row
+Key sizing rules:
+- Wrapper: `VERTICAL`, `HUG/HUG`, padding on all sides
 - Flow Row: `HORIZONTAL`, `HUG/HUG`, `itemSpacing` between stages
-- Stage: `VERTICAL`, `HUG/HUG`, `itemSpacing` between pill and screen
-- Screen: `VERTICAL`, `FIXED` width × height (e.g., 402×874), cornerRadius, `clipsContent=true`, `primaryAxisAlignItems=SPACE_BETWEEN`, padding for safe area insets (e.g., `paddingTop=56, paddingBottom=40, paddingLeft=28, paddingRight=28`). Screen MUST have `layoutMode` — do NOT use absolute positioning for children
-- Top Content / Bottom Content: direct children of Screen, `VERTICAL` or `HORIZONTAL` auto-layout, `FILL` width, `HUG` height
+- Stage: `VERTICAL`, `HUG/HUG`
+- Screen: `VERTICAL`, `FIXED` width × height, `primaryAxisAlignItems=SPACE_BETWEEN`, padding for safe area
 
-> **⚠️ CRITICAL: Screen nodes MUST have auto-layout.** Previous versions used `NO layoutMode` on Screen with an absolutely-positioned Content child. This causes `lint_fix_all` to force auto-layout on Screen (lint rule: "frames with children MUST have auto-layout"), which breaks the layout by overriding the absolute positioning. The correct approach is to give Screen its own `layoutMode: "VERTICAL"` with padding, eliminating the need for a Content wrapper layer.
+> **⚠️ CRITICAL: Screen nodes MUST have auto-layout.** Give Screen its own `layoutMode: "VERTICAL"` with padding.
 
-#### Pillar 3: Shared helper functions
-
-Define helper functions inside the `execute_js` script that lock down the visual rhythm of common elements. Font must be loaded once before calling any helper that creates text:
-
-```js
-// Load fonts ONCE at the top of the script, before any helper calls
-await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
-await figma.loadFontAsync({ family: 'Inter', style: 'Medium' });
-await figma.loadFontAsync({ family: 'Inter', style: 'Semi Bold' });
-
-// Helper examples — define once, use across all screens
-function makeText(parent, content, { fontSize = 15, fontStyle = 'Regular', fill = colors.text } = {}) {
-  const t = figma.createText();
-  t.fontName = { family: 'Inter', style: fontStyle };
-  t.characters = content;
-  t.fontSize = fontSize;
-  t.fills = [{ type: 'SOLID', color: fill }];
-  parent.appendChild(t);
-  t.layoutSizingHorizontal = 'FILL';
-  t.layoutSizingVertical = 'HUG';
-  return t;
-}
-
-function makeButton(parent, label, { fill = colors.primary, textFill = colors.white } = {}) {
-  const btn = figma.createFrame();
-  btn.name = label;
-  btn.layoutMode = 'HORIZONTAL';
-  btn.primaryAxisAlignItems = 'CENTER';
-  btn.counterAxisAlignItems = 'CENTER';
-  btn.cornerRadius = 12;
-  btn.paddingTop = 16; btn.paddingBottom = 16;  // padding controls height (≥52 with 16px text)
-  btn.paddingLeft = 24; btn.paddingRight = 24;
-  btn.fills = [{ type: 'SOLID', color: fill }];
-  parent.appendChild(btn);
-  btn.layoutSizingHorizontal = 'FILL';
-  btn.layoutSizingVertical = 'HUG';
-  const t = makeText(btn, label, { fontSize: 16, fontStyle: 'Semi Bold', fill: textFill });
-  t.textAlignHorizontal = 'CENTER';
-  return btn;
-}
-
-function makeField(parent, placeholder, { label } = {}) {
-  const container = figma.createFrame();
-  container.name = label || placeholder;
-  container.layoutMode = 'VERTICAL';
-  container.itemSpacing = 6;
-  container.fills = [];
-  parent.appendChild(container);
-  container.layoutSizingHorizontal = 'FILL';
-  container.layoutSizingVertical = 'HUG';
-  if (label) makeText(container, label, { fontSize: 14, fontStyle: 'Medium', fill: colors.secondary });
-  const field = figma.createFrame();
-  field.layoutMode = 'HORIZONTAL';
-  field.cornerRadius = 10;
-  field.paddingTop = 12; field.paddingBottom = 12;
-  field.paddingLeft = 16; field.paddingRight = 16;
-  field.fills = [{ type: 'SOLID', color: colors.inputBg }];
-  field.strokes = [{ type: 'SOLID', color: colors.border }];
-  container.appendChild(field);
-  field.layoutSizingHorizontal = 'FILL';
-  field.layoutSizingVertical = 'HUG';
-  makeText(field, placeholder, { fill: colors.placeholder });
-  return container;
-}
-
-function makePill(parent, text) {
-  const pill = figma.createFrame();
-  pill.name = `Pill / ${text}`;
-  pill.layoutMode = 'HORIZONTAL';
-  pill.paddingTop = 8; pill.paddingBottom = 8;
-  pill.paddingLeft = 14; pill.paddingRight = 14;
-  pill.cornerRadius = 100;
-  pill.fills = [{ type: 'SOLID', color: colors.pillBg }];
-  parent.appendChild(pill);
-  pill.layoutSizingHorizontal = 'HUG';
-  pill.layoutSizingVertical = 'HUG';
-  const t = makeText(pill, text, { fontSize: 13, fontStyle: 'Medium', fill: colors.pillText });
-  // Pill text should HUG, not FILL — it's a compact badge
-  t.layoutSizingHorizontal = 'HUG';
-  return pill;
-}
-```
-
-These helpers ensure that every button across 5 screens has the same height, corner radius, and padding. Every input field has the same stroke, background, and placeholder style. This is what creates the "stable rhythm" across the flow.
-
-### Build order for multi-screen flows
+### Build order (using create_frame)
 
 ```
-Call 1 (skeleton):
-  - Create Wrapper + Header + Flow Row
-  - Loop screenDefs to create all Stage / Screen shells (Screen has auto-layout + padding, no Content wrapper needed)
-  - Return all IDs: { wrapperId, flowRowId, stages: [{ stageId, screenId }] }
-  → export_image to verify skeleton alignment
+Call 1: create_frame — Wrapper + Header + Flow Row + all Stage/Screen shells (skeleton)
+        → check _children, export_image to verify skeleton
 
-Call 2 (screen 1 content):
-  - Fetch Screen node by ID
-  - Use helpers to fill Welcome screen content (TopContent + BottomContent as direct children of Screen)
-  - Return only the screen ID (content is already inside it, no need to track child IDs)
-  → export_image to verify
+Call 2: create_frame — Fill Screen 1 (parentId=screen1Id, children=[TopContent, BottomContent])
+        → check _preview, export_image to verify
 
-Call 3–N (remaining screens):
-  - Same pattern, one screen per call
-  → export_image after each
+Call 3–N: create_frame — Fill remaining screens, one per call
+        → export_image after each
 
-Final call:
-  - lint_fix_all on each individual screen (NOT on the wrapper — can timeout)
-  - Post-lint structural verification
-  - export_image final verification
+Final: lint_fix_all on each individual screen → export_image
 ```
 
 ### Adapting to different flow types
 
-The pattern is generic — swap the screenDefs and content to fit any flow:
-
-| Flow type | Typical screenDefs | Content per screen |
-|-----------|-------------------|-------------------|
+| Flow type | Screens | Content per screen |
+|-----------|---------|-------------------|
 | Auth (login/register) | Welcome, Login, Register, Verify, Done | Forms, OTP inputs, success state |
-| Onboarding | Intro, Feature 1, Feature 2, Feature 3, Get Started | Illustrations, descriptions, progress dots |
+| Onboarding | Intro, Feature 1-3, Get Started | Illustrations, descriptions, progress dots |
 | Checkout | Cart, Shipping, Payment, Review, Confirmation | Product list, address form, card form, summary |
-| Walkthrough | Step 1–N | Instruction text, screenshots, action buttons |
 
-The skeleton (Wrapper → Flow Row → Stage → Screen) stays the same. Only the content inside each Screen frame (TopContent + BottomContent) changes.
+The skeleton (Wrapper → Flow Row → Stage → Screen) stays the same. Only the content inside each Screen changes.

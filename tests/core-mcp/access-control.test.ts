@@ -107,14 +107,14 @@ describe('isToolBlocked', () => {
 
   it('at edit level (default), no tools are blocked', async () => {
     // Default env = edit level
-    const { isToolBlocked } = await import('../packages/core-mcp/src/tools/toolset-manager.js');
+    const { isToolBlocked } = await import('../../packages/core-mcp/src/tools/toolset-manager.js');
     // At edit level, nothing should be blocked
     expect(isToolBlocked('ping')).toBeNull();
     expect(isToolBlocked('get_current_page')).toBeNull();
   });
 
   it('resolveAccessLevel defaults to edit', async () => {
-    const { getAccessLevel } = await import('../packages/core-mcp/src/tools/toolset-manager.js');
+    const { getAccessLevel } = await import('../../packages/core-mcp/src/tools/toolset-manager.js');
     // Module was loaded without FIGCRAFT_ACCESS set, should default to edit
     expect(getAccessLevel()).toBe('edit');
   });

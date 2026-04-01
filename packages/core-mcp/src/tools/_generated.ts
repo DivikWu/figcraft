@@ -56,7 +56,7 @@ export function registerGeneratedTools(
   if (shouldRegisterGeneratedTool(include, 'create_frame')) {
     server.tool(
     'create_frame',
-    "Create a frame node with optional auto-layout, fills, stroke, corner radius, and parent. Supports token auto-binding (fillVariableName, strokeVariableName), smart defaults (auto-infers layoutMode from padding/spacing, auto-infers child sizing in auto-layout), and inline children for building entire node trees in one call.",
+    "Create a frame node with optional auto-layout, fills, stroke, corner radius, and parent. Supports token auto-binding (fillVariableName, strokeVariableName), smart defaults, and inline children for building entire node trees in one call.\nOpinion Engine (automatic inferences — no manual handling needed): 1. layoutMode → auto-inferred as VERTICAL when padding/spacing/alignment/children present 2. layoutSizingHorizontal/Vertical → cross-axis FILL, primary-axis HUG inside auto-layout parent 3. FILL ordering → internally sets FILL AFTER appendChild (avoids Figma API error) 4. Parent promotion → when children declare FILL/HUG but parent has no layoutMode, auto-promotes to VERTICAL 5. Cross-level FILL→HUG downgrade → when parent HUGs on cross-axis, child FILL is downgraded to HUG (prevents 0-collapse) 6. FILL+width conflict detection → rejects contradictory params (e.g. FILL + explicit width) 7. Token auto-binding → fillVariableName/strokeVariableName matched to library variables/styles 8. Font preloading → all text fonts collected and loaded in parallel before creation 9. Per-child error cleanup → failed child creation auto-removes orphan nodes 10. Auto-preview → 0.25× PNG thumbnail embedded in response for visual verification\nUse dryRun:true to preview all inferences BEFORE creating nodes.",
     {
       name: z.string().optional().describe("Frame name (default: \"Frame\")"),
       x: z.number().optional().describe("X position"),
@@ -109,7 +109,7 @@ export function registerGeneratedTools(
       children: z.array(z.object({
           type: z.enum(['frame', 'text', 'rectangle', 'ellipse', 'star', 'polygon', 'instance', 'svg']).optional().describe("Child node type"),
         }).passthrough()).optional().describe("Inline child nodes to create recursively. Each item: {type:'frame'|'text'|'rectangle'|'ellipse'|'instance'|'svg'|'star'|'polygon', ...params, children?}. Frame children accept all create_frame params. Text children accept all create_text params (incl. textCase, textDecoration). Rectangle/ellipse children accept: name, width, height, fill, fillVariableName, fillStyleName, strokeColor, strokeVariableName, strokeWeight, cornerRadius (rect only), opacity, rotation. Instance children accept: componentId (required), name, width, height, variantProperties, properties, layoutSizingHorizontal/Vertical. SVG children accept: svg (required), name, width, height. Star children accept: name, width, height, fill, pointCount, innerRadius, opacity, rotation. Polygon children accept: name, width, height, fill, pointCount, opacity, rotation. Smart defaults apply: cross-axis FILL, primary-axis HUG inside auto-layout parents. Max depth: 10 levels."),
-      dryRun: z.boolean().optional().describe("When true, validates params and previews inferences WITHOUT creating any nodes. Returns {dryRun:true, valid, inferences?, ambiguous?, diff?, correctedPayload?}. Use correctedPayload for the actual creation call to avoid ambiguity."),
+      dryRun: z.boolean().optional().describe("When true, validates params and previews inferences WITHOUT creating any nodes. Returns {dryRun:true, valid, inferences?, ambiguous?, diff?, correctedPayload?}. Pre-validates: layoutMode conflicts, sizing conflicts (FILL+width), cross-level FILL/HUG collapse, spacer frame conversion, text overflow (WIDTH_AND_HEIGHT in fixed parent), invisible empty frames, fontSize below 12px mobile minimum. Use correctedPayload for the actual creation call to avoid ambiguity."),
       noPreview: z.boolean().optional().describe("Skip auto-preview thumbnail in response (default: false). Preview is a low-res PNG returned as an image content block for visual verification."),
       items: z.array(z.unknown()).optional().describe("Batch mode: array of create_frame param objects. When provided, creates multiple frames in one call. Each item accepts the same params as create_frame (name, width, height, layoutMode, children, etc.). Pre-creation validation runs per item — conflicting items return error without blocking others. Max 20 frames per batch. Returns {created, total, items: [{id, name, ok, error?}]}."),
     },
@@ -862,6 +862,21 @@ export function registerGeneratedTools(
   );
   }
 
+  if (shouldRegisterGeneratedTool(include, 'group_nodes')) {
+    server.tool(
+    'group_nodes',
+    "Group multiple nodes into a Group node. All nodes must share the same parent.",
+    {
+      nodeIds: z.array(z.string()).describe("Node IDs to group (must share the same parent, minimum 2)"),
+      name: z.string().optional().describe("Group name (default: 'Group')"),
+    },
+    async (params) => {
+      const result = await bridge.request('group_nodes', params);
+      return jsonResponse(result);
+    },
+  );
+  }
+
   if (shouldRegisterGeneratedTool(include, 'flatten_node')) {
     server.tool(
     'flatten_node',
@@ -1120,6 +1135,7 @@ export const nodesEndpointSchema = {
           nodeId: z.string(),
           props: z.record(z.unknown()),
         })).optional(),
+      strict: z.boolean().optional().describe("When true, reject the entire patch if any property name is not recognized. Default: false (unknown props reported in _unknownProps but patch succeeds)."),
       nodeIds: z.array(z.string()).optional(),
       items: z.union([z.array(z.object({
           id: z.string().describe("Node ID to clone"),
@@ -1135,9 +1151,15 @@ export const nodesEndpointSchema = {
     };
 
 export const textEndpointSchema = {
-      method: z.enum(['set_content']).describe('Method to invoke on this endpoint'),
+      method: z.enum(['set_content', 'set_range']).describe('Method to invoke on this endpoint'),
       nodeId: z.string().optional().describe("Text node ID"),
       content: z.string().optional().describe("New text content"),
+      operations: z.array(z.object({
+          type: z.string().describe("Operation type: fontSize, fontName, fills, insert, delete, letterSpacing, lineHeight, textDecoration, textCase"),
+          start: z.number().describe("Start character index (0-based)"),
+          end: z.number().optional().describe("End character index (exclusive). Required for all types except insert."),
+          value: z.unknown().describe("Value for the operation. fontSize: number. fontName: {family, style}. fills: Paint[] (Figma fill array, colors 0-1 range). insert: string (text to insert at start). delete: true (deletes characters from start to end). letterSpacing: {value, unit}. lineHeight: {value, unit}. textDecoration: \"UNDERLINE\"|\"STRIKETHROUGH\"|\"NONE\". textCase: \"UPPER\"|\"LOWER\"|\"TITLE\"|\"ORIGINAL\"."),
+        })).optional().describe("Array of range operations, applied sequentially"),
     };
 
 export const componentsEndpointSchema = {

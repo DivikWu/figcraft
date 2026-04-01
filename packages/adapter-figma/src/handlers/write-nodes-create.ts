@@ -16,7 +16,7 @@ import type { Inference } from './inline-tree.js';
 import { aggregateHints, structuredHintsToTyped } from '../utils/hint-aggregator.js';
 import type { StructuredHint } from '../utils/hint-aggregator.js';
 import type { Hint } from '../utils/hint-aggregator.js';
-import { quickLintSummary } from './lint-inline.js';
+import { quickLintSummary, PRE_RULE_TO_LINT_RULE } from './lint-inline.js';
 import { assertHandler } from '../utils/handler-error.js';
 import { getCachedModeLibrary, loadFontWithFallback } from './write-nodes.js';
 import { applySizingOverrides, getLayoutSizing, setLayoutSizing, setLayoutWrap, setBlendMode, setLayoutPositioning, setStrokeProps, setEffectStyleIdAsync, setFillStyleIdAsync, setTextStyleIdAsync, resolveComponent } from '../utils/figma-compat.js';
@@ -28,13 +28,15 @@ interface CreateContext {
   libraryBindings: string[];
   hints: StructuredHint[];
   warnings: string[];
+  /** Typed hints emitted directly (bypassing StructuredHint conversion). */
+  typedHints: Hint[];
 }
 
 async function initCreateContext(): Promise<CreateContext> {
   const [mode, library] = await getCachedModeLibrary();
   const useLib = mode === 'library' && !!library;
   if (useLib) await ensureLoaded(library!);
-  return { useLib, library, libraryBindings: [], hints: [], warnings: [] };
+  return { useLib, library, libraryBindings: [], hints: [], warnings: [], typedHints: [] };
 }
 
 // ─── Alias normalization: fillVariableName/fillStyleName → fill ───
@@ -157,6 +159,102 @@ function inferLayoutMode(p: Record<string, unknown>, hints: StructuredHint[]): '
   return null;
 }
 
+// ─── Per-child inline validation (O(1) checks, runs after each appendChild) ───
+
+/**
+ * Per-child inline validation + self-healing.
+ *
+ * Runs immediately after each child is created and appended. Two behaviors:
+ * - **Self-heal**: deterministic fixes applied immediately (text overflow → HEIGHT resize)
+ * - **Warn**: issues without a clear fix are reported for AI to handle
+ *
+ * Touch target & cross-sibling consistency are deferred to quickLintSummary
+ * (wcag-target-size, form-consistency) which uses more reliable heuristics.
+ */
+function validateChildNode(
+  node: SceneNode,
+  parent: FrameNode,
+  childPath: string,
+  ctx: CreateContext,
+): void {
+  try {
+    const w = Math.round(node.width);
+    const h = Math.round(node.height);
+
+    // ── Self-heal: text issues with deterministic fixes ──
+    if (node.type === 'TEXT') {
+      const text = node as TextNode;
+      const parentContentWidth = parent.width - parent.paddingLeft - parent.paddingRight;
+
+      // Empty text + WIDTH_AND_HEIGHT → will collapse to 0 width.
+      // Fix: switch to HEIGHT resize so it keeps parent width.
+      if ((!text.characters || text.characters.trim() === '') && text.textAutoResize === 'WIDTH_AND_HEIGHT') {
+        text.textAutoResize = 'HEIGHT';
+        ctx.hints.push({
+          confidence: 'deterministic',
+          field: 'textAutoResize',
+          value: 'HEIGHT',
+          reason: `[${childPath}] empty text auto-healed: WIDTH_AND_HEIGHT → HEIGHT to prevent 0-width collapse`,
+        });
+      }
+
+      // Text overflows parent content area → switch to HEIGHT resize (wrap).
+      else if (text.textAutoResize === 'WIDTH_AND_HEIGHT' && w > parentContentWidth + 2) {
+        text.textAutoResize = 'HEIGHT';
+        ctx.hints.push({
+          confidence: 'deterministic',
+          field: 'textAutoResize',
+          value: 'HEIGHT',
+          reason: `[${childPath}] text overflow auto-healed: width ${w} > parent ${Math.round(parentContentWidth)}, switched to HEIGHT resize`,
+        });
+      }
+
+      // Line height below fontSize → text lines overlap (WCAG readability).
+      const fontSize = typeof text.fontSize === 'number' ? text.fontSize : 0;
+      if (fontSize > 0) {
+        const lh = text.lineHeight as { unit: string; value?: number };
+        if (lh && lh.unit === 'PIXELS' && lh.value != null && lh.value < fontSize) {
+          const fixed = Math.ceil(fontSize * 1.0);
+          text.lineHeight = { unit: 'PIXELS', value: fixed };
+          ctx.hints.push({
+            confidence: 'deterministic',
+            field: 'lineHeight',
+            value: fixed,
+            reason: `[${childPath}] line-height ${lh.value}px < fontSize ${fontSize}px, auto-healed to ${fixed}px`,
+          });
+        }
+      }
+
+      // Font size below mobile readability (suggest — may be intentional)
+      if (fontSize > 0 && fontSize < 12) {
+        ctx.typedHints.push({ type: 'suggest', message: `[${childPath}] fontSize ${fontSize} below mobile minimum (12px)` });
+      }
+    }
+
+    // ── Suggest: structural anomalies without deterministic fixes ──
+
+    // Collapsed dimensions (cause varies — HUG+empty, FILL in HUG parent, etc.)
+    if (w <= 0 || h <= 0) {
+      // Skip if already self-healed above (text node would have been fixed)
+      if (node.type !== 'TEXT') {
+        ctx.typedHints.push({ type: 'suggest', message: `[${childPath}] collapsed to ${w}×${h} — check sizing` });
+      }
+    }
+
+    // Invisible frame (no fills, no strokes, no children)
+    if (node.type === 'FRAME') {
+      const frame = node as FrameNode;
+      const hasFills = Array.isArray(frame.fills) && (frame.fills as readonly Paint[]).some(f => f.visible !== false);
+      const hasStrokes = Array.isArray(frame.strokes) && (frame.strokes as readonly Paint[]).some(s => s.visible !== false);
+      if (!hasFills && !hasStrokes && frame.children.length === 0) {
+        ctx.typedHints.push({ type: 'suggest', message: `[${childPath}] invisible empty frame — no fills, strokes, or children` });
+      }
+    }
+  } catch {
+    // Validation must never block creation
+  }
+}
+
 // ─── Smart default: infer child sizing from parent auto-layout ───
 
 /** Shape types that only support FIXED and FILL sizing (not HUG). */
@@ -200,7 +298,21 @@ function inferChildSizing(
   explicitV: string | undefined,
   hints: StructuredHint[],
 ): void {
-  if (!parent || !('layoutMode' in parent)) return;
+  // Root-level frames (direct children of page, no auto-layout parent):
+  // Default to HUG/HUG so the frame wraps its content instead of collapsing to Figma's default 100px.
+  if (!parent || !('layoutMode' in parent) || (parent as FrameNode).layoutMode === 'NONE') {
+    if ('layoutMode' in node && (node as FrameNode).layoutMode !== 'NONE') {
+      if (!explicitH) {
+        setLayoutSizing(node, 'horizontal', 'HUG');
+        hints.push({ confidence: 'deterministic', field: 'layoutSizingHorizontal', value: 'HUG', reason: 'root frame — HUG to wrap content (no auto-layout parent)' });
+      }
+      if (!explicitV) {
+        setLayoutSizing(node, 'vertical', 'HUG');
+        hints.push({ confidence: 'deterministic', field: 'layoutSizingVertical', value: 'HUG', reason: 'root frame — HUG to wrap content (no auto-layout parent)' });
+      }
+    }
+    return;
+  }
   const parentFrame = parent as FrameNode;
   const parentDir = parentFrame.layoutMode;
   if (parentDir === 'NONE') return;
@@ -603,6 +715,15 @@ async function setupText(
 }
 
 // ─── Shape child helper (deduplicates rectangle/ellipse/star/polygon creation) ───
+/** Insert child into parent, respecting optional index for ordering control. */
+function insertOrAppend(parent: FrameNode, child: SceneNode, index?: number): void {
+  if (index != null) {
+    parent.insertChild(index, child);
+  } else {
+    parent.appendChild(child);
+  }
+}
+
 async function createShapeChild(
   node: SceneNode,
   figmaType: string,
@@ -633,9 +754,10 @@ async function createShapeChild(
   if (child.opacity != null) (node as any).opacity = child.opacity as number;
   if (child.rotation != null) (node as any).rotation = child.rotation as number;
 
-  parent.appendChild(node);
+  insertOrAppend(parent, node, child.index as number | undefined);
   inferChildSizing(node, parent, child.layoutSizingHorizontal as string | undefined,
     child.layoutSizingVertical as string | undefined, ctx.hints);
+  applySizingOverrides(node, child);
   return { id: node.id, type: figmaType, name: (node as any).name };
 }
 
@@ -683,14 +805,17 @@ async function createInlineChildren(
 
   const results: Array<{ id: string; type: string; name: string }> = [];
 
-  for (const childDef of children) {
+  for (const [idx, childDef] of children.entries()) {
     const child = { ...(childDef as Record<string, unknown>) };
     const childType = (child.type as string) ?? 'frame';
+    const childName = (child.name as string) ?? `child[${idx}]`;
+    const childPath = `${parent.name} > ${childName}`;
+    let createdNode: SceneNode | undefined;
 
     if (childType === 'text') {
       const text = figma.createText();
       await setupText(text, child, ctx);
-      parent.appendChild(text);
+      insertOrAppend(parent, text, child.index as number | undefined);
       // Smart default: text in vertical AL → FILL width + HEIGHT resize
       inferChildSizing(text, parent, child.layoutSizingHorizontal as string | undefined, child.layoutSizingVertical as string | undefined, ctx.hints);
       applySizingOverrides(text, child);
@@ -698,12 +823,13 @@ async function createInlineChildren(
       if (!child.textAutoResize && !child.width && parent.layoutMode === 'VERTICAL') {
         text.textAutoResize = 'HEIGHT';
       }
+      createdNode = text;
       results.push({ id: text.id, type: 'TEXT', name: text.name });
     } else if (childType === 'rectangle') {
-      results.push(await createShapeChild(
-        figma.createRectangle(), 'RECTANGLE', 'Rectangle', child, parent, ctx,
-        { supportsCornerRadius: true },
-      ));
+      const rect = figma.createRectangle();
+      const result = await createShapeChild(rect, 'RECTANGLE', 'Rectangle', child, parent, ctx, { supportsCornerRadius: true });
+      createdNode = rect;
+      results.push(result);
     } else if (childType === 'instance') {
       const componentId = child.componentId as string;
       assertHandler(componentId, 'instance child requires componentId');
@@ -724,13 +850,16 @@ async function createInlineChildren(
       if (child.properties) {
         setComponentProperties(instance, child.properties as Record<string, string | boolean>);
       }
-      parent.appendChild(instance);
+      insertOrAppend(parent, instance, child.index as number | undefined);
+      inferChildSizing(instance, parent, child.layoutSizingHorizontal as string | undefined, child.layoutSizingVertical as string | undefined, ctx.hints);
       applySizingOverrides(instance, child);
+      createdNode = instance;
       results.push({ id: instance.id, type: 'INSTANCE', name: instance.name });
     } else if (childType === 'ellipse') {
-      results.push(await createShapeChild(
-        figma.createEllipse(), 'ELLIPSE', 'Ellipse', child, parent, ctx,
-      ));
+      const ellipse = figma.createEllipse();
+      const result = await createShapeChild(ellipse, 'ELLIPSE', 'Ellipse', child, parent, ctx);
+      createdNode = ellipse;
+      results.push(result);
     } else if (childType === 'svg') {
       const svg = child.svg as string;
       assertHandler(svg, 'svg child requires svg parameter');
@@ -742,24 +871,30 @@ async function createInlineChildren(
           (child.height as number) ?? svgNode.height,
         );
       }
-      parent.appendChild(svgNode);
+      insertOrAppend(parent, svgNode, child.index as number | undefined);
       inferChildSizing(svgNode, parent, child.layoutSizingHorizontal as string | undefined, child.layoutSizingVertical as string | undefined, ctx.hints);
+      applySizingOverrides(svgNode, child);
+      createdNode = svgNode;
       results.push({ id: svgNode.id, type: 'FRAME', name: svgNode.name });
     } else if (childType === 'star') {
       const star = figma.createStar();
       if (child.pointCount != null) star.pointCount = child.pointCount as number;
       if (child.innerRadius != null) star.innerRadius = child.innerRadius as number;
-      results.push(await createShapeChild(star, 'STAR', 'Star', child, parent, ctx));
+      const result = await createShapeChild(star, 'STAR', 'Star', child, parent, ctx);
+      createdNode = star;
+      results.push(result);
     } else if (childType === 'polygon') {
       const polygon = figma.createPolygon();
       if (child.pointCount != null) polygon.pointCount = child.pointCount as number;
-      results.push(await createShapeChild(polygon, 'POLYGON', 'Polygon', child, parent, ctx));
+      const result = await createShapeChild(polygon, 'POLYGON', 'Polygon', child, parent, ctx);
+      createdNode = polygon;
+      results.push(result);
     } else {
       // frame type (default)
       const frame = figma.createFrame();
       try {
         await setupFrame(frame, child, ctx);
-        parent.appendChild(frame);
+        insertOrAppend(parent, frame, child.index as number | undefined);
         // Smart default sizing
         inferChildSizing(frame, parent, child.layoutSizingHorizontal as string | undefined, child.layoutSizingVertical as string | undefined, ctx.hints);
         // Explicit sizing overrides smart defaults (AFTER appendChild)
@@ -768,65 +903,56 @@ async function createInlineChildren(
         if (Array.isArray(child.children) && child.children.length > 0) {
           await createInlineChildren(frame, child.children, ctx, depth + 1);
         }
+        createdNode = frame;
         results.push({ id: frame.id, type: 'FRAME', name: frame.name });
       } catch (e) {
         frame.remove();
         throw e;
       }
     }
+
+    // ── Per-child inline validation + self-healing ──
+    if (createdNode) {
+      validateChildNode(createdNode, parent, childPath, ctx);
+    }
   }
 
   return results;
 }
 
-// ─── Post-creation structural validation ───
-// Detects common issues that would be visible in the final design.
-// Writes to warnings array (non-blocking — creation succeeds regardless).
+// ─── Post-creation root frame validation ───
+// Checks the ROOT frame itself (not children — those are covered by per-child
+// validateChildNode during createInlineChildren). Non-blocking.
 function postCreationValidation(frame: FrameNode, warnings: string[]): void {
   try {
     const w = Math.round(frame.width);
     const h = Math.round(frame.height);
 
-    // 1. Abnormal aspect ratio: frame much taller or wider than expected
+    // 1. Abnormal aspect ratio (likely a sizing/layout issue)
     if (h > 0 && w > 0) {
       const ratio = Math.max(w, h) / Math.min(w, h);
       if (ratio > 20) {
-        warnings.push(`Abnormal aspect ratio (${w}×${h}, ratio ${ratio.toFixed(0)}:1) — likely a sizing issue`);
+        warnings.push(`Root frame abnormal aspect ratio (${w}×${h}, ratio ${ratio.toFixed(0)}:1) — likely a sizing issue`);
       }
     }
 
-    // 2. Near-zero dimensions
+    // 2. Root frame collapsed
     if (w <= 1 || h <= 1) {
-      warnings.push(`Frame collapsed to ${w}×${h} — check sizing (HUG parent + FILL child?)`);
+      warnings.push(`Root frame collapsed to ${w}×${h} — check sizing (HUG parent + FILL child?)`);
     }
 
-    // 3. Scan children for common issues
-    if ('children' in frame) {
-      let emptyContainerCount = 0;
+    // 3. Absolute-layout overflow (only for non-auto-layout roots)
+    if (frame.layoutMode === 'NONE' && 'children' in frame) {
       for (const child of frame.children) {
-        // Empty containers with no fills (stroke-only placeholder frames)
-        if (child.type === 'FRAME' && 'children' in child && child.children.length === 0) {
-          const cf = child as FrameNode;
-          const hasFills = Array.isArray(cf.fills) && cf.fills.length > 0;
-          if (!hasFills) emptyContainerCount++;
-        }
-
-        // Child overflowing parent
         if ('width' in child && 'height' in child) {
+          const cx = (child as any).x ?? 0;
+          const cy = (child as any).y ?? 0;
           const cw = (child as any).width as number;
           const ch = (child as any).height as number;
-          if (frame.layoutMode === 'NONE') {
-            // Absolute layout — check bounds
-            const cx = (child as any).x ?? 0;
-            const cy = (child as any).y ?? 0;
-            if (cx + cw > w + 2 || cy + ch > h + 2) {
-              warnings.push(`Child "${child.name}" (${Math.round(cw)}×${Math.round(ch)}) overflows parent (${w}×${h})`);
-            }
+          if (cx + cw > w + 2 || cy + ch > h + 2) {
+            warnings.push(`Child "${child.name}" (${Math.round(cw)}×${Math.round(ch)}) overflows root (${w}×${h}) in absolute layout`);
           }
         }
-      }
-      if (emptyContainerCount >= 3) {
-        warnings.push(`${emptyContainerCount} empty containers without fills detected — possibly orphan placeholder frames`);
       }
     }
   } catch {
@@ -963,7 +1089,10 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
     }
 
     // Attach typed hints for batch aggregation
-    const typedHints: Hint[] = structuredHintsToTyped(ctx.hints);
+    const typedHints: Hint[] = [
+      ...structuredHintsToTyped(ctx.hints),
+      ...ctx.typedHints,
+    ];
     if (ctx.warnings.length > 0) {
       typedHints.push(...ctx.warnings.map(w => ({ type: 'error' as const, message: w })));
     }
@@ -971,16 +1100,27 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
 
     if (!skipLint && childResults && childResults.length > 0) {
       try {
-        const lintSummary = await quickLintSummary(frame.id, true);
+        // Build skipRules from pre-creation inferences to avoid redundant lint checks
+        const skipRules = new Set<string>();
+        for (const inf of preValidation.inferences) {
+          if (inf.field === 'type' && inf.to === 'rectangle') {
+            skipRules.add('spacer-frame');
+          } else if (inf.field === 'layoutMode') {
+            skipRules.add('no-autolayout');
+          }
+          const mapped = PRE_RULE_TO_LINT_RULE[inf.field];
+          if (mapped) skipRules.add(mapped);
+        }
+        const lintSummary = await quickLintSummary(frame.id, true, skipRules.size > 0 ? skipRules : undefined);
         if (lintSummary) out._lintSummary = lintSummary;
       } catch { /* lint failure should not block creation */ }
     }
 
-    // Auto-preview: export low-res thumbnail for AI visual feedback
+    // Auto-preview: export thumbnail for AI visual feedback (0.5x balances clarity vs size)
     if (!skipLint && !params.noPreview) {
       try {
         const previewBytes = await (frame as SceneNode & { exportAsync: (s: ExportSettings) => Promise<Uint8Array> })
-          .exportAsync({ format: 'PNG', constraint: { type: 'SCALE', value: 0.25 } });
+          .exportAsync({ format: 'PNG', constraint: { type: 'SCALE', value: 0.5 } });
         if (previewBytes.byteLength > 0) {
           out._preview = { base64: figma.base64Encode(previewBytes) };
         }
@@ -1030,7 +1170,10 @@ async function createSingleText(params: Record<string, unknown>): Promise<Record
     if (ctx.hints.length > 0) out._hints = ctx.hints.map(h => `[${h.confidence}] ${h.field} → ${JSON.stringify(h.value)} (${h.reason})`);
     if (ctx.warnings.length > 0) out._warnings = ctx.warnings;
     // Attach typed hints for batch aggregation
-    const typedHints: Hint[] = structuredHintsToTyped(ctx.hints);
+    const typedHints: Hint[] = [
+      ...structuredHintsToTyped(ctx.hints),
+      ...ctx.typedHints,
+    ];
     if (ctx.warnings.length > 0) {
       typedHints.push(...ctx.warnings.map(w => ({ type: 'error' as const, message: w })));
     }
@@ -1053,6 +1196,7 @@ registerHandler('create_frame', async (params) => {
 
     const results: Array<{ id: string; name: string; ok: boolean; error?: string }> = [];
     const allHints: Hint[] = [];
+    const allInferences: Inference[] = [];
     for (const item of items) {
       try {
         const out = await createSingleFrame(item, true); // skip per-item lint
@@ -1061,6 +1205,11 @@ registerHandler('create_frame', async (params) => {
         if (out._typedHints) {
           allHints.push(...(out._typedHints as Hint[]));
           delete out._typedHints;
+        }
+        // Collect inferences for aggregated skipRules
+        if (out._inferences) {
+          allInferences.push(...(out._inferences as Inference[]));
+          delete out._inferences;
         }
       } catch (err) {
         results.push({
@@ -1076,7 +1225,17 @@ registerHandler('create_frame', async (params) => {
     let batchLintSummary: unknown = undefined;
     if (createdIds.length > 0) {
       try {
-        const summaries = await Promise.all(createdIds.map(id => quickLintSummary(id, true)));
+        // Build aggregated skipRules from all items' inferences
+        const batchSkipRules = new Set<string>();
+        for (const inf of allInferences) {
+          if (inf.field === 'type' && inf.to === 'rectangle') batchSkipRules.add('spacer-frame');
+          else if (inf.field === 'layoutMode') batchSkipRules.add('no-autolayout');
+          const mapped = PRE_RULE_TO_LINT_RULE[inf.field];
+          if (mapped) batchSkipRules.add(mapped);
+        }
+        const summaries = await Promise.all(
+          createdIds.map(id => quickLintSummary(id, true, batchSkipRules.size > 0 ? batchSkipRules : undefined))
+        );
         const totalViolations = summaries.reduce((sum, s) => sum + (s?.violations ?? 0), 0);
         const totalAutoFixed = summaries.reduce((sum, s) => sum + ((s as any)?.autoFixed ?? 0), 0);
         if (totalViolations > 0 || totalAutoFixed > 0) {

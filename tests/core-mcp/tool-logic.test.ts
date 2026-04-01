@@ -11,7 +11,7 @@ import type { McpResponse } from '../../packages/core-mcp/src/tools/logic/node-l
 
 // ─── Mock setup ───
 
-vi.mock('../packages/core-mcp/src/rest-fallback.js', () => ({
+vi.mock('../../packages/core-mcp/src/rest-fallback.js', () => ({
   requestWithFallback: vi.fn(),
   restGetNodeInfo: vi.fn(),
   restExportImage: vi.fn(),
@@ -19,18 +19,18 @@ vi.mock('../packages/core-mcp/src/rest-fallback.js', () => ({
   setFileContext: vi.fn(),
 }));
 
-vi.mock('../packages/core-mcp/src/tools/toolset-manager.js', () => ({
+vi.mock('../../packages/core-mcp/src/tools/toolset-manager.js', () => ({
   getAccessLevel: vi.fn(() => 'edit'),
   isToolBlocked: vi.fn(() => null),
 }));
 
-vi.mock('../packages/core-mcp/src/tools/logic/component-logic.js', () => ({
+vi.mock('../../packages/core-mcp/src/tools/logic/component-logic.js', () => ({
   listLibraryComponentsLogic: vi.fn().mockResolvedValue({
     content: [{ type: 'text', text: '{"componentSetCount":0,"standaloneCount":0,"componentSets":[],"standalone":[]}' }],
   }),
 }));
 
-vi.mock('../packages/core-mcp/src/figma-api.js', () => ({
+vi.mock('../../packages/core-mcp/src/figma-api.js', () => ({
   extractFileKeyFromUrl: vi.fn((url: string) => {
     const match = url.match(/figma\.com\/(?:file|design)\/([a-zA-Z0-9]+)/);
     return match ? match[1] : null;

@@ -824,6 +824,7 @@ function compressedToAbstract(node: CompressedNode): AbstractNode {
     effectStyleId: node.effectStyleId,
     componentPropertyDefinitions: node.componentPropertyDefinitions,
     componentPropertyReferences: node.componentPropertyReferences,
+    lintIgnore: node.lintIgnore,
     children: node.children?.map(compressedToAbstract),
   };
 }

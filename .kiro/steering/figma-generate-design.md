@@ -11,22 +11,14 @@ Adapted from the official `figma-generate-design` skill. Core principle: **disco
 
 | Task | FigCraft Tool | Notes |
 |------|--------------|-------|
-| Plugin API scripting | `execute_js` | 100% compatible with `use_figma`. Not atomic on failure — verify after every write. |
-| Search design system | `search_design_system` | Searches components, variables, styles across all subscribed libraries. |
-| Read node tree | `get_current_page(maxDepth=N)` + `nodes(method: "get")` | Returns compressed node tree. |
-| Screenshot / export | `export_image` | Returns base64 PNG. |
-| Variable definitions | `variables_ep(method: "list")` + `list_library_variables` | Or Figma Power `get_variable_defs` if available. |
-
-## Critical Difference: Non-Atomic Failure
-
-`execute_js` does NOT guarantee atomic failure. Nodes created before an error may persist as orphans.
-
-**Required after EVERY `execute_js` write:**
-```
-execute_js (write)
-  → get_current_page(maxDepth=1)  — confirm no unexpected top-level nodes
-  → [if orphans found] execute_js to remove them
-```
+| UI creation | `create_frame` + `children` | Declarative, Opinion Engine handles sizing/token binding/conflicts |
+| Text creation | `create_text` | Standalone text nodes |
+| Text range styling | `text(method: "set_range")` | Bold/color/size on character ranges |
+| Node updates | `nodes(method: "update")` | 5-phase ordered execution, supports `strict` mode |
+| Search design system | `search_design_system` | Searches components, variables, styles across all subscribed libraries |
+| Read node tree | `get_current_page(maxDepth=N)` + `nodes(method: "get")` | Returns compressed node tree |
+| Screenshot / export | `export_image` | Returns base64 PNG |
+| Variable definitions | `variables_ep(method: "list")` + `list_library_variables` | Or Figma Power `get_variable_defs` if available |
 
 ## Workflow
 
@@ -50,98 +42,58 @@ For broader discovery:
 - `get_mode` → returns `designContext` (grouped tokens) + `libraryComponents` (all published components)
 - `search_design_system(query: "primary", types: ["variables"])` → find specific tokens
 
-#### 2b: Component properties — Create temp instance to read structure
+#### 2b: Component properties — Read via endpoint
 
-```js
-// execute_js — read then clean up
-const set = await figma.importComponentSetByKeyAsync("COMPONENT_SET_KEY");
-const sample = set.defaultVariant.createInstance();
-const props = sample.componentProperties;
-const nested = sample.findAll(n => n.type === "INSTANCE").map(ni => ({
-  name: ni.name, properties: ni.componentProperties
-}));
-sample.remove();
-return { props, nested };
+```
+components(method: "list_properties", componentId: "COMPONENT_ID")
+→ Returns exposed properties, variant options, and nested instance slots
 ```
 
 ### Step 3: Create Page Wrapper
 
-```js
-// execute_js — write
-let maxX = 0;
-for (const child of figma.currentPage.children) {
-  maxX = Math.max(maxX, child.x + child.width);
-}
-const wrapper = figma.createFrame();
-wrapper.name = "Homepage";
-wrapper.layoutMode = "VERTICAL";
-wrapper.primaryAxisAlignItems = "CENTER";
-wrapper.counterAxisAlignItems = "CENTER";
-wrapper.resize(1440, 100);
-wrapper.layoutSizingHorizontal = "FIXED";
-wrapper.layoutSizingVertical = "HUG";
-wrapper.x = maxX + 200;
-wrapper.y = 0;
-return { wrapperId: wrapper.id };
+```json
+create_frame({
+  "name": "Homepage",
+  "width": 1440,
+  "layoutMode": "VERTICAL",
+  "primaryAxisAlignItems": "CENTER",
+  "counterAxisAlignItems": "CENTER",
+  "layoutSizingVertical": "HUG"
+})
 ```
 
 → `get_current_page(maxDepth=1)` to verify
 
-### Step 4: Build Sections (one per `execute_js` call)
+### Step 4: Build Sections
 
-Each call: fetch wrapper → import components/variables/styles → build section → append → return IDs.
+Each call: `create_frame` with `parentId` pointing to wrapper, full children tree with token bindings.
 
-```js
-// execute_js — write one section
-const wrapper = await figma.getNodeByIdAsync("WRAPPER_ID");
-await figma.loadFontAsync({ family: "GT Walsheim", style: "Regular" });
-
-// Import components by key
-const buttonSet = await figma.importComponentSetByKeyAsync("BUTTON_SET_KEY");
-const primaryBtn = buttonSet.children.find(c =>
-  c.type === "COMPONENT" && c.name.includes("variant=primary")
-) || buttonSet.defaultVariant;
-
-// Import variables by key
-const bgVar = await figma.variables.importVariableByKeyAsync("BG_VAR_KEY");
-const spacingVar = await figma.variables.importVariableByKeyAsync("SPACING_VAR_KEY");
-
-// Import and apply styles
-const shadowStyle = await figma.importStyleByKeyAsync("SHADOW_STYLE_KEY");
-
-// Build section with variable bindings (not hardcoded values)
-const section = figma.createFrame();
-section.name = "Header";
-section.layoutMode = "HORIZONTAL";
-section.setBoundVariable("paddingLeft", spacingVar);
-section.setBoundVariable("paddingRight", spacingVar);
-const bgPaint = figma.variables.setBoundVariableForPaint(
-  { type: 'SOLID', color: { r: 0, g: 0, b: 0 } }, 'color', bgVar
-);
-section.fills = [bgPaint];
-section.effectStyleId = shadowStyle.id;
-
-// Create component instance
-const btn = primaryBtn.createInstance();
-section.appendChild(btn);
-
-// Override text via setProperties (not direct node.characters)
-btn.setProperties({ "Label#2:0": "Get Started" });
-
-// Append to wrapper
-wrapper.appendChild(section);
-section.layoutSizingHorizontal = "FILL"; // AFTER appendChild
-
-return { createdNodeIds: [section.id, btn.id] };
+```json
+create_frame({
+  "parentId": "WRAPPER_ID",
+  "name": "Header",
+  "layoutMode": "HORIZONTAL",
+  "fillVariableName": "color/bg/primary",
+  "paddingLeft": 24, "paddingRight": 24,
+  "children": [
+    { "type": "text", "content": "Get Started", "fontStyle": "SemiBold",
+      "fontColorVariableName": "color/text/on-primary" }
+  ]
+})
 ```
 
-→ `get_current_page(maxDepth=1)` after each write
-→ `export_image` at key milestones (after skeleton, after each complete screen)
+For component instances, use `create_instances` (requires `load_toolset("components-advanced")`):
+```
+create_instances({ items: [{ componentId: "COMPONENT_ID", properties: { "Label": "Get Started" } }] })
+```
+
+→ Check `_children` and `_preview` in response
+→ `export_image` at key milestones
 
 ### Step 5: Validate
 
 1. `lint_fix_all(nodeIds: ["screen-id"])` — auto-fix quality issues
-2. `execute_js` — inspect child hierarchy for lint side effects (orphan nodes, reparented elements)
+2. `get_current_page(maxDepth=2)` — inspect structure for lint side effects
 3. `export_image` — final visual check. Look for:
    - Cropped/clipped text
    - Placeholder text not overridden
@@ -150,18 +102,14 @@ return { createdNodeIds: [section.id, btn.id] };
 
 ### Step 6: Updating Existing Screens
 
-```js
-// execute_js — targeted modification
-const existingBtn = await figma.getNodeByIdAsync("BUTTON_INSTANCE_ID");
-if (existingBtn?.type === "INSTANCE") {
-  const buttonSet = await figma.importComponentSetByKeyAsync("BUTTON_SET_KEY");
-  const newVariant = buttonSet.children.find(c =>
-    c.name.includes("variant=primary") && c.name.includes("size=lg")
-  ) || buttonSet.defaultVariant;
-  existingBtn.swapComponent(newVariant);
-}
-return { mutatedNodeIds: [existingBtn.id] };
+Use `nodes(method: "update")` for property changes:
+```json
+nodes({ method: "update", patches: [
+  { nodeId: "NODE_ID", props: { fillVariableName: "color/bg/secondary" } }
+] })
 ```
+
+For component swaps, use `components(method: "swap")` (requires `load_toolset("components-advanced")`).
 
 ## What to Build Manually vs Import
 
@@ -172,16 +120,10 @@ return { mutatedNodeIds: [existingBtn.id] };
 | Layout grids (rows, columns) | Text styles via `node.textStyleId` |
 | | Effect styles via `node.effectStyleId` |
 
-## Official Reference Docs (read on demand)
-
-These are from the official Figma MCP `figma-use` skill — all patterns apply to `execute_js`:
+## Reference Docs (read on demand)
 
 | Doc | When to load |
 |-----|-------------|
-| `.kiro/skills/figma-use/references/component-patterns.md` | Importing components, finding variants, setProperties, text overrides |
-| `.kiro/skills/figma-use/references/variable-patterns.md` | Creating/binding variables, importing library variables, scopes |
-| `.kiro/skills/figma-use/references/gotchas.md` | Every known pitfall with WRONG/CORRECT examples |
-| `.kiro/skills/figma-use/references/common-patterns.md` | Working code templates for common operations |
-| `.kiro/skills/figma-use/references/text-style-patterns.md` | Creating/applying text styles |
-| `.kiro/skills/figma-use/references/effect-style-patterns.md` | Creating/applying effect styles |
-| `.kiro/skills/figma-use/references/validation-and-recovery.md` | Verification workflow and error recovery |
+| `.kiro/steering/figma-declarative-creation.md` | Declarative creation patterns, templates, smart defaults |
+| `.kiro/steering/figma-design-creation.md` | Full design creation rules, layout strategies |
+| `.kiro/steering/multi-screen-flow-guide.md` | Multi-screen flow hierarchy and build order |

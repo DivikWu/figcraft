@@ -4,7 +4,7 @@ This document is generated from `schema/tools.yaml`, `packages/core-mcp/src/tool
 
 ## Tool Response Coverage
 
-Covered flat/custom tools: 101
+Covered flat/custom tools: 103
 
 ### `add_collection_mode`
 
@@ -883,6 +883,19 @@ Covered flat/custom tools: 101
 }
 ```
 
+### `group_nodes`
+
+- Example payloads: 1
+
+```json
+{
+  "id": "93:1",
+  "name": "Group",
+  "type": "GROUP",
+  "childCount": 3
+}
+```
+
 ### `icon_collections`
 
 - Example payloads: 0
@@ -1361,6 +1374,16 @@ Covered flat/custom tools: 101
 }
 ```
 
+### `set_lint_ignore`
+
+- Example payloads: 1
+
+```json
+{
+  "ok": true
+}
+```
+
 ### `set_mode`
 
 - Example payloads: 1
@@ -1575,7 +1598,7 @@ Covered flat/custom tools: 101
 
 ## Endpoint Response Coverage
 
-Covered endpoint methods: 31
+Covered endpoint methods: 32
 
 ### `components.get`
 
@@ -1879,6 +1902,23 @@ Covered endpoint methods: 31
 }
 ```
 
+### `text.set_range`
+
+- Example payloads: 1
+
+```json
+{
+  "ok": true,
+  "characterCount": 42,
+  "results": [
+    {
+      "index": 0,
+      "ok": true
+    }
+  ]
+}
+```
+
 ### `variables_ep.batch_create`
 
 - Example payloads: 1
@@ -2077,7 +2117,7 @@ Covered endpoint methods: 31
 
 ## Flat To Endpoint Migration Map
 
-Mapped flat tools: 31
+Mapped flat tools: 32
 
 | Flat Tool | Replacement | Toolset | Write | Access |
 | --- | --- | --- | --- | --- |
@@ -2106,6 +2146,7 @@ Mapped flat tools: 31
 | `reparent_nodes` | `nodes(method: "reparent")` | `core` | `true` | `edit` |
 | `search_nodes` | `nodes(method: "list")` | `core` | `false` | `read` |
 | `set_text_content` | `text(method: "set_content")` | `core` | `true` | `edit` |
+| `set_text_range` | `text(method: "set_range")` | `core` | `true` | `edit` |
 | `set_variable_binding` | `variables_ep(method: "set_binding")` | `variables` | `true` | `edit` |
 | `sync_styles` | `styles_ep(method: "sync")` | `styles` | `true` | `create` |
 | `update_effect_style` | `styles_ep(method: "update_effect")` | `styles` | `true` | `edit` |

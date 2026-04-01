@@ -1,17 +1,15 @@
 ---
 inclusion: fileMatch
 fileMatchPattern: "packages/adapter-figma/**,packages/core-mcp/src/tools/**"
-description: "Workflow guide for building design system libraries using FigCraft execute_js"
+description: "Workflow guide for building design system libraries using FigCraft declarative tools and toolsets"
 ---
 
-# Building Design System Libraries with execute_js
+# Building Design System Libraries
 
 This guide is the FigCraft-adapted version of the `figma-generate-library` skill workflow.
 **When this steering file conflicts with the skill, this file takes precedence.**
 
-Core principle: this is NOT a one-shot task — it requires 20-100+ `execute_js` calls across multiple phases, each requiring user confirmation.
-
-You MUST read #[[file:.kiro/steering/execute-js-guide.md]] before using `execute_js`.
+Core principle: this is NOT a one-shot task — it requires multiple phases, each requiring user confirmation. Use declarative tools: `create_frame` + `children` for UI, `load_toolset("variables")` for variables, `load_toolset("components-advanced")` for components, `load_toolset("styles")` for styles.
 
 ## Mandatory Workflow
 
@@ -65,7 +63,7 @@ For each component:
 ## Key Rules
 
 - Variables MUST come before components — components bind to variables
-- Inspect before creating — use read-only `execute_js` to discover existing conventions first
+- Inspect before creating — use `get_current_page`, `nodes(method: "get")` to discover existing conventions first
 - One page per component
 - Visual properties bind to variables — fills, strokes, padding, radius, gap
 - Variable scopes MUST be explicitly set:
@@ -78,7 +76,6 @@ For each component:
 - Code syntax WEB MUST use `var()` wrapper: `var(--color-bg-primary)`
 - Semantic variables alias to primitives: `{ type: 'VARIABLE_ALIAS', id: primitiveVar.id }`
 - After combineAsVariants, you MUST manually layout — variants stack at (0,0) by default
-- NEVER run `execute_js` calls in parallel — must be strictly sequential
 - NEVER guess node IDs — read them from return values of previous calls
 
 ## Token Architecture

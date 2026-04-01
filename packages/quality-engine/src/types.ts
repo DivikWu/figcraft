@@ -56,6 +56,8 @@ export interface AbstractNode {
   parentWidth?: number;
   // Parent layout mode (propagated during lint traversal for overflow fix strategy)
   parentLayoutMode?: string;
+  // Lint exclusion: comma-separated rule names or '*' to skip all rules
+  lintIgnore?: string;
 }
 
 export interface LintContext {

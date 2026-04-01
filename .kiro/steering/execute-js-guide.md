@@ -1,25 +1,22 @@
 ---
 inclusion: fileMatch
 fileMatchPattern: "packages/adapter-figma/**,packages/core-mcp/src/tools/**"
-description: "FigCraft execute_js tool usage rules and key pitfalls"
+description: "FigCraft execute_js debug tool — only available via load_toolset('debug'), not for UI creation"
 ---
 
-# execute_js — Figma Plugin API Execution Guide
+# execute_js — Debug Tool Reference
+
+> **⚠️ execute_js is in the `debug` toolset — NOT available by default.** Load with `load_toolset("debug")` only for diagnostics, node inspection, and edge cases that no declarative tool supports.
+
+All UI creation MUST use declarative tools: `create_frame` + `children`, `create_text`, `text(method: "set_range")`, `group_nodes`, `nodes(method: "update")`. These tools have built-in Opinion Engine protection (sizing inference, conflict detection, token binding, failure cleanup) that `execute_js` bypasses entirely.
 
 FigCraft's `execute_js` tool executes arbitrary JavaScript in the Figma Plugin sandbox, equivalent to the official Figma MCP's `use_figma`. All code patterns from the official `figma-use` skill apply directly — just replace `use_figma` with `execute_js`.
 
-## Official Reference Docs (from figma-use skill)
+## When to Use execute_js (Debug Only)
 
-These docs contain authoritative API patterns and pitfalls. Read on demand, not all at once:
-
-| Doc | Path | When to load |
-|-----|------|-------------|
-| Gotchas | `.kiro/skills/figma-use/references/gotchas.md` | Before any execute_js — every known pitfall |
-| Common patterns | `.kiro/skills/figma-use/references/common-patterns.md` | Need working code templates |
-| Component patterns | `.kiro/skills/figma-use/references/component-patterns.md` | Importing, variants, setProperties, text overrides |
-| Variable patterns | `.kiro/skills/figma-use/references/variable-patterns.md` | Creating/binding variables, scopes |
-| Plugin API patterns | `.kiro/skills/figma-use/references/plugin-api-patterns.md` | Fills, strokes, auto layout, effects |
-| Validation | `.kiro/skills/figma-use/references/validation-and-recovery.md` | Error recovery workflow |
+- **Diagnostics**: inspecting node properties, debugging layout issues, reading internal Figma state
+- **Edge cases**: Plugin API methods not wrapped by any declarative tool (rare)
+- **NOT for UI creation**: use `create_frame` + `children` instead — it handles sizing, token binding, conflict detection, and failure cleanup automatically
 
 ## Key Difference from use_figma: Non-Atomic Failure
 
@@ -28,14 +25,6 @@ These docs contain authoritative API patterns and pitfalls. Read on demand, not 
 ```
 execute_js (write) → get_current_page(maxDepth=1) → [if orphans] execute_js to clean up
 ```
-
-## When to Use execute_js vs Other FigCraft Tools
-
-- Simple node creation/modification → use structured tools like `create_frame`, `create_text`, `nodes(method: "update")`
-- Variable/style/component CRUD → use dedicated toolsets like `load_toolset("variables")`
-- Complex logic, loops, conditionals, multi-step operations → use `execute_js`
-- Plugin API methods not wrapped by FigCraft → use `execute_js`
-- Building complete design systems or component libraries → use `execute_js` (with the workflow below)
 
 ## Key Rules
 

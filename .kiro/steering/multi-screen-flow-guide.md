@@ -1,34 +1,17 @@
 ---
 inclusion: manual
-description: "Detailed guide for building multi-screen flows (auth, onboarding, checkout) in Figma — style presets, layer hierarchy, helper templates"
+description: "Detailed guide for building multi-screen flows (auth, onboarding, checkout) in Figma — style presets, layer hierarchy, create_frame patterns"
 ---
 
 # Multi-Screen Flow Generation Guide
 
-Detailed guide for building multi-screen flows in Figma. Load this BEFORE writing any `execute_js` code for a multi-screen flow.
+Detailed guide for building multi-screen flows in Figma using `create_frame` + `children`.
 
 For general Figma rules, see `.kiro/steering/figma-essential-rules.md` (auto-loaded).
 
 ## Step 0: Define Style Preset
 
-**This is not a conceptual step — it is a literal code block that MUST appear at the top of EVERY `execute_js` script in the flow.**
-
-If the user hasn't specified a style, **ask which preset to use** in interactive mode. If unable to ask, **default to `soft`**.
-
-Every `execute_js` script MUST start with this block (choose one preset):
-
-```js
-// === STYLE PRESET (must be first — all radii and shadows read from here) ===
-// Options: 'square' | 'soft' | 'device-mockup' | 'flat-wireframe'
-const PRESET = {
-  // soft (default for mobile product flows)
-  screen:  { radius: 28, shadow: null },
-  button:  { radius: 12 },
-  input:   { radius: 12 },
-  card:    { radius: 20 },
-  pill:    { radius: 100 },
-};
-```
+Choose a style preset before building. If the user hasn't specified a style, **default to `soft`**.
 
 ### Preset Reference Table
 
@@ -39,21 +22,11 @@ const PRESET = {
 | `device-mockup` | 40 | 12 | 12 | 20 | 100 | strong drop shadow | Presentation with phone shell |
 | `flat-wireframe` | 0 | 0 | 0 | 0 | 0 | none | Lo-fi wireframe, no decoration |
 
-Because `PRESET` is a code variable, all subsequent code — skeleton creation, helper functions, content fills — reads `PRESET.screen.radius`, `PRESET.button.radius`, etc. This makes it structurally impossible to use hardcoded radii. If `PRESET` is missing, the script won't work.
+Apply the preset values consistently across all `create_frame` calls: screen `cornerRadius`, button `cornerRadius`, input `cornerRadius`, etc.
 
-## Step 1: Define Screen List as Data
+## Step 1: Define Screen List
 
-Create a `screenDefs` array with step number, label, and per-screen config (colors, content type) BEFORE drawing anything. Loop this array to generate uniform shells.
-
-The skeleton creation code uses `PRESET.screen.radius` and `PRESET.screen.shadow` directly:
-
-```js
-const screen = figma.createFrame();
-screen.cornerRadius = PRESET.screen.radius;
-if (PRESET.screen.shadow) {
-  screen.effects = [PRESET.screen.shadow];
-}
-```
+Plan the full screen list before building. This forces you to think through the flow before touching the canvas.
 
 ## Step 2: Enforce Strict Layer Hierarchy
 
@@ -78,73 +51,41 @@ When `PRESET.screen.shadow` is set (e.g., `device-mockup` preset), Screen has `d
 ### Layout Rule
 Screen nodes MUST have `layoutMode: "VERTICAL"` with padding to control safe area insets. Do NOT use a separate Content child with absolute positioning — this causes `lint_fix_all` to force auto-layout on Screen, breaking the layout.
 
-## Step 3: Write Helper Functions from PRESET
+## Step 3: Consistent Element Patterns
 
-`makeText`, `makeButton`, `makeField`, `makeBadge`, `makeIcon`, etc. These helpers MUST use `PRESET.button.radius`, `PRESET.input.radius`, etc. — **never hardcoded numbers**.
+Use consistent patterns across all screens. `create_frame` + `children` templates:
 
-### Icon Helper (MANDATORY — no emoji placeholders)
-
-Every script that needs icons MUST include the `ICONS` path library and `makeIcon` helper. See `.kiro/steering/figma-essential-rules.md` §Icons for the full `ICONS` object and `makeIcon` implementation. Use `figma.createNodeFromSvg()` to create real vector icons — **NEVER use emoji text nodes as icon substitutes**.
-
-```js
-function makeButton(parent, label, fillColor, textColor) {
-  const f = figma.createFrame();
-  f.name = `Button / ${label}`;
-  f.layoutMode = "HORIZONTAL";
-  f.primaryAxisAlignItems = "CENTER";
-  f.counterAxisAlignItems = "CENTER";
-  f.paddingTop = 16; f.paddingBottom = 16;
-  f.paddingLeft = 24; f.paddingRight = 24;
-  f.cornerRadius = PRESET.button.radius;  // ← from preset, not hardcoded
-  f.fills = [{ type: "SOLID", color: fillColor }];
-  parent.appendChild(f);
-  f.layoutSizingHorizontal = "FILL";
-  f.layoutSizingVertical = "HUG";
-
-  const t = figma.createText();
-  t.characters = label;
-  t.fontSize = 16;
-  t.fontName = { family: "Inter", style: "Semi Bold" };
-  t.fills = [{ type: "SOLID", color: textColor }];
-  f.appendChild(t);
-  t.layoutSizingHorizontal = "HUG";
-  t.layoutSizingVertical = "HUG";
-  return f;
-}
-
-function makeInput(parent, placeholder, colors) {
-  const f = figma.createFrame();
-  f.name = `Input / ${placeholder}`;
-  f.layoutMode = "HORIZONTAL";
-  f.primaryAxisAlignItems = "MIN";
-  f.counterAxisAlignItems = "CENTER";
-  f.paddingTop = 14; f.paddingBottom = 14;
-  f.paddingLeft = 16; f.paddingRight = 16;
-  f.cornerRadius = PRESET.input.radius;  // ← from preset
-  f.fills = [{ type: "SOLID", color: colors.bg }];
-  f.strokes = [{ type: "SOLID", color: colors.border }];
-  f.strokeWeight = 1.5;
-  parent.appendChild(f);
-  f.layoutSizingHorizontal = "FILL";
-  f.layoutSizingVertical = "HUG";
-
-  const t = figma.createText();
-  t.characters = placeholder;
-  t.fontSize = 15;
-  t.fontName = { family: "Inter", style: "Regular" };
-  t.fills = [{ type: "SOLID", color: colors.placeholder }];
-  f.appendChild(t);
-  t.layoutSizingHorizontal = "FILL";
-  t.layoutSizingVertical = "HUG";
-  return f;
-}
+### Button
+```json
+{ "type": "frame", "name": "Sign In",
+  "cornerRadius": 12, "fill": "#3B82F6",
+  "primaryAxisAlignItems": "CENTER", "counterAxisAlignItems": "CENTER",
+  "padding": 16,
+  "children": [{ "type": "text", "content": "Sign In", "fill": "#FFFFFF", "fontStyle": "SemiBold" }] }
 ```
 
-Helpers don't persist across `execute_js` calls — re-define them (and `PRESET`) at the top of each script.
+### Input Field
+```json
+{ "type": "frame", "name": "Email Input",
+  "cornerRadius": 12, "strokeColor": "#E0E0E0",
+  "padding": 16,
+  "children": [{ "type": "text", "content": "Enter your email", "fill": "#999999" }] }
+```
 
-## Step 4: Build Order
+### Icons — use `icon_search` → `icon_create`, NEVER emoji text nodes
 
-1. **Call 1**: Creates Wrapper + Header + Flow Row + all Stage/Screen shells (the skeleton). Uses `PRESET` for screen radius and shadow.
-2. **Call 2+**: Fills each Screen one at a time, using the helpers. Each call re-defines `PRESET` and all helpers at the top.
+Apply the chosen preset's `cornerRadius` values consistently across all elements.
 
-This way the skeleton is guaranteed uniform before any content is added.
+## Step 4: Build Order (using create_frame)
+
+```
+Call 1: create_frame — Wrapper + Header + Flow Row + all Stage/Screen shells (skeleton)
+        → check _children, export_image to verify skeleton
+Call 2: create_frame — Fill Screen 1 (parentId=screen1Id, children=[TopContent, BottomContent])
+        → check _preview, export_image to verify
+Call 3-N: create_frame — Fill remaining screens, one per call
+        → export_image after each
+Final: lint_fix_all on each screen → export_image
+```
+
+The skeleton is guaranteed uniform before any content is added. Each `create_frame` call builds a complete subtree with automatic sizing inference and token binding.

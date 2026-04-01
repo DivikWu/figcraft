@@ -61,6 +61,7 @@ export function simplifyNode(node: SceneNode, depth = 0, counter?: { count: numb
     name: node.name,
     type: node.type,
     role: 'getPluginData' in node ? (node.getPluginData(PLUGIN_DATA_KEYS.ROLE) || undefined) : undefined,
+    lintIgnore: 'getPluginData' in node ? (node.getPluginData(PLUGIN_DATA_KEYS.LINT_IGNORE) || undefined) : undefined,
     x: 'x' in node ? node.x : 0,
     y: 'y' in node ? node.y : 0,
     width: 'width' in node ? node.width : 0,

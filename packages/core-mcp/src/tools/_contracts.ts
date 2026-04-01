@@ -610,6 +610,12 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
       x: z.number(),
       y: z.number(),
     }),
+  'group_nodes': z.object({
+      id: z.string(),
+      name: z.string(),
+      type: z.string(),
+      childCount: z.number(),
+    }),
   'flatten_node': z.object({
       id: z.string(),
       name: z.string(),
@@ -715,6 +721,9 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
           category: z.string(),
           severity: z.string(),
         })),
+    }),
+  'set_lint_ignore': z.object({
+      ok: z.boolean(),
     }),
   'compliance_report': z.object({
       overallScore: z.number(),
@@ -1603,6 +1612,14 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
       "y": 0
     }
   ],
+  'group_nodes': [
+    {
+      "id": "93:1",
+      "name": "Group",
+      "type": "GROUP",
+      "childCount": 3
+    }
+  ],
   'flatten_node': [
     {
       "id": "92:1",
@@ -1789,6 +1806,11 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
       ]
     }
   ],
+  'set_lint_ignore': [
+    {
+      "ok": true
+    }
+  ],
   'compliance_report': [
     {
       "overallScore": 92,
@@ -1944,6 +1966,15 @@ export const GENERATED_ENDPOINT_METHOD_RESPONSE_SCHEMAS: Record<string, Record<s
     'set_content': z.object({
       ok: z.boolean(),
       error: z.string().optional(),
+    }),
+    'set_range': z.object({
+      ok: z.boolean(),
+      characterCount: z.number().optional(),
+      results: z.array(z.object({
+          index: z.number().optional(),
+          ok: z.boolean().optional(),
+          error: z.string().optional(),
+        })).optional(),
     }),
   },
   'components': {
@@ -2219,6 +2250,18 @@ export const GENERATED_ENDPOINT_METHOD_RESPONSE_EXAMPLES: Record<string, Record<
     'set_content': [
       {
         "ok": true
+      }
+    ],
+    'set_range': [
+      {
+        "ok": true,
+        "characterCount": 42,
+        "results": [
+          {
+            "index": 0,
+            "ok": true
+          }
+        ]
       }
     ],
   },

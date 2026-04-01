@@ -141,7 +141,7 @@ export async function getModeLogic(
     // ⛔ BLOCKING: must complete before ANY write tool call
     designPreflight: {
       required: true,
-      instruction: 'Complete the design checklist below, then present a design proposal to the user and WAIT for explicit confirmation. Do NOT call create_frame/create_text/create_svg/execute_js until user approves.',
+      instruction: 'Complete the design checklist below, then present a design proposal to the user and WAIT for explicit confirmation. Do NOT call create_frame/create_text/create_svg until user approves.',
       checklist: {
         purpose: 'What problem does this solve? Who is the audience?',
         platform: 'iOS (402×874) / Android (412×915) / Web? Determines touch targets and conventions.',
@@ -164,9 +164,16 @@ export async function getModeLogic(
     creationSteps: [
       'get_current_page(maxDepth=1) — inspect existing content, find placement position',
       'Classify task scale: single element / single screen / multi-screen (3-5) / large flow (6+)',
-      'Use create_frame + children (declarative) as default. execute_js only for loops/conditionals/unsupported API.',
-      'Verify each create_frame response: check _children and _preview. Call export_image only if _preview shows issues.',
-      'lint_fix_all on completed screens before replying to user.',
+      'Use create_frame + children (declarative) for all creation. For text range styling, use text(method: "set_range"). For node grouping, use group_nodes (requires load_toolset("shapes-vectors")).',
+      'nodes update uses ordered execution: simple props → fills/strokes → layout sizing → resize → text. Safe to send layoutMode + width in same patch.',
+      'nodes update supports width/height directly (calls resize internally), text properties (textDecoration, textCase, textAlignHorizontal, textAlignVertical, textAutoResize, paragraphSpacing, paragraphIndent), and layoutPositioning.',
+      'create_frame children support optional index field for insertion order control. No need for post-creation reparent calls.',
+      'Node type selection: use type:"rectangle" for simple shapes (dividers, bars, spacers, backgrounds) without children. type:"frame" is only for containers that need children or auto-layout.',
+      'For complex or ambiguous parameters, use dryRun:true first to preview Opinion Engine inferences before committing.',
+      'lint_fix_all supports dryRun:true to preview fixable violations before applying. Use to review what will be changed.',
+      'After the FIRST create_frame failure, review ALL remaining planned payloads for the same pattern before retrying.',
+      'Verify each create_frame response: check _children structure AND _preview thumbnail. If _preview is absent or shows issues, call export_image to visually confirm.',
+      'lint_fix_all on completed screens. If remaining violations include severity:"error", read the details and fix manually before replying.',
     ],
 
     // What to do RIGHT NOW (next action for AI)

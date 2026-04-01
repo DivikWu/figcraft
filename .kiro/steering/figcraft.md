@@ -11,7 +11,7 @@ Tool names are prefixed with `mcp_figcraft_`. The IDE auto-loads all tool defini
 
 **Declarative tools are the primary creation method.** Use `create_frame` with inline `children` to build entire node trees in one call. Smart defaults handle sizing, token binding, and layout inference automatically.
 
-`execute_js` is the escape hatch — use it only when declarative tools can't express the logic (complex conditionals, loops over dynamic data, Plugin API methods not wrapped by any tool). `execute_js` is 100% compatible with official Figma MCP's `use_figma` — same Plugin API code works in both.
+Additional declarative tools: `text(method: "set_range")` for character-range text styling, `group_nodes` for node grouping (requires `load_toolset("shapes-vectors")`), `nodes(method: "update")` with 5-phase ordered execution for property updates. `execute_js` is in the `debug` toolset — not available by default, load with `load_toolset("debug")` for diagnostics only.
 
 See `figma-declarative-creation.md` (auto-loaded) for the full declarative creation guide.
 
@@ -20,6 +20,9 @@ See `figma-declarative-creation.md` (auto-loaded) for the full declarative creat
 | Task | Tool |
 |------|------|
 | UI creation (screens, forms, cards, flows) | `create_frame` + `children`, `create_text`, `create_instance` |
+| Character-range text styling | `text(method: "set_range")` |
+| Node grouping | `group_nodes` (requires `load_toolset("shapes-vectors")`) |
+| Property updates (ordered execution) | `nodes(method: "update")` — 5-phase: simple → fills → layout → resize → text |
 | Searching design system assets | `search_design_system` — searches components, variables, styles across all subscribed libraries |
 | Icons | `icon_search` → `icon_create` |
 | Images | `image_search` → `create_frame` with `imageUrl` |
@@ -27,11 +30,11 @@ See `figma-declarative-creation.md` (auto-loaded) for the full declarative creat
 | Text scanning | `text_scan` |
 | Node-to-component | `create_component_from_node` |
 | Plugin connection & page inspection | `ping`, `get_current_page`, `get_mode` |
-| Plugin API scripting (escape hatch) | `execute_js` |
 | Design quality (lint, audit) | `lint_fix_all`, `audit_node` |
 | Token sync (DTCG JSON ↔ Figma) | `load_toolset("tokens")` |
 | Node CRUD operations | `nodes` endpoint — get, list, update, delete, clone, reparent |
 | Image export | `export_image` |
+| Debug (diagnostics only) | `execute_js` (requires `load_toolset("debug")`) |
 
 **Optional Figma Power tools** (available when official Figma MCP is also configured):
 `get_design_context`, `get_variable_defs`, `get_screenshot` — these provide additional data via REST API. FigCraft equivalents: `nodes(get)`, `variables_ep(list)`, `export_image`.

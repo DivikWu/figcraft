@@ -117,6 +117,41 @@ registerHandler('create_vector', async (params) => {
   return simplifyNode(vectorNode);
 });
 
+registerHandler('group_nodes', async (params) => {
+  const nodeIds = params.nodeIds as string[];
+  const name = (params.name as string) || 'Group';
+
+  assertHandler(nodeIds.length >= 2, 'At least 2 nodes required for grouping', 'INVALID_PARAMS');
+
+  const nodes: SceneNode[] = [];
+  for (const id of nodeIds) {
+    const node = await findNodeByIdAsync(id);
+    assertHandler(node, `Node not found: ${id}`, 'NOT_FOUND');
+    nodes.push(node as SceneNode);
+  }
+
+  // Verify all nodes share the same parent
+  const parentId = nodes[0].parent?.id;
+  assertHandler(parentId, 'First node has no parent', 'INVALID_PARAMS');
+  for (let i = 1; i < nodes.length; i++) {
+    assertHandler(
+      nodes[i].parent?.id === parentId,
+      `All nodes must share the same parent. Node ${nodeIds[i]} has different parent.`,
+      'INVALID_PARAMS',
+    );
+  }
+
+  const group = figma.group(nodes, nodes[0].parent!);
+  group.name = name;
+
+  return {
+    id: group.id,
+    name: group.name,
+    type: group.type,
+    childCount: group.children.length,
+  };
+});
+
 registerHandler('flatten_node', async (params) => {
   const nodeId = params.nodeId as string;
   const node = await findNodeByIdAsync(nodeId);

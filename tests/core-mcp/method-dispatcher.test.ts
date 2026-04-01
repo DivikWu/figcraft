@@ -12,13 +12,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // ─── Mock setup ───
 
 // Mock toolset-manager to control access level
-vi.mock('../packages/core-mcp/src/tools/toolset-manager.js', () => ({
+vi.mock('../../packages/core-mcp/src/tools/toolset-manager.js', () => ({
   getAccessLevel: vi.fn(() => 'edit'),
   isToolBlocked: vi.fn(() => null),
 }));
 
 // Mock node-logic functions
-vi.mock('../packages/core-mcp/src/tools/logic/node-logic.js', () => ({
+vi.mock('../../packages/core-mcp/src/tools/logic/node-logic.js', () => ({
   getNodeInfoLogic: vi.fn().mockResolvedValue({
     content: [{ type: 'text', text: '{"id":"1:23"}' }],
   }),
@@ -31,14 +31,14 @@ vi.mock('../packages/core-mcp/src/tools/logic/node-logic.js', () => ({
 }));
 
 // Mock component-logic (listLibraryComponentsLogic used by components endpoint)
-vi.mock('../packages/core-mcp/src/tools/logic/component-logic.js', () => ({
+vi.mock('../../packages/core-mcp/src/tools/logic/component-logic.js', () => ({
   listLibraryComponentsLogic: vi.fn().mockResolvedValue({
     content: [{ type: 'text', text: '{"componentSetCount":0,"standaloneCount":0,"componentSets":[],"standalone":[]}' }],
   }),
 }));
 
 // Mock rest-fallback (needed by node-logic imports)
-vi.mock('../packages/core-mcp/src/rest-fallback.js', () => ({
+vi.mock('../../packages/core-mcp/src/rest-fallback.js', () => ({
   requestWithFallback: vi.fn(),
   restGetNodeInfo: vi.fn(),
   restExportImage: vi.fn(),
@@ -46,7 +46,7 @@ vi.mock('../packages/core-mcp/src/rest-fallback.js', () => ({
   setFileContext: vi.fn(),
 }));
 
-vi.mock('../packages/core-mcp/src/figma-api.js', () => ({
+vi.mock('../../packages/core-mcp/src/figma-api.js', () => ({
   extractFileKeyFromUrl: vi.fn(),
   extractNodeIdFromUrl: vi.fn(),
 }));
