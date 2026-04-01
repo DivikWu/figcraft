@@ -2,8 +2,8 @@
  * Lint engine — runs rules against abstract nodes, collects violations.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule, LintCategory as LintRuleCategory, LintSeverity } from './types.js';
-import { downgradeSeverity, getContextSeverity } from './types.js';
+import type { AbstractNode, LintContext, LintViolation, LintRule, LintCategory as LintRuleCategory, LintSeverity, FixDescriptor, RuleAI } from './types.js';
+import { downgradeSeverity, getContextSeverity, SEVERITY_ORDER } from './types.js';
 // Token / spec compliance
 import { specColorRule } from './rules/spec/spec-color.js';
 import { specTypographyRule } from './rules/spec/spec-typography.js';
@@ -178,9 +178,12 @@ export function runLint(
           if (!v.baseSeverity) v.baseSeverity = v.severity;
           v.severity = contextSev;
         }
-        // Generate structured fix call for AI agents
-        if (v.autoFixable && !v.fixCall) {
-          v.fixCall = generateFixCall(v);
+        // Generate fix descriptor from rule, then derive fixCall
+        if (v.autoFixable && !v.fixDescriptor && rule.describeFix) {
+          v.fixDescriptor = rule.describeFix(v) ?? undefined;
+        }
+        if (v.autoFixable && !v.fixCall && v.fixDescriptor) {
+          v.fixCall = generateFixCallFromDescriptor(v);
         }
         // Filter by minimum severity
         if (SEVERITY_RANK[v.severity] <= minRank) {
@@ -293,113 +296,66 @@ export function runLint(
 }
 
 /**
- * Generate a structured fixCall from violation data.
- * Maps known rule + fixData patterns to MCP tool calls the AI can execute directly.
+ * Derive a fixCall from a FixDescriptor (new system).
+ * Covers all descriptor kinds mechanically — no per-rule switch needed.
  */
-function generateFixCall(v: LintViolation): LintViolation['fixCall'] {
-  if (!v.autoFixable || !v.fixData) return undefined;
-
+function generateFixCallFromDescriptor(v: LintViolation): LintViolation['fixCall'] {
+  const desc = v.fixDescriptor;
+  if (!desc) return undefined;
   const nodeId = v.nodeId;
-
-  switch (v.rule) {
-    case 'no-autolayout':
-      return {
-        tool: 'nodes',
-        params: { method: 'update', nodeId, props: { layoutMode: v.fixData.layoutMode } },
-      };
-
-    case 'spec-color':
-      if (v.fixData.property === 'fills' && v.fixData.tokenName) {
-        return {
-          tool: 'nodes',
-          params: { method: 'update', nodeId, props: { fillVariableName: v.fixData.tokenName } },
-        };
-      }
-      if (v.fixData.property === 'strokes' && v.fixData.tokenName) {
-        return {
-          tool: 'nodes',
-          params: { method: 'update', nodeId, props: { strokeVariableName: v.fixData.tokenName } },
-        };
-      }
-      break;
-
-    case 'hardcoded-token':
-      if (v.fixData.property === 'fills') {
-        return {
-          tool: 'nodes',
-          params: { method: 'update', nodeId, props: { fillVariableName: '__auto__' } },
-        };
-      }
-      if (v.fixData.property === 'cornerRadius') {
-        return {
-          tool: 'nodes',
-          params: { method: 'update', nodeId, props: { cornerRadiusVariableName: '__auto__' } },
-        };
-      }
-      break;
-
-    case 'wcag-line-height':
-      if (v.fixData.lineHeight != null) {
-        return {
-          tool: 'text',
-          params: { method: 'set_content', nodeId, lineHeight: v.fixData.lineHeight },
-        };
-      }
-      break;
-
-    case 'spacer-frame':
-      return {
-        tool: 'nodes',
-        params: { method: 'delete', nodeId },
-      };
-
-    case 'unbounded-hug':
-      if (v.fixData.fix === 'stretch-self') {
-        return {
-          tool: 'nodes',
-          params: { method: 'update', nodeId, props: { layoutAlign: 'STRETCH' } },
-        };
-      }
-      break;
-
-    case 'wcag-text-size':
-      return {
-        tool: 'nodes',
-        params: { method: 'update', nodeId, props: { fontSize: 12 } },
-      };
-
-    case 'text-overflow':
-      if (v.fixData.textAutoResize) {
-        return {
-          tool: 'nodes',
-          params: { method: 'update', nodeId, props: { textAutoResize: v.fixData.textAutoResize } },
-        };
-      }
-      break;
-
-    case 'overflow-parent':
-      if (v.fixData.fix === 'stretch') {
-        return {
-          tool: 'nodes',
-          params: { method: 'update', nodeId, props: { layoutAlign: 'STRETCH' } },
-        };
-      }
-      break;
-
-    case 'section-spacing-collapse':
-      if (v.fixData.itemSpacing != null) {
-        return {
-          tool: 'nodes',
-          params: { method: 'update', nodeId, props: { itemSpacing: v.fixData.itemSpacing } },
-        };
-      }
-      break;
+  switch (desc.kind) {
+    case 'set-properties':
+      return { tool: 'nodes', params: { method: 'update', nodeId, props: desc.props } };
+    case 'resize':
+      return { tool: 'nodes', params: { method: 'update', nodeId, props: { ...(desc.width != null ? { width: desc.width } : {}), ...(desc.height != null ? { height: desc.height } : {}) } } };
+    case 'remove-and-redistribute':
+      return { tool: 'nodes', params: { method: 'delete', nodeId } };
+    case 'deferred':
+      return undefined;
   }
-
-  return undefined;
 }
 
-/** Get all available rule names. */
-export function getAvailableRules(): Array<{ name: string; description: string; category: string; severity: string }> {
-  return ALL_RULES.map((r) => ({ name: r.name, description: r.description, category: r.category, severity: r.severity }));
+
+/** Get all available rule names with optional AI metadata. */
+export function getAvailableRules(): Array<{
+  name: string; description: string; category: string; severity: string;
+  autoFixable: boolean; ai?: RuleAI;
+}> {
+  return ALL_RULES.map((r) => ({
+    name: r.name, description: r.description, category: r.category, severity: r.severity,
+    autoFixable: !!r.describeFix,
+    ...(r.ai ? { ai: r.ai } : {}),
+  }));
+}
+
+/**
+ * Generate a prevention checklist from rule AI metadata.
+ * Returns an array of preventionHint strings, filtered by phase/tags/severity.
+ * Used by the prompt system to derive self-review checklists from rules.
+ */
+export function getPreventionChecklist(options?: {
+  phases?: string[];
+  tags?: string[];
+  minSeverity?: LintSeverity;
+}): string[] {
+  const maxIdx = options?.minSeverity
+    ? SEVERITY_ORDER.indexOf(options.minSeverity)
+    : SEVERITY_ORDER.indexOf('style'); // default: up to style
+
+  return ALL_RULES
+    .filter((r) => {
+      if (!r.ai?.preventionHint) return false;
+      // Severity filter
+      if (SEVERITY_ORDER.indexOf(r.severity) > maxIdx) return false;
+      // Phase filter
+      if (options?.phases?.length && r.ai.phase) {
+        if (!r.ai.phase.some((p) => options.phases!.includes(p))) return false;
+      }
+      // Tag filter
+      if (options?.tags?.length && r.ai.tags) {
+        if (!r.ai.tags.some((t) => options.tags!.includes(t))) return false;
+      }
+      return true;
+    })
+    .map((r) => r.ai!.preventionHint);
 }

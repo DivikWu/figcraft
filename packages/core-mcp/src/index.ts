@@ -12,6 +12,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { Bridge } from './bridge.js';
 import { registerPrompts } from './prompts/index.js';
+import { registerDesignRulesResources } from './resources/design-rules.js';
 import { setBridgeTokenProvider } from './auth.js';
 import { startRelay } from '@figcraft/relay';
 import {
@@ -53,6 +54,7 @@ function createRuntime(): McpRuntime {
   registerToolsetMetaTools(server);
   disableNonCoreTools(server);
   registerPrompts(server);
+  registerDesignRulesResources(server);
 
   const shutdown = (): void => {
     console.error('[FigCraft mcp] shutting down...');

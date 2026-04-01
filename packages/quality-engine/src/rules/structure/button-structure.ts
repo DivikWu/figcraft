@@ -11,10 +11,10 @@
  * Proper buttons should be auto-layout frames with centered text inside.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
+import { DESIGN_CONSTANTS, SCREEN_NAME_RE } from '../../constants.js';
 
 const BUTTON_NAME_RE = /button|btn|按钮|登录|注册|submit|sign.?in|sign.?up|log.?in/i;
-const SCREEN_NAME_RE = /welcome|sign.?in|sign.?up|forgot\s+password|create\s+account|onboarding|settings|profile|dashboard|checkout|pricing|empty\s+state/i;
 const PILL_TAG_NAME_RE = /pill|tag|badge|chip|label|step|标签|步骤/i;
 
 function looksLikeScreenContainer(node: AbstractNode): boolean {
@@ -47,12 +47,17 @@ function looksLikeButton(node: AbstractNode): boolean {
   return false;
 }
 
-const MIN_BUTTON_HEIGHT = 44;
-const MIN_BUTTON_HPAD = 16; // minimum total horizontal padding (left + right)
+const MIN_BUTTON_HEIGHT = DESIGN_CONSTANTS.button.minHeight;
+const MIN_BUTTON_HPAD = DESIGN_CONSTANTS.button.minHPad;
 
 export const buttonStructureRule: LintRule = {
   name: 'button-structure',
   description: 'Buttons must be auto-layout frames with centered text, adequate padding and height.',
+  ai: {
+    preventionHint: `All buttons must be auto-layout frames (HORIZONTAL) with centered text, explicit height (≥${DESIGN_CONSTANTS.button.minHeight}px), and internal padding (≥${DESIGN_CONSTANTS.button.minHPad}px horizontal) — no bare text nodes, no overlapping decorative shapes`,
+    phase: ['structure'],
+    tags: ['button'],
+  },
   category: 'layout',
   severity: 'heuristic',
 
@@ -160,5 +165,40 @@ export const buttonStructureRule: LintRule = {
     }
 
     return violations;
+  },
+
+  describeFix(v): FixDescriptor | null {
+    if (!v.fixData) return null;
+    const fix = v.fixData.fix as string | undefined;
+    switch (fix) {
+      case 'layout':
+        return {
+          kind: 'set-properties',
+          props: {
+            ...(v.fixData.layoutMode ? { layoutMode: v.fixData.layoutMode } : {}),
+            ...(v.fixData.primaryAxisAlignItems ? { primaryAxisAlignItems: v.fixData.primaryAxisAlignItems } : {}),
+            ...(v.fixData.counterAxisAlignItems ? { counterAxisAlignItems: v.fixData.counterAxisAlignItems } : {}),
+          },
+          requireType: ['FRAME', 'COMPONENT'],
+        };
+      case 'padding':
+        return {
+          kind: 'set-properties',
+          props: {
+            ...(v.fixData.paddingLeft != null ? { paddingLeft: v.fixData.paddingLeft } : {}),
+            ...(v.fixData.paddingRight != null ? { paddingRight: v.fixData.paddingRight } : {}),
+          },
+          requireType: ['FRAME', 'COMPONENT'],
+        };
+      case 'height':
+        return {
+          kind: 'resize',
+          height: (v.fixData.height as number) ?? 48,
+          minHeight: (v.fixData.height as number) ?? 48,
+          requireType: ['FRAME', 'COMPONENT'],
+        };
+      default:
+        return null;
+    }
   },
 };

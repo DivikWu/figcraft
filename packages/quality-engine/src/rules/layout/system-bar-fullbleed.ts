@@ -7,9 +7,8 @@
  * and primaryAxisAlignItems: MIN so the system bar sits flush at the top edge.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
-
-const SCREEN_NAME_RE = /welcome|sign.?in|sign.?up|forgot\s+password|create\s+account|screen|page|onboarding|settings|profile|dashboard|checkout|pricing|empty\s+state|home|landing|detail|list/i;
+import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
+import { SCREEN_NAME_RE } from '../../constants.js';
 const SYSTEM_BAR_RE = /status.?bar|system.?bar|notification.?bar|时间栏|状态栏/i;
 
 function isScreenLike(node: AbstractNode): boolean {
@@ -34,6 +33,11 @@ export const systemBarFullbleedRule: LintRule = {
   description: 'Screens with system bars must have paddingLeft/Right/Top = 0 for full-bleed layout.',
   category: 'layout',
   severity: 'unsafe',
+  ai: {
+    preventionHint: 'System bars (iOS/Android status bar) must be full-bleed: page-level paddingLeft/Right/Top = 0, primaryAxisAlignItems = MIN',
+    phase: ['layout'],
+    tags: ['screen'],
+  },
 
   check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
     if (!isScreenLike(node)) return [];
@@ -81,5 +85,29 @@ export const systemBarFullbleedRule: LintRule = {
     }
 
     return violations;
+  },
+
+  describeFix(v): FixDescriptor | null {
+    if (!v.fixData) return null;
+    const fix = v.fixData.fix as string;
+    if (fix === 'padding') {
+      return {
+        kind: 'set-properties',
+        props: {
+          ...(v.fixData.paddingLeft != null ? { paddingLeft: v.fixData.paddingLeft } : {}),
+          ...(v.fixData.paddingRight != null ? { paddingRight: v.fixData.paddingRight } : {}),
+          ...(v.fixData.paddingTop != null ? { paddingTop: v.fixData.paddingTop } : {}),
+        },
+        requireType: ['FRAME', 'COMPONENT'],
+      };
+    }
+    if (fix === 'alignment') {
+      return {
+        kind: 'set-properties',
+        props: { primaryAxisAlignItems: v.fixData.primaryAxisAlignItems ?? 'MIN' },
+        requireType: ['FRAME', 'COMPONENT'],
+      };
+    }
+    return null;
   },
 };

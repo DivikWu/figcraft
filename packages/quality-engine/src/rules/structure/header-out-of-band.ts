@@ -1,7 +1,8 @@
 import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import { SCREEN_NAME_RE } from '../../constants.js';
 
 function isScreenLike(node: AbstractNode): boolean {
-  return node.role === 'screen' || /screen|page|sign.?in|sign.?up|forgot|welcome|checkout|settings|profile|dashboard/i.test(node.name);
+  return node.role === 'screen' || SCREEN_NAME_RE.test(node.name);
 }
 
 function isHeaderLike(node: AbstractNode): boolean {

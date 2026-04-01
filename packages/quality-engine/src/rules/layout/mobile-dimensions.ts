@@ -8,14 +8,13 @@
  * Flags screen-like root frames that use legacy or non-standard mobile dimensions.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
-
-const SCREEN_NAME_RE = /welcome|sign.?in|sign.?up|forgot\s+password|create\s+account|screen|page|onboarding|settings|profile|dashboard|checkout|pricing|empty\s+state|home|landing|detail|list/i;
+import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
+import { DESIGN_CONSTANTS, SCREEN_NAME_RE } from '../../constants.js';
 
 /** Known standard mobile dimensions [width, height]. */
 const STANDARD_DIMS: Array<{ platform: string; width: number; height: number }> = [
-  { platform: 'iOS', width: 402, height: 874 },
-  { platform: 'Android', width: 412, height: 915 },
+  { platform: 'iOS', width: DESIGN_CONSTANTS.screen.ios.width, height: DESIGN_CONSTANTS.screen.ios.height },
+  { platform: 'Android', width: DESIGN_CONSTANTS.screen.android.width, height: DESIGN_CONSTANTS.screen.android.height },
 ];
 
 /** Legacy dimensions that should be flagged. */
@@ -47,6 +46,11 @@ export const mobileDimensionsRule: LintRule = {
   description: 'Mobile screen frames should use standard dimensions: iOS 402×874, Android 412×915.',
   category: 'layout',
   severity: 'style',
+  ai: {
+    preventionHint: `Mobile screen dimensions: iOS ${DESIGN_CONSTANTS.screen.ios.width}×${DESIGN_CONSTANTS.screen.ios.height}, Android ${DESIGN_CONSTANTS.screen.android.width}×${DESIGN_CONSTANTS.screen.android.height} (no legacy sizes)`,
+    phase: ['layout'],
+    tags: ['screen'],
+  },
 
   check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
     if (!isScreenLike(node)) return [];
@@ -94,5 +98,15 @@ export const mobileDimensionsRule: LintRule = {
       suggestion: `"${node.name}" uses non-standard mobile dimensions ${w}×${h}. Consider ${target.platform} standard: ${target.width}×${target.height}.`,
       autoFixable: false,
     }];
+  },
+
+  describeFix(v): FixDescriptor | null {
+    if (!v.fixData || v.fixData.width == null || v.fixData.height == null) return null;
+    return {
+      kind: 'resize',
+      width: v.fixData.width as number,
+      height: v.fixData.height as number,
+      requireType: ['FRAME', 'COMPONENT'],
+    };
   },
 };

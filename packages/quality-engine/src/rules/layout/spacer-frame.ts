@@ -10,7 +10,7 @@
  * auto-layout itemSpacing instead.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor, RuleAI } from '../../types.js';
 
 // Unified spacer detection — matches all known AI-generated spacer naming patterns
 export const SPACER_RE = /^(?:(?:top|bottom|left|right|flex|vertical|horizontal)[\s_-]?)?(?:spacer|space|gap)(?:[\s_-]?(?:top|bottom|left|right|\d+))?$/i;
@@ -30,6 +30,10 @@ export const spacerFrameRule: LintRule = {
   description: 'Detect empty frames used as spacing hacks. Use auto-layout itemSpacing with semantic grouping instead.',
   category: 'layout',
   severity: 'style',
+  ai: {
+    preventionHint: 'No empty Spacer frames — use semantic groups with itemSpacing instead',
+    phase: ['layout'],
+  },
 
   check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
     if (node.type !== 'FRAME') return [];
@@ -58,5 +62,13 @@ export const spacerFrameRule: LintRule = {
         height: node.height,
       },
     }];
+  },
+
+  describeFix(v): FixDescriptor | null {
+    if (!v.fixData) return null;
+    return {
+      kind: 'remove-and-redistribute',
+      dimension: { width: v.fixData.width as number | undefined, height: v.fixData.height as number | undefined },
+    };
   },
 };

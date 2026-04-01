@@ -11,6 +11,10 @@ export const defaultNameRule: LintRule = {
   description: 'Detect layers still using Figma\'s auto-generated names like "Frame 1" or "Rectangle 2".',
   category: 'naming',
   severity: 'style',
+  ai: {
+    preventionHint: 'Every frame must have a descriptive name reflecting its purpose (e.g. "Login Form", "Email Input") — no "Frame 1" defaults',
+    phase: ['content'],
+  },
 
   check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
     // Only check container-like or meaningful nodes, skip deeply nested leaves

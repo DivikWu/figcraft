@@ -2,7 +2,7 @@
  * Spec border radius rule — detect non-token corner radius values.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
 
 export const specBorderRadiusRule: LintRule = {
   name: 'spec-border-radius',
@@ -53,6 +53,11 @@ export const specBorderRadiusRule: LintRule = {
     }
 
     return violations;
+  },
+
+  describeFix(v): FixDescriptor | null {
+    if (!v.fixData || v.fixData.value == null) return null;
+    return { kind: 'set-properties', props: { cornerRadius: v.fixData.value } };
   },
 };
 

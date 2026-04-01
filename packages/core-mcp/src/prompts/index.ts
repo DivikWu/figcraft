@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { getPreventionChecklist } from '@figcraft/quality-engine';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -172,16 +173,7 @@ Apply the mode-specific design rules from the appropriate prompt (generate-eleme
 
 ## Check
 10. Self-Review against Layout rules — verify:
-    - No empty Spacer frames (use semantic groups with itemSpacing)
-    - Responsive children use layoutAlign: STRETCH (inputs, buttons, dividers, content sections)
-    - Filled elements with margin use a transparent wrapper frame (not padding on the element itself)
-    - System bars (iOS/Android status bar) are full-bleed: page-level paddingLeft/Right/Top = 0, primaryAxisAlignItems = MIN
-    - Mobile screen dimensions: iOS 402×874, Android 412×915 (no legacy sizes)
-    - All buttons are proper auto-layout frames with centered text, explicit height (≥44pt iOS / ≥48dp Android), and internal padding — no bare text nodes, no overlapping decorative shapes
-    - No text overflow or truncation anywhere — every text node fits within its parent container
-    - All input fields are auto-layout frames with stroke (border), corner radius, internal padding, and placeholder text child — set layoutAlign: STRETCH
-    - Social login / icon buttons are auto-layout frames (HORIZONTAL) with icon + text children, wide enough to show all content without clipping
-    - Every frame has a descriptive name reflecting its purpose (e.g. "Login Form", "Email Input") — no "Frame 1" defaults
+${getPreventionChecklist({ phases: ['layout', 'structure', 'content'], minSeverity: 'style' }).map(hint => `    - ${hint}`).join('\n')}
     Fix violations immediately with nodes(method: "update").
 11. Run lint_fix_all to verify compliance and auto-fix remaining issues.`,
         },

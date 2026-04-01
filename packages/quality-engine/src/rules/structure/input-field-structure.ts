@@ -14,25 +14,42 @@
  * internal padding, and a text child for placeholder.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
+import { DESIGN_CONSTANTS, SCREEN_NAME_RE } from '../../constants.js';
 
 const INPUT_NAME_RE = /input|field|text.?field|search.?bar|email.?field|password.?field|输入|搜索框/i;
-const SCREEN_NAME_RE = /welcome|sign.?in|sign.?up|forgot\s+password|create\s+account|onboarding|settings|profile|dashboard|checkout|pricing|empty\s+state/i;
 
 function looksLikeScreenContainer(node: AbstractNode): boolean {
   if (node.type !== 'FRAME') return false;
   // Only treat as screen container if name matches screen patterns AND has multiple children
   if (SCREEN_NAME_RE.test(node.name) && (node.children?.length ?? 0) >= 2) return true;
-  // Large containers with many frame-like children are likely screens, not inputs
+  // Containers with 3+ children or 2+ frame-like children are not inputs
+  if ((node.children?.length ?? 0) >= 3) return true;
   const frameLikeChildren = node.children?.filter(
     c => c.type === 'FRAME' || c.type === 'INSTANCE' || c.type === 'COMPONENT',
   ).length ?? 0;
-  if (frameLikeChildren >= 3) return true;
+  if (frameLikeChildren >= 2) return true;
   return false;
+}
+
+/**
+ * Detect "field group" containers — frames wrapping a label TEXT + an input FRAME.
+ * These are NOT input fields themselves and should not receive padding/cornerRadius fixes.
+ * Pattern: 2-3 children, at least one TEXT (label) and one FRAME/INSTANCE (actual input).
+ */
+function looksLikeFieldGroup(node: AbstractNode): boolean {
+  if (node.type !== 'FRAME' && node.type !== 'COMPONENT') return false;
+  if (!node.children || node.children.length < 2 || node.children.length > 3) return false;
+  const hasTextLabel = node.children.some(c => c.type === 'TEXT');
+  const hasFrameChild = node.children.some(
+    c => c.type === 'FRAME' || c.type === 'INSTANCE' || c.type === 'COMPONENT',
+  );
+  return hasTextLabel && hasFrameChild;
 }
 
 function looksLikeInput(node: AbstractNode): boolean {
   if (looksLikeScreenContainer(node)) return false;
+  if (looksLikeFieldGroup(node)) return false;
   if (INPUT_NAME_RE.test(node.name)) return true;
   // A frame with stroke + single text child is likely an input
   if (node.type === 'FRAME' && node.children?.length === 1 &&
@@ -43,13 +60,18 @@ function looksLikeInput(node: AbstractNode): boolean {
   return false;
 }
 
-const MIN_INPUT_HPAD = 8;
+const MIN_INPUT_HPAD = DESIGN_CONSTANTS.input.minHPad;
 
 export const inputFieldStructureRule: LintRule = {
   name: 'input-field-structure',
   description: 'Input fields must be auto-layout frames with stroke, corner radius, padding, and a text child.',
   category: 'layout',
   severity: 'heuristic',
+  ai: {
+    preventionHint: 'All input fields must be auto-layout frames with stroke (border), corner radius, internal padding, and placeholder text child — set layoutAlign: STRETCH',
+    phase: ['structure'],
+    tags: ['input'],
+  },
 
   check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
     if (!looksLikeInput(node)) return [];
@@ -116,7 +138,7 @@ export const inputFieldStructureRule: LintRule = {
         currentValue: 'no corner radius',
         suggestion: `"${node.name}" input field has no corner radius. Consider adding cornerRadius for a polished look.`,
         autoFixable: true,
-        fixData: { fix: 'cornerRadius', cornerRadius: 8 },
+        fixData: { fix: 'cornerRadius', cornerRadius: DESIGN_CONSTANTS.input.defaultRadius },
       });
     }
 
@@ -156,5 +178,38 @@ export const inputFieldStructureRule: LintRule = {
     }
 
     return violations;
+  },
+
+  describeFix(v): FixDescriptor | null {
+    if (!v.fixData) return null;
+    const fix = v.fixData.fix as string | undefined;
+    switch (fix) {
+      case 'layout':
+        return {
+          kind: 'set-properties',
+          props: {
+            ...(v.fixData.layoutMode ? { layoutMode: v.fixData.layoutMode } : {}),
+            ...(v.fixData.counterAxisAlignItems ? { counterAxisAlignItems: v.fixData.counterAxisAlignItems } : {}),
+          },
+          requireType: ['FRAME', 'COMPONENT'],
+        };
+      case 'padding':
+        return {
+          kind: 'set-properties',
+          props: {
+            ...(v.fixData.paddingLeft != null ? { paddingLeft: v.fixData.paddingLeft } : {}),
+            ...(v.fixData.paddingRight != null ? { paddingRight: v.fixData.paddingRight } : {}),
+          },
+          requireType: ['FRAME', 'COMPONENT'],
+        };
+      case 'cornerRadius':
+        return {
+          kind: 'set-properties',
+          props: { cornerRadius: v.fixData.cornerRadius ?? 8 },
+          requireType: ['FRAME', 'COMPONENT'],
+        };
+      default:
+        return null;
+    }
   },
 };

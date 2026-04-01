@@ -21,6 +21,7 @@ import { statsRowCrampedRule } from '../../packages/quality-engine/src/rules/str
 import { rootMisclassifiedInteractiveRule } from '../../packages/quality-engine/src/rules/structure/root-misclassified-interactive.js';
 import { nestedInteractiveShellRule } from '../../packages/quality-engine/src/rules/structure/nested-interactive-shell.js';
 import { screenShellInvalidRule } from '../../packages/quality-engine/src/rules/structure/screen-shell-invalid.js';
+import { inputFieldStructureRule } from '../../packages/quality-engine/src/rules/structure/input-field-structure.js';
 
 const emptyCtx: LintContext = {
   colorTokens: new Map(),
@@ -941,6 +942,93 @@ describe('screen-shell-invalid', () => {
       }),
       emptyCtx,
     );
+    expect(v).toHaveLength(0);
+  });
+});
+
+// ─── input-field-structure ───
+
+describe('input-field-structure', () => {
+  it('skips field group containers (label TEXT + input FRAME)', () => {
+    // "Email Field" wrapping a label + actual input should NOT be flagged
+    const node = makeNode({
+      name: 'Email Field',
+      type: 'FRAME',
+      layoutMode: 'VERTICAL',
+      children: [
+        makeNode({ id: '2:1', name: 'Email', type: 'TEXT' }),
+        makeNode({
+          id: '2:2', name: 'Email Input', type: 'FRAME',
+          strokes: [{ type: 'SOLID', visible: true, opacity: 1 }],
+          cornerRadius: 12,
+          paddingLeft: 16, paddingRight: 16,
+        }),
+      ],
+    });
+    const v = inputFieldStructureRule.check(node, emptyCtx);
+    expect(v).toHaveLength(0);
+  });
+
+  it('skips containers with 3+ children', () => {
+    const node = makeNode({
+      name: 'Form Fields',
+      type: 'FRAME',
+      layoutMode: 'VERTICAL',
+      children: [
+        makeNode({ id: '2:1', name: 'Name Field', type: 'FRAME' }),
+        makeNode({ id: '2:2', name: 'Email Field', type: 'FRAME' }),
+        makeNode({ id: '2:3', name: 'Password Field', type: 'FRAME' }),
+      ],
+    });
+    const v = inputFieldStructureRule.check(node, emptyCtx);
+    expect(v).toHaveLength(0);
+  });
+
+  it('still flags actual input frames (stroke + single text child)', () => {
+    const node = makeNode({
+      name: 'search-input',
+      type: 'FRAME',
+      layoutMode: 'HORIZONTAL',
+      paddingLeft: 0,
+      paddingRight: 0,
+      cornerRadius: 0,
+      strokes: [{ type: 'SOLID', visible: true, opacity: 1 }],
+      children: [
+        makeNode({ id: '2:1', name: 'Search...', type: 'TEXT' }),
+      ],
+    });
+    const v = inputFieldStructureRule.check(node, emptyCtx);
+    // Should flag: no cornerRadius + insufficient padding
+    expect(v.length).toBeGreaterThanOrEqual(1);
+    expect(v.some(violation => violation.rule === 'input-field-structure')).toBe(true);
+  });
+
+  it('flags input fields matched by name without field group structure', () => {
+    // A frame named "Email Input" with no children — not a field group, should be flagged
+    const node = makeNode({
+      name: 'Email Input',
+      type: 'FRAME',
+      layoutMode: 'HORIZONTAL',
+      paddingLeft: 0,
+      paddingRight: 0,
+      cornerRadius: 0,
+    });
+    const v = inputFieldStructureRule.check(node, emptyCtx);
+    expect(v.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('skips password field containers with label + input + helper text', () => {
+    const node = makeNode({
+      name: 'Password Field',
+      type: 'FRAME',
+      layoutMode: 'VERTICAL',
+      children: [
+        makeNode({ id: '2:1', name: 'Password', type: 'TEXT' }),
+        makeNode({ id: '2:2', name: 'Password Input', type: 'FRAME' }),
+        makeNode({ id: '2:3', name: 'Helper Text', type: 'TEXT' }),
+      ],
+    });
+    const v = inputFieldStructureRule.check(node, emptyCtx);
     expect(v).toHaveLength(0);
   });
 });

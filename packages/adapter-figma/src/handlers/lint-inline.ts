@@ -11,7 +11,7 @@ import type { AbstractNode, LintContext, LintViolation, LintOptions } from '@fig
 import { figmaRgbaToHex } from '../utils/color.js';
 import { getCachedModeLibrary } from './write-nodes.js';
 import { registerCache } from '../utils/cache-manager.js';
-import { setSpacingProp } from '../utils/type-guards.js';
+import { applyFixDescriptor } from '../utils/fix-applicator.js';
 
 /**
  * Map from validateTree/inferStructure rule names to quality-engine rule names.
@@ -220,9 +220,8 @@ export async function buildLintContextFromStorage(): Promise<LintContext> {
 
 /**
  * Apply a single lint violation fix directly on a Figma node.
- * Reuses the fix logic from lint.ts lint_fix handler but operates
- * on already-available SceneNode references (no findNodeByIdAsync needed
- * since we have the node map from creation).
+ * Delegates to the generic applyFixDescriptor, skipping deferred fixes
+ * (library lookups are too expensive for inline mode).
  *
  * Returns true if fix was applied, false otherwise.
  */
@@ -230,229 +229,11 @@ async function applyFixDirect(
   node: SceneNode,
   violation: LintViolation,
 ): Promise<{ fixed: boolean; error?: string }> {
-  if (!violation.autoFixable || !violation.fixData) {
+  if (!violation.autoFixable || !violation.fixDescriptor) {
     return { fixed: false };
   }
 
-  try {
-    switch (violation.rule) {
-      case 'button-structure': {
-        if (node.type !== 'FRAME' && node.type !== 'COMPONENT') {
-          return { fixed: false, error: 'Not a frame' };
-        }
-        const frame = node as FrameNode;
-        const fixType = violation.fixData.fix as string | undefined;
-        if (fixType === 'layout' || (!fixType && violation.fixData.layoutMode)) {
-          if (violation.fixData.layoutMode) frame.layoutMode = violation.fixData.layoutMode as 'HORIZONTAL' | 'VERTICAL';
-          if (violation.fixData.primaryAxisAlignItems) (frame as any).primaryAxisAlignItems = violation.fixData.primaryAxisAlignItems;
-          if (violation.fixData.counterAxisAlignItems) (frame as any).counterAxisAlignItems = violation.fixData.counterAxisAlignItems;
-          return { fixed: true };
-        } else if (fixType === 'padding') {
-          if (violation.fixData.paddingLeft != null) frame.paddingLeft = violation.fixData.paddingLeft as number;
-          if (violation.fixData.paddingRight != null) frame.paddingRight = violation.fixData.paddingRight as number;
-          return { fixed: true };
-        } else if (fixType === 'height') {
-          const targetHeight = (violation.fixData.height as number) ?? 48;
-          if (frame.height < targetHeight) {
-            frame.resize(frame.width, targetHeight);
-            if ('minHeight' in frame) frame.minHeight = targetHeight;
-          }
-          return { fixed: true };
-        }
-        return { fixed: false, error: `Unknown fix type: ${fixType}` };
-      }
-
-      case 'text-overflow': {
-        if (node.type !== 'TEXT') return { fixed: false, error: 'Not a text node' };
-        const textNode = node as TextNode;
-        if (textNode.fontName !== figma.mixed) {
-          await figma.loadFontAsync(textNode.fontName);
-        }
-        textNode.textAutoResize = (violation.fixData.textAutoResize as TextNode['textAutoResize']) ?? 'WIDTH_AND_HEIGHT';
-        return { fixed: true };
-      }
-
-      case 'form-consistency':
-      case 'cta-width-inconsistent':
-      case 'overflow-parent': {
-        if ('layoutAlign' in node) {
-          (node as SceneNode & { layoutAlign: string }).layoutAlign =
-            (violation.fixData.layoutAlign as string) ?? 'STRETCH';
-          return { fixed: true };
-        }
-        return { fixed: false, error: 'No layoutAlign' };
-      }
-
-      case 'unbounded-hug': {
-        if (violation.fixData.fix === 'stretch-self' && 'layoutAlign' in node) {
-          (node as SceneNode & { layoutAlign: string }).layoutAlign =
-            (violation.fixData.layoutAlign as string) ?? 'STRETCH';
-          return { fixed: true };
-        }
-        return { fixed: false, error: 'No auto-fix available' };
-      }
-
-      case 'no-autolayout': {
-        if (node.type === 'FRAME' || node.type === 'COMPONENT') {
-          (node as FrameNode).layoutMode =
-            (violation.fixData.layoutMode as 'HORIZONTAL' | 'VERTICAL') ?? 'VERTICAL';
-          return { fixed: true };
-        }
-        return { fixed: false, error: 'Not a frame' };
-      }
-
-      case 'section-spacing-collapse': {
-        if ((node.type === 'FRAME' || node.type === 'COMPONENT') && typeof violation.fixData.itemSpacing === 'number') {
-          (node as FrameNode).itemSpacing = violation.fixData.itemSpacing as number;
-          return { fixed: true };
-        }
-        return { fixed: false, error: 'No itemSpacing support' };
-      }
-
-      case 'input-field-structure': {
-        if (node.type !== 'FRAME' && node.type !== 'COMPONENT') {
-          return { fixed: false, error: 'Not a frame' };
-        }
-        const frame = node as FrameNode;
-        const fixType = violation.fixData.fix as string | undefined;
-        if (fixType === 'layout') {
-          if (violation.fixData.layoutMode) frame.layoutMode = violation.fixData.layoutMode as 'HORIZONTAL' | 'VERTICAL';
-          if (violation.fixData.counterAxisAlignItems) (frame as any).counterAxisAlignItems = violation.fixData.counterAxisAlignItems;
-          return { fixed: true };
-        } else if (fixType === 'padding') {
-          if (violation.fixData.paddingLeft != null) frame.paddingLeft = violation.fixData.paddingLeft as number;
-          if (violation.fixData.paddingRight != null) frame.paddingRight = violation.fixData.paddingRight as number;
-          return { fixed: true };
-        } else if (fixType === 'cornerRadius') {
-          if ('cornerRadius' in frame) {
-            (frame as any).cornerRadius = violation.fixData.cornerRadius ?? 8;
-            return { fixed: true };
-          }
-        }
-        return { fixed: false, error: `Unknown fix type: ${fixType}` };
-      }
-
-      case 'mobile-dimensions': {
-        if (node.type === 'FRAME' || node.type === 'COMPONENT') {
-          const w = violation.fixData.width as number | undefined;
-          const h = violation.fixData.height as number | undefined;
-          if (w != null && h != null) {
-            (node as FrameNode).resize(w, h);
-            return { fixed: true };
-          }
-        }
-        return { fixed: false, error: 'Missing dimensions or not a frame' };
-      }
-
-      case 'system-bar-fullbleed': {
-        if (node.type !== 'FRAME' && node.type !== 'COMPONENT') {
-          return { fixed: false, error: 'Not a frame' };
-        }
-        const frame = node as FrameNode;
-        const fixType = violation.fixData.fix as string | undefined;
-        if (fixType === 'padding') {
-          if (violation.fixData.paddingLeft != null) frame.paddingLeft = violation.fixData.paddingLeft as number;
-          if (violation.fixData.paddingRight != null) frame.paddingRight = violation.fixData.paddingRight as number;
-          if (violation.fixData.paddingTop != null) frame.paddingTop = violation.fixData.paddingTop as number;
-          return { fixed: true };
-        } else if (fixType === 'alignment') {
-          if (violation.fixData.primaryAxisAlignItems) (frame as any).primaryAxisAlignItems = violation.fixData.primaryAxisAlignItems;
-          return { fixed: true };
-        }
-        return { fixed: false, error: `Unknown fix type: ${fixType}` };
-      }
-
-      case 'screen-shell-invalid': {
-        if (node.type === 'FRAME' || node.type === 'COMPONENT') {
-          if (typeof violation.fixData.layoutMode === 'string') {
-            (node as FrameNode).layoutMode = violation.fixData.layoutMode as 'HORIZONTAL' | 'VERTICAL';
-            return { fixed: true };
-          }
-        }
-        return { fixed: false, error: 'Not a frame or missing layoutMode' };
-      }
-
-      case 'spacer-frame': {
-        // Remove spacer frame and convert its dimension to parent spacing
-        const parent = node.parent;
-        if (!parent || !('layoutMode' in parent)) {
-          return { fixed: false, error: 'Spacer parent is not an auto-layout frame' };
-        }
-        const parentFrame = parent as FrameNode;
-        if (parentFrame.layoutMode === 'NONE') {
-          return { fixed: false, error: 'Spacer parent has no auto-layout' };
-        }
-        const isVertical = parentFrame.layoutMode === 'VERTICAL';
-        const spacerDim = isVertical
-          ? (violation.fixData.height as number ?? (node as FrameNode).height ?? 0)
-          : (violation.fixData.width as number ?? (node as FrameNode).width ?? 0);
-
-        const siblings = [...parentFrame.children];
-        const idx = siblings.indexOf(node as SceneNode);
-        if (idx === 0) {
-          if (isVertical) {
-            parentFrame.paddingTop = (parentFrame.paddingTop ?? 0) + spacerDim;
-          } else {
-            parentFrame.paddingLeft = (parentFrame.paddingLeft ?? 0) + spacerDim;
-          }
-        } else if (idx === siblings.length - 1) {
-          if (isVertical) {
-            parentFrame.paddingBottom = (parentFrame.paddingBottom ?? 0) + spacerDim;
-          } else {
-            parentFrame.paddingRight = (parentFrame.paddingRight ?? 0) + spacerDim;
-          }
-        } else {
-          const currentSpacing = parentFrame.itemSpacing ?? 0;
-          if (currentSpacing === 0 || currentSpacing === spacerDim) {
-            parentFrame.itemSpacing = spacerDim;
-          }
-        }
-        node.remove();
-        return { fixed: true };
-      }
-
-      case 'wcag-text-size': {
-        if ('fontSize' in node && typeof violation.fixData.fontSize === 'number') {
-          (node as TextNode).fontSize = violation.fixData.fontSize;
-          return { fixed: true };
-        }
-        return { fixed: false, error: 'Not a text node' };
-      }
-
-      case 'wcag-line-height': {
-        if ('lineHeight' in node && typeof violation.fixData.lineHeight === 'number') {
-          (node as TextNode).lineHeight = { value: violation.fixData.lineHeight as number, unit: 'PIXELS' };
-          return { fixed: true };
-        }
-        return { fixed: false, error: 'Not a text node' };
-      }
-
-      case 'spec-border-radius': {
-        if ('cornerRadius' in node && typeof violation.fixData.value === 'number') {
-          (node as RectangleNode).cornerRadius = violation.fixData.value;
-          return { fixed: true };
-        }
-        return { fixed: false, error: 'No cornerRadius support' };
-      }
-
-      case 'spec-spacing': {
-        const prop = violation.fixData.property as string;
-        const value = violation.fixData.value as number;
-        if (setSpacingProp(node, prop, value)) {
-          return { fixed: true };
-        }
-        return { fixed: false, error: `Cannot set ${prop}` };
-      }
-
-      default:
-        // Rules that require library variable lookup (spec-color, hardcoded-token, no-text-style)
-        // are NOT handled inline — they need async library imports which are expensive.
-        // These will be caught by the MCP-level lint_fix_all if needed.
-        return { fixed: false, error: `Rule ${violation.rule} not supported in inline fix` };
-    }
-  } catch (err) {
-    return { fixed: false, error: err instanceof Error ? err.message : String(err) };
-  }
+  return applyFixDescriptor(node, violation.fixDescriptor, { allowDeferred: false });
 }
 
 
@@ -502,17 +283,12 @@ export async function quickLintSummary(nodeId: string, autoFix = false, skipRule
   // ── Auto-fix deterministic layout issues (no library lookups) ──
   let autoFixed = 0;
   if (autoFix && autoFixable > 0) {
-    const fixableViolations = allViolations.filter(v => v.autoFixable);
-    // Only fix layout/structural rules that don't need library imports
-    const INLINE_FIXABLE_RULES = new Set([
-      'no-autolayout', 'text-overflow', 'overflow-parent', 'unbounded-hug',
-      'section-spacing-collapse', 'spacer-frame', 'button-structure',
-      'input-field-structure', 'system-bar-fullbleed', 'screen-shell-invalid',
-      'wcag-line-height', 'wcag-text-size', 'mobile-dimensions',
-      'form-consistency', 'cta-width-inconsistent',
-    ]);
+    const fixableViolations = allViolations.filter(v => v.autoFixable && v.fixDescriptor);
     for (const v of fixableViolations) {
-      if (!INLINE_FIXABLE_RULES.has(v.rule)) continue;
+      // Skip deferred fixes (library lookups) — too expensive for inline mode
+      if (v.fixDescriptor!.kind === 'deferred') continue;
+      // Skip heuristic/style severity — these are guesses that risk breaking layouts
+      if (v.severity === 'heuristic' || v.severity === 'style') continue;
       const fixNode = figma.getNodeById(v.nodeId);
       if (!fixNode || !('type' in fixNode)) continue;
       const result = await applyFixDirect(fixNode as SceneNode, v);

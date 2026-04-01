@@ -2,7 +2,7 @@
  * Spec spacing rule — detect non-token spacing values.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
 
 export const specSpacingRule: LintRule = {
   name: 'spec-spacing',
@@ -51,6 +51,11 @@ export const specSpacingRule: LintRule = {
     }
 
     return violations;
+  },
+
+  describeFix(v): FixDescriptor | null {
+    if (!v.fixData || v.fixData.value == null || !v.fixData.property) return null;
+    return { kind: 'set-properties', props: { [v.fixData.property as string]: v.fixData.value } };
   },
 };
 

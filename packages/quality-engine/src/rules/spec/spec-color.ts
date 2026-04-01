@@ -2,7 +2,7 @@
  * Spec color rule — detect hardcoded colors not matching any token.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
 
 export const specColorRule: LintRule = {
   name: 'spec-color',
@@ -33,7 +33,7 @@ export const specColorRule: LintRule = {
               currentValue: hex,
               expectedValue: match.tokenValue,
               suggestion: `"${node.name}" uses ${hex} — switch to token "${match.tokenName}" (${match.tokenValue}) instead`,
-              autoFixable: true,
+              autoFixable: !!ctx.variableIds.get(match.tokenName),
               fixData: {
                 property: 'fills',
                 tokenName: match.tokenName,
@@ -60,7 +60,7 @@ export const specColorRule: LintRule = {
               currentValue: hex,
               expectedValue: match.tokenValue,
               suggestion: `"${node.name}" stroke uses ${hex} — switch to token "${match.tokenName}" instead`,
-              autoFixable: true,
+              autoFixable: !!ctx.variableIds.get(match.tokenName),
               fixData: {
                 property: 'strokes',
                 tokenName: match.tokenName,
@@ -73,6 +73,22 @@ export const specColorRule: LintRule = {
     }
 
     return violations;
+  },
+
+  describeFix(v): FixDescriptor | null {
+    if (!v.fixData) return null;
+    // If we have a variableId, the plugin can bind directly without library search
+    if (v.fixData.variableId) {
+      return {
+        kind: 'deferred',
+        strategy: 'bind-variable-to-paint',
+        data: {
+          property: v.fixData.property,
+          variableId: v.fixData.variableId,
+        },
+      };
+    }
+    return null;
   },
 };
 

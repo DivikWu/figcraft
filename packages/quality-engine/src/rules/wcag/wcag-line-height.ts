@@ -1,10 +1,13 @@
 /**
- * WCAG line height rule — WCAG 2.1 SC 1.4.12 requires line height >= 1.5x font size.
+ * Line height sanity rule — flags text where lineHeight < 1.0× fontSize (lines overlap).
+ * This is a conservative threshold to catch extreme cases; WCAG 2.1 SC 1.4.12 recommends 1.5×
+ * but that is too aggressive for most design systems, so we use 1.0× as a practical floor.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
+import { DESIGN_CONSTANTS } from '../../constants.js';
 
-const MIN_LINE_HEIGHT_RATIO = 1.0;
+const MIN_LINE_HEIGHT_RATIO = DESIGN_CONSTANTS.text.minLineHeightRatio;
 
 export const wcagLineHeightRule: LintRule = {
   name: 'wcag-line-height',
@@ -45,5 +48,10 @@ export const wcagLineHeightRule: LintRule = {
       autoFixable: true,
       fixData: { lineHeight: Math.ceil(node.fontSize * MIN_LINE_HEIGHT_RATIO) },
     }];
+  },
+
+  describeFix(v): FixDescriptor | null {
+    if (!v.fixData || v.fixData.lineHeight == null) return null;
+    return { kind: 'set-properties', props: { lineHeight: v.fixData.lineHeight as number }, requireFontLoad: true };
   },
 };

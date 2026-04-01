@@ -126,6 +126,16 @@ export function getContextSeverity(baseSeverity: LintSeverity, node: AbstractNod
   return baseSeverity;
 }
 
+/**
+ * Declarative fix descriptor — tells the adapter WHAT to fix,
+ * not HOW (no Figma API references). Lives in quality-engine to keep it pure.
+ */
+export type FixDescriptor =
+  | { kind: 'set-properties'; props: Record<string, unknown>; requireType?: string[]; requireFontLoad?: boolean }
+  | { kind: 'resize'; width?: number; height?: number; minHeight?: number; requireType?: string[] }
+  | { kind: 'remove-and-redistribute'; dimension: { width?: number; height?: number } }
+  | { kind: 'deferred'; strategy: string; data: Record<string, unknown> };
+
 export interface LintViolation {
   nodeId: string;
   nodeName: string;
@@ -139,8 +149,20 @@ export interface LintViolation {
   autoFixable: boolean;
   /** Fix data for auto-fix handler. */
   fixData?: Record<string, unknown>;
+  /** Declarative fix descriptor (new system — co-located with rule). */
+  fixDescriptor?: FixDescriptor;
   /** Structured fix call that can be directly executed by the AI agent. */
   fixCall?: { tool: string; params: Record<string, unknown> };
+}
+
+/** AI knowledge metadata — tells AI how to prevent violations, not just detect them. */
+export interface RuleAI {
+  /** One-line instruction for AI: how to avoid triggering this rule during creation. */
+  preventionHint: string;
+  /** Design phases this rule applies to (for prompt filtering). */
+  phase?: Array<'layout' | 'structure' | 'content' | 'styling' | 'accessibility'>;
+  /** Semantic tags for element-type queries (e.g. 'button', 'input', 'screen'). */
+  tags?: string[];
 }
 
 export interface LintRule {
@@ -149,4 +171,18 @@ export interface LintRule {
   category: LintCategory;
   severity: LintSeverity;
   check(node: AbstractNode, ctx: LintContext): LintViolation[];
+  /** Produce a declarative fix descriptor for a violation. Co-located with the rule. */
+  describeFix?(violation: LintViolation): FixDescriptor | null;
+  /** AI knowledge layer — tells AI how to prevent this violation. */
+  ai?: RuleAI;
+}
+
+/** LintRule that MUST implement describeFix — use for compile-time guarantee on fixable rules. */
+export interface FixableLintRule extends LintRule {
+  describeFix(violation: LintViolation): FixDescriptor | null;
+}
+
+/** Define a fixable rule with compile-time enforcement of describeFix. */
+export function defineFixableRule(rule: FixableLintRule): FixableLintRule {
+  return rule;
 }

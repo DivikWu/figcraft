@@ -1,6 +1,5 @@
 import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
-
-const SCREEN_NAME_RE = /welcome|sign.?in|sign.?up|forgot\s+password|create\s+account|screen|page|onboarding|settings|profile|dashboard|checkout|pricing|empty\s+state/i;
+import { SCREEN_NAME_RE } from '../../constants.js';
 const BUTTON_NAME_RE = /button|btn|submit|cta|sign.?in|sign.?up|log.?in|登录|注册/i;
 const INPUT_NAME_RE = /input|field|text.?field|search.?bar|邮箱|密码|用户名|email|password|username/i;
 

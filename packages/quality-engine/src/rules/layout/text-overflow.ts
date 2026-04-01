@@ -10,7 +10,7 @@
  * - In non-auto-layout parent: set textAutoResize to WIDTH_AND_HEIGHT
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
 
 function pickFixResize(node: AbstractNode): string {
   // If parent has auto-layout, width is managed by the layout engine.
@@ -24,6 +24,11 @@ export const textOverflowRule: LintRule = {
   description: 'Detect text nodes that overflow or are clipped by their parent container.',
   category: 'layout',
   severity: 'heuristic',
+  ai: {
+    preventionHint: 'No text overflow or truncation — every text node must fit within its parent container',
+    phase: ['layout'],
+    tags: ['text'],
+  },
 
   check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
     if (node.type !== 'TEXT') return [];
@@ -68,5 +73,10 @@ export const textOverflowRule: LintRule = {
     }
 
     return violations;
+  },
+
+  describeFix(v): FixDescriptor | null {
+    if (!v.fixData?.textAutoResize) return null;
+    return { kind: 'set-properties', props: { textAutoResize: v.fixData.textAutoResize }, requireFontLoad: true };
   },
 };

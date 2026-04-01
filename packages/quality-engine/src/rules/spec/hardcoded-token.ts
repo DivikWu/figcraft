@@ -7,7 +7,7 @@
  * come from the shared library.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
 
 export const hardcodedTokenRule: LintRule = {
   name: 'hardcoded-token',
@@ -68,5 +68,25 @@ export const hardcodedTokenRule: LintRule = {
     }
 
     return violations;
+  },
+
+  describeFix(v): FixDescriptor | null {
+    if (!v.fixData) return null;
+    const prop = v.fixData.property as string;
+    if (prop === 'fills') {
+      return {
+        kind: 'deferred',
+        strategy: 'library-color-bind',
+        data: { hex: v.fixData.hex, opacity: v.fixData.opacity, nodeType: v.fixData.nodeType },
+      };
+    }
+    if (prop === 'cornerRadius') {
+      return {
+        kind: 'deferred',
+        strategy: 'library-radius-bind',
+        data: { value: v.fixData.value, nodeName: v.fixData.nodeName },
+      };
+    }
+    return null;
   },
 };

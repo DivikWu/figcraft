@@ -9,7 +9,7 @@
  * The fix also infers direction from children positions when possible.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
 
 /** Infer layout direction from children positions. */
 function inferDirection(children: AbstractNode[]): 'HORIZONTAL' | 'VERTICAL' {
@@ -38,6 +38,10 @@ export const noAutolayoutRule: LintRule = {
   description: 'Detect frames with multiple children but no auto-layout, causing overlapping or non-responsive layouts.',
   category: 'layout',
   severity: 'heuristic',
+  ai: {
+    preventionHint: 'Containers with 2+ children must always set layoutMode (HORIZONTAL or VERTICAL)',
+    phase: ['layout'],
+  },
 
   check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
     if (node.type !== 'FRAME') return [];
@@ -63,5 +67,14 @@ export const noAutolayoutRule: LintRule = {
         layoutMode: direction,
       },
     }];
+  },
+
+  describeFix(v): FixDescriptor | null {
+    if (!v.fixData) return null;
+    return {
+      kind: 'set-properties',
+      props: { layoutMode: v.fixData.layoutMode ?? 'VERTICAL' },
+      requireType: ['FRAME', 'COMPONENT'],
+    };
   },
 };

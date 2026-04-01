@@ -11,7 +11,7 @@
  * Auto-fix: change cross-axis sizing to FILL (layoutAlign: STRETCH).
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
 
 /** Check if a node effectively uses HUG sizing on a given axis. */
 function isHugOnAxis(node: AbstractNode, axis: 'horizontal' | 'vertical'): boolean {
@@ -57,6 +57,10 @@ export const unboundedHugRule: LintRule = {
   description: 'Detect frames with HUG sizing that contain FILL/STRETCH children, causing layout collapse.',
   category: 'layout',
   severity: 'unsafe',
+  ai: {
+    preventionHint: 'HUG containers must not contain STRETCH children — use FILL parent or set child to fixed/HUG sizing',
+    phase: ['layout'],
+  },
 
   check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
     if (node.type !== 'FRAME' && node.type !== 'COMPONENT') return [];
@@ -109,5 +113,10 @@ export const unboundedHugRule: LintRule = {
     }
 
     return violations;
+  },
+
+  describeFix(v): FixDescriptor | null {
+    if (!v.fixData || v.fixData.fix !== 'stretch-self') return null;
+    return { kind: 'set-properties', props: { layoutAlign: v.fixData.layoutAlign ?? 'STRETCH' } };
   },
 };

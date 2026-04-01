@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@figcraft/quality-engine": "0.1.0",
     "@figcraft/relay": "0.1.0",
     "@figcraft/shared": "0.1.0",
     "@modelcontextprotocol/sdk": "^1.27",

@@ -1,6 +1,5 @@
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
-
-const SCREEN_NAME_RE = /welcome|sign.?in|sign.?up|forgot\s+password|create\s+account|screen|page|onboarding|settings|profile|dashboard|checkout|pricing|empty\s+state/i;
+import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
+import { SCREEN_NAME_RE } from '../../constants.js';
 
 function isScreenLike(node: AbstractNode): boolean {
   if (node.type !== 'FRAME' && node.type !== 'COMPONENT') return false;
@@ -41,9 +40,19 @@ export const screenShellInvalidRule: LintRule = {
         severity: 'error',
         currentValue: node.layoutMode ?? 'NONE',
         suggestion: `"${node.name}" should use a VERTICAL auto-layout shell so sections stack predictably.`,
-        autoFixable: false,
+        autoFixable: true,
+        fixData: { layoutMode: 'VERTICAL' },
       });
     }
     return violations;
+  },
+
+  describeFix(v): FixDescriptor | null {
+    if (!v.fixData || !v.fixData.layoutMode) return null;
+    return {
+      kind: 'set-properties',
+      props: { layoutMode: v.fixData.layoutMode },
+      requireType: ['FRAME', 'COMPONENT'],
+    };
   },
 };

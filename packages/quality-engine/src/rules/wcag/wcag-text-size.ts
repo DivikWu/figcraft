@@ -2,15 +2,21 @@
  * WCAG text size rule — minimum readable text size.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
+import { DESIGN_CONSTANTS } from '../../constants.js';
 
-const MIN_TEXT_SIZE = 12;
+const MIN_TEXT_SIZE = DESIGN_CONSTANTS.text.minSize;
 
 export const wcagTextSizeRule: LintRule = {
   name: 'wcag-text-size',
   description: `Detect text smaller than ${MIN_TEXT_SIZE}px — very small text can be hard to read for many users.`,
   category: 'wcag',
   severity: 'verbose',
+  ai: {
+    preventionHint: `Text fontSize must be ≥${MIN_TEXT_SIZE}px for readability`,
+    phase: ['accessibility'],
+    tags: ['text'],
+  },
 
   check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
     if (node.type !== 'TEXT') return [];
@@ -27,5 +33,10 @@ export const wcagTextSizeRule: LintRule = {
       autoFixable: true,
       fixData: { fontSize: MIN_TEXT_SIZE },
     }];
+  },
+
+  describeFix(v): FixDescriptor | null {
+    if (!v.fixData) return null;
+    return { kind: 'set-properties', props: { fontSize: v.fixData.fontSize } };
   },
 };

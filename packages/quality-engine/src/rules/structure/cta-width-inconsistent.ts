@@ -1,4 +1,4 @@
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
 
 function isFormLike(node: AbstractNode): boolean {
   return node.role === 'form' || node.role === 'actions' || /form|actions|footer|content|body/i.test(node.name);
@@ -48,5 +48,10 @@ export const ctaWidthInconsistentRule: LintRule = {
           layoutAlign: 'STRETCH',
         },
       }));
+  },
+
+  describeFix(v): FixDescriptor | null {
+    if (!v.fixData) return null;
+    return { kind: 'set-properties', props: { layoutAlign: v.fixData.layoutAlign ?? 'STRETCH' } };
   },
 };

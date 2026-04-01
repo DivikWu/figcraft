@@ -3,8 +3,9 @@
  */
 
 import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import { DESIGN_CONSTANTS } from '../../constants.js';
 
-const MIN_TARGET_SIZE = 44;
+const MIN_TARGET_SIZE = DESIGN_CONSTANTS.touch.minSize;
 
 /** Node names that suggest interactive elements. */
 const INTERACTIVE_PATTERNS = [
@@ -18,6 +19,11 @@ export const wcagTargetSizeRule: LintRule = {
   description: 'Check that buttons and interactive elements are large enough to tap easily (at least 44×44px).',
   category: 'wcag',
   severity: 'verbose',
+  ai: {
+    preventionHint: `Interactive elements (buttons, links, toggles) must be at least ${MIN_TARGET_SIZE}×${MIN_TARGET_SIZE}px for touch targets`,
+    phase: ['accessibility'],
+    tags: ['button', 'input'],
+  },
 
   check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
     // Only check nodes that look interactive

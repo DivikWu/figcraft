@@ -1,4 +1,5 @@
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
+import { DESIGN_CONSTANTS } from '../../constants.js';
 
 function isSectionStack(node: AbstractNode): boolean {
   return node.role === 'screen' ||
@@ -13,6 +14,11 @@ export const sectionSpacingCollapseRule: LintRule = {
   description: 'Major vertical section stacks should keep a healthy itemSpacing rhythm instead of collapsing sections together.',
   category: 'layout',
   severity: 'heuristic',
+  ai: {
+    preventionHint: `Section stacks (screen/body/content) need itemSpacing ≥${DESIGN_CONSTANTS.spacing.minSection}px to maintain visual rhythm`,
+    phase: ['layout'],
+    tags: ['screen'],
+  },
 
   check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
     if (node.type !== 'FRAME' && node.type !== 'COMPONENT') return [];
@@ -24,7 +30,7 @@ export const sectionSpacingCollapseRule: LintRule = {
     if (frameLikeChildren.length < 3) return [];
 
     const spacing = node.itemSpacing ?? 0;
-    if (spacing >= 12) return [];
+    if (spacing >= DESIGN_CONSTANTS.spacing.minSection) return [];
 
     return [{
       nodeId: node.id,
@@ -36,8 +42,13 @@ export const sectionSpacingCollapseRule: LintRule = {
       autoFixable: true,
       fixData: {
         fix: 'item-spacing',
-        itemSpacing: 16,
+        itemSpacing: DESIGN_CONSTANTS.spacing.sectionFix,
       },
     }];
+  },
+
+  describeFix(v): FixDescriptor | null {
+    if (!v.fixData || v.fixData.itemSpacing == null) return null;
+    return { kind: 'set-properties', props: { itemSpacing: v.fixData.itemSpacing } };
   },
 };

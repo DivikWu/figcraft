@@ -6,7 +6,7 @@
  * Most useful in library mode.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
 
 export const noTextStyleRule: LintRule = {
   name: 'no-text-style',
@@ -32,5 +32,14 @@ export const noTextStyleRule: LintRule = {
       autoFixable: true,
       fixData: { fontSize: node.fontSize, fontFamily: node.fontName?.family },
     }];
+  },
+
+  describeFix(v): FixDescriptor | null {
+    if (!v.fixData) return null;
+    return {
+      kind: 'deferred',
+      strategy: 'library-text-style',
+      data: { fontSize: v.fixData.fontSize, fontFamily: v.fixData.fontFamily },
+    };
   },
 };

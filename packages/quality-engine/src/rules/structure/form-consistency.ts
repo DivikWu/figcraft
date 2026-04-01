@@ -8,7 +8,7 @@
  * Auto-fix: set layoutAlign=STRETCH on non-stretching interactive children.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
 
 const FORM_NAME_RE = /form|content|body|fields|inputs|登录|注册|表单|内容/i;
 const INTERACTIVE_RE = /button|btn|input|field|divider|separator|social|action|submit|login|register|按钮|输入|分割/i;
@@ -29,6 +29,11 @@ export const formConsistencyRule: LintRule = {
   description: 'Form containers should have consistent child widths — all interactive children should use layoutAlign: STRETCH.',
   category: 'layout',
   severity: 'heuristic',
+  ai: {
+    preventionHint: 'Form children (inputs, buttons, dividers) must all use layoutAlign: STRETCH for consistent width',
+    phase: ['structure'],
+    tags: ['input', 'button'],
+  },
 
   check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
     // Only check VERTICAL auto-layout frames that look like forms
@@ -73,5 +78,10 @@ export const formConsistencyRule: LintRule = {
     }
 
     return violations;
+  },
+
+  describeFix(v): FixDescriptor | null {
+    if (!v.fixData) return null;
+    return { kind: 'set-properties', props: { layoutAlign: v.fixData.layoutAlign ?? 'STRETCH' } };
   },
 };

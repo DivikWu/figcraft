@@ -8,8 +8,9 @@
  */
 
 import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import { DESIGN_CONSTANTS } from '../../constants.js';
 
-const MAX_DEPTH = 6;
+const MAX_DEPTH = DESIGN_CONSTANTS.nesting.maxDepth;
 
 export const maxNestingDepthRule: LintRule = {
   name: 'max-nesting-depth',
