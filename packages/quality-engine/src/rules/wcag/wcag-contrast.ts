@@ -23,7 +23,12 @@ export const wcagContrastRule: LintRule = {
   name: 'wcag-contrast',
   description: 'Check that text has enough contrast against its background for readability (WCAG AA).',
   category: 'wcag',
-  severity: 'verbose',
+  severity: 'unsafe',
+  ai: {
+    preventionHint: 'Ensure text has at least 4.5:1 contrast ratio against its background (3:1 for large text ≥18px or ≥14px bold)',
+    phase: ['accessibility'],
+    tags: ['text'],
+  },
 
   check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
     if (node.type !== 'TEXT') return [];
@@ -47,7 +52,7 @@ export const wcagContrastRule: LintRule = {
         nodeId: node.id,
         nodeName: node.name,
         rule: 'wcag-contrast',
-        severity: 'verbose',
+        severity: 'unsafe',
         currentValue: `${ratio.toFixed(2)}:1`,
         expectedValue: `>= ${threshold}:1`,
         suggestion: `"${node.name}" text color may be hard to read — contrast is only ${ratio.toFixed(2)}:1 against its background (needs at least ${threshold}:1)`,
@@ -68,7 +73,7 @@ export const wcagContrastRule: LintRule = {
       nodeId: node.id,
       nodeName: node.name,
       rule: 'wcag-contrast',
-      severity: 'verbose',
+      severity: 'unsafe',
       currentValue: `${worstRatio.toFixed(2)}:1`,
       expectedValue: `>= ${threshold}:1`,
       suggestion: `"${node.name}" text color may be hard to read — contrast is only ${worstRatio.toFixed(2)}:1 (needs at least ${threshold}:1)`,

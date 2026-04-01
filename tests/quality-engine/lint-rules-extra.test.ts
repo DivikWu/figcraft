@@ -120,7 +120,7 @@ describe('wcag-target-size', () => {
       emptyCtx,
     );
     expect(v).toHaveLength(1);
-    expect(v[0].severity).toBe('verbose');
+    expect(v[0].severity).toBe('heuristic');
   });
 
   it('passes large button', () => {

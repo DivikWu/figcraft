@@ -12,6 +12,11 @@ export const fixedInAutolayoutRule: LintRule = {
   description: 'Detect layers set to absolute position inside an auto layout frame, which may break the layout.',
   category: 'layout',
   severity: 'unsafe',
+  ai: {
+    preventionHint: 'Do not use layoutPositioning: ABSOLUTE inside auto-layout frames — it breaks flow; use a wrapper frame instead',
+    phase: ['layout'],
+    tags: ['frame'],
+  },
 
   check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
     // We check from the parent's perspective

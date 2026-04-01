@@ -11,7 +11,7 @@ import { ensureLoaded, getTextStyleId } from '../utils/style-registry.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
 import { applyFill, applyStroke, applyCornerRadius, applyTokenField, applyTokenFields, setComponentProperties } from '../utils/node-helpers.js';
 import { hexToFigmaRgb } from '../utils/color.js';
-import { structuredHintsToInferences, formatDiff, buildCorrectedPayload, validateParams } from './inline-tree.js';
+import { structuredHintsToInferences, formatDiff, buildCorrectedPayload, validateParams, inferDirection } from './inline-tree.js';
 import type { Inference } from './inline-tree.js';
 import { aggregateHints, structuredHintsToTyped } from '../utils/hint-aggregator.js';
 import type { StructuredHint } from '../utils/hint-aggregator.js';
@@ -41,6 +41,15 @@ async function initCreateContext(): Promise<CreateContext> {
 
 // ─── Alias normalization: fillVariableName/fillStyleName → fill ───
 function normalizeAliases(p: Record<string, unknown>): void {
+  // Conflict detection: fill + alias cannot coexist
+  const fillAliases = ['fillVariableName', 'fillStyleName', 'fontColorVariableName', 'fontColorStyleName']
+    .filter(k => p[k] != null);
+  if (p.fill != null && fillAliases.length > 0) {
+    throw new Error(`Conflicting fill: "fill" and "${fillAliases.join('", "')}" both specified. Use only one.`);
+  }
+  if (p.strokeColor != null && p.strokeVariableName != null) {
+    throw new Error('Conflicting stroke: "strokeColor" and "strokeVariableName" both specified. Use only one.');
+  }
   // Fill aliases
   if (!p.fill && p.fillVariableName) {
     p.fill = { _variable: p.fillVariableName }; delete p.fillVariableName;
@@ -57,29 +66,39 @@ function normalizeAliases(p: Record<string, unknown>): void {
   if (!p.strokeColor && p.strokeVariableName) {
     p.strokeColor = { _variable: p.strokeVariableName }; delete p.strokeVariableName;
   }
-  // Padding shorthand
+  // Padding shorthand — warn if mixed with per-side padding (ambiguous intent)
   if (p.padding != null) {
-    p.paddingTop ??= p.padding;
-    p.paddingRight ??= p.padding;
-    p.paddingBottom ??= p.padding;
-    p.paddingLeft ??= p.padding;
+    const perSide = ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'].filter(k => p[k] != null);
+    if (perSide.length > 0) {
+      throw new Error(
+        `Conflicting padding: "padding" and "${perSide.join('", "')}" both specified. Use either "padding" shorthand or individual sides, not both.`,
+      );
+    }
+    p.paddingTop = p.padding;
+    p.paddingRight = p.padding;
+    p.paddingBottom = p.padding;
+    p.paddingLeft = p.padding;
   }
 }
 
 // ─── Local color matching (no library mode) ───
 // Tries to match a node's current solid fill to a local COLOR variable or paint style.
-async function tryLocalColorMatch(
-  node: SceneNode & { fills: readonly Paint[] | Paint[] },
-  role: string,
-): Promise<string | null> {
-  const fills = node.fills as Paint[];
-  if (!fills.length || fills[0].type !== 'SOLID') return null;
-  const color = (fills[0] as SolidPaint).color;
+// Uses a short-lived cache to avoid redundant async fetches during batch operations.
 
-  // Try local COLOR variables first
+interface ColorVarEntry {
+  variable: Variable;
+  rgb: { r: number; g: number; b: number };
+}
+
+let _colorVarCache: { entries: ColorVarEntry[]; ts: number } | null = null;
+let _paintStyleCache: { styles: PaintStyle[]; ts: number } | null = null;
+const COLOR_CACHE_TTL = 10_000; // 10s — covers batch operations
+
+async function getCachedColorVars(): Promise<ColorVarEntry[]> {
+  if (_colorVarCache && Date.now() - _colorVarCache.ts < COLOR_CACHE_TTL) {
+    return _colorVarCache.entries;
+  }
   const colorVars = await figma.variables.getLocalVariablesAsync('COLOR');
-
-  // Batch-fetch unique collections (avoid O(n) async calls in the loop)
   const uniqueCollIds = [...new Set(colorVars.map(v => v.variableCollectionId))];
   const fetchedColls = await Promise.all(
     uniqueCollIds.map(id => figma.variables.getVariableCollectionByIdAsync(id)),
@@ -88,26 +107,49 @@ async function tryLocalColorMatch(
   for (let i = 0; i < uniqueCollIds.length; i++) {
     if (fetchedColls[i]) collectionMap.set(uniqueCollIds[i], fetchedColls[i]!);
   }
-
+  const entries: ColorVarEntry[] = [];
   for (const v of colorVars) {
     const collection = collectionMap.get(v.variableCollectionId);
     if (!collection) continue;
-    const defaultModeId = collection.defaultModeId;
-    const val = v.valuesByMode[defaultModeId];
+    const val = v.valuesByMode[collection.defaultModeId];
     if (val && typeof val === 'object' && 'r' in val) {
-      const vc = val as { r: number; g: number; b: number };
-      if (Math.abs(vc.r - color.r) < 0.01 && Math.abs(vc.g - color.g) < 0.01 && Math.abs(vc.b - color.b) < 0.01) {
-        // Match found — bind
-        const newFills = [...fills];
-        newFills[0] = figma.variables.setBoundVariableForPaint(newFills[0] as SolidPaint, 'color', v);
-        node.fills = newFills;
-        return `var:${v.name}`;
-      }
+      entries.push({ variable: v, rgb: val as { r: number; g: number; b: number } });
+    }
+  }
+  _colorVarCache = { entries, ts: Date.now() };
+  return entries;
+}
+
+async function getCachedPaintStyles(): Promise<PaintStyle[]> {
+  if (_paintStyleCache && Date.now() - _paintStyleCache.ts < COLOR_CACHE_TTL) {
+    return _paintStyleCache.styles;
+  }
+  const styles = await figma.getLocalPaintStylesAsync();
+  _paintStyleCache = { styles, ts: Date.now() };
+  return styles;
+}
+
+async function tryLocalColorMatch(
+  node: SceneNode & { fills: readonly Paint[] | Paint[] },
+  role: string,
+): Promise<string | null> {
+  const fills = node.fills as Paint[];
+  if (!fills.length || fills[0].type !== 'SOLID') return null;
+  const color = (fills[0] as SolidPaint).color;
+
+  // Try local COLOR variables first (cached)
+  const colorEntries = await getCachedColorVars();
+  for (const { variable: v, rgb: vc } of colorEntries) {
+    if (Math.abs(vc.r - color.r) < 0.01 && Math.abs(vc.g - color.g) < 0.01 && Math.abs(vc.b - color.b) < 0.01) {
+      const newFills = [...fills];
+      newFills[0] = figma.variables.setBoundVariableForPaint(newFills[0] as SolidPaint, 'color', v);
+      node.fills = newFills;
+      return `var:${v.name}`;
     }
   }
 
-  // Try local paint styles
-  const paintStyles = await figma.getLocalPaintStylesAsync();
+  // Try local paint styles (cached)
+  const paintStyles = await getCachedPaintStyles();
   for (const s of paintStyles) {
     if (s.paints.length === 1 && s.paints[0].type === 'SOLID') {
       const sc = (s.paints[0] as SolidPaint).color;
@@ -149,12 +191,14 @@ function inferLayoutMode(p: Record<string, unknown>, hints: StructuredHint[]): '
   if (p.layoutMode) return null; // explicit — no inference
 
   if (hasALParams || hasHUGSizing) {
-    hints.push({ confidence: 'deterministic', field: 'layoutMode', value: 'VERTICAL', reason: 'inferred from padding/spacing/alignment params' });
-    return 'VERTICAL';
+    const direction = inferDirection(p);
+    hints.push({ confidence: 'deterministic', field: 'layoutMode', value: direction, reason: `inferred from padding/spacing/alignment params${direction === 'HORIZONTAL' ? ' (horizontal signals detected)' : ''}` });
+    return direction;
   }
   if (hasChildren) {
-    hints.push({ confidence: 'deterministic', field: 'layoutMode', value: 'VERTICAL', reason: 'inferred from children param (auto-layout needed for child sizing)' });
-    return 'VERTICAL';
+    const direction = inferDirection(p);
+    hints.push({ confidence: 'deterministic', field: 'layoutMode', value: direction, reason: `inferred from children param${direction === 'HORIZONTAL' ? ' (horizontal signals detected)' : ''}` });
+    return direction;
   }
   return null;
 }
@@ -260,21 +304,12 @@ function validateChildNode(
 /** Shape types that only support FIXED and FILL sizing (not HUG). */
 const SHAPE_TYPES = new Set(['RECTANGLE', 'ELLIPSE', 'STAR', 'POLYGON', 'LINE', 'VECTOR']);
 
-/** Common mobile screen dimensions — auto-lock to FIXED when detected. */
-const MOBILE_SCREEN_SIZES = [
-  { w: 402, h: 874 },  // iPhone 16 Pro
-  { w: 393, h: 852 },  // iPhone 15 Pro
-  { w: 390, h: 844 },  // iPhone 14
-  { w: 375, h: 812 },  // iPhone 13 mini
-  { w: 412, h: 915 },  // Android (Pixel)
-  { w: 360, h: 800 },  // Android (Samsung)
-];
-
+/** Mobile screen detection: width 320–440, height 568–932 (iPhone SE → Pro Max, common Android). */
 function isMobileScreenSize(node: SceneNode): boolean {
   if (!('width' in node) || !('height' in node)) return false;
   const w = Math.round((node as any).width);
   const h = Math.round((node as any).height);
-  return MOBILE_SCREEN_SIZES.some(s => s.w === w && s.h === h);
+  return w >= 320 && w <= 440 && h >= 568 && h <= 932;
 }
 
 /** Check if a node is a shape or SVG-generated frame without auto-layout. */
@@ -508,6 +543,22 @@ async function setupFrame(
   for (const key of spacingFields) {
     if (p[key] != null && !(ctx.useLib && typeof p[key] === 'number')) {
       (frame as any)[key] = p[key] as number;
+    }
+  }
+
+  // ── Padding vs frame dimension sanity check ──
+  {
+    const fw = frame.width;
+    const fh = frame.height;
+    const pl = (p.paddingLeft as number) ?? 0;
+    const pr = (p.paddingRight as number) ?? 0;
+    const pt = (p.paddingTop as number) ?? 0;
+    const pb = (p.paddingBottom as number) ?? 0;
+    if (fw > 0 && (pl + pr) >= fw) {
+      ctx.warnings.push(`Padding H (${pl}+${pr}=${pl + pr}) ≥ frame width (${fw}px) — children will have no horizontal space`);
+    }
+    if (fh > 0 && (pt + pb) >= fh) {
+      ctx.warnings.push(`Padding V (${pt}+${pb}=${pt + pb}) ≥ frame height (${fh}px) — children will have no vertical space`);
     }
   }
 
@@ -1236,10 +1287,19 @@ registerHandler('create_frame', async (params) => {
         const summaries = await Promise.all(
           createdIds.map(id => quickLintSummary(id, true, batchSkipRules.size > 0 ? batchSkipRules : undefined))
         );
-        const totalViolations = summaries.reduce((sum, s) => sum + (s?.violations ?? 0), 0);
-        const totalAutoFixed = summaries.reduce((sum, s) => sum + ((s as any)?.autoFixed ?? 0), 0);
+        const perItem: Array<{ nodeId: string; violations: number; autoFixed: number }> = [];
+        let totalViolations = 0;
+        let totalAutoFixed = 0;
+        for (let i = 0; i < createdIds.length; i++) {
+          const s = summaries[i];
+          const v = s?.violations ?? 0;
+          const af = (s as any)?.autoFixed ?? 0;
+          totalViolations += v;
+          totalAutoFixed += af;
+          if (v > 0 || af > 0) perItem.push({ nodeId: createdIds[i], violations: v, autoFixed: af });
+        }
         if (totalViolations > 0 || totalAutoFixed > 0) {
-          batchLintSummary = { violations: totalViolations, autoFixed: totalAutoFixed };
+          batchLintSummary = { violations: totalViolations, autoFixed: totalAutoFixed, perItem };
         }
       } catch { /* lint failure should not block batch */ }
     }

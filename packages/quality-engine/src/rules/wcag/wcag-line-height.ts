@@ -13,7 +13,12 @@ export const wcagLineHeightRule: LintRule = {
   name: 'wcag-line-height',
   description: 'Check that line height is large enough to prevent text lines from overlapping.',
   category: 'wcag',
-  severity: 'verbose',
+  severity: 'heuristic',
+  ai: {
+    preventionHint: `Set lineHeight to at least ${MIN_LINE_HEIGHT_RATIO}× the fontSize to prevent overlapping text lines`,
+    phase: ['accessibility'],
+    tags: ['text'],
+  },
 
   check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
     if (node.type !== 'TEXT') return [];
@@ -41,7 +46,7 @@ export const wcagLineHeightRule: LintRule = {
       nodeId: node.id,
       nodeName: node.name,
       rule: 'wcag-line-height',
-      severity: 'verbose',
+      severity: 'heuristic',
       currentValue: `${effectiveLineHeight.toFixed(1)}px (${ratio.toFixed(2)}x)`,
       expectedValue: `>= ${node.fontSize.toFixed(1)}px (${MIN_LINE_HEIGHT_RATIO}x)`,
       suggestion: `"${node.name}" line height is only ${ratio.toFixed(2)}× the font size — text lines will overlap. Increase line height to at least ${node.fontSize.toFixed(0)}px`,

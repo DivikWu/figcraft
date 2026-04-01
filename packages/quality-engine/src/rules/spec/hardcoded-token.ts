@@ -14,6 +14,11 @@ export const hardcodedTokenRule: LintRule = {
   description: 'Detect fill colors or corner radii that aren\'t linked to a shared library variable.',
   category: 'token',
   severity: 'heuristic',
+  ai: {
+    preventionHint: 'Bind fill colors with fillVariableName and corner radii with variable references from the shared library',
+    phase: ['styling'],
+    tags: ['color', 'radius'],
+  },
 
   check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     // Only active in library mode with a library selected

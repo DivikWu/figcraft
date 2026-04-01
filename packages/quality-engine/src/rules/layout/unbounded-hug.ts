@@ -107,7 +107,11 @@ export const unboundedHugRule: LintRule = {
           severity: 'style',
           currentValue: 'HUG on both axes (no explicit width or height)',
           suggestion: `"${node.name}" has no explicit dimensions — it will shrink to content size. If this is inside an auto-layout parent, consider layoutAlign: STRETCH on the cross-axis.`,
-          autoFixable: false,
+          autoFixable: true,
+          fixData: {
+            fix: 'stretch-cross-axis',
+            crossAxis: isVertical ? 'horizontal' : 'vertical',
+          },
         });
       }
     }
@@ -116,7 +120,14 @@ export const unboundedHugRule: LintRule = {
   },
 
   describeFix(v): FixDescriptor | null {
-    if (!v.fixData || v.fixData.fix !== 'stretch-self') return null;
-    return { kind: 'set-properties', props: { layoutAlign: v.fixData.layoutAlign ?? 'STRETCH' } };
+    if (!v.fixData) return null;
+    if (v.fixData.fix === 'stretch-self') {
+      return { kind: 'set-properties', props: { layoutAlign: v.fixData.layoutAlign ?? 'STRETCH' } };
+    }
+    if (v.fixData.fix === 'stretch-cross-axis') {
+      // For HUG/HUG frames, stretch the cross-axis so the frame fills available space
+      return { kind: 'set-properties', props: { layoutAlign: 'STRETCH' } };
+    }
+    return null;
   },
 };

@@ -8,6 +8,8 @@ import { specColorRule } from '../../packages/quality-engine/src/rules/spec/spec
 import { specTypographyRule } from '../../packages/quality-engine/src/rules/spec/spec-typography.js';
 import { specSpacingRule } from '../../packages/quality-engine/src/rules/spec/spec-spacing.js';
 import { specBorderRadiusRule } from '../../packages/quality-engine/src/rules/spec/spec-border-radius.js';
+import { hardcodedTokenRule } from '../../packages/quality-engine/src/rules/spec/hardcoded-token.js';
+import { noTextStyleRule } from '../../packages/quality-engine/src/rules/spec/no-text-style.js';
 
 function makeNode(overrides: Partial<AbstractNode>): AbstractNode {
   return { id: '1:1', name: 'Test', type: 'FRAME', ...overrides };
@@ -20,6 +22,20 @@ const emptyCtx: LintContext = {
   typographyTokens: new Map(),
   variableIds: new Map(),
 };
+
+// ─── token rules preventionHint ───
+
+describe('token rules preventionHint', () => {
+  it('spec-color has preventionHint', () => {
+    expect(specColorRule.ai?.preventionHint).toBeDefined();
+  });
+  it('hardcoded-token has preventionHint', () => {
+    expect(hardcodedTokenRule.ai?.preventionHint).toBeDefined();
+  });
+  it('no-text-style has preventionHint', () => {
+    expect(noTextStyleRule.ai?.preventionHint).toBeDefined();
+  });
+});
 
 // ─── spec-color ───
 

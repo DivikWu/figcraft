@@ -9,6 +9,11 @@ export const specSpacingRule: LintRule = {
   description: 'Detect padding or gap values that don\'t match any spacing token.',
   category: 'token',
   severity: 'error',
+  ai: {
+    preventionHint: 'Use spacing token variables for padding and itemSpacing instead of arbitrary values',
+    phase: ['styling'],
+    tags: ['frame'],
+  },
 
   check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     if (ctx.spacingTokens.size === 0) return [];

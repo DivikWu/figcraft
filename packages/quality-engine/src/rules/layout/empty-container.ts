@@ -9,6 +9,11 @@ export const emptyContainerRule: LintRule = {
   description: 'Detect empty frames or groups that have no visible content inside.',
   category: 'layout',
   severity: 'style',
+  ai: {
+    preventionHint: 'Every container must have at least one visible child — do not create empty wrapper frames',
+    phase: ['layout'],
+    tags: ['frame'],
+  },
 
   check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
     if (node.type !== 'FRAME' && node.type !== 'GROUP') return [];

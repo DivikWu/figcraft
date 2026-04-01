@@ -9,6 +9,11 @@ export const specBorderRadiusRule: LintRule = {
   description: 'Detect corner radius values that don\'t match any radius token.',
   category: 'token',
   severity: 'error',
+  ai: {
+    preventionHint: 'Bind corner radius to a radius token variable instead of hardcoding pixel values',
+    phase: ['styling'],
+    tags: ['shape', 'frame'],
+  },
 
   check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     if (ctx.radiusTokens.size === 0) return [];

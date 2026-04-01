@@ -9,6 +9,11 @@ export const specColorRule: LintRule = {
   description: 'Detect colors that don\'t match any design token — suggests the closest token to use.',
   category: 'token',
   severity: 'error',
+  ai: {
+    preventionHint: 'Use fillVariableName or strokeVariableName to bind colors to design tokens instead of hardcoding hex values',
+    phase: ['styling'],
+    tags: ['color'],
+  },
 
   check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     const violations: LintViolation[] = [];

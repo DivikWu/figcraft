@@ -60,6 +60,146 @@ export function formatDiff(inferences: Inference[]): string {
   return lines.join('\n');
 }
 
+/** Detect horizontal layout signals from params and children. */
+export function inferDirection(p: Record<string, unknown>): 'HORIZONTAL' | 'VERTICAL' {
+  // Figma constraint: WRAP only works with HORIZONTAL
+  if (p.layoutWrap === 'WRAP') return 'HORIZONTAL';
+  // Name-based heuristic for horizontal containers
+  const name = ((p.name as string) ?? '').toLowerCase();
+  if (/row|toolbar|nav.?bar|tab.?bar|action.?bar|breadcrumb|pagination|badge.?group|button.?group|social/i.test(name)) {
+    return 'HORIZONTAL';
+  }
+  return 'VERTICAL';
+}
+
+// ─── Known params per child type (for unknown-param detection) ───
+
+const COMMON_PARAMS = new Set([
+  'type', 'name', 'x', 'y', 'width', 'height', 'index',
+  'layoutSizingHorizontal', 'layoutSizingVertical', 'layoutPositioning',
+  'opacity', 'visible', 'rotation',
+]);
+
+const FRAME_PARAMS = new Set([
+  ...COMMON_PARAMS,
+  'fill', 'fillVariableName', 'fillStyleName', 'fontColorVariableName', 'fontColorStyleName',
+  'gradient', 'imageUrl', 'imageScaleMode',
+  'strokeColor', 'strokeVariableName', 'strokeWeight', 'strokeAlign', 'strokeDashes', 'strokeCap', 'strokeJoin',
+  'layoutMode', 'itemSpacing', 'padding', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+  'counterAxisSpacing', 'primaryAxisAlignItems', 'counterAxisAlignItems', 'layoutWrap',
+  'cornerRadius', 'topLeftRadius', 'topRightRadius', 'bottomRightRadius', 'bottomLeftRadius',
+  'blendMode', 'effectStyleName', 'clipsContent',
+  'minWidth', 'maxWidth', 'minHeight', 'maxHeight',
+  'children', 'dryRun', 'noPreview', 'parentId', 'items',
+]);
+
+const TEXT_PARAMS = new Set([
+  ...COMMON_PARAMS,
+  'content', 'characters', 'fontSize', 'fontFamily', 'fontStyle', 'fontWeight',
+  'fill', 'fillVariableName', 'fillStyleName', 'fontColorVariableName', 'fontColorStyleName',
+  'textStyleName', 'textAlignHorizontal', 'textAlignVertical', 'textAutoResize',
+  'textCase', 'textDecoration', 'letterSpacing', 'lineHeight', 'paragraphSpacing',
+  'strokeColor', 'strokeVariableName', 'strokeWeight',
+  'hyperlink',
+]);
+
+const SHAPE_PARAMS = new Set([
+  ...COMMON_PARAMS,
+  'fill', 'fillVariableName', 'fillStyleName',
+  'strokeColor', 'strokeVariableName', 'strokeWeight',
+  'cornerRadius',
+]);
+
+const INSTANCE_PARAMS = new Set([
+  ...COMMON_PARAMS,
+  'componentId', 'variantProperties', 'properties',
+]);
+
+const SVG_PARAMS = new Set([
+  ...COMMON_PARAMS,
+  'svg',
+]);
+
+const STAR_PARAMS = new Set([...SHAPE_PARAMS, 'pointCount', 'innerRadius']);
+const POLYGON_PARAMS = new Set([...SHAPE_PARAMS, 'pointCount']);
+
+const PARAM_SETS: Record<string, Set<string>> = {
+  frame: FRAME_PARAMS,
+  text: TEXT_PARAMS,
+  rectangle: SHAPE_PARAMS,
+  ellipse: SHAPE_PARAMS,
+  star: STAR_PARAMS,
+  polygon: POLYGON_PARAMS,
+  instance: INSTANCE_PARAMS,
+  svg: SVG_PARAMS,
+};
+
+/** Common wrong param names → corrective suggestion. */
+const PARAM_CORRECTIONS: Record<string, string> = {
+  color: 'fill (or fillVariableName for token binding)',
+  backgroundColor: 'fill',
+  background: 'fill',
+  fillColor: 'fill',
+  border: 'strokeColor + strokeWeight',
+  borderColor: 'strokeColor',
+  borderWidth: 'strokeWeight',
+  borderRadius: 'cornerRadius',
+  gap: 'itemSpacing',
+  justifyContent: 'primaryAxisAlignItems',
+  alignItems: 'counterAxisAlignItems',
+  direction: 'layoutMode',
+  flexDirection: 'layoutMode',
+  font: 'fontFamily + fontStyle',
+  fontColor: 'fill (or fontColorVariableName for token binding)',
+  text: 'content',
+  label: 'content',
+  value: 'content',
+  size: 'width + height',
+  src: 'imageUrl',
+  url: 'imageUrl',
+  shadow: 'effectStyleName',
+  dropShadow: 'effectStyleName',
+  align: 'primaryAxisAlignItems or counterAxisAlignItems',
+  overflow: 'clipsContent',
+  wrap: 'layoutWrap',
+  spacing: 'itemSpacing',
+  radius: 'cornerRadius',
+};
+
+/**
+ * Detect unknown params in children and return warnings with corrective suggestions.
+ * Non-blocking: returns warning inferences, never conflicts.
+ */
+export function warnUnknownChildParams(
+  child: Record<string, unknown>,
+  childType: string,
+  childPath: string,
+): Inference[] {
+  const known = PARAM_SETS[childType] ?? FRAME_PARAMS;
+  const warnings: Inference[] = [];
+
+  for (const key of Object.keys(child)) {
+    if (key.startsWith('_')) continue; // internal fields
+    if (known.has(key)) continue;
+
+    const correction = PARAM_CORRECTIONS[key];
+    const reason = correction
+      ? `unknown param "${key}" — did you mean: ${correction}?`
+      : `unknown param "${key}" — will be ignored`;
+
+    warnings.push({
+      path: childPath,
+      field: '_unknownParam',
+      from: key,
+      to: undefined,
+      confidence: 'deterministic',
+      reason,
+    });
+  }
+
+  return warnings;
+}
+
 /** Fields that may be inferred during creation. */
 const INFERRED_FIELDS = new Set([
   'layoutMode', 'layoutSizingHorizontal', 'layoutSizingVertical',
@@ -198,11 +338,12 @@ export function validateParams(
     } else {
       reason = 'inferred from HUG sizing';
     }
+    const inferredDirection = inferDirection(params);
     inferences.push({
       path: nodePath,
       field: 'layoutMode',
       from: undefined,
-      to: 'VERTICAL',
+      to: inferredDirection,
       confidence,
       reason,
     });
@@ -221,6 +362,24 @@ export function validateParams(
       inferences,
       hasConflict: true,
       conflictMessage: `[${nodePath}] layoutSizingVertical:"FILL" conflicts with explicit height:${params.height}. FILL stretches to parent — remove height or use FIXED sizing.`,
+    };
+  }
+
+  // ── 3.5. Min/max constraint validation ──
+  if (params.minWidth != null && params.maxWidth != null &&
+      (params.minWidth as number) > (params.maxWidth as number)) {
+    return {
+      inferences,
+      hasConflict: true,
+      conflictMessage: `[${nodePath}] minWidth (${params.minWidth}) > maxWidth (${params.maxWidth}). Swap values or remove one.`,
+    };
+  }
+  if (params.minHeight != null && params.maxHeight != null &&
+      (params.minHeight as number) > (params.maxHeight as number)) {
+    return {
+      inferences,
+      hasConflict: true,
+      conflictMessage: `[${nodePath}] minHeight (${params.minHeight}) > maxHeight (${params.maxHeight}). Swap values or remove one.`,
     };
   }
 
@@ -259,7 +418,42 @@ export function validateParams(
     }
   }
 
-  // ── 4.5. Spacer frame prevention ──
+  // ── 4.5. Nested layout direction warnings ──
+  if (hasChildren && effectiveLayoutMode) {
+    const parentDir = effectiveLayoutMode;
+    for (const [idx, childDef] of (params.children as Record<string, unknown>[]).entries()) {
+      const child = childDef as Record<string, unknown>;
+      if ((child.type as string | undefined) !== 'frame' && (child.type as string | undefined) != null) continue;
+      const childName = (child.name as string) ?? `child[${idx}]`;
+      const childDir = child.layoutMode as string | undefined;
+
+      // WRAP requires HORIZONTAL — catch mismatch before creation
+      if (child.layoutWrap === 'WRAP' && childDir === 'VERTICAL') {
+        return {
+          inferences,
+          hasConflict: true,
+          conflictMessage: `[${nodePath} > ${childName}] layoutWrap:"WRAP" requires layoutMode:"HORIZONTAL" — Figma does not support wrapping in VERTICAL layout.`,
+        };
+      }
+
+      // Same-direction nesting with conflicting alignment intent
+      if (childDir === parentDir && child.primaryAxisAlignItems === 'SPACE_BETWEEN') {
+        const childHasFixedDim = parentDir === 'VERTICAL' ? child.height != null : child.width != null;
+        if (!childHasFixedDim) {
+          inferences.push({
+            path: `${nodePath} > ${childName}`,
+            field: '_nestedLayout',
+            from: `${parentDir} > ${childDir}`,
+            to: 'SPACE_BETWEEN needs fixed dimension',
+            confidence: 'ambiguous',
+            reason: `same-direction nesting (${parentDir}→${childDir}) with SPACE_BETWEEN — child needs explicit ${parentDir === 'VERTICAL' ? 'height' : 'width'} to distribute content`,
+          });
+        }
+      }
+    }
+  }
+
+  // ── 4.6. Spacer frame prevention ──
   // Detect children with spacer-like names and convert to parent itemSpacing.
   if (hasChildren) {
     const childrenArr = params.children as Record<string, unknown>[];
@@ -310,6 +504,9 @@ export function validateParams(
       const childPath = `${nodePath} > ${childName}`;
       const ct = (child.type as string) ?? 'frame';
 
+      // Unknown param detection with corrective suggestions
+      inferences.push(...warnUnknownChildParams(child, ct, childPath));
+
       // Text: WIDTH_AND_HEIGHT in fixed-width parent → will auto-heal to HEIGHT
       if (ct === 'text' && child.textAutoResize === 'WIDTH_AND_HEIGHT' && parentWidth != null) {
         inferences.push({
@@ -335,6 +532,36 @@ export function validateParams(
             to: 'invisible',
             confidence: 'ambiguous',
             reason: 'empty frame with no fills/strokes/children — will be invisible',
+          });
+        }
+      }
+
+      // Frame: clipsContent + large padding on fixed-size frame → children may be clipped
+      if (ct === 'frame' && child.clipsContent === true) {
+        const cw = child.width as number | undefined;
+        const ch = child.height as number | undefined;
+        const pt = ((child.paddingTop ?? child.padding ?? 0) as number);
+        const pb = ((child.paddingBottom ?? child.padding ?? 0) as number);
+        const pl = ((child.paddingLeft ?? child.padding ?? 0) as number);
+        const pr = ((child.paddingRight ?? child.padding ?? 0) as number);
+        if (cw != null && (pl + pr) >= cw * 0.8) {
+          inferences.push({
+            path: childPath,
+            field: '_structure',
+            from: `padding H: ${pl}+${pr}=${pl + pr}`,
+            to: `available width: ${cw - pl - pr}px`,
+            confidence: 'ambiguous',
+            reason: `clipsContent:true with horizontal padding consuming ≥80% of width (${pl + pr}/${cw}px) — children may be invisible`,
+          });
+        }
+        if (ch != null && (pt + pb) >= ch * 0.8) {
+          inferences.push({
+            path: childPath,
+            field: '_structure',
+            from: `padding V: ${pt}+${pb}=${pt + pb}`,
+            to: `available height: ${ch - pt - pb}px`,
+            confidence: 'ambiguous',
+            reason: `clipsContent:true with vertical padding consuming ≥80% of height (${pt + pb}/${ch}px) — children may be invisible`,
           });
         }
       }

@@ -11,7 +11,7 @@ export const wcagTextSizeRule: LintRule = {
   name: 'wcag-text-size',
   description: `Detect text smaller than ${MIN_TEXT_SIZE}px — very small text can be hard to read for many users.`,
   category: 'wcag',
-  severity: 'verbose',
+  severity: 'heuristic',
   ai: {
     preventionHint: `Text fontSize must be ≥${MIN_TEXT_SIZE}px for readability`,
     phase: ['accessibility'],
@@ -26,7 +26,7 @@ export const wcagTextSizeRule: LintRule = {
       nodeId: node.id,
       nodeName: node.name,
       rule: 'wcag-text-size',
-      severity: 'verbose',
+      severity: 'heuristic',
       currentValue: `${node.fontSize}px`,
       expectedValue: `>= ${MIN_TEXT_SIZE}px`,
       suggestion: `"${node.name}" is only ${node.fontSize}px — bump it to at least ${MIN_TEXT_SIZE}px for comfortable reading`,

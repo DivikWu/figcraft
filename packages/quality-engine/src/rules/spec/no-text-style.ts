@@ -13,6 +13,11 @@ export const noTextStyleRule: LintRule = {
   description: 'Detect text layers that don\'t use a shared text style.',
   category: 'token',
   severity: 'heuristic',
+  ai: {
+    preventionHint: 'Apply a shared text style instead of setting fontSize/fontFamily directly',
+    phase: ['styling'],
+    tags: ['text'],
+  },
 
   check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     if (node.type !== 'TEXT') return [];

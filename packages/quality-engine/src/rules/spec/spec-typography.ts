@@ -9,6 +9,11 @@ export const specTypographyRule: LintRule = {
   description: 'Detect text layers with custom font settings that should use a typography token.',
   category: 'token',
   severity: 'error',
+  ai: {
+    preventionHint: 'Apply a shared text style token instead of setting fontSize/fontFamily manually',
+    phase: ['styling'],
+    tags: ['text'],
+  },
 
   check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     if (node.type !== 'TEXT') return [];
