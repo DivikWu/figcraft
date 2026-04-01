@@ -60,6 +60,10 @@ export const specSpacingRule: LintRule = {
 
   describeFix(v): FixDescriptor | null {
     if (!v.fixData || v.fixData.value == null || !v.fixData.property) return null;
+    // Prefer deferred strategy for token binding when variableId is available
+    if (v.fixData.variableId) {
+      return { kind: 'deferred', strategy: 'library-spacing-bind', data: { property: v.fixData.property, value: v.fixData.value, variableId: v.fixData.variableId } };
+    }
     return { kind: 'set-properties', props: { [v.fixData.property as string]: v.fixData.value } };
   },
 };

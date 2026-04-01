@@ -125,6 +125,13 @@ const bindVariableToPaint: DeferredStrategyHandler = async (node, data) => {
       geom.fills = fills;
       return { fixed: true };
     }
+    // Gradient fills: Figma API doesn't support variable binding on gradient stops
+    if (fills.length > 0 && fills[0].type.startsWith('GRADIENT_')) {
+      return { fixed: false, error: 'Gradient fill — variable binding requires converting to solid fill first' };
+    }
+    if (fills.length > 0 && fills[0].type === 'IMAGE') {
+      return { fixed: false, error: 'Image fill — variable binding not applicable' };
+    }
   } else if (property === 'strokes') {
     const strokes = [...geom.strokes] as Paint[];
     if (strokes.length > 0 && strokes[0].type === 'SOLID') {
@@ -133,7 +140,7 @@ const bindVariableToPaint: DeferredStrategyHandler = async (node, data) => {
       return { fixed: true };
     }
   }
-  return { fixed: false, error: 'No solid paint to bind' };
+  return { fixed: false, error: 'No bindable paint found' };
 };
 
 const libraryColorBind: DeferredStrategyHandler = async (node, data, libraryName) => {
@@ -335,35 +342,148 @@ const libraryRadiusBind: DeferredStrategyHandler = async (node, data, libraryNam
   return { fixed: false, error: closest ? `No close radius match (closest differs by ${closest.dist}px)` : 'No radius variables found' };
 };
 
+/** Infer semantic role from node name and ancestor names. */
+function inferTextRole(node: SceneNode): string[] {
+  const keywords: string[] = [];
+  const name = node.name.toLowerCase();
+  let current: BaseNode | null = node.parent;
+  const ancestorNames: string[] = [name];
+  while (current && 'name' in current) {
+    ancestorNames.push((current as SceneNode).name.toLowerCase());
+    current = current.parent;
+  }
+  const combined = ancestorNames.join(' ');
+  if (/heading|header|title|h[1-6]/.test(combined)) keywords.push('heading', 'title', 'header');
+  if (/body|paragraph|content|description/.test(combined)) keywords.push('body', 'paragraph');
+  if (/caption|label|subtitle|sub/.test(combined)) keywords.push('caption', 'label', 'subtitle');
+  if (/button|cta|action/.test(combined)) keywords.push('button', 'label');
+  if (/input|field|placeholder/.test(combined)) keywords.push('body', 'input');
+  return keywords;
+}
+
 const libraryTextStyle: DeferredStrategyHandler = async (node, data, libraryName) => {
   const targetSize = data.fontSize as number | undefined;
   if (!targetSize || node.type !== 'TEXT') return { fixed: false, error: 'Missing fontSize or not a text node' };
   if (!libraryName) return { fixed: false, error: 'No library selected' };
 
-  let bestStyle: TextStyle | null = null;
-  let bestSizeDist = Infinity;
+  const roleKeywords = inferTextRole(node);
+
+  interface StyleCandidate { style: TextStyle; sizeDist: number; semanticScore: number }
+  const candidates: StyleCandidate[] = [];
+
+  const scoreStyle = (style: TextStyle): StyleCandidate => {
+    const sizeDist = Math.abs(style.fontSize - targetSize);
+    let semanticScore = 0;
+    if (roleKeywords.length > 0) {
+      const styleLower = style.name.toLowerCase();
+      for (const kw of roleKeywords) {
+        if (styleLower.includes(kw)) semanticScore++;
+      }
+    }
+    return { style, sizeDist, semanticScore };
+  };
 
   if (libraryName === LOCAL_LIBRARY) {
     const localStyles = await figma.getLocalTextStylesAsync();
-    for (const style of localStyles) {
-      const dist = Math.abs(style.fontSize - targetSize);
-      if (dist < bestSizeDist) { bestSizeDist = dist; bestStyle = style; }
-    }
+    for (const style of localStyles) candidates.push(scoreStyle(style));
   } else {
     await ensureLoaded(libraryName);
     const match = getTextStyleId(targetSize);
     if (match) {
-      bestSizeDist = 0;
       const style = figma.getStyleById(match.id);
-      if (style && style.type === 'TEXT') bestStyle = style as TextStyle;
+      if (style && style.type === 'TEXT') candidates.push(scoreStyle(style as TextStyle));
+    }
+    // Also check local styles for semantic match even in library mode
+    const localStyles = await figma.getLocalTextStylesAsync();
+    for (const style of localStyles) candidates.push(scoreStyle(style));
+  }
+
+  // Pick best: prefer semantic match, then closest size
+  const eligible = candidates.filter(c => c.sizeDist <= 4);
+  eligible.sort((a, b) => {
+    if (b.semanticScore !== a.semanticScore) return b.semanticScore - a.semanticScore;
+    return a.sizeDist - b.sizeDist;
+  });
+
+  const picked = eligible[0];
+  if (picked) {
+    (node as TextNode).textStyleId = picked.style.id;
+    return { fixed: true };
+  }
+  const closest = candidates.length > 0 ? candidates.reduce((a, b) => a.sizeDist < b.sizeDist ? a : b) : null;
+  return { fixed: false, error: closest ? `Closest text style differs by ${closest.sizeDist}px` : 'No text styles found — run sync_library_styles first' };
+};
+
+const librarySpacingBind: DeferredStrategyHandler = async (node, data, libraryName) => {
+  const targetValue = data.value as number;
+  const property = data.property as string;
+  if (!targetValue || !property) return { fixed: false, error: 'Missing value or property' };
+  if (!libraryName) return { fixed: false, error: 'No library selected' };
+  if (!(property in node)) return { fixed: false, error: `Node has no ${property}` };
+
+  interface SpacingCandidate { variable: Variable; value: number; dist: number }
+  const candidates: SpacingCandidate[] = [];
+
+  const resolveValue = async (variable: Variable): Promise<number | null> => {
+    const modeIds = Object.keys(variable.valuesByMode);
+    if (modeIds.length === 0) return null;
+    let val = variable.valuesByMode[modeIds[0]];
+    if (isVariableAlias(val)) {
+      try {
+        const resolved = await figma.variables.getVariableByIdAsync(val.id);
+        if (resolved) { const resModes = Object.keys(resolved.valuesByMode); if (resModes.length > 0) val = resolved.valuesByMode[resModes[0]]; }
+      } catch { /* skip */ }
+    }
+    return typeof val === 'number' ? val : null;
+  };
+
+  const SPACING_SCOPES = ['GAP', 'ALL_SCOPES'];
+
+  if (libraryName === LOCAL_LIBRARY) {
+    const localCollections = await figma.variables.getLocalVariableCollectionsAsync();
+    for (const col of localCollections) {
+      for (const varId of col.variableIds) {
+        const variable = await figma.variables.getVariableByIdAsync(varId);
+        if (!variable || variable.resolvedType !== 'FLOAT') continue;
+        const scopes = variable.scopes;
+        if (scopes.length > 0 && !scopes.some(s => SPACING_SCOPES.includes(s))) continue;
+        const val = await resolveValue(variable);
+        if (val === null) continue;
+        candidates.push({ variable, value: val, dist: Math.abs(val - targetValue) });
+      }
+    }
+  } else {
+    const collections = await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync();
+    const spacingCols = collections.filter(c => {
+      const n = c.name.toLowerCase();
+      return n.includes('spacing') || n.includes('space') || n.includes('gap') || n.includes('padding');
+    });
+    const searchCols = spacingCols.length > 0 ? spacingCols : collections;
+    for (const col of searchCols) {
+      const libVars = await figma.teamLibrary.getVariablesInLibraryCollectionAsync(col.key);
+      for (const lv of libVars) {
+        if (lv.resolvedType !== 'FLOAT') continue;
+        try {
+          const imported = await figma.variables.importVariableByKeyAsync(lv.key);
+          const val = await resolveValue(imported);
+          if (val === null) continue;
+          candidates.push({ variable: imported, value: val, dist: Math.abs(val - targetValue) });
+        } catch { /* skip */ }
+      }
     }
   }
 
-  if (bestStyle && bestSizeDist <= 4) {
-    (node as TextNode).textStyleId = bestStyle.id;
+  const SPACING_TOLERANCE = 4;
+  const exact = candidates.find(c => c.dist === 0);
+  const picked = exact ?? candidates.filter(c => c.dist <= SPACING_TOLERANCE).sort((a, b) => a.dist - b.dist)[0];
+
+  if (picked) {
+    if (picked.dist > 0) setSpacingProp(node, property, picked.value);
+    (node as SceneNode).setBoundVariable(property as VariableBindableNodeField, picked.variable);
     return { fixed: true };
   }
-  return { fixed: false, error: bestStyle ? `Closest text style differs by ${bestSizeDist}px` : 'No text styles found — run sync_library_styles first' };
+  const closest = candidates.length > 0 ? candidates.reduce((a, b) => a.dist < b.dist ? a : b) : null;
+  return { fixed: false, error: closest ? `No close spacing match (closest differs by ${closest.dist}px)` : 'No spacing variables found' };
 };
 
 /** All deferred fix strategies keyed by strategy name. */
@@ -372,6 +492,7 @@ const DEFERRED_STRATEGIES: Record<string, DeferredStrategyHandler> = {
   'library-color-bind': libraryColorBind,
   'library-radius-bind': libraryRadiusBind,
   'library-text-style': libraryTextStyle,
+  'library-spacing-bind': librarySpacingBind,
 };
 
 // ─── lint_fix handler — unified via applyFixDescriptor ───

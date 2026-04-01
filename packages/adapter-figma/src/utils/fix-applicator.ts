@@ -34,6 +34,12 @@ const SPACING_PROPS = new Set([
   'counterAxisSpacing',
 ]);
 
+/** Properties that must be applied last — sizing depends on spacing/padding being set first. */
+const LATE_PROPS = new Set([
+  'layoutSizingHorizontal', 'layoutSizingVertical', 'layoutAlign',
+  'primaryAxisSizingMode', 'counterAxisSizingMode',
+]);
+
 /** Properties that need lineHeight wrapper: { value, unit: 'PIXELS' }. */
 const LINE_HEIGHT_PROP = 'lineHeight';
 
@@ -93,7 +99,14 @@ async function applyPropertyFix(
       }
     }
 
-    for (const [key, value] of Object.entries(props)) {
+    // Apply spacing/padding first, sizing last — sizing depends on spacing being set
+    const entries = Object.entries(props).sort(([a], [b]) => {
+      const aLate = LATE_PROPS.has(a) ? 1 : 0;
+      const bLate = LATE_PROPS.has(b) ? 1 : 0;
+      return aLate - bLate;
+    });
+
+    for (const [key, value] of entries) {
       if (value === undefined) continue;
 
       // Spacing properties use safe setter
