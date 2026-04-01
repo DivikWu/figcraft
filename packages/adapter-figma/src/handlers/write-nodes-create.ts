@@ -470,6 +470,7 @@ async function setupFrame(
       { stylesPreloaded: true },
     );
     if (fillResult.autoBound) ctx.libraryBindings.push(fillResult.autoBound);
+    if (fillResult.colorHint) ctx.warnings.push(fillResult.colorHint);
     // When not in library mode but fill is a hex color, try matching local variables/styles
     if (!fillResult.autoBound && !ctx.useLib && typeof p.fill === 'string') {
       try {
@@ -483,6 +484,7 @@ async function setupFrame(
       { stylesPreloaded: true },
     );
     if (fillResult.autoBound) ctx.libraryBindings.push(fillResult.autoBound);
+    if (fillResult.colorHint) ctx.warnings.push(fillResult.colorHint);
   } else {
     frame.fills = []; // clear default white
   }
@@ -696,6 +698,7 @@ async function setupText(
       { stylesPreloaded: true },
     );
     if (fillResult.autoBound) ctx.libraryBindings.push(fillResult.autoBound);
+    if (fillResult.colorHint) ctx.warnings.push(fillResult.colorHint);
     // When not in library mode but fill is a hex color, try matching local variables/styles
     if (!fillResult.autoBound && !ctx.useLib && typeof p.fill === 'string') {
       try {
@@ -709,6 +712,7 @@ async function setupText(
       { stylesPreloaded: true },
     );
     if (fillResult.autoBound) ctx.libraryBindings.push(fillResult.autoBound);
+    if (fillResult.colorHint) ctx.warnings.push(fillResult.colorHint);
   }
 
   // ── Line height (before typography binding so it can be overridden) ──
@@ -887,6 +891,7 @@ async function createInlineChildren(
     const childPath = `${parent.name} > ${childName}`;
     let createdNode: SceneNode | undefined;
 
+    try {
     if (childType === 'text') {
       const text = figma.createText();
       await setupText(text, child, ctx);
@@ -984,6 +989,13 @@ async function createInlineChildren(
         frame.remove();
         throw e;
       }
+    }
+    } catch (e) {
+      // Clean up orphaned node on failure (frame type handles its own cleanup above)
+      if (createdNode) {
+        try { createdNode.remove(); } catch { /* already removed */ }
+      }
+      throw e;
     }
 
     // ── Per-child inline validation + self-healing ──
@@ -1269,6 +1281,14 @@ registerHandler('create_frame', async (params) => {
     assertHandler(items.length > 0, 'items array must not be empty');
     assertHandler(items.length <= 20, 'Maximum 20 frames per batch');
 
+    // Pre-validate all parentIds before starting batch creation
+    const uniqueParentIds = [...new Set(items.map(i => i.parentId as string | undefined).filter(Boolean))] as string[];
+    for (const pid of uniqueParentIds) {
+      const node = await findNodeByIdAsync(pid);
+      if (!node) throw new Error(`Batch aborted: parentId "${pid}" not found — no nodes were created`);
+      if (!('appendChild' in node)) throw new Error(`Batch aborted: parentId "${pid}" is not a container — no nodes were created`);
+    }
+
     const results: Array<{ id: string; name: string; ok: boolean; error?: string }> = [];
     const allHints: Hint[] = [];
     const allInferences: Inference[] = [];
@@ -1345,6 +1365,14 @@ registerHandler('create_text', async (params) => {
     const items = params.items as Array<Record<string, unknown>>;
     assertHandler(items.length > 0, 'items array must not be empty');
     assertHandler(items.length <= 50, 'Maximum 50 text nodes per batch');
+
+    // Pre-validate all parentIds before starting batch creation
+    const uniqueParentIds = [...new Set(items.map(i => i.parentId as string | undefined).filter(Boolean))] as string[];
+    for (const pid of uniqueParentIds) {
+      const node = await findNodeByIdAsync(pid);
+      if (!node) throw new Error(`Batch aborted: parentId "${pid}" not found — no nodes were created`);
+      if (!('appendChild' in node)) throw new Error(`Batch aborted: parentId "${pid}" is not a container — no nodes were created`);
+    }
 
     const results: Array<{ id: string; name: string; ok: boolean; error?: string }> = [];
     const allHints: Hint[] = [];

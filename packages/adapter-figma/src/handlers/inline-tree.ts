@@ -242,7 +242,40 @@ export function buildCorrectedPayload(
     });
   }
 
+  // Normalize aliases so correctedPayload reflects what creation actually uses
+  normalizeCorrectedAliases(corrected);
+  if (Array.isArray(corrected.children)) {
+    for (const child of corrected.children as Record<string, unknown>[]) {
+      normalizeCorrectedAliases(child);
+    }
+  }
+
   return corrected;
+}
+
+/** Normalize alias fields in correctedPayload so agent sees the canonical form. */
+function normalizeCorrectedAliases(p: Record<string, unknown>): void {
+  // Fill aliases → fill: { _variable / _style }
+  if (!p.fill && p.fillVariableName) {
+    p.fill = { _variable: p.fillVariableName }; delete p.fillVariableName;
+  } else if (!p.fill && p.fillStyleName) {
+    p.fill = { _style: p.fillStyleName }; delete p.fillStyleName;
+  }
+  if (!p.fill && p.fontColorVariableName) {
+    p.fill = { _variable: p.fontColorVariableName }; delete p.fontColorVariableName;
+  } else if (!p.fill && p.fontColorStyleName) {
+    p.fill = { _style: p.fontColorStyleName }; delete p.fontColorStyleName;
+  }
+  // Stroke alias
+  if (!p.strokeColor && p.strokeVariableName) {
+    p.strokeColor = { _variable: p.strokeVariableName }; delete p.strokeVariableName;
+  }
+  // Padding shorthand
+  if (p.padding != null && p.paddingTop == null) {
+    p.paddingTop = p.padding; p.paddingRight = p.padding;
+    p.paddingBottom = p.padding; p.paddingLeft = p.padding;
+    delete p.padding;
+  }
 }
 
 /** Result of pre-creation parameter validation. */
