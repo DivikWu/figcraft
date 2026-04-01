@@ -383,10 +383,31 @@ export function validateParams(
     };
   }
 
-  // ── 4. Cross-level sizing validation ──
-  // Detect when child declares FILL on an axis where parent HUGs (child would collapse to 0)
+  // ── 3.6. FILL sizing in non-auto-layout parent → downgrade to FIXED ──
   const effectiveLayoutMode = (params.layoutMode as string) ??
     (inferences.find(i => i.field === 'layoutMode')?.to as string | undefined);
+  if (hasChildren && !effectiveLayoutMode) {
+    for (const [idx, childDef] of (params.children as Record<string, unknown>[]).entries()) {
+      const child = childDef as Record<string, unknown>;
+      const childName = (child.name as string) ?? `child[${idx}]`;
+      for (const axis of ['layoutSizingHorizontal', 'layoutSizingVertical'] as const) {
+        if (child[axis] === 'FILL' || child[axis] === 'HUG') {
+          inferences.push({
+            path: `${nodePath} > ${childName}`,
+            field: axis,
+            from: child[axis] as string,
+            to: 'FIXED',
+            confidence: 'deterministic',
+            reason: `parent has no auto-layout — ${child[axis]} sizing requires auto-layout parent, downgraded to FIXED`,
+          });
+          (child as Record<string, unknown>)[axis] = 'FIXED';
+        }
+      }
+    }
+  }
+
+  // ── 4. Cross-level sizing validation ──
+  // Detect when child declares FILL on an axis where parent HUGs (child would collapse to 0)
   if (hasChildren && effectiveLayoutMode) {
     const parentDir = effectiveLayoutMode;
     const isVertical = parentDir === 'VERTICAL';

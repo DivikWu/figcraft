@@ -81,6 +81,23 @@ function normalizeAliases(p: Record<string, unknown>): void {
   }
 }
 
+// ─── Font style normalization: numeric weights → Figma style names ───
+const WEIGHT_TO_STYLE: Record<string, string> = {
+  '100': 'Thin', '200': 'ExtraLight', '300': 'Light',
+  '400': 'Regular', '500': 'Medium', '600': 'SemiBold',
+  '700': 'Bold', '800': 'ExtraBold', '900': 'Black',
+};
+function normalizeFontStyle(style: string): string {
+  // Numeric weight (e.g. "700") → Figma style name (e.g. "Bold")
+  if (/^\d{3}$/.test(style)) return WEIGHT_TO_STYLE[style] ?? 'Regular';
+  // Common aliases
+  const lower = style.toLowerCase();
+  if (lower === 'normal') return 'Regular';
+  if (lower === 'bold italic' || lower === 'bolditalic') return 'Bold Italic';
+  if (lower === 'italic') return 'Italic';
+  return style;
+}
+
 // ─── Local color matching (no library mode) ───
 // Tries to match a node's current solid fill to a local COLOR variable or paint style.
 // Uses a short-lived cache to avoid redundant async fetches during batch operations.
@@ -305,11 +322,16 @@ function validateChildNode(
 const SHAPE_TYPES = new Set(['RECTANGLE', 'ELLIPSE', 'STAR', 'POLYGON', 'LINE', 'VECTOR']);
 
 /** Mobile screen detection: width 320–440, height 568–932 (iPhone SE → Pro Max, common Android). */
-function isMobileScreenSize(node: SceneNode): boolean {
+/** Detect mobile/tablet screen sizes — these should keep FIXED sizing, not HUG. */
+function isScreenSize(node: SceneNode): boolean {
   if (!('width' in node) || !('height' in node)) return false;
   const w = Math.round((node as any).width);
   const h = Math.round((node as any).height);
-  return w >= 320 && w <= 440 && h >= 568 && h <= 932;
+  // Mobile: iPhone SE (320x568) → iPhone 16 Pro Max (430x932), Samsung/Pixel (360-412)
+  const isMobile = w >= 320 && w <= 440 && h >= 568 && h <= 932;
+  // Tablet: iPad mini (768x1024) → iPad Pro 12.9" (1024x1366)
+  const isTablet = w >= 768 && w <= 1024 && h >= 1024 && h <= 1366;
+  return isMobile || isTablet;
 }
 
 /** Check if a node is a shape or SVG-generated frame without auto-layout. */
@@ -317,11 +339,13 @@ function isShapeNode(node: SceneNode): boolean {
   if (SHAPE_TYPES.has(node.type)) return true;
   // SVG createNodeFromSvg() returns a FRAME but without auto-layout — treat as shape
   if (node.type === 'FRAME' && (node as FrameNode).layoutMode === 'NONE' && (node as FrameNode).children.length > 0) {
-    // Heuristic: frames created from SVG have vector children
-    const hasVectorChildren = (node as FrameNode).children.every(
-      c => c.type === 'VECTOR' || c.type === 'BOOLEAN_OPERATION' || c.type === 'GROUP' || c.type === 'FRAME',
-    );
-    if (hasVectorChildren) return true;
+    // Heuristic: frames created from SVG have mostly vector children
+    // Use majority check — an SVG frame may contain a TEXT label alongside vector shapes
+    const kids = (node as FrameNode).children;
+    const vectorCount = kids.filter(
+      c => c.type === 'VECTOR' || c.type === 'BOOLEAN_OPERATION' || c.type === 'GROUP',
+    ).length;
+    if (vectorCount > kids.length / 2) return true;
   }
   return false;
 }
@@ -353,7 +377,7 @@ function inferChildSizing(
   if (parentDir === 'NONE') return;
 
   // Mobile screen dimensions → always FIXED on both axes (never HUG/FILL)
-  if (isMobileScreenSize(node)) {
+  if (isScreenSize(node)) {
     if (!explicitH) {
       setLayoutSizing(node, 'horizontal', 'FIXED');
       hints.push({ confidence: 'deterministic', field: 'layoutSizingHorizontal', value: 'FIXED', reason: 'mobile screen dimensions detected — locked to FIXED' });
@@ -648,7 +672,7 @@ async function setupText(
   const name = (p.name as string) ?? (content || 'Text');
   const fontSize = (p.fontSize as number) ?? 14;
   const fontFamily = (p.fontFamily as string) ?? 'Inter';
-  const fontStyle = (p.fontStyle as string) ?? 'Regular';
+  const fontStyle = normalizeFontStyle((p.fontStyle as string) ?? 'Regular');
 
   const fontName = await loadFontWithFallback(fontFamily, fontStyle);
   text.fontName = fontName;
@@ -824,7 +848,7 @@ function collectTextFonts(children: unknown[]): Array<{ family: string; style: s
     if (type === 'text') {
       fonts.push({
         family: (child.fontFamily as string) ?? 'Inter',
-        style: (child.fontStyle as string) ?? 'Regular',
+        style: normalizeFontStyle((child.fontStyle as string) ?? 'Regular'),
       });
     }
     if (Array.isArray(child.children)) {
