@@ -70,8 +70,8 @@ This follows Vibma's "parent-first rule" — dependent creates must be sequentia
 #### Single Screen Example
 ```
 Call 1: create_frame with full children tree (screen shell + all sections + all content)
-        → check _children and _preview in response
-        → export_image to verify
+        → check _children in response
+        → export_image(scale:0.5) to verify
 Call 2: lint_fix_all → export_image
 ```
 
@@ -80,9 +80,9 @@ Call 2: lint_fix_all → export_image
 Call 1: create_frame — Wrapper with skeleton (Header + Flow Row + Stage shells + empty Screens)
         → export_image to verify skeleton
 Call 2: create_frame — Fill Screen 1 (parentId=screen1Id, children=[TopContent, BottomContent])
-        → check _preview, export_image to verify
+        → export_image(scale:0.5) to verify
 Call 3-N: create_frame — Fill remaining screens, one per call
-        → export_image after each
+        → export_image(scale:0.5) after each
 Final: lint_fix_all on each screen → export_image
 ```
 
@@ -244,7 +244,7 @@ After all sections of a screen are complete:
 4. If lint introduced structural regressions (duplicate nodes, orphan frames), fix with targeted `nodes(method: "update"/"delete")` then `export_image` again
 
 Per-screen validation (during creation):
-- Check `_children` and `_preview` in each `create_frame` response — catch issues early
+- Check `_children` in each `create_frame` response — catch issues early. Use `export_image(scale:0.5)` for visual verification.
 - `export_image` at key milestones (after each complete screen)
 - If a screen looks wrong, fix with `nodes(method: "update")` before creating the next
 - Never build on top of broken state
@@ -338,10 +338,10 @@ Call 1: create_frame — Wrapper + Header + Flow Row + all Stage/Screen shells (
         → check _children, export_image to verify skeleton
 
 Call 2: create_frame — Fill Screen 1 (parentId=screen1Id, children=[TopContent, BottomContent])
-        → check _preview, export_image to verify
+        → export_image(scale:0.5) to verify
 
 Call 3–N: create_frame — Fill remaining screens, one per call
-        → export_image after each
+        → export_image(scale:0.5) after each
 
 Final: lint_fix_all on each individual screen → export_image
 ```

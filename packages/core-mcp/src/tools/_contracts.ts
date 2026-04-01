@@ -102,7 +102,7 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
       method: z.string().optional(),
       warning: z.string().optional(),
       hints: z.array(z.string()).optional(),
-      _preview: z.string().optional(),
+      _previewHint: z.string().optional(),
     }),
   'get_document_info': z.object({
       name: z.string(),

@@ -54,8 +54,8 @@ Wrapper (VERTICAL, HUG/HUG, counterAxisAlignItems=MIN, clipsContent=false, corne
 Call 1: create_frame 创建 Wrapper + children 包含完整骨架（Header + Flow Row + Stages + Screens）
         → 检查响应中的 _children 确认结构
 Call 2: create_frame 填充 Screen 1（parentId=screen1Id, children=[TopContent, BottomContent]）
-        → 检查 _preview 缩略图确认布局
-Call 3-N: 逐屏 create_frame 填充剩余 Screen → 每屏检查 _preview
+        → 用 export_image 确认布局
+Call 3-N: 逐屏 create_frame 填充剩余 Screen → 按需 export_image 验证
 Final: lint_fix_all → 完成
 ```
 

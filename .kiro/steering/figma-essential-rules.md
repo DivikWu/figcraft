@@ -170,28 +170,27 @@ Large design tasks (multi-screen flows, full pages) generate many tool calls. Ea
 | | items[] batch | Individual calls |
 |---|---|---|
 | Context cost | 1 request + 1 response | N requests + N responses |
-| Per-screen _preview | ❌ No (batch skips preview) | ✅ Yes (each call returns thumbnail) |
+| Visual verification | Call `export_image` after batch | Call `export_image` per screen |
 | Error isolation | Per-item error handling (one failure doesn't block others) | Natural isolation |
-| Visual verification | Must call `export_image` after batch | Check `_preview` per call |
 | Best for | Skeleton/wrapper creation, homogeneous screens | Screens with complex children needing visual feedback |
 
-**Recommendation**: Use `items[]` for the wrapper skeleton (empty screens), then fill each screen individually with `create_frame(parentId=screenId, children=[...])` to get per-screen `_preview`.
+**Recommendation**: Use `items[]` for the wrapper skeleton (empty screens), then fill each screen individually with `create_frame(parentId=screenId, children=[...])` and verify with `export_image(scale:0.5)`.
 
 ### Verification Strategy (Embedded + On-Demand)
 
-`create_frame` responses already include `_children` (node IDs) and `_preview` (0.25× thumbnail). Use these as default verification:
+`create_frame` responses include `_children` (node IDs) and `_previewHint` (suggested export_image call). Verification strategy:
 
-- **Embedded check** (zero cost): inspect `_children` and `_preview` from the create_frame response. **Default after every write.**
+- **Embedded check** (zero cost): inspect `_children` from the create_frame response. **Default after every write.**
+- **On-demand visual check**: `export_image(scale:0.5)` — use at key milestones (after each screen, after skeleton) for visual verification.
 - **On-demand structure check**: `get_current_page(maxDepth=1)` — only when you need broader canvas context (sibling placement, page-level node count).
-- **On-demand visual check**: `export_image` — only when `_preview` reveals a problem and you need high-res detail to diagnose.
 
-| Task scale | Embedded check (_children + _preview) | Extra calls |
-|------------|---------------------------------------|-------------|
-| Single screen | After every write | `export_image` only if _preview shows issues |
-| Multi-screen flow (3-5) | After every write | `get_current_page` after wrapper skeleton; `export_image` only if needed |
-| Large flow (6+) | After every write | `get_current_page` after wrapper; `export_image` at end of each batch if needed |
+| Task scale | Embedded check (_children) | Extra calls |
+|------------|---------------------------|-------------|
+| Single screen | After every write | `export_image(scale:0.5)` after creation |
+| Multi-screen flow (3-5) | After every write | `export_image` after each screen; `get_current_page` after wrapper if needed |
+| Large flow (6+) | After every write | `export_image` at end of each batch; `get_current_page` after wrapper |
 
-**Key rule**: Always check `_children` and `_preview`. Extra round-trips only when something looks wrong.
+**Key rule**: Always check `_children`. Use `export_image(scale:0.5)` for visual verification at key milestones.
 
 ### Return Value Discipline
 
@@ -216,18 +215,18 @@ If you sense the conversation is getting long (15+ tool calls already made):
 1. `ping` → `set_current_page` (if needed) → `get_current_page(maxDepth=1)` to inspect
 2. **⛔ DESIGN DECISIONS (mandatory, blocking for UI creation)** — call `get_mode`, complete Design Thinking checklist, present plan to user, WAIT for confirmation.
 3. **Create UI** — use `create_frame` with `children` to build entire node trees. See `figma-declarative-creation.md` for patterns and templates.
-4. **Verify** — check `_children` and `_preview` from create_frame response. Call `get_current_page` or `export_image` only when needed (see Verification Strategy).
+4. **Verify** — check `_children` from create_frame response. Call `export_image(scale:0.5)` for visual verification at key milestones.
 5. **Lint** — `lint_fix_all` on each screen before replying to user.
-6. **Final verification** — `export_image` on the complete result (only if not already verified via `_preview`).
+6. **Final verification** — `export_image` on the complete result.
 
 ### Debug: execute_js (requires `load_toolset("debug")` — diagnostics only)
 
 `execute_js` is NOT for UI creation. Use it only for diagnostics, node inspection, or Plugin API methods not wrapped by declarative tools. When used:
-1. Verify page state with `get_current_page(maxDepth=1)` after every write — execute_js does not return `_preview`/`_children`
+1. Verify page state with `get_current_page(maxDepth=1)` after every write — execute_js does not return `_children`
 2. Clean up orphan nodes — failed scripts are NOT atomic
 3. Return only IDs needed by subsequent calls
 
-Anti-patterns: ❌ ALL screens in one create_frame call | ❌ one element per call | ❌ skip lint_fix_all | ❌ omit sizing on any node | ❌ empty spacer frames for spacing | ❌ skip checking _children and _preview from create_frame response | ❌ skip post-lint structure check | ❌ skip the PRE-FLIGHT CHECKLIST (Steps 0-4 at the top of this file) | ❌ starting any write operation without first calling ping + get_current_page | ❌ skip Step 2 Design Decisions — all visual choices become unjustified | ❌ hardcode colors/fonts without completing the Design Thinking checklist | ❌ emoji text nodes as icon placeholders (use icon_create instead) | ❌ calling get_current_page + export_image after every create_frame when _preview suffices | ❌ using execute_js for UI creation (use create_frame + children instead)
+Anti-patterns: ❌ ALL screens in one create_frame call | ❌ one element per call | ❌ skip lint_fix_all | ❌ omit sizing on any node | ❌ empty spacer frames for spacing | ❌ skip checking _children from create_frame response | ❌ skip post-lint structure check | ❌ skip the PRE-FLIGHT CHECKLIST (Steps 0-4 at the top of this file) | ❌ starting any write operation without first calling ping + get_current_page | ❌ skip Step 2 Design Decisions — all visual choices become unjustified | ❌ hardcode colors/fonts without completing the Design Thinking checklist | ❌ emoji text nodes as icon placeholders (use icon_create instead) | ❌ calling get_current_page after every create_frame when _children suffices | ❌ using execute_js for UI creation (use create_frame + children instead)
 
 ## Multi-Screen Flow Generation Strategy
 

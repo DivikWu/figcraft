@@ -33,7 +33,13 @@ registerHandler('export_image', async (params) => {
         ? { format: 'PDF' }
         : { format: format as 'PNG' | 'JPG', constraint: { type: 'SCALE', value: scale } };
 
-  const bytes = await exportNode.exportAsync(settings);
+  const EXPORT_TIMEOUT = 10_000; // 10s — exportAsync can hang on complex nodes
+  const bytes = await Promise.race([
+    exportNode.exportAsync(settings),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error(
+      `Export timed out after ${EXPORT_TIMEOUT / 1000}s — node may be too complex. Try a lower scale or export a smaller section.`
+    )), EXPORT_TIMEOUT)),
+  ]);
 
   // Convert to base64 for transport
   const base64 = figma.base64Encode(bytes);

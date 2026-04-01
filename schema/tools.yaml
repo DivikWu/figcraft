@@ -505,7 +505,7 @@ get_current_page:
       hints:
         type: array
         items: string
-      _preview:
+      _previewHint:
         type: string
   examples:
     - id: "0:1"
@@ -660,7 +660,7 @@ create_frame:
     7. Token auto-binding → fillVariableName/strokeVariableName matched to library variables/styles
     8. Font preloading → all text fonts collected and loaded in parallel before creation
     9. Per-child error cleanup → failed child creation auto-removes orphan nodes
-    10. Auto-preview → 0.25× PNG thumbnail embedded in response for visual verification
+    10. Auto-focus → viewport scrolls to created node; use export_image for visual verification
 
     Use dryRun:true to preview all inferences BEFORE creating nodes.
   toolset: core
@@ -864,7 +864,7 @@ create_frame:
         fontSize below 12px mobile minimum. Use correctedPayload for the actual creation call to avoid ambiguity.
     noPreview:
       type: boolean
-      description: "Skip auto-preview thumbnail in response (default: false). Preview is a low-res PNG returned as an image content block for visual verification."
+      description: "Skip _previewHint in response (default: false). When false, response includes a hint to call export_image for visual verification."
     # ── Batch mode ──
     items:
       type: array

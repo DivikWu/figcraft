@@ -87,8 +87,8 @@ For component instances, use `create_instances` (requires `load_toolset("compone
 create_instances({ items: [{ componentId: "COMPONENT_ID", properties: { "Label": "Get Started" } }] })
 ```
 
-→ Check `_children` and `_preview` in response
-→ `export_image` at key milestones
+→ Check `_children` in response
+→ `export_image(scale:0.5)` at key milestones for visual verification
 
 ### Step 5: Validate
 

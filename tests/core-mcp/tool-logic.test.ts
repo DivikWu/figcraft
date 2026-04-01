@@ -71,8 +71,13 @@ function assertValidMcpResponse(response: McpResponse) {
   expect(Array.isArray(response.content)).toBe(true);
   expect(response.content.length).toBeGreaterThan(0);
   for (const item of response.content) {
-    expect(item).toHaveProperty('type', 'text');
-    expect(typeof item.text).toBe('string');
+    expect(['text', 'image']).toContain(item.type);
+    if (item.type === 'text') {
+      expect(typeof item.text).toBe('string');
+    } else {
+      expect(typeof item.data).toBe('string');
+      expect(typeof item.mimeType).toBe('string');
+    }
   }
   if (response.isError !== undefined) {
     expect(typeof response.isError).toBe('boolean');
@@ -208,8 +213,13 @@ describe('exportImageLogic', () => {
 
     assertValidMcpResponse(response);
     expect(response.isError).toBeUndefined();
-    const parsed = JSON.parse(response.content[0].text);
-    expect(parsed.base64).toBe('abc123');
+    // content[0] is the image block, content[1] is text metadata
+    expect(response.content[0].type).toBe('image');
+    const imgBlock = response.content[0] as { type: 'image'; data: string; mimeType: string };
+    expect(imgBlock.data).toBe('abc123');
+    expect(imgBlock.mimeType).toBe('image/png');
+    const meta = JSON.parse((response.content[1] as { type: 'text'; text: string }).text);
+    expect(meta.format).toBe('PNG');
   });
 });
 

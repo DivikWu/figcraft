@@ -82,7 +82,7 @@ Apply the chosen preset's `cornerRadius` values consistently across all elements
 Call 1: create_frame — Wrapper + Header + Flow Row + all Stage/Screen shells (skeleton)
         → check _children, export_image to verify skeleton
 Call 2: create_frame — Fill Screen 1 (parentId=screen1Id, children=[TopContent, BottomContent])
-        → check _preview, export_image to verify
+        → export_image(scale:0.5) to verify
 Call 3-N: create_frame — Fill remaining screens, one per call
         → export_image after each
 Final: lint_fix_all on each screen → export_image

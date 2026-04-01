@@ -172,7 +172,7 @@ export async function getModeLogic(
       'For complex or ambiguous parameters, use dryRun:true first to preview Opinion Engine inferences before committing.',
       'lint_fix_all supports dryRun:true to preview fixable violations before applying. Use to review what will be changed.',
       'After the FIRST create_frame failure, review ALL remaining planned payloads for the same pattern before retrying.',
-      'Verify each create_frame response: check _children structure AND _preview thumbnail. If _preview is absent or shows issues, call export_image to visually confirm.',
+      'Verify each create_frame response: check _children structure. Use export_image(scale:0.5) for visual verification when needed.',
       'lint_fix_all on completed screens. If remaining violations include severity:"error", read the details and fix manually before replying.',
     ],
 
