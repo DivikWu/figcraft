@@ -173,7 +173,9 @@ export async function getModeLogic(
         ? 'Use library text styles. Clear heading/body distinction via existing style tiers.'
         : 'Clear heading/body distinction (different weight or size). ≤ 3 font weights. NEVER use only Inter without justification.',
       contentRules: 'Realistic, contextually appropriate text. NEVER use "Lorem ipsum", "Text goes here", "Button", "Title".',
-      iconRules: 'Single icon style per design (outline/filled/duotone). Use icon_search + icon_create, NOT emoji placeholders.',
+      iconRules: hasLibrary
+        ? 'Use library icon components first (search_design_system query:"icon"). Fall back to icon_search + icon_create only when library has no match. NEVER use text characters as icon placeholders.'
+        : 'Single icon style per design (outline/filled/duotone). Use icon_search + icon_create for ALL icons. NEVER use text characters as icon placeholders (">" for chevron, "..." for more).',
       antiSlop: 'No cheap gradients/glow effects. Vary corner radius across hierarchy. Prefer asymmetry over symmetry.',
     },
 
@@ -182,6 +184,11 @@ export async function getModeLogic(
       'get_current_page(maxDepth=1) — inspect existing content, find placement position.',
       'Classify task scale: single element / single screen / multi-screen (3-5) / large flow (6+).',
       'Use create_frame + children (declarative) for all creation. children support optional index field for insertion order. type:"rectangle" for simple shapes (dividers, spacers), type:"frame" for containers with children/auto-layout. For text range styling: text(method:"set_range"). For grouping: group_nodes (requires load_toolset("shapes-vectors")). For complex layouts, call get_creation_guide(topic:"layout") for structural rules.',
+      '⚠️ SIZING: Root screen frames MUST include layoutSizingHorizontal:"FIXED" + layoutSizingVertical:"FIXED" explicitly. Without this, Opinion Engine infers HUG and the frame collapses to content size.',
+      '⚠️ PLACEHOLDERS: Use type:"frame" (not "rectangle") for any container that needs children later (logos, avatars, chart areas). Rectangles cannot have children. Add layoutMode:"HORIZONTAL", primaryAxisAlignItems:"CENTER", counterAxisAlignItems:"CENTER" to center content inside.',
+      hasLibrary
+        ? '⚠️ ICONS: Before calling create_frame, plan all icons needed. Use search_design_system(query:"icon chevron") to find library icon components first. Fall back to icon_search + icon_create only when library has no match. NEVER use text characters as icon placeholders (">" for chevron, "..." for more menu).'
+        : '⚠️ ICONS: Before calling create_frame, plan all icons needed (navigation chevrons, social logos, action icons). Call icon_search to find icons, then include icon_create calls AFTER create_frame. NEVER use text characters as icon placeholders (">" for chevron, "..." for more menu).',
       'nodes update: ordered execution (simple props → fills/strokes → layout sizing → resize → text). Supports width/height directly, text properties, layoutPositioning. Safe to send layoutMode + width in same patch.',
       'For complex or ambiguous parameters, use dryRun:true first to preview Opinion Engine inferences before committing.',
       'After the FIRST create_frame failure, review ALL remaining planned payloads for the same pattern before retrying.',
