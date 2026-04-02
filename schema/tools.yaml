@@ -4682,6 +4682,36 @@ lint_stats:
     - sortBy: frequency
       description: "Returns session stats sorted by violation frequency"
 
+verify_design:
+  description: >-
+    Compound verification: runs lint_fix_all + export_image in a single call.
+    Returns lint report and optional screenshot. Use after creating UI to verify
+    quality and get a visual preview in one round-trip.
+  toolset: core
+  write: true
+  access: create
+  handler: custom
+  params:
+    nodeId:
+      type: string
+      description: "Node ID to verify (default: current page)"
+    fix:
+      type: boolean
+      description: "Auto-fix violations (default: true)"
+    exportImage:
+      type: boolean
+      description: "Include screenshot (default: true)"
+    exportScale:
+      type: number
+      description: "Image scale factor (default: 0.5)"
+  response:
+    type: object
+  examples:
+    - nodeId: "1:23"
+      fix: true
+      exportImage: true
+      description: "Lint + fix + export screenshot in one call"
+
 compliance_report:
   description: >-
     Generate a comprehensive design system compliance report.
@@ -5046,6 +5076,32 @@ nodes:
           type: string
           required: true
           description: 'Node ID or Figma URL'
+    get_batch:
+      description: Get multiple nodes in a single request (reduces round-trips)
+      maps_to: get_node_info_batch
+      write: false
+      params:
+        nodeIds:
+          type: array
+          items: string
+          required: true
+          description: 'Array of node IDs to fetch'
+        detail:
+          type: enum
+          values: [summary, standard, full]
+          description: 'Detail level (default: standard)'
+      response:
+        type: object
+        fields:
+          count:
+            type: number
+            required: true
+          nodes:
+            type: array
+            required: true
+      examples:
+        - nodeIds: ["1:1", "1:2", "1:3"]
+          detail: standard
     list:
       description: Search nodes by name, optionally filter by type
       maps_to: search_nodes

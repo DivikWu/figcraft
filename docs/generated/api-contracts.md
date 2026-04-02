@@ -4,7 +4,7 @@ This document is generated from `schema/tools.yaml`, `packages/core-mcp/src/tool
 
 ## Tool Response Coverage
 
-Covered flat/custom tools: 105
+Covered flat/custom tools: 106
 
 ### `add_collection_mode`
 
@@ -1618,9 +1618,22 @@ Covered flat/custom tools: 105
 }
 ```
 
+### `verify_design`
+
+- Example payloads: 1
+
+```json
+{
+  "nodeId": "1:23",
+  "fix": true,
+  "exportImage": true,
+  "description": "Lint + fix + export screenshot in one call"
+}
+```
+
 ## Endpoint Response Coverage
 
-Covered endpoint methods: 32
+Covered endpoint methods: 33
 
 ### `components.get`
 
@@ -1738,6 +1751,21 @@ Covered endpoint methods: 32
       "type": "FRAME"
     }
   ]
+}
+```
+
+### `nodes.get_batch`
+
+- Example payloads: 1
+
+```json
+{
+  "nodeIds": [
+    "1:1",
+    "1:2",
+    "1:3"
+  ],
+  "detail": "standard"
 }
 ```
 
@@ -2139,7 +2167,7 @@ Covered endpoint methods: 32
 
 ## Flat To Endpoint Migration Map
 
-Mapped flat tools: 32
+Mapped flat tools: 33
 
 | Flat Tool | Replacement | Toolset | Write | Access |
 | --- | --- | --- | --- | --- |
@@ -2155,6 +2183,7 @@ Mapped flat tools: 32
 | `export_variables` | `variables_ep(method: "export")` | `variables` | `false` | `read` |
 | `get_component` | `components(method: "get")` | `core` | `false` | `read` |
 | `get_node_info` | `nodes(method: "get")` | `core` | `false` | `read` |
+| `get_node_info_batch` | `nodes(method: "get_batch")` | `core` | `false` | `read` |
 | `get_node_variables` | `variables_ep(method: "get_bindings")` | `variables` | `false` | `read` |
 | `get_style` | `styles_ep(method: "get")` | `styles` | `false` | `read` |
 | `get_variable` | `variables_ep(method: "get")` | `variables` | `false` | `read` |

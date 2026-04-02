@@ -280,6 +280,74 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
     },
   );
 
+  // ─── Verify design (compound: lint + export in one call) ───
+  server.tool(
+    'verify_design',
+    'Compound verification: runs lint_fix_all + export_image in a single call. ' +
+      'Returns lint report and optional screenshot. Use after creating UI to verify quality ' +
+      'and get a visual preview in one round-trip instead of two separate tool calls.',
+    {
+      nodeId: z.string().optional().describe('Node ID to verify (default: current page)'),
+      fix: z.boolean().optional().describe('Auto-fix violations (default: true)'),
+      exportImage: z.boolean().optional().describe('Include screenshot (default: true)'),
+      exportScale: z.number().optional().describe('Image scale factor (default: 0.5)'),
+    },
+    async ({ nodeId, fix = true, exportImage = true, exportScale = 0.5 }) => {
+      const nodeIds = nodeId ? [nodeId] : undefined;
+
+      // Step 1: lint (with optional fix)
+      const report = await bridge.request('lint_check', {
+        nodeIds,
+      }, HEAVY_REQUEST_TIMEOUT_MS) as {
+        summary: { total: number; pass: number; violations: number; bySeverity?: Record<string, number> };
+        categories: Array<{ rule: string; nodes: Array<Record<string, unknown>> }>;
+      };
+
+      let fixResult = { fixed: 0, failed: 0 };
+      if (fix) {
+        const allViolations: Array<Record<string, unknown>> = [];
+        for (const cat of report.categories) {
+          for (const v of cat.nodes) allViolations.push(v);
+        }
+        const fixable = allViolations.filter((v) => v.autoFixable);
+        if (fixable.length > 0) {
+          fixResult = await bridge.request('lint_fix', { violations: fixable }) as typeof fixResult;
+        }
+      }
+
+      // Step 2: export image
+      const content: Array<{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }> = [];
+
+      const lintData: Record<string, unknown> = {
+        lint: report.summary,
+        fixed: fixResult.fixed,
+        remaining: report.summary.violations - fixResult.fixed,
+      };
+      content.push({ type: 'text' as const, text: JSON.stringify(lintData) });
+
+      if (exportImage) {
+        try {
+          const exportResult = await bridge.request('export_image', {
+            nodeId: nodeId ?? undefined,
+            format: 'PNG',
+            scale: exportScale,
+          }) as { base64?: string; images?: Array<{ base64: string }> };
+
+          const base64 = exportResult.base64 ?? exportResult.images?.[0]?.base64;
+          if (base64) {
+            content.push({ type: 'image' as const, data: base64, mimeType: 'image/png' });
+          }
+        } catch {
+          // Image export failed — return lint results only
+          (lintData as Record<string, unknown>)._imageExportFailed = true;
+          content[0] = { type: 'text' as const, text: JSON.stringify(lintData) };
+        }
+      }
+
+      return { content };
+    },
+  );
+
   // ─── Lint stats tool ───
   server.tool(
     'lint_stats',

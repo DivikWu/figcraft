@@ -22,6 +22,28 @@ registerHandler('get_node_info', async (params) => {
   return simplifyNode(node as SceneNode, 0, undefined, createContext(undefined, undefined, detail));
 });
 
+registerHandler('get_node_info_batch', async (params) => {
+  const nodeIds = params.nodeIds as string[];
+  const detail = (params.detail as SimplifyDetail | undefined) ?? 'standard';
+  const ctx = createContext(undefined, undefined, detail);
+  const results: Array<{ id: string; ok: boolean; node?: ReturnType<typeof simplifyNode>; error?: string }> = [];
+
+  for (const nodeId of nodeIds) {
+    try {
+      const node = await findNodeByIdAsync(nodeId);
+      if (!node || !('type' in node) || node.type === 'PAGE' || node.type === 'DOCUMENT') {
+        results.push({ id: nodeId, ok: false, error: `Node not found: ${nodeId}` });
+      } else {
+        results.push({ id: nodeId, ok: true, node: simplifyNode(node as SceneNode, 0, undefined, createContext(undefined, undefined, detail)) });
+      }
+    } catch (err) {
+      results.push({ id: nodeId, ok: false, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  return { count: results.length, nodes: results };
+});
+
 registerHandler('get_current_page', async (params) => {
   const maxNodes = (params.maxNodes as number) ?? 200;
   const maxDepth = (params.maxDepth as number | undefined) ?? 3;

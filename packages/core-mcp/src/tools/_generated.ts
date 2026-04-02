@@ -1126,8 +1126,10 @@ export function registerGeneratedTools(
 // ─── Endpoint Zod Schemas ───
 
 export const nodesEndpointSchema = {
-      method: z.enum(['get', 'list', 'update', 'delete', 'clone', 'reparent']).describe('Method to invoke on this endpoint'),
+      method: z.enum(['get', 'get_batch', 'list', 'update', 'delete', 'clone', 'reparent']).describe('Method to invoke on this endpoint'),
       nodeId: z.string().optional().describe("Node ID or Figma URL"),
+      nodeIds: z.array(z.string()).optional().describe("Array of node IDs to fetch"),
+      detail: z.enum(['summary', 'standard', 'full']).optional().describe("Detail level (default: standard)"),
       query: z.string().optional().describe("Search query"),
       types: z.array(z.string()).optional().describe("Filter by node types"),
       limit: z.number().optional().describe("Max results (default 50)"),
@@ -1136,7 +1138,6 @@ export const nodesEndpointSchema = {
           props: z.record(z.unknown()),
         })).optional(),
       strict: z.boolean().optional().describe("When true, reject the entire patch if any property name is not recognized. Default: false (unknown props reported in _unknownProps but patch succeeds)."),
-      nodeIds: z.array(z.string()).optional(),
       items: z.union([z.array(z.object({
           id: z.string().describe("Node ID to clone"),
           name: z.string().optional().describe("Rename the clone"),

@@ -727,6 +727,7 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
       ok: z.boolean(),
     }),
   'lint_stats': z.record(z.unknown()),
+  'verify_design': z.record(z.unknown()),
   'compliance_report': z.object({
       overallScore: z.number(),
       lint: z.record(z.unknown()),
@@ -1830,6 +1831,14 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
       "description": "Returns session stats sorted by violation frequency"
     }
   ],
+  'verify_design': [
+    {
+      "nodeId": "1:23",
+      "fix": true,
+      "exportImage": true,
+      "description": "Lint + fix + export screenshot in one call"
+    }
+  ],
   'compliance_report': [
     {
       "overallScore": 92,
@@ -1936,6 +1945,10 @@ export const GENERATED_ENDPOINT_METHOD_RESPONSE_SCHEMAS: Record<string, Record<s
           name: z.string(),
           type: z.string(),
         })).optional(),
+    }),
+    'get_batch': z.object({
+      count: z.number(),
+      nodes: z.array(z.unknown()),
     }),
     'list': z.object({
       count: z.number(),
@@ -2210,6 +2223,16 @@ export const GENERATED_ENDPOINT_METHOD_RESPONSE_EXAMPLES: Record<string, Record<
             "type": "FRAME"
           }
         ]
+      }
+    ],
+    'get_batch': [
+      {
+        "nodeIds": [
+          "1:1",
+          "1:2",
+          "1:3"
+        ],
+        "detail": "standard"
       }
     ],
     'list': [

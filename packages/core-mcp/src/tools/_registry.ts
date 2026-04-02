@@ -7,7 +7,7 @@
  * Re-generate: npm run schema
  */
 
-/** Core tools: always enabled (~30) */
+/** Core tools: always enabled (~31) */
 export const GENERATED_CORE_TOOLS = new Set([
   'ping',
   'get_mode',
@@ -36,6 +36,7 @@ export const GENERATED_CORE_TOOLS = new Set([
   'create_svg',
   'text_scan',
   'search_design_system',
+  'verify_design',
   'nodes',
   'text',
   'components',
@@ -144,6 +145,7 @@ export const GENERATED_CUSTOM_TOOLS = new Set([
   'lint_fix',
   'set_lint_ignore',
   'lint_stats',
+  'verify_design',
   'compliance_report',
   'figma_login',
   'figma_logout',
@@ -208,6 +210,7 @@ export const GENERATED_WRITE_TOOLS = new Set([
   'connect_screens',
   'lint_fix',
   'set_lint_ignore',
+  'verify_design',
   'create_page',
   'rename_page',
   'delete_node',
@@ -249,6 +252,7 @@ export const GENERATED_CREATE_TOOLS = new Set([
   'set_multiple_annotations',
   'add_reaction',
   'connect_screens',
+  'verify_design',
   'create_page',
 ]);
 
@@ -461,6 +465,7 @@ export const GENERATED_ENDPOINT_METHOD_ACCESS: Record<
 > = {
   'nodes': {
     'get': { write: false },
+    'get_batch': { write: false },
     'list': { write: false },
     'update': { write: true, access: 'edit' },
     'delete': { write: true, access: 'edit' },
@@ -514,7 +519,7 @@ export const GENERATED_ENDPOINT_TOOLS = new Set<string>([
 
 /** Endpoint → flat tools it replaces (for API mode switching) */
 export const GENERATED_ENDPOINT_REPLACES: Record<string, string[]> = {
-  'nodes': ['get_node_info', 'search_nodes', 'patch_nodes', 'delete_nodes', 'clone_nodes', 'reparent_nodes'],
+  'nodes': ['get_node_info', 'get_node_info_batch', 'search_nodes', 'patch_nodes', 'delete_nodes', 'clone_nodes', 'reparent_nodes'],
   'text': ['set_text_content', 'set_text_range'],
   'components': ['list_components', 'list_library_components', 'get_component', 'list_component_properties'],
   'variables_ep': ['list_variables', 'get_variable', 'list_collections', 'get_node_variables', 'set_variable_binding', 'create_variable', 'update_variable', 'delete_variable', 'create_collection', 'delete_collection', 'batch_create_variables', 'export_variables'],
@@ -527,6 +532,7 @@ export const GENERATED_FLAT_TOOL_MIGRATIONS: Record<
   { endpoint: string; method: string; toolset: string; write: boolean; access?: 'create' | 'edit' }
 > = {
   'get_node_info': { endpoint: 'nodes', method: 'get', toolset: 'core', write: false },
+  'get_node_info_batch': { endpoint: 'nodes', method: 'get_batch', toolset: 'core', write: false },
   'search_nodes': { endpoint: 'nodes', method: 'list', toolset: 'core', write: false },
   'patch_nodes': { endpoint: 'nodes', method: 'update', toolset: 'core', write: true, access: 'edit' },
   'delete_nodes': { endpoint: 'nodes', method: 'delete', toolset: 'core', write: true, access: 'edit' },
@@ -567,6 +573,7 @@ export const GENERATED_DEPRECATED_TOOLS: Record<string, { replacedBy: string }> 
 /** Removed tools → migration guidance (Phase 3) */
 export const GENERATED_REMOVED_TOOLS: Record<string, { endpoint: string; method: string }> = {
   'get_node_info': { endpoint: 'nodes', method: 'get' },
+  'get_node_info_batch': { endpoint: 'nodes', method: 'get_batch' },
   'search_nodes': { endpoint: 'nodes', method: 'list' },
   'patch_nodes': { endpoint: 'nodes', method: 'update' },
   'delete_nodes': { endpoint: 'nodes', method: 'delete' },

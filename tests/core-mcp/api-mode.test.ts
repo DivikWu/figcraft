@@ -197,8 +197,8 @@ describe('API mode registry consistency', () => {
     }
   });
 
-  it('GENERATED_REMOVED_TOOLS contains 32 removed flat tools', () => {
-    expect(Object.keys(GENERATED_REMOVED_TOOLS).length).toBe(32);
+  it('GENERATED_REMOVED_TOOLS contains 33 removed flat tools', () => {
+    expect(Object.keys(GENERATED_REMOVED_TOOLS).length).toBe(33);
   });
 
   it('each removed tool has correct endpoint and method', () => {
