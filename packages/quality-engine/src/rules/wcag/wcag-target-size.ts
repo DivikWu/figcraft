@@ -43,7 +43,7 @@ export const wcagTargetSizeRule: LintRule = {
         expectedValue: `>= ${MIN_TARGET_SIZE}x${MIN_TARGET_SIZE}`,
         suggestion: `"${node.name}" is only ${w}×${h}px — make it at least ${MIN_TARGET_SIZE}×${MIN_TARGET_SIZE}px so it's easy to tap`,
         autoFixable: true,
-        fixData: { currentWidth: w, currentHeight: h },
+        fixData: { currentWidth: w, currentHeight: h, nodeType: node.type },
       }];
     }
 
@@ -54,6 +54,20 @@ export const wcagTargetSizeRule: LintRule = {
     if (!v.fixData) return null;
     const cw = v.fixData.currentWidth as number;
     const ch = v.fixData.currentHeight as number;
+    const nodeType = v.fixData.nodeType as string | undefined;
+
+    // TEXT nodes should be wrapped in a container rather than resized directly
+    if (nodeType === 'TEXT') {
+      return {
+        kind: 'deferred',
+        strategy: 'wrap-touch-target',
+        data: {
+          minWidth: Math.max(MIN_TARGET_SIZE, cw),
+          minHeight: MIN_TARGET_SIZE,
+        },
+      };
+    }
+
     return {
       kind: 'resize',
       ...(cw < MIN_TARGET_SIZE ? { width: MIN_TARGET_SIZE } : {}),

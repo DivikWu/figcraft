@@ -213,3 +213,52 @@ function applyRemoveAndRedistribute(
     return { fixed: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
+
+// ─── Built-in deferred strategies ───
+
+/**
+ * Wrap an undersized TEXT node in a transparent container frame to meet touch target requirements.
+ * Creates a centered auto-layout frame around the text node with minimum dimensions.
+ */
+const wrapTouchTarget: DeferredStrategyHandler = async (node, data) => {
+  try {
+    if (node.type !== 'TEXT') {
+      return { fixed: false, error: `wrap-touch-target only applies to TEXT nodes, got ${node.type}` };
+    }
+    const parent = node.parent;
+    if (!parent || !('children' in parent)) {
+      return { fixed: false, error: 'TEXT node has no valid parent to wrap in' };
+    }
+
+    const minWidth = (data.minWidth as number) ?? 44;
+    const minHeight = (data.minHeight as number) ?? 44;
+
+    // Find node index in parent
+    const parentFrame = parent as FrameNode;
+    const idx = [...parentFrame.children].indexOf(node);
+
+    // Create transparent wrapper frame
+    const wrapper = figma.createFrame();
+    wrapper.name = `Touch Target / ${node.name}`;
+    wrapper.layoutMode = 'HORIZONTAL';
+    wrapper.primaryAxisAlignItems = 'CENTER';
+    wrapper.counterAxisAlignItems = 'CENTER';
+    wrapper.resize(Math.max(minWidth, node.width), Math.max(minHeight, node.height));
+    wrapper.fills = []; // Transparent
+    wrapper.strokeWeight = 0;
+    wrapper.clipsContent = false;
+
+    // Insert wrapper at the text node's position, then move text inside
+    parentFrame.insertChild(idx, wrapper);
+    wrapper.appendChild(node);
+
+    return { fixed: true };
+  } catch (err) {
+    return { fixed: false, error: err instanceof Error ? err.message : String(err) };
+  }
+};
+
+/** Built-in deferred strategies that don't require library context. */
+export const builtInDeferredStrategies: Record<string, DeferredStrategyHandler> = {
+  'wrap-touch-target': wrapTouchTarget,
+};

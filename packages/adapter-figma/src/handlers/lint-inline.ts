@@ -11,7 +11,7 @@ import type { AbstractNode, LintContext, LintViolation, LintOptions } from '@fig
 import { figmaRgbaToHex } from '../utils/color.js';
 import { getCachedModeLibrary } from './write-nodes.js';
 import { registerCache } from '../utils/cache-manager.js';
-import { applyFixDescriptor } from '../utils/fix-applicator.js';
+import { applyFixDescriptor, builtInDeferredStrategies } from '../utils/fix-applicator.js';
 
 /**
  * Map from validateTree/inferStructure rule names to quality-engine rule names.
@@ -233,7 +233,10 @@ async function applyFixDirect(
     return { fixed: false };
   }
 
-  return applyFixDescriptor(node, violation.fixDescriptor, { allowDeferred: false });
+  return applyFixDescriptor(node, violation.fixDescriptor, {
+    allowDeferred: true,
+    deferredStrategies: builtInDeferredStrategies,
+  });
 }
 
 

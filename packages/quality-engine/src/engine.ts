@@ -47,6 +47,7 @@ import { nestedInteractiveShellRule } from './rules/structure/nested-interactive
 import { componentBindingsRule } from './rules/structure/component-bindings.js';
 // Naming
 import { defaultNameRule } from './rules/naming/default-name.js';
+import { placeholderTextRule } from './rules/naming/placeholder-text.js';
 
 const ALL_RULES: LintRule[] = [
   // Token compliance (require tokens/library to activate)
@@ -89,6 +90,7 @@ const ALL_RULES: LintRule[] = [
   systemBarFullbleedRule,
   // Naming (always active)
   defaultNameRule,
+  placeholderTextRule,
   // Component (always active)
   componentBindingsRule,
 ];
@@ -399,7 +401,7 @@ const PREFLIGHT_RULE_MAP: Record<keyof PreflightAudit, string[]> = {
   typographyBound: ['no-text-style', 'spec-typography'],
   semanticNaming: ['default-name'],
   touchTargets: ['wcag-target-size', 'button-structure'],
-  contentRealistic: [], // Cannot be auto-checked
+  contentRealistic: ['placeholder-text'],
   emptyContainers: ['empty-container'],
 };
 

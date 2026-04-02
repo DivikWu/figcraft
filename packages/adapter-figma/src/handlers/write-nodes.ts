@@ -393,21 +393,49 @@ registerHandler('patch_nodes', async (params) => {
       }
 
       // ── Phase 3: Layout sizing (after layoutMode is applied in Phase 1) ──
+      // layoutSizingHorizontal/Vertical describe how this node behaves in its PARENT's layout.
+      // We need the PARENT's layoutMode to determine primary vs counter axis.
       for (const key of ['layoutSizingHorizontal', 'layoutSizingVertical'] as const) {
-        if (props[key] == null || !('layoutMode' in node)) continue;
-        const frameNode = node as FrameNode;
-        const dir = frameNode.layoutMode;
-        if (dir === 'NONE') continue;
-        const isHorizontal = dir === 'HORIZONTAL';
-        const isPrimary = (key === 'layoutSizingHorizontal') === isHorizontal;
+        if (props[key] == null) continue;
         const sizing = props[key] as 'FIXED' | 'HUG' | 'FILL';
+
+        // Determine parent layout direction to resolve primary/counter axis
+        const parent = node.parent;
+        const parentDir = parent && 'layoutMode' in parent ? (parent as FrameNode).layoutMode : 'NONE';
+
+        if (parentDir === 'NONE') {
+          // No auto-layout parent — only self-sizing (HUG/FIXED) makes sense
+          if ('layoutMode' in node && (node as FrameNode).layoutMode !== 'NONE') {
+            const frameNode = node as FrameNode;
+            const selfDir = frameNode.layoutMode;
+            const selfIsHorizontal = selfDir === 'HORIZONTAL';
+            const isSelfPrimary = (key === 'layoutSizingHorizontal') === selfIsHorizontal;
+            const result = translateSingleSizing(sizing === 'FILL' ? 'HUG' : sizing, isSelfPrimary ? 'primary' : 'counter');
+            if (isSelfPrimary) {
+              frameNode.primaryAxisSizingMode = result.mode;
+            } else {
+              frameNode.counterAxisSizingMode = result.mode;
+            }
+          }
+          continue;
+        }
+
+        const parentIsHorizontal = parentDir === 'HORIZONTAL';
+        const isPrimary = (key === 'layoutSizingHorizontal') === parentIsHorizontal;
         const result = translateSingleSizing(sizing, isPrimary ? 'primary' : 'counter');
         if (isPrimary) {
-          frameNode.primaryAxisSizingMode = result.mode;
-          (frameNode as any).layoutGrow = result.layoutGrow ?? 0;
+          // Primary axis: control via primaryAxisSizingMode on self (if auto-layout frame)
+          // or layoutGrow for FILL in parent
+          if ('layoutMode' in node && (node as FrameNode).layoutMode !== 'NONE') {
+            (node as FrameNode).primaryAxisSizingMode = result.mode;
+          }
+          (node as any).layoutGrow = result.layoutGrow ?? 0;
         } else {
-          frameNode.counterAxisSizingMode = result.mode;
-          (frameNode as any).layoutAlign = result.layoutAlign ?? 'INHERIT';
+          // Counter axis: control via layoutAlign on self (STRETCH for FILL)
+          if ('layoutMode' in node && (node as FrameNode).layoutMode !== 'NONE') {
+            (node as FrameNode).counterAxisSizingMode = result.mode;
+          }
+          (node as any).layoutAlign = result.layoutAlign ?? 'INHERIT';
         }
       }
 

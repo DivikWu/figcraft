@@ -15,7 +15,7 @@ import { ensureLoaded, getTextStyleId } from '../utils/style-registry.js';
 import { isVariableAlias, isRgbaLike, setSpacingProp } from '../utils/type-guards.js';
 import { getCachedModeLibrary } from './write-nodes.js';
 import { LOCAL_LIBRARY } from '../constants.js';
-import { applyFixDescriptor } from '../utils/fix-applicator.js';
+import { applyFixDescriptor, builtInDeferredStrategies } from '../utils/fix-applicator.js';
 import type { DeferredStrategyHandler } from '../utils/fix-applicator.js';
 
 // Cache last-built LintContext Maps to avoid redundant Map construction on repeated calls
@@ -493,6 +493,7 @@ const DEFERRED_STRATEGIES: Record<string, DeferredStrategyHandler> = {
   'library-radius-bind': libraryRadiusBind,
   'library-text-style': libraryTextStyle,
   'library-spacing-bind': librarySpacingBind,
+  ...builtInDeferredStrategies,
 };
 
 // ─── lint_fix handler — unified via applyFixDescriptor ───

@@ -319,6 +319,28 @@ function validateChildNode(
         ctx.typedHints.push({ type: 'suggest', message: `[${childPath}] invisible empty frame — no fills, strokes, or children` });
       }
     }
+
+    // Text-as-icon placeholder detection (Layer 2 warning)
+    if (node.type === 'TEXT') {
+      const chars = (node as TextNode).characters.trim();
+      const iconPlaceholders: Record<string, string> = {
+        '>': 'lucide:chevron-right', '›': 'lucide:chevron-right', '→': 'lucide:arrow-right',
+        '<': 'lucide:chevron-left', '‹': 'lucide:chevron-left', '←': 'lucide:arrow-left',
+        '...': 'lucide:ellipsis', '…': 'lucide:ellipsis', '•••': 'lucide:ellipsis',
+        '×': 'lucide:x', '✕': 'lucide:x', 'X': 'lucide:x',
+      };
+      if (iconPlaceholders[chars]) {
+        ctx.typedHints.push({ type: 'warn', message: `[${childPath}] "${chars}" looks like an icon placeholder — use icon_create(icon:"${iconPlaceholders[chars]}") instead of text` });
+      }
+    }
+
+    // Rectangle-as-container detection (Layer 2 warning)
+    if (node.type === 'RECTANGLE') {
+      const nameLC = node.name.toLowerCase();
+      if (/logo|avatar|icon|placeholder|image|thumb/.test(nameLC)) {
+        ctx.typedHints.push({ type: 'warn', message: `[${childPath}] "${node.name}" is a rectangle — use type:"frame" with centered icon inside if it needs children later` });
+      }
+    }
   } catch {
     // Validation must never block creation
   }
@@ -364,10 +386,24 @@ function inferChildSizing(
   explicitH: string | undefined,
   explicitV: string | undefined,
   hints: StructuredHint[],
+  hasExplicitWidth?: boolean,
+  hasExplicitHeight?: boolean,
 ): void {
   // Root-level frames (direct children of page, no auto-layout parent):
   // Default to HUG/HUG so the frame wraps its content instead of collapsing to Figma's default 100px.
   if (!parent || !('layoutMode' in parent) || (parent as FrameNode).layoutMode === 'NONE') {
+    // Mobile screen dimensions → always FIXED even when root frame (no auto-layout parent)
+    if (isScreenSize(node)) {
+      if (!explicitH) {
+        setLayoutSizing(node, 'horizontal', 'FIXED');
+        hints.push({ confidence: 'deterministic', field: 'layoutSizingHorizontal', value: 'FIXED', reason: 'mobile screen dimensions detected — locked to FIXED' });
+      }
+      if (!explicitV) {
+        setLayoutSizing(node, 'vertical', 'FIXED');
+        hints.push({ confidence: 'deterministic', field: 'layoutSizingVertical', value: 'FIXED', reason: 'mobile screen dimensions detected — locked to FIXED' });
+      }
+      return;
+    }
     if ('layoutMode' in node && (node as FrameNode).layoutMode !== 'NONE') {
       if (!explicitH) {
         setLayoutSizing(node, 'horizontal', 'HUG');
@@ -433,18 +469,30 @@ function inferChildSizing(
 
   // Cross-axis → FILL or HUG/FIXED (context-dependent), primary-axis → HUG or FIXED (shapes)
   if (!explicitH) {
-    const val = isVertical ? cross.sizing : primaryDefault;
-    setLayoutSizing(node, 'horizontal', val);
-    const reason = isVertical ? cross.reason : primaryReason;
-    const confidence = val === 'FILL' ? 'ambiguous' : 'deterministic';
-    hints.push({ confidence, field: 'layoutSizingHorizontal', value: val, reason });
+    if (hasExplicitWidth) {
+      // Explicit width provided without layoutSizingHorizontal → keep FIXED (don't override with HUG/FILL)
+      setLayoutSizing(node, 'horizontal', 'FIXED');
+      hints.push({ confidence: 'deterministic', field: 'layoutSizingHorizontal', value: 'FIXED', reason: 'explicit width provided — keeping FIXED' });
+    } else {
+      const val = isVertical ? cross.sizing : primaryDefault;
+      setLayoutSizing(node, 'horizontal', val);
+      const reason = isVertical ? cross.reason : primaryReason;
+      const confidence = val === 'FILL' ? 'ambiguous' : 'deterministic';
+      hints.push({ confidence, field: 'layoutSizingHorizontal', value: val, reason });
+    }
   }
   if (!explicitV) {
-    const val = isVertical ? primaryDefault : cross.sizing;
-    setLayoutSizing(node, 'vertical', val);
-    const reason = isVertical ? primaryReason : cross.reason;
-    const confidence = val === 'FILL' ? 'ambiguous' : 'deterministic';
-    hints.push({ confidence, field: 'layoutSizingVertical', value: val, reason });
+    if (hasExplicitHeight) {
+      // Explicit height provided without layoutSizingVertical → keep FIXED (don't override with HUG/FILL)
+      setLayoutSizing(node, 'vertical', 'FIXED');
+      hints.push({ confidence: 'deterministic', field: 'layoutSizingVertical', value: 'FIXED', reason: 'explicit height provided — keeping FIXED' });
+    } else {
+      const val = isVertical ? primaryDefault : cross.sizing;
+      setLayoutSizing(node, 'vertical', val);
+      const reason = isVertical ? primaryReason : cross.reason;
+      const confidence = val === 'FILL' ? 'ambiguous' : 'deterministic';
+      hints.push({ confidence, field: 'layoutSizingVertical', value: val, reason });
+    }
   }
 }
 
@@ -541,6 +589,9 @@ async function setupFrame(
   // ── Stroke ──
   if (p.strokeColor != null) {
     await applyStroke(frame, p.strokeColor as any, (p.strokeWeight as number) ?? 1, ctx.useLib, ctx.library);
+  } else {
+    // No stroke requested — clear Figma's default strokeWeight to prevent phantom borders
+    frame.strokeWeight = 0;
   }
   setStrokeProps(frame, {
     strokeAlign: (p.strokeAlign && 'strokeAlign' in frame) ? p.strokeAlign as string : undefined,
@@ -869,7 +920,7 @@ async function createShapeChild(
 
   insertOrAppend(parent, node, child.index as number | undefined);
   inferChildSizing(node, parent, child.layoutSizingHorizontal as string | undefined,
-    child.layoutSizingVertical as string | undefined, ctx.hints);
+    child.layoutSizingVertical as string | undefined, ctx.hints, child.width != null, child.height != null);
   applySizingOverrides(node, child);
   return { id: node.id, type: figmaType, name: (node as any).name };
 }
@@ -931,7 +982,7 @@ async function createInlineChildren(
       await setupText(text, child, ctx);
       insertOrAppend(parent, text, child.index as number | undefined);
       // Smart default: text in vertical AL → FILL width + HEIGHT resize
-      inferChildSizing(text, parent, child.layoutSizingHorizontal as string | undefined, child.layoutSizingVertical as string | undefined, ctx.hints);
+      inferChildSizing(text, parent, child.layoutSizingHorizontal as string | undefined, child.layoutSizingVertical as string | undefined, ctx.hints, child.width != null, child.height != null);
       applySizingOverrides(text, child);
       // Text in vertical auto-layout: default to HEIGHT auto-resize when FILL width
       if (!child.textAutoResize && !child.width && parent.layoutMode === 'VERTICAL') {
@@ -965,7 +1016,7 @@ async function createInlineChildren(
         setComponentProperties(instance, child.properties as Record<string, string | boolean>);
       }
       insertOrAppend(parent, instance, child.index as number | undefined);
-      inferChildSizing(instance, parent, child.layoutSizingHorizontal as string | undefined, child.layoutSizingVertical as string | undefined, ctx.hints);
+      inferChildSizing(instance, parent, child.layoutSizingHorizontal as string | undefined, child.layoutSizingVertical as string | undefined, ctx.hints, child.width != null, child.height != null);
       applySizingOverrides(instance, child);
       createdNode = instance;
       results.push({ id: instance.id, type: 'INSTANCE', name: instance.name });
@@ -986,7 +1037,7 @@ async function createInlineChildren(
         );
       }
       insertOrAppend(parent, svgNode, child.index as number | undefined);
-      inferChildSizing(svgNode, parent, child.layoutSizingHorizontal as string | undefined, child.layoutSizingVertical as string | undefined, ctx.hints);
+      inferChildSizing(svgNode, parent, child.layoutSizingHorizontal as string | undefined, child.layoutSizingVertical as string | undefined, ctx.hints, child.width != null, child.height != null);
       applySizingOverrides(svgNode, child);
       createdNode = svgNode;
       results.push({ id: svgNode.id, type: 'FRAME', name: svgNode.name });
@@ -1010,7 +1061,7 @@ async function createInlineChildren(
         await setupFrame(frame, child, ctx);
         insertOrAppend(parent, frame, child.index as number | undefined);
         // Smart default sizing
-        inferChildSizing(frame, parent, child.layoutSizingHorizontal as string | undefined, child.layoutSizingVertical as string | undefined, ctx.hints);
+        inferChildSizing(frame, parent, child.layoutSizingHorizontal as string | undefined, child.layoutSizingVertical as string | undefined, ctx.hints, child.width != null, child.height != null);
         // Explicit sizing overrides smart defaults (AFTER appendChild)
         applySizingOverrides(frame, child);
         // Recurse into nested children
@@ -1178,7 +1229,7 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
       }
     }
 
-    inferChildSizing(frame, parentNode, params.layoutSizingHorizontal as string | undefined, params.layoutSizingVertical as string | undefined, ctx.hints);
+    inferChildSizing(frame, parentNode, params.layoutSizingHorizontal as string | undefined, params.layoutSizingVertical as string | undefined, ctx.hints, params.width != null, params.height != null);
     applySizingOverrides(frame, params);
 
     let childResults: Array<{ id: string; type: string; name: string }> | undefined;
@@ -1192,7 +1243,7 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
     const result = simplifyNode(frame);
     const out = result as unknown as Record<string, unknown>;
     if (ctx.libraryBindings.length > 0) out._libraryBindings = ctx.libraryBindings;
-    if (ctx.hints.length > 0) out._hints = ctx.hints.map(h => `[${h.confidence}] ${h.field} → ${JSON.stringify(h.value)} (${h.reason})`);
+    // _hints removed — _typedHints carries the same info in structured form
     if (ctx.warnings.length > 0) out._warnings = ctx.warnings;
     if (childResults) out._children = childResults;
 
@@ -1201,15 +1252,17 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
       ...structuredHintsToInferences(ctx.hints, rootName),
     ];
     if (allInferences.length > 0) {
-      out._inferences = allInferences;
-      const hasAmbiguity = allInferences.some(i => i.confidence === 'ambiguous');
-      if (hasAmbiguity) {
+      const ambiguousInferences = allInferences.filter(i => i.confidence === 'ambiguous');
+      // Only include ambiguous inferences in response (deterministic ones are noise)
+      if (ambiguousInferences.length > 0) {
+        out._inferences = ambiguousInferences;
         out._diff = formatDiff(allInferences);
         out._correctedPayload = buildCorrectedPayload(params, allInferences);
       }
+      out._inferenceCount = allInferences.length;
     }
 
-    // Attach typed hints for batch aggregation
+    // Attach typed hints for batch aggregation — cap at 10 most important
     const typedHints: Hint[] = [
       ...structuredHintsToTyped(ctx.hints),
       ...ctx.typedHints,
@@ -1217,7 +1270,13 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
     if (ctx.warnings.length > 0) {
       typedHints.push(...ctx.warnings.map(w => ({ type: 'error' as const, message: w })));
     }
-    if (typedHints.length > 0) out._typedHints = typedHints;
+    if (typedHints.length > 0) {
+      const priority: Record<string, number> = { error: 0, warn: 1, suggest: 2, confirm: 3 };
+      typedHints.sort((a, b) => (priority[a.type] ?? 9) - (priority[b.type] ?? 9));
+      const capped = typedHints.slice(0, 10);
+      out._typedHints = capped;
+      if (typedHints.length > 10) out._typedHintsTruncated = typedHints.length - 10;
+    }
 
     if (!skipLint && childResults && childResults.length > 0) {
       try {
@@ -1272,6 +1331,7 @@ async function createSingleText(params: Record<string, unknown>): Promise<Record
       params.layoutSizingHorizontal as string | undefined,
       params.layoutSizingVertical as string | undefined,
       ctx.hints,
+      params.width != null, params.height != null,
     );
     applySizingOverrides(text, params);
     if (!params.textAutoResize && !params.width && parentNode && 'layoutMode' in parentNode
@@ -1282,9 +1342,9 @@ async function createSingleText(params: Record<string, unknown>): Promise<Record
     const result = simplifyNode(text);
     const out = result as unknown as Record<string, unknown>;
     if (ctx.libraryBindings.length > 0) out._libraryBindings = ctx.libraryBindings;
-    if (ctx.hints.length > 0) out._hints = ctx.hints.map(h => `[${h.confidence}] ${h.field} → ${JSON.stringify(h.value)} (${h.reason})`);
+    // _hints removed — _typedHints carries the same info
     if (ctx.warnings.length > 0) out._warnings = ctx.warnings;
-    // Attach typed hints for batch aggregation
+    // Attach typed hints for batch aggregation — cap at 10
     const typedHints: Hint[] = [
       ...structuredHintsToTyped(ctx.hints),
       ...ctx.typedHints,
