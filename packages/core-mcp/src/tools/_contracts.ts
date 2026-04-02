@@ -863,6 +863,11 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
     {
       "topic": "layout",
       "description": "Returns numbered list of layout & structure prevention rules from Quality Engine"
+    },
+    {
+      "topic": "ui-patterns",
+      "uiType": "login",
+      "description": "Returns login screen template with structure, key decisions, pitfalls, and tone variants"
     }
   ],
   'audit_node': [
