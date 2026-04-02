@@ -13,8 +13,52 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Bridge } from '../bridge.js';
 import { getModeLogic } from './logic/mode-logic.js';
 
+// ─── Category extraction (pre-computed at module load time) ───
+
+const CATEGORY_HEADINGS: Record<string, string[]> = {
+  color: ['## Color', '## Spec Priority'],
+  typography: ['## Typography'],
+  spacing: ['## Spacing'],
+  layout: ['## Layout'],
+  composition: ['## Composition'],
+  content: ['## Content'],
+  accessibility: ['## Accessibility'],
+  buttons: ['## Buttons', '## Buttons & Interactive Elements'],
+  inputs: ['## Input Fields'],
+};
+
+const MOVED_CATEGORIES: Record<string, string> = {
+  layout: 'Layout rules are enforced by the Quality Engine lint system. Run lint_fix_all to auto-check.',
+  buttons: 'Button structure rules are enforced by the Quality Engine lint system. Run lint_fix_all to auto-check.',
+  inputs: 'Input field rules are enforced by the Quality Engine lint system. Run lint_fix_all to auto-check.',
+};
+
+/** Extract category sections from a combined rules string. */
+function extractCategory(rules: string, category: string): string | null {
+  const headings = CATEGORY_HEADINGS[category] ?? [];
+  const sections: string[] = [];
+  for (const heading of headings) {
+    const idx = rules.indexOf(heading);
+    if (idx === -1) continue;
+    const nextHeading = rules.indexOf('\n## ', idx + heading.length);
+    sections.push(rules.slice(idx, nextHeading === -1 ? undefined : nextHeading).trim());
+  }
+  return sections.length > 0 ? sections.join('\n\n') : null;
+}
+
+/** Pre-compute category sections for a given rules string. */
+function buildCategoryCache(rules: string): Map<string, string> {
+  const cache = new Map<string, string>();
+  for (const category of Object.keys(CATEGORY_HEADINGS)) {
+    if (MOVED_CATEGORIES[category]) continue; // Skip moved categories
+    const content = extractCategory(rules, category);
+    if (content) cache.set(category, content);
+  }
+  return cache;
+}
+
 export function registerModeTools(server: McpServer, bridge: Bridge): void {
-  // Load design rules from markdown files
+  // Load design rules from markdown files (once at registration time)
   const promptsDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'prompts');
   const loadRules = (filename: string): string => {
     try { return readFileSync(join(promptsDir, filename), 'utf-8'); } catch { return ''; }
@@ -22,6 +66,12 @@ export function registerModeTools(server: McpServer, bridge: Bridge): void {
   const fundamentalsRules = loadRules('ui-ux-fundamentals.md');
   const guardianRules = loadRules('design-guardian.md');
   const creatorRules = loadRules('design-creator.md');
+
+  // Pre-compute category sections for both modes (avoids re-parsing on every call)
+  const guardianFull = fundamentalsRules + '\n\n---\n\n' + guardianRules;
+  const creatorFull = fundamentalsRules + '\n\n---\n\n' + creatorRules;
+  const guardianCategoryCache = buildCategoryCache(guardianFull);
+  const creatorCategoryCache = buildCategoryCache(creatorFull);
 
   server.tool(
     'get_mode',
@@ -83,8 +133,8 @@ export function registerModeTools(server: McpServer, bridge: Bridge): void {
       // Use cached library state from bridge (set by get_mode/set_mode) to avoid extra round-trip
       const library = bridge.selectedLibrary;
       const isLibraryMode = library !== null && library !== undefined;
-      const modeRules = isLibraryMode ? guardianRules : creatorRules;
-      const rules = fundamentalsRules + '\n\n---\n\n' + modeRules;
+      const rules = isLibraryMode ? guardianFull : creatorFull;
+      const categoryCache = isLibraryMode ? guardianCategoryCache : creatorCategoryCache;
       const ruleName = isLibraryMode ? 'Design Guardian (Library Mode)' : 'Design Creator (No Library)';
 
       if (category === 'all') {
@@ -100,28 +150,8 @@ export function registerModeTools(server: McpServer, bridge: Bridge): void {
         };
       }
 
-      // Extract specific category section from markdown
-      const categoryMap: Record<string, string[]> = {
-        color: ['## Color', '## Spec Priority'],
-        typography: ['## Typography'],
-        spacing: ['## Spacing'],
-        layout: ['## Layout'],
-        composition: ['## Composition'],
-        content: ['## Content'],
-        accessibility: ['## Accessibility'],
-        buttons: ['## Buttons', '## Buttons & Interactive Elements'],
-        inputs: ['## Input Fields'],
-      };
-
-      // Categories that were moved to steering files (layout, buttons, inputs)
-      // return a helpful redirect message instead of "not found"
-      const movedCategories: Record<string, string> = {
-        layout: 'Layout rules are enforced by the Quality Engine lint system. Run lint_fix_all to auto-check.',
-        buttons: 'Button structure rules are enforced by the Quality Engine lint system. Run lint_fix_all to auto-check.',
-        inputs: 'Input field rules are enforced by the Quality Engine lint system. Run lint_fix_all to auto-check.',
-      };
-
-      if (movedCategories[category]) {
+      // Moved categories redirect to lint system
+      if (MOVED_CATEGORIES[category]) {
         return {
           content: [{
             type: 'text' as const,
@@ -129,21 +159,14 @@ export function registerModeTools(server: McpServer, bridge: Bridge): void {
               mode: ruleName,
               selectedLibrary: library,
               category,
-              guidelines: movedCategories[category],
+              guidelines: MOVED_CATEGORIES[category],
             }, null, 2),
           }],
         };
       }
 
-      const headings = categoryMap[category] ?? [];
-      const sections: string[] = [];
-      for (const heading of headings) {
-        const idx = rules.indexOf(heading);
-        if (idx === -1) continue;
-        const nextHeading = rules.indexOf('\n## ', idx + heading.length);
-        sections.push(rules.slice(idx, nextHeading === -1 ? undefined : nextHeading).trim());
-      }
-
+      // Serve from pre-computed cache (no re-parsing on each call)
+      const cached = categoryCache.get(category);
       return {
         content: [{
           type: 'text' as const,
@@ -151,7 +174,7 @@ export function registerModeTools(server: McpServer, bridge: Bridge): void {
             mode: ruleName,
             selectedLibrary: library,
             category,
-            guidelines: sections.length > 0 ? sections.join('\n\n') : `No "${category}" section found in ${ruleName} rules.`,
+            guidelines: cached ?? `No "${category}" section found in ${ruleName} rules.`,
           }, null, 2),
         }],
       };

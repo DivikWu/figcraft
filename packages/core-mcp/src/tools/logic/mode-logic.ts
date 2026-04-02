@@ -250,8 +250,31 @@ export async function getModeLogic(
     ...result as Record<string, unknown>,
   };
 
-  // Plugin channel status is reported by `ping` — not duplicated here
-  // to avoid adding latency to get_mode.
+  // ── _workflow diff-aware caching ──
+  // Compute a simple hash of the _workflow JSON. If unchanged since last call,
+  // replace the full _workflow with a compact cached marker to save ~120 lines of tokens.
+  const workflow = response._workflow;
+  if (workflow) {
+    const workflowJson = JSON.stringify(workflow);
+    // Simple string hash (djb2)
+    let hash = 5381;
+    for (let i = 0; i < workflowJson.length; i++) {
+      hash = ((hash << 5) + hash + workflowJson.charCodeAt(i)) | 0;
+    }
+    const hashStr = String(hash);
+
+    if (bridge.lastWorkflowHash === hashStr) {
+      // Workflow unchanged — return compact cached marker
+      response._workflow = {
+        _cached: true,
+        mode: (workflow as Record<string, unknown>).mode,
+        description: (workflow as Record<string, unknown>).description,
+      };
+    } else {
+      // First call or changed — return full workflow and cache hash
+      bridge.lastWorkflowHash = hashStr;
+    }
+  }
 
   return {
     content: [{

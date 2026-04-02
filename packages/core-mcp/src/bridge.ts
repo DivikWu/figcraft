@@ -43,9 +43,11 @@ export class Bridge {
   private libraryFileKeys = new Map<string, string>();
   /** Cached REST library component results (keyed by fileKey, 60s TTL). */
   private _restComponentCache: { fileKey: string; data: unknown; ts: number } | null = null;
-  private static readonly REST_CACHE_TTL_MS = 60_000;
+  private static readonly REST_CACHE_TTL_MS = 300_000; // 5 min (set_mode resets modeQueried, busting stale data)
   private _selectedLibrary: string | null | undefined = undefined;
   private _modeQueried = false;
+  /** Hash of last _workflow returned by get_mode, for diff-aware caching. */
+  private _lastWorkflowHash: string | null = null;
   private reconnectAttempts = 0;
   private evicted = false;
   private missedPongs = 0;
@@ -469,6 +471,15 @@ export class Bridge {
 
   set modeQueried(value: boolean) {
     this._modeQueried = value;
+    if (!value) this._lastWorkflowHash = null; // Reset on mode change
+  }
+
+  get lastWorkflowHash(): string | null {
+    return this._lastWorkflowHash;
+  }
+
+  set lastWorkflowHash(value: string | null) {
+    this._lastWorkflowHash = value;
   }
 
   /**

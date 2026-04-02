@@ -255,7 +255,17 @@ export function registerAllTools(server: McpServer, bridge: Bridge): void {
   if (!captured) {
     console.error('[FigCraft toolset] tool capture failed — toolset management disabled, all tools remain active');
   }
-  console.error(`[FigCraft toolset] registered ${toolHandles.size} tools total`);
+
+  // Set readOnlyHint annotations: write tools = false, all others = true.
+  // Allows MCP clients (Claude Code, Cursor) to safely parallelize read-only calls.
+  let annotated = 0;
+  for (const [name, handle] of toolHandles) {
+    const isWrite = WRITE_TOOLS.has(name);
+    handle.annotations = { ...handle.annotations, readOnlyHint: !isWrite };
+    annotated++;
+  }
+
+  console.error(`[FigCraft toolset] registered ${toolHandles.size} tools total, ${annotated} annotated with readOnlyHint`);
 }
 
 /**
