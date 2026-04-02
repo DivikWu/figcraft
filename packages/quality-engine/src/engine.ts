@@ -376,3 +376,60 @@ export function getPreventionChecklist(options?: {
 
   return filtered.map((r) => r.ai!.preventionHint);
 }
+
+// ─── Preflight audit ───
+
+/**
+ * Map lint violations to designPreflight categories.
+ * Returns a compact audit object showing pass/warn/fail per category.
+ */
+export type PreflightStatus = 'pass' | 'warn' | 'fail' | 'unknown';
+
+export interface PreflightAudit {
+  colorConsistency: PreflightStatus;
+  typographyBound: PreflightStatus;
+  semanticNaming: PreflightStatus;
+  touchTargets: PreflightStatus;
+  contentRealistic: PreflightStatus;
+  emptyContainers: PreflightStatus;
+}
+
+const PREFLIGHT_RULE_MAP: Record<keyof PreflightAudit, string[]> = {
+  colorConsistency: ['hardcoded-token', 'spec-color'],
+  typographyBound: ['no-text-style', 'spec-typography'],
+  semanticNaming: ['default-name'],
+  touchTargets: ['wcag-target-size', 'button-structure'],
+  contentRealistic: [], // Cannot be auto-checked
+  emptyContainers: ['empty-container'],
+};
+
+/**
+ * Audit a lint report against designPreflight categories.
+ * @param violationsByRule Map of rule name → violation count
+ */
+export function auditPreflightCompliance(
+  violationsByRule: Map<string, number>,
+): PreflightAudit {
+  const audit: PreflightAudit = {
+    colorConsistency: 'pass',
+    typographyBound: 'pass',
+    semanticNaming: 'pass',
+    touchTargets: 'pass',
+    contentRealistic: 'unknown',
+    emptyContainers: 'pass',
+  };
+
+  for (const [category, rules] of Object.entries(PREFLIGHT_RULE_MAP)) {
+    if (rules.length === 0) continue; // unknown categories stay unknown
+    const totalViolations = rules.reduce((sum, r) => sum + (violationsByRule.get(r) ?? 0), 0);
+    if (totalViolations === 0) {
+      (audit as unknown as Record<string, PreflightStatus>)[category] = 'pass';
+    } else if (totalViolations <= 2) {
+      (audit as unknown as Record<string, PreflightStatus>)[category] = 'warn';
+    } else {
+      (audit as unknown as Record<string, PreflightStatus>)[category] = 'fail';
+    }
+  }
+
+  return audit;
+}

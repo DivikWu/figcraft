@@ -7,7 +7,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Bridge } from '../bridge.js';
 import { compactResponse } from './response-helpers.js';
 import { HEAVY_REQUEST_TIMEOUT_MS } from '@figcraft/shared';
-import { getStats, recordLintRun } from '@figcraft/quality-engine';
+import { getStats, recordLintRun, auditPreflightCompliance } from '@figcraft/quality-engine';
 
 /** Load cached tokens and build a token context for lint rules. */
 async function loadTokenContext(bridge: Bridge, useStoredTokens?: string): Promise<Record<string, unknown> | undefined> {
@@ -181,12 +181,19 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         recordLintRun(violations, rulesChecked);
       } catch { /* stats are best-effort */ }
 
+      // Build preflight audit from violation data
+      const violationsByRule = new Map<string, number>();
+      for (const cat of report.categories) {
+        violationsByRule.set(cat.rule, (violationsByRule.get(cat.rule) ?? 0) + cat.nodes.length);
+      }
+
       const result: Record<string, unknown> = {
         lint: report.summary,
         fixable: fixable.length,
         fixed: fixResult.fixed,
         fixFailed: fixResult.failed,
         remaining: remainingCount,
+        _preflightAudit: auditPreflightCompliance(violationsByRule),
       };
       if (remainingWithFixCall.length > 0) {
         result.remainingFixCalls = remainingWithFixCall.slice(0, 10);
@@ -315,6 +322,12 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         }
       }
 
+      // Build preflight audit
+      const vByRule = new Map<string, number>();
+      for (const cat of report.categories) {
+        vByRule.set(cat.rule, (vByRule.get(cat.rule) ?? 0) + cat.nodes.length);
+      }
+
       // Step 2: export image
       const content: Array<{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }> = [];
 
@@ -322,6 +335,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         lint: report.summary,
         fixed: fixResult.fixed,
         remaining: report.summary.violations - fixResult.fixed,
+        _preflightAudit: auditPreflightCompliance(vByRule),
       };
       content.push({ type: 'text' as const, text: JSON.stringify(lintData) });
 
