@@ -1,58 +1,57 @@
 ---
-inclusion: auto
-description: "FigCraft MCP tool usage guide — Figma plugin bridge workflow"
+inclusion: always
+description: "FigCraft MCP — all design rules live in MCP tools, not in this file"
 ---
 
-# FigCraft — Figma Plugin Bridge Tools
+# FigCraft — Figma Design via MCP
 
-Tool names are prefixed with `mcp_figcraft_`. The IDE auto-loads all tool definitions.
+FigCraft is the PRIMARY tool for all Figma creation and modification. All design rules, creation templates, and quality checks are enforced by MCP tools at runtime — not duplicated here.
 
-## UI Creation Strategy
+## Mandatory Workflow
 
-**Declarative tools are the primary creation method.** Use `create_frame` with inline `children` to build entire node trees in one call. Smart defaults handle sizing, token binding, and layout inference automatically.
+```
+1. get_mode              → returns _workflow (design checklist, rules, steps)
+2. Follow _workflow      → complete designPreflight, present proposal to user
+3. ⛔ WAIT              → user must confirm before any creation
+4. create_frame          → Opinion Engine auto-handles sizing, tokens, pitfalls
+5. verify_design         → lint + screenshot + _preflightAudit in one call
+```
 
-Additional declarative tools: `text(method: "set_range")` for character-range text styling, `group_nodes` for node grouping (requires `load_toolset("shapes-vectors")`), `nodes(method: "update")` with 5-phase ordered execution for property updates. `execute_js` is in the `debug` toolset — not available by default, load with `load_toolset("debug")` for diagnostics only.
+`get_mode._workflow` is the single source of truth. Follow it exactly.
 
-See `figma-declarative-creation.md` (auto-loaded) for the full declarative creation guide.
-
-## FigCraft Tool Reference
+## Key Tools
 
 | Task | Tool |
 |------|------|
-| UI creation (screens, forms, cards, flows) | `create_frame` + `children`, `create_text`, `create_instance` |
-| Character-range text styling | `text(method: "set_range")` |
-| Node grouping | `group_nodes` (requires `load_toolset("shapes-vectors")`) |
-| Property updates (ordered execution) | `nodes(method: "update")` — 5-phase: simple → fills → layout → resize → text |
-| Searching design system assets | `search_design_system` — searches components, variables, styles across all subscribed libraries |
+| Start any design task | `get_mode` (mandatory first call) |
+| UI type templates | `get_creation_guide(topic:"ui-patterns", uiType:"login")` |
+| Layout/structure rules | `get_creation_guide(topic:"layout")` |
+| Multi-screen flows | `get_creation_guide(topic:"multi-screen")` |
+| Responsive web | `get_creation_guide(topic:"responsive")` |
+| Content states | `get_creation_guide(topic:"content-states")` |
+| Design direction rules | `get_design_guidelines(category)` |
+| UI creation | `create_frame` + `children` (declarative, with Opinion Engine) |
+| Text styling | `text(method:"set_range")` |
 | Icons | `icon_search` → `icon_create` |
 | Images | `image_search` → `create_frame` with `imageUrl` |
-| SVG creation | `create_svg` |
-| Text scanning | `text_scan` |
-| Node-to-component | `create_component_from_node` |
-| Plugin connection & page inspection | `ping`, `get_current_page`, `get_mode` |
-| Design quality (lint, audit) | `lint_fix_all`, `audit_node` |
-| Token sync (DTCG JSON ↔ Figma) | `load_toolset("tokens")` |
-| Node CRUD operations | `nodes` endpoint — get, list, update, delete, clone, reparent |
-| Image export | `export_image` |
-| Debug (diagnostics only) | `execute_js` (requires `load_toolset("debug")`) |
+| Quality check | `verify_design` (lint + export + audit in one call) |
+| Lint only | `lint_fix_all` |
+| Node operations | `nodes` endpoint (get, get_batch, list, update, delete, clone, reparent) |
+| Design system search | `search_design_system` |
+| Extra toolsets | `load_toolset("variables")`, `load_toolset("tokens")`, etc. |
 
-**Optional Figma Power tools** (available when official Figma MCP is also configured):
-`get_design_context`, `get_variable_defs`, `get_screenshot` — these provide additional data via REST API. FigCraft equivalents: `nodes(get)`, `variables_ep(list)`, `export_image`.
+## Rules NOT in This File
 
-## Page Operation Order (Must Follow)
+All of these are returned by MCP tools and enforced at runtime:
+- Design preflight checklist → `get_mode._workflow.designPreflight`
+- Color/typography/spacing rules → `get_design_guidelines`
+- UI type templates (9 types) → `get_creation_guide(topic:"ui-patterns")`
+- Opinion Engine inferences → built into `create_frame`
+- 43 lint rules + auto-fix → `lint_fix_all` / `verify_design`
+- Token binding → automatic in library mode
 
-Target node on a non-current page → switch first, then read:
-1. `ping`
-2. `set_current_page("target page")`
-3. `get_current_page(maxDepth=2)`
+Do NOT duplicate these rules in steering files. They update with the MCP Server code.
 
-❌ Never `nodes(get, nodeId)` before `set_current_page` — plugin can only access the active page.
+## Development Guide
 
-## Dual Mode
-
-| Mode | Token Source |
-|------|-------------|
-| **library** | Figma shared library |
-| **spec** | DTCG JSON files |
-
-Switch via `set_mode`. Call `get_mode` to get design context and available tokens when a library is selected.
+For adding tools, handlers, lint rules, or understanding architecture: read `CLAUDE.md` in the project root.
