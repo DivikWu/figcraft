@@ -22,3 +22,16 @@ Prefer library styles and tokens. Use what exists, skip what doesn't — never l
 ## Elevation (Library Addendum)
 
 - SHOULD prefer library effect styles when available
+
+## Dark Mode (Library Addendum)
+
+- When library has light/dark mode variable collections, MUST bind color fills to mode-aware variables (not hardcoded hex)
+- SHOULD verify both modes produce adequate contrast (≥ 4.5:1) by checking light AND dark values
+- NEVER hardcode colors that only work in one mode — always use variables that resolve per-mode
+
+## Conflict Resolution
+
+When user request conflicts with library tokens:
+1. **Library token wins** for color, typography, spacing, radius — use the closest available token
+2. **User intent wins** for layout, content, tone — these are not constrained by tokens
+3. If no token matches at all, create without binding and add a note: "No matching library token — hardcoded value used"

@@ -49,6 +49,14 @@ Universal design quality rules. Apply regardless of library mode.
 - Minimal tone = restrained node structure + precise spacing + generous whitespace
 - Maximal tone = rich nesting + decorative elements + dense visual information
 
+## Content States
+
+- MUST design for **empty state**: centered illustration/icon + heading + call-to-action (e.g. "No items yet — Add your first")
+- MUST design for **error state**: error icon + message + retry action (e.g. "Something went wrong — Try again")
+- SHOULD design for **loading state**: skeleton screens (gray placeholder rectangles matching layout) preferred over spinners
+- NEVER leave a list/grid container with zero children and no empty state guidance
+- SHOULD show content count or status in section headers when data is loaded (e.g. "3 items", "Updated 2m ago")
+
 ## Accessibility
 
 - MUST text contrast ratio ≥ 4.5:1

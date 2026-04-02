@@ -98,6 +98,81 @@ const TOOL_BEHAVIOR_GUIDE = `# Tool Behavior Rules
 8. dryRun:true for complex or ambiguous parameters — preview Opinion Engine inferences before committing
 9. After the FIRST create_frame failure, review ALL remaining planned payloads for the same pattern before retrying`;
 
+const RESPONSIVE_GUIDE = `# Responsive Web Layout Guide
+
+## Breakpoints
+
+| Breakpoint | Width | Columns | Padding |
+|-----------|-------|---------|---------|
+| Mobile    | 375px | 1       | 16px    |
+| Tablet    | 768px | 2       | 24px    |
+| Desktop   | 1280px| 3-4     | 32-64px |
+
+## Auto Layout Strategy
+
+- Mobile: VERTICAL stack, 1 column, FILL width children
+- Tablet: mix HORIZONTAL rows (2-col) + VERTICAL sections
+- Desktop: HORIZONTAL main layout with sidebar + content area
+
+## Sizing Patterns
+
+| Context | Horizontal | Vertical |
+|---------|-----------|----------|
+| Page container | FIXED (breakpoint width) | HUG |
+| Content area | FILL | HUG |
+| Sidebar | FIXED (240-300px) | FILL |
+| Cards in grid | layoutGrow: 1 (equal width) | HUG |
+| Full-width sections | FILL | HUG |
+
+## Key Rules
+
+- NEVER use fixed pixel widths for content children at mobile — use FILL
+- SHOULD use maxWidth constraints for text readability (600-800px at desktop)
+- Breakpoint frames are FIXED width; their children adapt via FILL/HUG
+- Cards: use layoutGrow: 1 in HORIZONTAL rows for equal distribution
+- Navigation: HORIZONTAL on desktop, bottom tab bar on mobile`;
+
+const CONTENT_STATES_GUIDE = `# Content State Patterns
+
+Every data-driven view MUST consider these states:
+
+## Empty State
+\`\`\`
+Container (VERTICAL, FILL/HUG, counterAxisAlignItems: CENTER, padding 40-60)
+  ├── Illustration (120-160px, subtle fill or SVG placeholder)
+  ├── Heading ("No items yet" / "Get started") — 20px, semibold
+  ├── Body ("Add your first item to see it here") — 14-16px, muted
+  └── CTA Button ("Add Item") — primary style
+\`\`\`
+- Center the empty state vertically and horizontally in its container
+- Use encouraging, action-oriented language (not error language)
+- The CTA should directly trigger the creation action
+
+## Loading State (Skeleton)
+\`\`\`
+Same structure as loaded state, but:
+  ├── Text nodes → gray rectangles (cornerRadius 4, fill gray-200, height matching line-height)
+  ├── Images → gray rectangles (same dimensions, fill gray-100)
+  ├── Avatar → gray circle (same size)
+  └── All skeleton elements: no stroke, uniform gray palette
+\`\`\`
+- Match the loaded layout exactly — skeleton IS the layout with gray placeholders
+- NEVER use a centered spinner for content that has a known layout
+- Spinner only for indeterminate operations (file upload, search)
+
+## Error State
+\`\`\`
+Container (VERTICAL, FILL/HUG, counterAxisAlignItems: CENTER, padding 40-60)
+  ├── Error icon (48-64px, warning/error color)
+  ├── Heading ("Something went wrong") — 20px, semibold
+  ├── Body ("We couldn't load your data. Please try again.") — 14-16px, muted
+  └── Retry Button ("Try Again") — secondary or outline style
+\`\`\`
+- Use neutral, non-blaming language
+- Always provide a retry action
+- Don't use red for the entire error state — red for icon/accent only`;
+
+
 const OPINION_ENGINE_GUIDE = `# Opinion Engine (create_frame built-in)
 
 create_frame includes an Opinion Engine that automatically handles common Figma API pitfalls. You do NOT need to handle these manually.
@@ -514,8 +589,8 @@ export function registerCreationGuide(server: McpServer): void {
       'templates with structure, key decisions, pitfalls, and tone variants. ' +
       'Use before creating complex UI to understand best practices.',
     {
-      topic: z.enum(['layout', 'multi-screen', 'batching', 'tool-behavior', 'opinion-engine', 'ui-patterns'])
-        .describe('Topic: layout (structural rules), multi-screen (flow architecture), batching (context budget), tool-behavior (usage patterns), opinion-engine (auto-inference docs), ui-patterns (UI type-specific templates — requires uiType)'),
+      topic: z.enum(['layout', 'multi-screen', 'batching', 'tool-behavior', 'opinion-engine', 'ui-patterns', 'responsive', 'content-states'])
+        .describe('Topic: layout (structural rules), multi-screen (flow architecture), batching (context budget), tool-behavior (usage patterns), opinion-engine (auto-inference docs), ui-patterns (UI type templates — requires uiType), responsive (web breakpoints + auto-layout), content-states (empty/loading/error patterns)'),
       uiType: z.string().optional()
         .describe(`UI type for ui-patterns topic. Available: ${VALID_UI_TYPES.join(', ')}. Omit to list all available types.`),
     },
@@ -540,6 +615,12 @@ export function registerCreationGuide(server: McpServer): void {
           break;
         case 'opinion-engine':
           content = OPINION_ENGINE_GUIDE;
+          break;
+        case 'responsive':
+          content = RESPONSIVE_GUIDE;
+          break;
+        case 'content-states':
+          content = CONTENT_STATES_GUIDE;
           break;
         case 'ui-patterns': {
           if (!uiType) {

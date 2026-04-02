@@ -333,12 +333,13 @@ get_creation_guide:
   params:
     topic:
       type: enum
-      values: [layout, multi-screen, batching, tool-behavior, opinion-engine, ui-patterns]
+      values: [layout, multi-screen, batching, tool-behavior, opinion-engine, ui-patterns, responsive, content-states]
       required: true
       description: >-
         Topic: layout (structural rules), multi-screen (flow architecture),
         batching (context budget), tool-behavior (usage patterns),
-        opinion-engine (auto-inference docs), ui-patterns (UI type-specific templates)
+        opinion-engine (auto-inference docs), ui-patterns (UI type templates),
+        responsive (web breakpoints + auto-layout), content-states (empty/loading/error patterns)
     uiType:
       type: string
       required: false
