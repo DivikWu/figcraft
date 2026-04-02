@@ -59,6 +59,7 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
       category: z.string().optional(),
       guidelines: z.string(),
     }),
+  'get_creation_guide': z.string(),
   'audit_node': z.object({
       nodeId: z.string(),
       nodeName: z.string(),
@@ -856,6 +857,12 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
       "mode": "Design Guardian (Library Mode)",
       "selectedLibrary": "My Design System",
       "guidelines": "# Design Guardian — Library Mode Rules..."
+    }
+  ],
+  'get_creation_guide': [
+    {
+      "topic": "layout",
+      "description": "Returns numbered list of layout & structure prevention rules from Quality Engine"
     }
   ],
   'audit_node': [

@@ -4,7 +4,7 @@ This document is generated from `schema/tools.yaml`, `packages/core-mcp/src/tool
 
 ## Tool Response Coverage
 
-Covered flat/custom tools: 103
+Covered flat/custom tools: 104
 
 ### `add_collection_mode`
 
@@ -639,6 +639,17 @@ Covered flat/custom tools: 103
 {
   "channel": "design-1",
   "connected": true
+}
+```
+
+### `get_creation_guide`
+
+- Example payloads: 1
+
+```json
+{
+  "topic": "layout",
+  "description": "Returns numbered list of layout & structure prevention rules from Quality Engine"
 }
 ```
 

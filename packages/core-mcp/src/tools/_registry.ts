@@ -7,7 +7,7 @@
  * Re-generate: npm run schema
  */
 
-/** Core tools: always enabled (~29) */
+/** Core tools: always enabled (~30) */
 export const GENERATED_CORE_TOOLS = new Set([
   'ping',
   'get_mode',

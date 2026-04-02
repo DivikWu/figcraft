@@ -321,6 +321,29 @@ get_design_guidelines:
       selectedLibrary: "My Design System"
       guidelines: "# Design Guardian — Library Mode Rules..."
 
+get_creation_guide:
+  description: >-
+    Get structural creation guidance by topic. Returns layout rules, multi-screen architecture,
+    batching strategy, tool behavior patterns, or Opinion Engine documentation.
+    Use before creating complex UI to understand best practices.
+  toolset: core
+  write: false
+  handler: custom
+  params:
+    topic:
+      type: enum
+      values: [layout, multi-screen, batching, tool-behavior, opinion-engine]
+      required: true
+      description: >-
+        Topic: layout (structural rules from Quality Engine), multi-screen (flow architecture),
+        batching (context budget strategy), tool-behavior (usage patterns),
+        opinion-engine (auto-inference docs)
+  response:
+    type: string
+  examples:
+    - topic: layout
+      description: "Returns numbered list of layout & structure prevention rules from Quality Engine"
+
 audit_node:
   description: >-
     Run a deep quality audit on a single node. Combines all lint rules + design guideline checks
