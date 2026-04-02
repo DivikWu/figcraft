@@ -4663,6 +4663,25 @@ set_lint_ignore:
   examples:
     - ok: true
 
+lint_stats:
+  description: >-
+    Show lint rule violation statistics for the current session.
+    Tracks how often each rule triggers, helping identify which design patterns
+    cause the most issues. Use to understand which rules need the most attention.
+  toolset: lint
+  write: false
+  handler: custom
+  params:
+    sortBy:
+      type: enum
+      values: [frequency, name]
+      description: "Sort order: frequency (most violations first, default) or name (alphabetical)"
+  response:
+    type: object
+  examples:
+    - sortBy: frequency
+      description: "Returns session stats sorted by violation frequency"
+
 compliance_report:
   description: >-
     Generate a comprehensive design system compliance report.

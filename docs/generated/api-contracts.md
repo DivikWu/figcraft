@@ -4,7 +4,7 @@ This document is generated from `schema/tools.yaml`, `packages/core-mcp/src/tool
 
 ## Tool Response Coverage
 
-Covered flat/custom tools: 104
+Covered flat/custom tools: 105
 
 ### `add_collection_mode`
 
@@ -644,7 +644,7 @@ Covered flat/custom tools: 104
 
 ### `get_creation_guide`
 
-- Example payloads: 1
+- Example payloads: 2
 
 ```json
 {
@@ -1048,6 +1048,17 @@ Covered flat/custom tools: 104
       "severity": "warning"
     }
   ]
+}
+```
+
+### `lint_stats`
+
+- Example payloads: 1
+
+```json
+{
+  "sortBy": "frequency",
+  "description": "Returns session stats sorted by violation frequency"
 }
 ```
 

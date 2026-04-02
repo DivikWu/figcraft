@@ -7,6 +7,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Bridge } from '../bridge.js';
 import { compactResponse } from './response-helpers.js';
 import { HEAVY_REQUEST_TIMEOUT_MS } from '@figcraft/shared';
+import { getStats, recordLintRun } from '@figcraft/quality-engine';
 
 /** Load cached tokens and build a token context for lint rules. */
 async function loadTokenContext(bridge: Bridge, useStoredTokens?: string): Promise<Record<string, unknown> | undefined> {
@@ -51,6 +52,16 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         tokenContext,
         minSeverity,
       });
+
+      // Record stats for frequency tracking
+      try {
+        const r = result as { categories?: Array<{ rule: string; nodes: Array<{ rule: string; autoFixable?: boolean }> }> };
+        if (r.categories) {
+          const violations = r.categories.flatMap(c => c.nodes.map(n => ({ rule: c.rule ?? (n as Record<string, unknown>).rule as string, autoFixable: n.autoFixable })));
+          const rulesChecked = r.categories.map(c => c.rule);
+          recordLintRun(violations, rulesChecked);
+        }
+      } catch { /* stats are best-effort */ }
 
       return compactResponse(result);
     },
@@ -163,6 +174,13 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         }
       }
 
+      // Record stats for frequency tracking
+      try {
+        const violations = allViolations.map(v => ({ rule: v.rule as string, autoFixable: v.autoFixable as boolean | undefined }));
+        const rulesChecked = report.categories.map(c => c.rule);
+        recordLintRun(violations, rulesChecked);
+      } catch { /* stats are best-effort */ }
+
       const result: Record<string, unknown> = {
         lint: report.summary,
         fixable: fixable.length,
@@ -259,6 +277,43 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
       };
 
       return compactResponse(report);
+    },
+  );
+
+  // ─── Lint stats tool ───
+  server.tool(
+    'lint_stats',
+    'Show lint rule violation statistics for the current session. ' +
+      'Tracks how often each rule triggers, helping identify which design patterns ' +
+      'cause the most issues. Use sortBy:"frequency" to see the most violated rules first.',
+    {
+      sortBy: z.enum(['frequency', 'name']).optional()
+        .describe('Sort order: frequency (most violations first, default) or name (alphabetical)'),
+    },
+    async ({ sortBy = 'frequency' }) => {
+      const stats = getStats(sortBy === 'frequency' ? 'frequency' : undefined);
+      const entries = Object.entries(stats);
+      if (entries.length === 0) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: 'No lint stats yet. Run lint_check or lint_fix_all first to start collecting statistics.',
+          }],
+        };
+      }
+      return compactResponse({
+        sessionStats: stats,
+        summary: {
+          totalRuns: Math.max(...entries.map(([, e]) => e.totalChecks)),
+          totalViolations: entries.reduce((sum, [, e]) => sum + e.totalViolations, 0),
+          totalAutoFixed: entries.reduce((sum, [, e]) => sum + e.autoFixed, 0),
+          topViolators: entries
+            .filter(([, e]) => e.totalViolations > 0)
+            .sort(([, a], [, b]) => b.totalViolations - a.totalViolations)
+            .slice(0, 5)
+            .map(([name, e]) => `${name}: ${e.totalViolations}`),
+        },
+      });
     },
   );
 }

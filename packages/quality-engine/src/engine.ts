@@ -4,6 +4,7 @@
 
 import type { AbstractNode, LintContext, LintViolation, LintRule, LintCategory as LintRuleCategory, LintSeverity, FixDescriptor, RuleAI } from './types.js';
 import { downgradeSeverity, getContextSeverity, SEVERITY_ORDER } from './types.js';
+import { getRuleFrequencyOrder } from './stats.js';
 // Token / spec compliance
 import { specColorRule } from './rules/spec/spec-color.js';
 import { specTypographyRule } from './rules/spec/spec-typography.js';
@@ -339,12 +340,14 @@ export function getPreventionChecklist(options?: {
   phases?: string[];
   tags?: string[];
   minSeverity?: LintSeverity;
+  /** Sort by violation frequency (most frequent first). Requires session stats from recordLintRun(). */
+  sortBy?: 'frequency';
 }): string[] {
   const maxIdx = options?.minSeverity
     ? SEVERITY_ORDER.indexOf(options.minSeverity)
     : SEVERITY_ORDER.indexOf('style'); // default: up to style
 
-  return ALL_RULES
+  const filtered = ALL_RULES
     .filter((r) => {
       if (!r.ai?.preventionHint) return false;
       // Severity filter
@@ -358,6 +361,18 @@ export function getPreventionChecklist(options?: {
         if (!r.ai.tags.some((t) => options.tags!.includes(t))) return false;
       }
       return true;
-    })
-    .map((r) => r.ai!.preventionHint);
+    });
+
+  // Sort by violation frequency if requested (high-frequency rules first)
+  if (options?.sortBy === 'frequency') {
+    const freqOrder = getRuleFrequencyOrder();
+    const freqMap = new Map(freqOrder.map((name, idx) => [name, idx]));
+    filtered.sort((a, b) => {
+      const aIdx = freqMap.get(a.name) ?? Infinity;
+      const bIdx = freqMap.get(b.name) ?? Infinity;
+      return aIdx - bIdx;
+    });
+  }
+
+  return filtered.map((r) => r.ai!.preventionHint);
 }

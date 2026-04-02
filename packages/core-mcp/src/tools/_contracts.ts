@@ -726,6 +726,7 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
   'set_lint_ignore': z.object({
       ok: z.boolean(),
     }),
+  'lint_stats': z.record(z.unknown()),
   'compliance_report': z.object({
       overallScore: z.number(),
       lint: z.record(z.unknown()),
@@ -1821,6 +1822,12 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
   'set_lint_ignore': [
     {
       "ok": true
+    }
+  ],
+  'lint_stats': [
+    {
+      "sortBy": "frequency",
+      "description": "Returns session stats sorted by violation frequency"
     }
   ],
   'compliance_report': [
