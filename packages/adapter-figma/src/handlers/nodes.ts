@@ -3,7 +3,8 @@
  */
 
 import { registerHandler } from '../registry.js';
-import { simplifyNode, simplifyPage } from '../adapters/node-simplifier.js';
+import { simplifyNode, simplifyPage, createContext } from '../adapters/node-simplifier.js';
+import type { SimplifyDetail } from '../adapters/node-simplifier.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
 import { assertHandler } from '../utils/handler-error.js';
 
@@ -11,20 +12,23 @@ export function registerNodeHandlers(): void {
 
 registerHandler('get_node_info', async (params) => {
   const nodeId = params.nodeId as string;
+  const detail = (params.detail as SimplifyDetail | undefined) ?? 'full';
   const node = await findNodeByIdAsync(nodeId);
   assertHandler(
     node && 'type' in node && node.type !== 'PAGE' && node.type !== 'DOCUMENT',
     `Node not found: ${nodeId}`,
     'NOT_FOUND',
   );
-  return simplifyNode(node as SceneNode);
+  return simplifyNode(node as SceneNode, 0, undefined, createContext(undefined, undefined, detail));
 });
 
 registerHandler('get_current_page', async (params) => {
   const maxNodes = (params.maxNodes as number) ?? 200;
   const maxDepth = (params.maxDepth as number | undefined) ?? 3;
+  const detail = (params.detail as SimplifyDetail | undefined) ?? 'standard';
+  const degradeDepth = (params.degradeDepth as number | undefined);
   const page = figma.currentPage;
-  const nodes = simplifyPage(page, maxNodes, maxDepth);
+  const nodes = simplifyPage(page, maxNodes, maxDepth, undefined, detail, degradeDepth);
   return {
     id: page.id,
     name: page.name,
@@ -59,6 +63,8 @@ registerHandler('search_nodes', async (params) => {
   const query = (params.query as string).toLowerCase();
   const types = params.types as string[] | undefined;
   const limit = (params.limit as number) ?? 50;
+  const detail = (params.detail as SimplifyDetail | undefined) ?? 'summary';
+  const ctx = createContext(undefined, undefined, detail);
 
   const results: ReturnType<typeof simplifyNode>[] = [];
 
@@ -69,7 +75,7 @@ registerHandler('search_nodes', async (params) => {
     const matchesName = node.name.toLowerCase().includes(query);
 
     if (matchesType && matchesName) {
-      results.push(simplifyNode(node, 0));
+      results.push(simplifyNode(node, 0, undefined, createContext(undefined, undefined, detail)));
     }
 
     if ('children' in node) {

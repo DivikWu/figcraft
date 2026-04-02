@@ -12,7 +12,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Bridge } from '../bridge.js';
 import type { McpResponse } from './response-helpers.js';
-import { jsonResponse, errorResponse } from './response-helpers.js';
+import { jsonResponse, compactResponse, errorResponse } from './response-helpers.js';
 import { getNodeInfoLogic, searchNodesLogic } from './logic/node-logic.js';
 import { listLibraryComponentsLogic } from './logic/component-logic.js';
 import {
@@ -63,7 +63,7 @@ export async function bridgeRequestLogic(
   params: Record<string, unknown>,
 ): Promise<McpResponse> {
   const result = await bridge.request(bridgeMethod, params);
-  return jsonResponse(result);
+  return compactResponse(result);
 }
 
 // ─── Method Dispatcher ───

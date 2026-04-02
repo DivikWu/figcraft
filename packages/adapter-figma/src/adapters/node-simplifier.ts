@@ -2,13 +2,21 @@
  * Node simplifier — ~90% compression.
  *
  * Strips Figma node data to only layout + style + token binding essentials.
- * Supports configurable depth limits and time budgets to prevent timeouts
- * on large pages.
+ * Supports configurable depth limits, time budgets, and detail levels
+ * to prevent timeouts and control payload size on large pages.
+ *
+ * Detail levels:
+ * - "summary"  (~80 bytes/node): id, name, type, dimensions, childCount — for tree browsing
+ * - "standard" (~350 bytes/node): + fills, strokes, effects, text, layout — default inspection
+ * - "full"     (~500 bytes/node): + boundVariables, componentProps, font details — for editing
  */
 
 import type { CompressedNode } from '@figcraft/shared';
 import { figmaRgbaToHex } from '../utils/color.js';
 import { PLUGIN_DATA_KEYS } from '../constants.js';
+
+/** Detail level for node simplification. */
+export type SimplifyDetail = 'summary' | 'standard' | 'full';
 
 /** Default maximum tree depth to prevent excessive payloads. */
 const DEFAULT_MAX_DEPTH = 10;
@@ -26,15 +34,21 @@ export interface SimplifyContext {
   startTime: number;
   timeBudgetMs: number;
   timedOut: boolean;
+  /** Detail level for node fields. Defaults to 'standard'. */
+  detail: SimplifyDetail;
+  /** If set, auto-degrade children beyond this depth to 'summary'. */
+  degradeDepth?: number;
 }
 
-function createContext(maxDepth?: number, timeBudgetMs?: number): SimplifyContext {
+export function createContext(maxDepth?: number, timeBudgetMs?: number, detail?: SimplifyDetail, degradeDepth?: number): SimplifyContext {
   return {
     count: 0,
     maxDepth: maxDepth ?? DEFAULT_MAX_DEPTH,
     startTime: Date.now(),
     timeBudgetMs: timeBudgetMs ?? DEFAULT_TIME_BUDGET_MS,
     timedOut: false,
+    detail: detail ?? 'standard',
+    degradeDepth,
   };
 }
 
@@ -51,23 +65,51 @@ function isOverBudget(ctx: SimplifyContext): boolean {
 /** Simplify a Figma node tree into compressed JSON. */
 export function simplifyNode(node: SceneNode, depth = 0, counter?: { count: number }, ctx?: SimplifyContext): CompressedNode {
   // Legacy counter support for backward compatibility
-  const context = ctx ?? (counter ? { count: counter.count, maxDepth: DEFAULT_MAX_DEPTH, startTime: Date.now(), timeBudgetMs: DEFAULT_TIME_BUDGET_MS, timedOut: false } : createContext());
+  const context = ctx ?? (counter ? { count: counter.count, maxDepth: DEFAULT_MAX_DEPTH, startTime: Date.now(), timeBudgetMs: DEFAULT_TIME_BUDGET_MS, timedOut: false, detail: 'standard' as SimplifyDetail } : createContext());
   context.count++;
   // Sync legacy counter if provided
   if (counter) counter.count = context.count;
 
+  // Determine effective detail level: auto-degrade deep children to summary
+  const effectiveDetail = (context.degradeDepth != null && depth >= context.degradeDepth)
+    ? 'summary'
+    : context.detail;
+
+  // ── Summary level: minimal fields for tree browsing ──
   const base: CompressedNode = {
     id: node.id,
     name: node.name,
     type: node.type,
-    role: 'getPluginData' in node ? (node.getPluginData(PLUGIN_DATA_KEYS.ROLE) || undefined) : undefined,
-    lintIgnore: 'getPluginData' in node ? (node.getPluginData(PLUGIN_DATA_KEYS.LINT_IGNORE) || undefined) : undefined,
     x: 'x' in node ? node.x : 0,
     y: 'y' in node ? node.y : 0,
     width: 'width' in node ? node.width : 0,
     height: 'height' in node ? node.height : 0,
     visible: node.visible,
   };
+
+  // Summary: add childCount hint (without including actual children data)
+  if (effectiveDetail === 'summary') {
+    if ('children' in node) {
+      const childCount = (node as ChildrenMixin).children.length;
+      if (childCount > 0) base.truncatedChildCount = childCount;
+    }
+    // Include layoutMode even in summary — critical for understanding structure
+    if ('layoutMode' in node) {
+      const frame = node as FrameNode;
+      if (frame.layoutMode !== 'NONE') {
+        base.layoutMode = frame.layoutMode as 'HORIZONTAL' | 'VERTICAL';
+      }
+    }
+    // Text content in summary (characters only, no font details)
+    if (node.type === 'TEXT') {
+      base.characters = (node as TextNode).characters;
+    }
+    return base;
+  }
+
+  // ── Standard + Full: add role and lintIgnore ──
+  base.role = 'getPluginData' in node ? (node.getPluginData(PLUGIN_DATA_KEYS.ROLE) || undefined) : undefined;
+  base.lintIgnore = 'getPluginData' in node ? (node.getPluginData(PLUGIN_DATA_KEYS.LINT_IGNORE) || undefined) : undefined;
 
   // Fills & strokes
   if ('fills' in node && node.fills !== figma.mixed) {
@@ -152,71 +194,91 @@ export function simplifyNode(node: SceneNode, depth = 0, counter?: { count: numb
     }
   }
 
-  // Text
+  // Text (standard: characters + fontSize; full: + fontName, lineHeight, letterSpacing)
   if (node.type === 'TEXT') {
     const text = node as TextNode;
     base.characters = text.characters;
     if (text.fontSize !== figma.mixed) {
       base.fontSize = text.fontSize;
     }
-    if (text.fontName !== figma.mixed) {
-      base.fontName = text.fontName;
-    }
-    if (text.lineHeight !== figma.mixed) {
-      base.lineHeight = text.lineHeight;
-    }
-    if (text.letterSpacing !== figma.mixed) {
-      base.letterSpacing = text.letterSpacing;
-    }
     if (text.textAutoResize) {
       base.textAutoResize = text.textAutoResize;
     }
-  }
-
-  // Variable bindings
-  if ('boundVariables' in node) {
-    const bv = (node as SceneNode & { boundVariables: Record<string, unknown> }).boundVariables;
-    if (bv && Object.keys(bv).length > 0) {
-      base.boundVariables = simplifyBoundVariables(bv);
-    }
-  }
-
-  // Style IDs
-  if ('fillStyleId' in node) {
-    const fid = (node as GeometryMixin).fillStyleId;
-    if (typeof fid === 'string' && fid) base.fillStyleId = fid;
-  }
-  if ('textStyleId' in node) {
-    const tid = (node as TextNode).textStyleId;
-    if (typeof tid === 'string' && tid) base.textStyleId = tid;
-  }
-  if ('effectStyleId' in node) {
-    const eid = (node as BlendMixin).effectStyleId;
-    if (typeof eid === 'string' && eid) base.effectStyleId = eid;
-  }
-
-  // Component property definitions (COMPONENT / COMPONENT_SET nodes)
-  if (node.type === 'COMPONENT' || node.type === 'COMPONENT_SET') {
-    const comp = node as ComponentNode | ComponentSetNode;
-    if (comp.componentPropertyDefinitions && Object.keys(comp.componentPropertyDefinitions).length > 0) {
-      const defs: Record<string, { type: string; defaultValue?: unknown; variantOptions?: string[] }> = {};
-      for (const [key, def] of Object.entries(comp.componentPropertyDefinitions)) {
-        const entry: { type: string; defaultValue?: unknown; variantOptions?: string[] } = { type: def.type };
-        if (def.defaultValue !== undefined) entry.defaultValue = def.defaultValue;
-        if (def.type === 'VARIANT' && 'variantOptions' in def) {
-          entry.variantOptions = (def as ComponentPropertyDefinitions[string] & { variantOptions?: string[] }).variantOptions;
-        }
-        defs[key] = entry;
+    // Full detail: include font details
+    if (effectiveDetail === 'full') {
+      if (text.fontName !== figma.mixed) {
+        base.fontName = text.fontName;
       }
-      base.componentPropertyDefinitions = defs;
+      if (text.lineHeight !== figma.mixed) {
+        base.lineHeight = text.lineHeight;
+      }
+      if (text.letterSpacing !== figma.mixed) {
+        base.letterSpacing = text.letterSpacing;
+      }
     }
   }
 
-  // Component property references (instances and children that reference component props)
-  if ('componentPropertyReferences' in node) {
-    const refs = (node as SceneNode & { componentPropertyReferences: Record<string, string> | null }).componentPropertyReferences;
-    if (refs && Object.keys(refs).length > 0) {
-      base.componentPropertyReferences = { ...refs };
+  // ── Full detail only: variable bindings, style IDs, component props ──
+  if (effectiveDetail === 'full') {
+    // Variable bindings
+    if ('boundVariables' in node) {
+      const bv = (node as SceneNode & { boundVariables: Record<string, unknown> }).boundVariables;
+      if (bv && Object.keys(bv).length > 0) {
+        base.boundVariables = simplifyBoundVariables(bv);
+      }
+    }
+
+    // Style IDs
+    if ('fillStyleId' in node) {
+      const fid = (node as GeometryMixin).fillStyleId;
+      if (typeof fid === 'string' && fid) base.fillStyleId = fid;
+    }
+    if ('textStyleId' in node) {
+      const tid = (node as TextNode).textStyleId;
+      if (typeof tid === 'string' && tid) base.textStyleId = tid;
+    }
+    if ('effectStyleId' in node) {
+      const eid = (node as BlendMixin).effectStyleId;
+      if (typeof eid === 'string' && eid) base.effectStyleId = eid;
+    }
+
+    // Component property definitions (COMPONENT / COMPONENT_SET nodes)
+    if (node.type === 'COMPONENT' || node.type === 'COMPONENT_SET') {
+      const comp = node as ComponentNode | ComponentSetNode;
+      if (comp.componentPropertyDefinitions && Object.keys(comp.componentPropertyDefinitions).length > 0) {
+        const defs: Record<string, { type: string; defaultValue?: unknown; variantOptions?: string[] }> = {};
+        for (const [key, def] of Object.entries(comp.componentPropertyDefinitions)) {
+          const entry: { type: string; defaultValue?: unknown; variantOptions?: string[] } = { type: def.type };
+          if (def.defaultValue !== undefined) entry.defaultValue = def.defaultValue;
+          if (def.type === 'VARIANT' && 'variantOptions' in def) {
+            entry.variantOptions = (def as ComponentPropertyDefinitions[string] & { variantOptions?: string[] }).variantOptions;
+          }
+          defs[key] = entry;
+        }
+        base.componentPropertyDefinitions = defs;
+      }
+    }
+
+    // Component property references (instances and children that reference component props)
+    if ('componentPropertyReferences' in node) {
+      const refs = (node as SceneNode & { componentPropertyReferences: Record<string, string> | null }).componentPropertyReferences;
+      if (refs && Object.keys(refs).length > 0) {
+        base.componentPropertyReferences = { ...refs };
+      }
+    }
+  } else {
+    // Standard detail: include style IDs (lightweight, needed for lint) but not variable bindings or component props
+    if ('fillStyleId' in node) {
+      const fid = (node as GeometryMixin).fillStyleId;
+      if (typeof fid === 'string' && fid) base.fillStyleId = fid;
+    }
+    if ('textStyleId' in node) {
+      const tid = (node as TextNode).textStyleId;
+      if (typeof tid === 'string' && tid) base.textStyleId = tid;
+    }
+    if ('effectStyleId' in node) {
+      const eid = (node as BlendMixin).effectStyleId;
+      if (typeof eid === 'string' && eid) base.effectStyleId = eid;
     }
   }
 
@@ -244,9 +306,16 @@ export function simplifyNode(node: SceneNode, depth = 0, counter?: { count: numb
 }
 
 /** Simplify a page to compressed node list. */
-export function simplifyPage(page: PageNode, maxNodes = 200, maxDepth?: number, timeBudgetMs?: number): CompressedNode[] {
+export function simplifyPage(
+  page: PageNode,
+  maxNodes = 200,
+  maxDepth?: number,
+  timeBudgetMs?: number,
+  detail?: SimplifyDetail,
+  degradeDepth?: number,
+): CompressedNode[] {
   const results: CompressedNode[] = [];
-  const ctx = createContext(maxDepth, timeBudgetMs);
+  const ctx = createContext(maxDepth, timeBudgetMs, detail, degradeDepth);
   for (const child of page.children) {
     if (results.length >= maxNodes) break;
     if (isOverBudget(ctx)) break;

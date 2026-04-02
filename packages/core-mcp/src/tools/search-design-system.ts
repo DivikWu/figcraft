@@ -11,7 +11,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Bridge } from '../bridge.js';
 import { fetchLibraryComponents, fetchLibraryComponentSets, groupComponentsBySet } from '../figma-api.js';
 import { getToken } from '../auth.js';
-import { jsonResponse, errorResponse } from './response-helpers.js';
+import { compactResponse, errorResponse } from './response-helpers.js';
 
 // ─── Simple token-based scoring (mirrors plugin-side logic) ───
 
@@ -61,7 +61,7 @@ export function registerSearchDesignSystemTool(server: McpServer, bridge: Bridge
       // undefined = unknown (get_mode not yet called) → proceed normally.
       // null = explicitly no library → skip.
       if (bridge.selectedLibrary === null) {
-        return jsonResponse({
+        return compactResponse({
           query: queryTrimmed,
           skipped: true,
           reason: 'No library selected. Select a library via set_mode before searching design system assets.',
@@ -184,7 +184,7 @@ export function registerSearchDesignSystemTool(server: McpServer, bridge: Bridge
 
       // If both plugin bridge and REST failed, return empty
       if (!pluginResult) {
-        return jsonResponse({
+        return compactResponse({
           query: queryTrimmed,
           error: 'Plugin not connected and no library fileKey cached. Call get_mode first to establish context.',
           components: [],
@@ -194,7 +194,7 @@ export function registerSearchDesignSystemTool(server: McpServer, bridge: Bridge
         });
       }
 
-      return jsonResponse(pluginResult);
+      return compactResponse(pluginResult);
     },
   );
 }

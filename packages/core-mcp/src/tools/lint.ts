@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Bridge } from '../bridge.js';
-import { jsonResponse } from './response-helpers.js';
+import { compactResponse } from './response-helpers.js';
 import { HEAVY_REQUEST_TIMEOUT_MS } from '@figcraft/shared';
 
 /** Load cached tokens and build a token context for lint rules. */
@@ -52,7 +52,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         minSeverity,
       });
 
-      return jsonResponse(result);
+      return compactResponse(result);
     },
   );
 
@@ -77,7 +77,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
     async ({ violations }) => {
       const fixable = violations.filter((v) => v.autoFixable);
       const result = await bridge.request('lint_fix', { violations: fixable });
-      return jsonResponse(result);
+      return compactResponse(result);
     },
   );
 
@@ -123,7 +123,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
           suggestion: v.suggestion,
           fixData: v.fixData,
         }));
-        return jsonResponse({
+        return compactResponse({
           dryRun: true,
           lint: report.summary,
           fixable: fixable.length,
@@ -174,7 +174,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         result.remainingFixCalls = remainingWithFixCall.slice(0, 10);
       }
 
-      return jsonResponse(result);
+      return compactResponse(result);
     },
   );
 
@@ -189,7 +189,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
     },
     async ({ nodeId, rules }) => {
       const result = await bridge.request('set_lint_ignore', { nodeId, rules });
-      return jsonResponse(result);
+      return compactResponse(result);
     },
   );
 
@@ -258,7 +258,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         },
       };
 
-      return jsonResponse(report);
+      return compactResponse(report);
     },
   );
 }

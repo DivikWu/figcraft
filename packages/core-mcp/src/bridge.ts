@@ -8,6 +8,7 @@
 import WebSocket from 'ws';
 import http from 'node:http';
 import type { ChannelId, RequestId } from '@figcraft/shared';
+import { truncateStructurally } from './tools/response-helpers.js';
 import {
   generateId,
   REQUEST_TIMEOUT_MS,
@@ -542,8 +543,8 @@ export class Bridge {
 
   /**
    * Guard a response against excessive size. If the JSON-serialized result exceeds
-   * MAX_RESPONSE_CHARS, returns a truncated error with hints for the agent to narrow scope.
-   * Otherwise returns the original result unchanged.
+   * MAX_RESPONSE_CHARS, attempts structural truncation first (valid JSON), then falls
+   * back to a truncated error with hints for the agent to narrow scope.
    *
    * @param result - The raw result from the plugin
    * @param method - The tool method name (for error context)
@@ -557,10 +558,23 @@ export class Bridge {
     const json = JSON.stringify(result);
     if (json.length <= Bridge.MAX_RESPONSE_CHARS) return result;
 
+    // Attempt structural truncation first — produces valid JSON
+    const truncated = truncateStructurally(result, Bridge.MAX_RESPONSE_CHARS);
+    const truncatedJson = JSON.stringify(truncated);
+    if (truncatedJson.length <= Bridge.MAX_RESPONSE_CHARS) {
+      // Structural truncation succeeded — return valid result with metadata
+      if (truncated && typeof truncated === 'object' && !Array.isArray(truncated)) {
+        (truncated as Record<string, unknown>)._truncatedFromKB = Math.round(json.length / 1024);
+      }
+      return truncated;
+    }
+
+    // Structural truncation still too large — return error with hints
     const sizeKB = Math.round(json.length / 1024);
     const limitKB = Math.round(Bridge.MAX_RESPONSE_CHARS / 1024);
     const defaultHints = [
       'Use maxDepth=1 or maxDepth=2 to limit tree depth',
+      'Use detail="summary" for tree browsing, detail="standard" for inspection',
       'Use nodes(method: "get") on specific nodes instead of fetching the full tree',
       'Use nodes(method: "list") with a query to find specific nodes',
     ];
@@ -571,8 +585,6 @@ export class Bridge {
       method,
       warning: `Response is ${sizeKB}KB, exceeding the ${limitKB}KB limit. The data was truncated to prevent context overflow.`,
       hints: hints ?? defaultHints,
-      // Include a truncated preview (first ~10KB) so the agent has some context
-      _preview: json.slice(0, 10_000) + '\n... [truncated]',
     };
   }
 

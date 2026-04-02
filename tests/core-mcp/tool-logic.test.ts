@@ -173,6 +173,7 @@ describe('searchNodesLogic', () => {
       query: 'Button',
       types: undefined,
       limit: undefined,
+      detail: 'summary',
     });
   });
 });
