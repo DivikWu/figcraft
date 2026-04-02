@@ -89,24 +89,60 @@ Load multiple at once: `load_toolset({ names: "tokens,variables" })`
 7. **`nodes(method: "update", strict: true)`** — rejects patches with unrecognized property names (default: false, unknown props just reported in `_unknownProps`).
 8. **`create_frame(dryRun: true)`** — pre-validates without creating: layoutMode conflicts, sizing conflicts, cross-level FILL/HUG collapse, text overflow, invisible frames, fontSize < 12.
 
-### Layout & Design (Lint Rules Reference)
+### Layout & Design Rules
 
-These rules are enforced by the Quality Engine lint system:
+Core rules enforced by the Quality Engine (auto-fixable via `lint_fix_all`):
 
-6. **No Spacer frames for spacing** — NEVER insert empty frames to create variable spacing. Group related elements into semantic auto-layout frames where each group has its own `itemSpacing`.
-7. **Use `layoutAlign: STRETCH` for responsive children** — input fields, buttons, dividers, lines, and content sections inside auto-layout containers MUST use STRETCH.
-8. **Filled elements with margin need a wrapper** — when any element has a background fill and needs horizontal margin, use a transparent wrapper frame with padding.
-9. **Full-bleed system bars** — system bars sit flush at the top edge with zero padding on the page-level frame.
-10. **Mobile screen dimensions** — iOS → 402×874 (iPhone 16 Pro), Android → 412×915.
-11. **Buttons must be proper auto-layout frames** — with CENTER alignment, explicit height (≥ 44pt iOS / ≥ 48dp Android), and internal padding.
-12. **No text overflow or truncation** — all text nodes MUST fit within their parent container.
-13. **Input fields are auto-layout frames** — with stroke, corner radius, internal padding, and a text child for placeholder.
-14. **Semantic frame naming** — every frame MUST have a descriptive name reflecting its purpose.
-15. **Form children consistency** — ALL interactive children in a form MUST use `layoutAlign: STRETCH`.
-16. **No HUG/STRETCH paradox** — NEVER set a frame to HUG on the cross-axis while its children use STRETCH.
-17. **FILL requires auto-layout parent** — NEVER use FILL sizing on a child whose parent has no auto-layout.
-18. **Every frame with 2+ children MUST have auto-layout** — except decorative overlays where overlap is intentional.
-19. **Children must not overflow parent** — every child's cross-axis dimension must fit within the parent's inner space.
+6. **Auto-layout required** — containers with 2+ children MUST set layoutMode (HORIZONTAL or VERTICAL).
+7. **No spacer frames** — use itemSpacing, padding, SPACE_BETWEEN instead of empty frames.
+8. **Responsive children** — inputs, buttons, dividers → `layoutSizingHorizontal: FILL` inside auto-layout.
+9. **HUG + FILL = collapse** — HUG parent + FILL child collapses to 0. Parent must be FIXED or FILL.
+10. **FILL needs auto-layout parent** — NEVER use FILL sizing on a child whose parent has no auto-layout.
+11. **No overflow** — children must not exceed parent bounds.
+12. **Button structure** — auto-layout HORIZONTAL, centered text, height ≥ 48px, horizontal padding ≥ 12px.
+13. **Input field structure** — auto-layout + stroke + cornerRadius + padding + placeholder text child.
+14. **Mobile dimensions** — iOS 402×874, Android 412×915. No legacy sizes.
+15. **Semantic naming** — every frame needs a descriptive name (no "Frame 1").
+16. **Text fit** — text must fit within parent. Use textAutoResize: HEIGHT for fixed-width containers.
+17. **Shadow visibility** — drop shadow requires `clipsContent: false` on ALL ancestor containers.
+18. **Form consistency** — ALL form children use `layoutAlign: STRETCH`.
+19. **No ABSOLUTE in auto-layout** — layoutPositioning: ABSOLUTE breaks flow; use a wrapper frame.
+
+Detailed rules: `get_creation_guide(topic:"layout")`
+
+### Multi-Screen Flow
+
+Hierarchy: Wrapper → Header + Flow Row → Stage → Screen (FIXED, cornerRadius=28, SPACE_BETWEEN).
+Build order: skeleton first (create_frame with all screens empty) → fill each screen via parentId → lint_fix_all.
+Shadow: ALL ancestor containers must have `clipsContent: false`.
+
+Detailed guide: `get_creation_guide(topic:"multi-screen")`
+
+### Batching Strategy
+
+- Single element → 1 create_frame call
+- Single screen → 1 create_frame with full children tree
+- Multi-screen 3-5 → create_frame `items[]` batch (max 20)
+- Large flow 6+ → batch 2-3 screens per turn
+- dryRun:true for complex params → use correctedPayload
+
+Detailed guide: `get_creation_guide(topic:"batching")`
+
+### Opinion Engine
+
+`create_frame` auto-infers: layoutMode, sizing (FILL/HUG), FILL ordering, font normalization, token binding.
+Response fields: `_hints` (inferences), `_warnings` (issues), `_lintSummary` (violations), `_previewHint` (export_image).
+`dryRun:true` previews all inferences without creating nodes.
+
+Detailed docs: `get_creation_guide(topic:"opinion-engine")`
+
+### Design Direction
+
+- **Library mode**: use tokens, ≤ 3 text tiers, match palette, no hardcoded hex.
+- **No library**: 1 dominant + 1 accent color, ≤ 5 total, NEVER default blue/gray/Inter.
+- **Both modes**: realistic content (never Lorem ipsum), single icon style, ≤ 3 shadow levels, 4.5:1 contrast.
+
+Detailed rules: `get_design_guidelines(category)`
 
 ## Workflows
 

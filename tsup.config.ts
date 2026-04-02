@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { builtinModules } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const PROMPT_FILES = ['design-guardian.md', 'design-creator.md'] as const;
+const PROMPT_FILES = ['ui-ux-fundamentals.md', 'design-guardian.md', 'design-creator.md'] as const;
 
 // Node built-in modules must stay external in ESM bundles to avoid
 // "Dynamic require of X is not supported" errors from CJS deps like `ws`.

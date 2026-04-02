@@ -2,28 +2,16 @@
  * MCP Prompts — guided workflows for common tasks.
  */
 
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getPreventionChecklist } from '@figcraft/quality-engine';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-function loadRules(filename: string): string {
-  try {
-    return readFileSync(join(__dirname, filename), 'utf-8');
-  } catch {
-    return '';
-  }
-}
-
-const DESIGN_GUARDIAN_RULES = loadRules('design-guardian.md');
-const DESIGN_CREATOR_RULES = loadRules('design-creator.md');
+// Design rules (design-guardian.md, design-creator.md) are loaded on-demand
+// via get_design_guidelines tool (in mode.ts).
+// Sub-prompts contain condensed key rules instead of full markdown files.
 
 // Prompt templates use endpoint syntax (e.g. nodes(method: "get"), nodes(method: "update")).
 // Standalone tools (ping, get_mode, lint_fix_all, etc.) keep their flat names.
-// Creation is delegated to the official Figma MCP — FigCraft focuses on review, lint, and audit.
+// UI creation uses FigCraft's create_frame/create_text/create_svg (with Opinion Engine + Token binding).
 
 export function registerPrompts(server: McpServer): void {
   server.prompt(
@@ -120,12 +108,13 @@ If there are composite tokens (typography, shadow), explain that they become Fig
 
 ## Think
 1. Call get_mode to verify plugin connection and get designContext (includes libraryComponents if available)
-3. Based on the result, determine which mode you are in:
-   - If selectedLibrary is set → Design Guardian mode (use "generate-element-library" prompt for rules)
-   - If no selectedLibrary → Design Creator mode (use "generate-element-creator" prompt for rules)
+2. Based on the result, determine which mode you are in:
+   - If selectedLibrary is set → Design Guardian mode. Key rules are in _workflow.designPreflight. For detailed rules on a specific area, call get_design_guidelines(category).
+   - If no selectedLibrary → Design Creator mode. Key rules are in _workflow.designPreflight. For detailed rules on a specific area, call get_design_guidelines(category).
 
 ## Gather
 3. Collect key preferences from the user in ONE message. Check what the user already provided, and ask ONLY for what's missing.
+   Also check _workflow.searchBehavior to know whether search_design_system is available.
    Match the user's language. Present as a short checklist, not a wall of text.
 
    --- IF selectedLibrary is set (Design Guardian mode) ---
@@ -152,7 +141,9 @@ Start the draft by stating your understanding of the context:
 > "I understand you need [what], for [audience/platform], with a [tone] feel."
 This gives the user a chance to correct any wrong assumptions before you detail the plan.
 
-Apply the mode-specific design rules from the appropriate prompt (generate-element-library or generate-element-creator).
+Apply the mode-specific design rules from _workflow.designPreflight (already loaded via get_mode).
+For detailed guidance on specific areas, call get_design_guidelines with a category (color, typography, spacing, composition, content, accessibility).
+Do NOT load the full rule set upfront — use targeted category queries only when needed.
 
 5. End the proposal with: "Want me to adjust anything, or should I go ahead?"
 6. **STOP HERE.** Wait for the user to approve or request changes.
@@ -162,72 +153,39 @@ Apply the mode-specific design rules from the appropriate prompt (generate-eleme
 
 ## Query (library mode with components)
 8. For local components, call components(method: "list_properties") to discover available variants.
-   For library components, use get_mode's libraryComponents.componentSets to find component sets and their variants.
-   Each component set has a key (for importComponentSetByKeyAsync) and variants with parsed properties.
+   For library components, get_mode's libraryComponents shows component sets with variantCount and propertyNames (summary only).
+   For full variant details, call search_design_system(query) or components(method: "list_properties").
    Skip this step entirely in Design Creator mode (no library selected).
 
 ## Create
-9. Use the official Figma MCP to create the design elements according to your plan.
-   FigCraft does not handle creation — it focuses on review, lint, audit, and token sync.
-   After creation, use FigCraft tools to verify and fix quality issues.
+9. Use create_frame + children (declarative) to build the design.
+   create_frame has an Opinion Engine that auto-infers layoutMode, sizing, and FILL ordering.
+   Token auto-binding happens automatically in library mode (colors, spacing, typography).
+   For complex parameters, use dryRun:true first to preview inferences.
+   For multi-screen flows, call get_creation_guide(topic:"multi-screen") for architecture rules.
+   For complex layouts, call get_creation_guide(topic:"layout") for structural rules.
+   For icons: use icon_search(query) to find icons, then icon_create to place them.
+   For images: use image_search(query) to find stock photos, then set_image_fill to apply.
+   After creation, verify with export_image and run lint_fix_all.
 
 ## Check
-10. Self-Review against Layout rules — verify:
-${getPreventionChecklist({ phases: ['layout', 'structure', 'content'], minSeverity: 'style' }).map(hint => `    - ${hint}`).join('\n')}
+10. Quick self-review before lint — verify:
+    - Every container has layoutMode (HORIZONTAL or VERTICAL) and at least one child
+    - Buttons are auto-layout frames with centered text, height ≥ 48px, padding ≥ 12px
+    - Input fields have stroke, corner radius, padding, and placeholder text
+    - No text overflow or truncation — text fits within parent
+    - Mobile screens use correct dimensions (iOS 402×874, Android 412×915)
+    - Every frame has a descriptive name (no "Frame 1")
     Fix violations immediately with nodes(method: "update").
-11. Run lint_fix_all to verify compliance and auto-fix remaining issues.`,
+11. Run lint_fix_all to auto-check all ${getPreventionChecklist({ phases: ['layout', 'structure', 'content'], minSeverity: 'style' }).length} quality rules and fix remaining issues.`,
         },
       }],
     }),
   );
 
-  server.prompt(
-    'generate-element-library',
-    'Design Guardian rules for Library mode. Use when selectedLibrary is set.',
-    () => ({
-      messages: [{
-        role: 'user' as const,
-        content: {
-          type: 'text' as const,
-          text: `Apply these Design Guardian rules for the design plan and creation:
-
-${DESIGN_GUARDIAN_RULES}
-
-Draft must include: layout structure, which library tokens to use (colors, typography, spacing),
-which library components to reuse from the libraryComponents.componentSets list,
-composition strategy (focal point, visual hierarchy), elevation approach (shadow levels),
-icon style (outline/filled/duotone), and content strategy (realistic text examples).
-
-Note: If designContext.unresolvedDefaults is present, those roles have no matching variable in the library.
-The agent should choose colors freely for those roles rather than expecting auto-bind to work.`,
-        },
-      }],
-    }),
-  );
-
-  server.prompt(
-    'generate-element-creator',
-    'Design Creator rules for no-library mode. Use when no selectedLibrary is set.',
-    () => ({
-      messages: [{
-        role: 'user' as const,
-        content: {
-          type: 'text' as const,
-          text: `Apply these Design Creator rules for the design plan and creation:
-
-${DESIGN_CREATOR_RULES}
-
-Draft must include: purpose, platform (Web/iOS/Android), density, tone, color palette (dominant + accent with hex values),
-font pairing, spacing base unit, corner radius scale, composition strategy (focal point, visual hierarchy),
-elevation scale (shadow levels), icon style (outline/filled/duotone), content strategy (realistic text examples), and layout structure.
-Make intentional choices — do NOT default to Inter + blue + centered without justification.
-
-Note: In Design Creator mode, frames without an explicit fill will be transparent (no auto-bind).
-Always specify fill for frames that need a visible background.`,
-        },
-      }],
-    }),
-  );
+  // NOTE: generate-element-library and generate-element-creator sub-prompts were removed.
+  // Their rules are now served on-demand via the get_design_guidelines(category) tool (in mode.ts).
+  // Key rules are embedded in _workflow.designPreflight (returned by get_mode).
 
   server.prompt(
     'prototype-flow',
@@ -306,7 +264,7 @@ Always specify fill for frames that need a visible background.`,
 5. Apply the appropriate design rules based on mode:
 
 --- IF selectedLibrary is set (Design Guardian rules) ---
-Use the "generate-element-library" prompt to load Design Guardian rules.
+Use get_design_guidelines() for Design Guardian rules, or call get_design_guidelines(category) for specific areas.
 
 Review focus:
 - Are colors/fonts bound to library tokens? Flag hardcoded values when tokens exist.
@@ -321,7 +279,7 @@ Review focus:
 - Are accessibility standards met?
 
 --- IF no selectedLibrary (Design Creator rules) ---
-Use the "generate-element-creator" prompt to load Design Creator rules.
+Use get_design_guidelines() for Design Creator rules, or call get_design_guidelines(category) for specific areas.
 
 Review focus:
 - Is there a clear design intent (not just AI defaults)?

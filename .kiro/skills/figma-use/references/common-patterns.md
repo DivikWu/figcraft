@@ -1,1 +1,0 @@
-../../../../figma-skills-ref/skills/figma-use/references/common-patterns.md

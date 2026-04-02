@@ -63,8 +63,8 @@ When `execute_js` errors:
 ## Reference Documentation
 
 For detailed code patterns and pitfalls, see:
-- #[[file:.kiro/skills/figma-use/references/gotchas.md]] — All known pitfalls with WRONG/CORRECT code examples
-- #[[file:.kiro/skills/figma-use/references/common-patterns.md]] — Working code examples for common operations
+- #[[file:.kiro/skills/figma/figma-use/references/gotchas.md]] — All known pitfalls with WRONG/CORRECT code examples
+- #[[file:.kiro/skills/figma/figma-use/references/common-patterns.md]] — Working code examples for common operations
 
 ## Recommended Step Order for Full Page/Screen Creation
 

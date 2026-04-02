@@ -40,12 +40,21 @@ This document captures the externally visible behavior that must remain stable a
 
 - Endpoint names and method names remain stable
 - Legacy flat tool names have been removed; calling them returns migration guidance (see `docs/flat-to-endpoint-migration.md`)
+- Core declarative tools: `create_frame`, `create_text`, `create_svg` (with Opinion Engine)
+- MCP guidance tools: `get_mode`, `get_design_guidelines`, `get_creation_guide`
 - Existing environment variables remain stable:
   - `FIGCRAFT_RELAY_PORT`
   - `FIGCRAFT_RELAY_URL`
   - `FIGCRAFT_CHANNEL`
   - `FIGCRAFT_ACCESS`
   - `FIGMA_API_TOKEN`
+
+## Skills Directory
+
+- Skills live at `skills/` (project root), shared across IDEs via symlinks
+- Structure: `skills/figma/` (official Figma skills, unmodified) + `skills/design/` (FigCraft design skills)
+- IDE symlinks: `.claude/skills` → `../skills`, `.kiro/skills` → `../skills`
+- Design rules source: `packages/core-mcp/src/prompts/ui-ux-fundamentals.md` (shared), `design-guardian.md`, `design-creator.md`
 
 ## Quality Gate
 

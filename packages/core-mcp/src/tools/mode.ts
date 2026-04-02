@@ -15,10 +15,11 @@ import { getModeLogic } from './logic/mode-logic.js';
 
 export function registerModeTools(server: McpServer, bridge: Bridge): void {
   // Load design rules from markdown files
-  const promptsDir = join(dirname(fileURLToPath(import.meta.url)), 'prompts');
+  const promptsDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'prompts');
   const loadRules = (filename: string): string => {
     try { return readFileSync(join(promptsDir, filename), 'utf-8'); } catch { return ''; }
   };
+  const fundamentalsRules = loadRules('ui-ux-fundamentals.md');
   const guardianRules = loadRules('design-guardian.md');
   const creatorRules = loadRules('design-creator.md');
 
@@ -49,8 +50,8 @@ export function registerModeTools(server: McpServer, bridge: Bridge): void {
       const params: Record<string, unknown> = { mode };
       if (library !== undefined) params.library = library;
       const result = await bridge.request('set_mode', params) as { mode: string; selectedLibrary: string | null };
-      // Mark mode as queried (unlocks UI creation tools) and cache selectedLibrary
-      bridge.modeQueried = true;
+      // Reset modeQueried to force get_mode call for fresh workflow/designContext
+      bridge.modeQueried = false;
       bridge.selectedLibrary = result.selectedLibrary;
       return {
         content: [{
@@ -79,17 +80,11 @@ export function registerModeTools(server: McpServer, bridge: Bridge): void {
         .describe('Rule category to return (default: "all")'),
     },
     async ({ category = 'all' }) => {
-      // Determine current mode
-      let mode = 'library';
-      let library: string | null = null;
-      try {
-        const modeResult = await bridge.request('get_mode', {}) as { mode: string; selectedLibrary: string | null };
-        mode = modeResult.mode;
-        library = modeResult.selectedLibrary;
-      } catch { /* default to library mode */ }
-
-      const isLibraryMode = mode === 'library' && !!library;
-      const rules = isLibraryMode ? guardianRules : creatorRules;
+      // Use cached library state from bridge (set by get_mode/set_mode) to avoid extra round-trip
+      const library = bridge.selectedLibrary;
+      const isLibraryMode = library !== null && library !== undefined;
+      const modeRules = isLibraryMode ? guardianRules : creatorRules;
+      const rules = fundamentalsRules + '\n\n---\n\n' + modeRules;
       const ruleName = isLibraryMode ? 'Design Guardian (Library Mode)' : 'Design Creator (No Library)';
 
       if (category === 'all') {

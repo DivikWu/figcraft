@@ -33,9 +33,13 @@ export interface DesignContextResult {
   unresolvedDefaults?: string[];
   typographyScales: string[];
   registeredStyles?: {
+    textStyleCount: number;
     textStyles: Array<{ name: string; fontSize: number; fontFamily: string }>;
+    paintStyleCount: number;
     paintStyles: Array<{ name: string; hex: string }>;
+    effectStyleCount: number;
     effectStyles: Array<{ name: string; effectType: string }>;
+    _note?: string;
   };
 }
 

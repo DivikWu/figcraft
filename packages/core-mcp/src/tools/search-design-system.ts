@@ -102,11 +102,16 @@ export function registerSearchDesignSystemTool(server: McpServer, bridge: Bridge
             const fileKey = bridge.getFirstLibraryFileKey();
             if (fileKey) {
               const queryTokens = queryTrimmed.toLowerCase().split(/\s+/).filter(Boolean);
-              const [components, componentSets] = await Promise.all([
-                fetchLibraryComponents(fileKey, token),
-                fetchLibraryComponentSets(fileKey, token),
-              ]);
-              const grouped = groupComponentsBySet(components, componentSets);
+              // Reuse cached REST result from get_mode if available (60s TTL)
+              let grouped = bridge.getRestComponentCache(fileKey) as ReturnType<typeof groupComponentsBySet> | null;
+              if (!grouped) {
+                const [components, componentSets] = await Promise.all([
+                  fetchLibraryComponents(fileKey, token),
+                  fetchLibraryComponentSets(fileKey, token),
+                ]);
+                grouped = groupComponentsBySet(components, componentSets);
+                bridge.setRestComponentCache(fileKey, grouped);
+              }
 
               // Collect keys already found by plugin to avoid duplicates
               const pluginComponentKeys = new Set<string>();

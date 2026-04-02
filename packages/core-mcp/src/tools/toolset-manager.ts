@@ -24,6 +24,7 @@ import { registerTokenTools } from './tokens.js';
 import { registerStorageTools } from './storage.js';
 import { registerLintTools } from './lint.js';
 import { registerModeTools } from './mode.js';
+import { registerCreationGuide } from './creation-guide.js';
 import { registerChannelTools } from './channel.js';
 import { registerWriteStyleTools } from './write-styles.js';
 import { registerPrototypeTools } from './prototype.js';
@@ -224,6 +225,7 @@ export function registerAllTools(server: McpServer, bridge: Bridge): void {
   registerWriteStyleTools(server, bridge);
   registerLintTools(server, bridge);
   registerModeTools(server, bridge);
+  registerCreationGuide(server);
   registerChannelTools(server, bridge);
   registerPrototypeTools(server, bridge);
   registerAuditTools(server, bridge);

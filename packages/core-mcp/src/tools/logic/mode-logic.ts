@@ -112,7 +112,24 @@ export async function getModeLogic(
         fetchLibraryComponentSets(fileKey, token),
       ]);
       const grouped = groupComponentsBySet(components, componentSets);
-      (result as Record<string, unknown>).libraryComponents = grouped;
+      // Cache full REST result for search_design_system reuse (60s TTL)
+      bridge.setRestComponentCache(fileKey, grouped);
+      // Compress for get_mode: summary only (full variants via search_design_system)
+      const summary = {
+        componentSets: grouped.componentSets.map(cs => ({
+          key: cs.key,
+          name: cs.name,
+          description: cs.description,
+          variantCount: cs.variants.length,
+          // Keep only first variant's property keys as schema hint
+          propertyNames: cs.variants.length > 0
+            ? Object.keys(cs.variants[0].properties)
+            : [],
+        })),
+        standalone: grouped.standalone,
+        _note: 'Variant details omitted. Use search_design_system(query) or components(method:"list_properties") for full variant info.',
+      };
+      (result as Record<string, unknown>).libraryComponents = summary;
     } catch (err) {
       console.warn('[FigCraft] Failed to fetch library components:', err);
       (result as Record<string, unknown>).libraryComponentsError =
@@ -162,25 +179,68 @@ export async function getModeLogic(
 
     // After user confirms the design proposal:
     creationSteps: [
-      'get_current_page(maxDepth=1) — inspect existing content, find placement position',
-      'Classify task scale: single element / single screen / multi-screen (3-5) / large flow (6+)',
-      'Use create_frame + children (declarative) for all creation. For text range styling, use text(method: "set_range"). For node grouping, use group_nodes (requires load_toolset("shapes-vectors")).',
-      'nodes update uses ordered execution: simple props → fills/strokes → layout sizing → resize → text. Safe to send layoutMode + width in same patch.',
-      'nodes update supports width/height directly (calls resize internally), text properties (textDecoration, textCase, textAlignHorizontal, textAlignVertical, textAutoResize, paragraphSpacing, paragraphIndent), and layoutPositioning.',
-      'create_frame children support optional index field for insertion order control. No need for post-creation reparent calls.',
-      'Node type selection: use type:"rectangle" for simple shapes (dividers, bars, spacers, backgrounds) without children. type:"frame" is only for containers that need children or auto-layout.',
+      'get_current_page(maxDepth=1) — inspect existing content, find placement position.',
+      'Classify task scale: single element / single screen / multi-screen (3-5) / large flow (6+).',
+      'Use create_frame + children (declarative) for all creation. children support optional index field for insertion order. type:"rectangle" for simple shapes (dividers, spacers), type:"frame" for containers with children/auto-layout. For text range styling: text(method:"set_range"). For grouping: group_nodes (requires load_toolset("shapes-vectors")). For complex layouts, call get_creation_guide(topic:"layout") for structural rules.',
+      'nodes update: ordered execution (simple props → fills/strokes → layout sizing → resize → text). Supports width/height directly, text properties, layoutPositioning. Safe to send layoutMode + width in same patch.',
       'For complex or ambiguous parameters, use dryRun:true first to preview Opinion Engine inferences before committing.',
-      'lint_fix_all supports dryRun:true to preview fixable violations before applying. Use to review what will be changed.',
       'After the FIRST create_frame failure, review ALL remaining planned payloads for the same pattern before retrying.',
       'Verify each create_frame response: check _children structure. Use export_image(scale:0.5) for visual verification when needed.',
-      'lint_fix_all on completed screens. If remaining violations include severity:"error", read the details and fix manually before replying.',
+      'lint_fix_all on completed screens (supports dryRun:true to preview). If remaining violations include severity:"error", read the details and fix manually before replying.',
     ],
+
+    // Key tool behavior rules (full version: get_creation_guide(topic:"tool-behavior"))
+    toolBehavior: [
+      'Prefer batch tools: lint_fix_all over lint_check+lint_fix, create_frame items[] for multiple screens.',
+      'nodes(method:"update") uses 5-phase ordered execution: simple → fills → sizing → resize → text.',
+      'dryRun:true for complex/ambiguous params — preview before committing.',
+    ],
+
+    // Where to find detailed rules (accessible via MCP tools in ALL IDEs)
+    references: {
+      layoutRules: 'get_creation_guide(topic:"layout") — structural layout rules from Quality Engine',
+      multiScreen: 'get_creation_guide(topic:"multi-screen") — multi-screen flow architecture',
+      batchStrategy: 'get_creation_guide(topic:"batching") — context budget and batching strategy',
+      toolPatterns: 'get_creation_guide(topic:"tool-behavior") — tool usage patterns',
+      opinionEngine: 'get_creation_guide(topic:"opinion-engine") — create_frame auto-inference docs',
+      designRules: 'get_design_guidelines(category) — aesthetic design direction rules',
+    },
+
+    // How search_design_system behaves in this mode
+    searchBehavior: hasLibrary
+      ? result.selectedLibrary === '__local__'
+        ? 'search_design_system searches local variables and styles only (no REST API). Use it to find existing local tokens before creating.'
+        : 'search_design_system searches local + library components via REST API. Use it to discover reusable tokens and components.'
+      : 'search_design_system is disabled (no library selected). Skip it — make intentional design choices directly.',
 
     // What to do RIGHT NOW (next action for AI)
     nextAction: hasLibrary
       ? 'Reply to user: present design proposal based on available library tokens/components and user request. WAIT for confirmation.'
       : 'Reply to user: gather missing preferences (platform, style tone, color palette) OR present design proposal if user provided enough detail. WAIT for confirmation.',
   };
+
+  // Detect sparse local tokens for __local__ mode
+  if (result.selectedLibrary === '__local__') {
+    const ctx = result.designContext as Record<string, unknown> | null;
+    const hasTokens = ctx && (
+      (Array.isArray(ctx.colorVariables) && (ctx.colorVariables as unknown[]).length > 0) ||
+      (Array.isArray(ctx.textStyles) && (ctx.textStyles as unknown[]).length > 0) ||
+      (ctx.registeredStyles && typeof ctx.registeredStyles === 'object')
+    );
+    if (!hasTokens) {
+      const workflow = (result as Record<string, unknown>)._workflow as Record<string, unknown>;
+      workflow.localTokensEmpty = true;
+      workflow.description =
+        'Local mode — no local variables or styles found. ' +
+        'Create with intentional design choices. Token binding will be skipped.';
+      (workflow.designPreflight as Record<string, unknown>).colorRules =
+        'No local color tokens available. Choose colors intentionally: ' +
+        '1 dominant + 1 accent, total ≤ 5. Do not hardcode random hex values.';
+      (workflow.designPreflight as Record<string, unknown>).typographyRules =
+        'No local text styles available. Choose fonts intentionally: ' +
+        'clear heading/body distinction, ≤ 3 weights.';
+    }
+  }
 
   // Add connectivity info to response
   const response: Record<string, unknown> = {

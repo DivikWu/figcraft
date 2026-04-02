@@ -1,1 +1,0 @@
-../../../../figma-skills-ref/skills/figma-generate-library/scripts/inspectFileStructure.js

@@ -1,1 +1,0 @@
-../../../../figma-skills-ref/skills/figma-use/references/effect-style-patterns.md

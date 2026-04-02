@@ -253,10 +253,10 @@ Key rules:
 - ✅ `discloseContext("figma-implement-design")` — when generating code FROM Figma designs
 
 **For everything else, use `readFile` on individual reference files:**
-- API error → `readFile .kiro/skills/figma-use/references/gotchas.md`
-- Need code template → `readFile .kiro/skills/figma-use/references/common-patterns.md`
-- Component API → `readFile .kiro/skills/figma-use/references/component-patterns.md`
-- Variable API → `readFile .kiro/skills/figma-use/references/variable-patterns.md`
+- API error → `readFile .kiro/skills/figma/figma-use/references/gotchas.md`
+- Need code template → `readFile .kiro/skills/figma/figma-use/references/common-patterns.md`
+- Component API → `readFile .kiro/skills/figma/figma-use/references/component-patterns.md`
+- Variable API → `readFile .kiro/skills/figma/figma-use/references/variable-patterns.md`
 
 Exception: if the user manually loaded `figma-design-creation` (via #figma-design-creation), its §1 skill loading table has been updated to align with this policy — no conflict.
 
@@ -351,7 +351,7 @@ For declarative tool templates (create_frame + children JSON), see `figma-declar
 - `.kiro/steering/multi-screen-flow-guide.md` — Style presets, layer hierarchy for multi-screen flows
 - `.kiro/steering/figma-design-creation.md` — Full design creation rules, layout strategies
 - `.kiro/steering/execute-js-guide.md` — Debug toolset execute_js reference (diagnostics only)
-- `.kiro/skills/figma-use/references/gotchas.md` — Plugin API pitfalls with WRONG/CORRECT examples
-- `.kiro/skills/figma-use/references/common-patterns.md` — Working code scaffolds
-- `.kiro/skills/figma-use/references/component-patterns.md` — Components, variants, properties
-- `.kiro/skills/figma-use/references/variable-patterns.md` — Variable collections, bindings, scopes
+- `.kiro/skills/figma/figma-use/references/gotchas.md` — Plugin API pitfalls with WRONG/CORRECT examples
+- `.kiro/skills/figma/figma-use/references/common-patterns.md` — Working code scaffolds
+- `.kiro/skills/figma/figma-use/references/component-patterns.md` — Components, variants, properties
+- `.kiro/skills/figma/figma-use/references/variable-patterns.md` — Variable collections, bindings, scopes

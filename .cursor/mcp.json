@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "figcraft": {
+      "command": "npx",
+      "args": ["tsx", "packages/figcraft-design/src/index.ts"],
+      "cwd": "/Users/divikwu/diw/workspace/projects/figcraft",
+      "env": {
+        "FIGCRAFT_CHANNEL": "design-1"
+      }
+    }
+  }
+}

@@ -1,1 +1,0 @@
-../../../../../figma-skills-ref/skills/figma-use/references/working-with-design-systems/wwds-text-styles.md

@@ -1,10 +1,10 @@
 # Flat → Endpoint Migration Guide
 
-> **Status**: Migration complete (Phase 3). Flat mode has been removed. Creation tools have been delegated to the official Figma MCP. This document is retained as a reference for the mapping between legacy flat tool names and their endpoint equivalents.
+> **Status**: Migration complete (Phase 3). Flat mode has been removed. This document is retained as a reference for the mapping between legacy flat tool names and their endpoint equivalents.
 
 ## Overview
 
-FigCraft migrated from flat tool names to resource-oriented endpoint mode. Legacy flat tool names are registered as "ghost tools" that return migration guidance pointing to the correct endpoint method. Creation capabilities (shapes, text creation, component instances) have been removed and delegated to the official Figma MCP.
+FigCraft migrated from flat tool names to resource-oriented endpoint mode. Legacy flat tool names are registered as "ghost tools" that return migration guidance pointing to the correct endpoint method. FigCraft provides its own declarative creation tools (`create_frame`, `create_text`, `create_svg`) with an Opinion Engine that auto-handles sizing, FILL ordering, token binding, and failure cleanup.
 
 ## Complete Mapping Table
 
@@ -22,11 +22,23 @@ FigCraft migrated from flat tool names to resource-oriented endpoint mode. Legac
 | `get_component(nodeId)` | `components(method: "get", nodeId)` |
 | `list_component_properties(nodeId)` | `components(method: "list_properties", nodeId)` |
 
-### Removed Tools (delegated to official Figma MCP)
+### Removed Legacy Tools (replaced by declarative tools or endpoints)
 
-The following tools have been removed. Use the official Figma MCP for creation:
+The following legacy flat tool names have been removed. Use the declarative tools or endpoints instead:
 
-`create_document`, `create_screen`, `create_frame`, `create_rectangle`, `create_ellipse`, `create_vector`, `create_text`, `create_instance`, `clone_node`, `insert_child`, `set_image_fill`
+| Legacy Tool | Replacement |
+|-------------|-------------|
+| `create_document` | `create_page` (pages toolset) |
+| `create_screen` | `create_frame` (core, with Opinion Engine) |
+| `create_frame` (legacy) | `create_frame` (core, rebuilt with Opinion Engine + token binding) |
+| `create_rectangle` | `create_frame` children `type:"rectangle"` or `create_rectangle` (shapes-vectors toolset) |
+| `create_ellipse` | `create_frame` children `type:"ellipse"` or `create_ellipse` (shapes-vectors toolset) |
+| `create_vector` | `create_svg` (core) |
+| `create_text` (legacy) | `create_text` (core, rebuilt with font fallback + token binding) |
+| `create_instance` | `create_instance` (components-advanced toolset) |
+| `clone_node` | `nodes(method: "clone")` |
+| `insert_child` | `create_frame` children with `parentId` |
+| `set_image_fill` | `create_frame` with `imageUrl` param |
 
 ### Variables Toolset (requires `load_toolset("variables")`)
 

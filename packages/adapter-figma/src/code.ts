@@ -449,10 +449,20 @@ registerHandler('get_mode', async () => {
             }),
           ]);
           if (registered) {
+            const MAX_STYLE_SAMPLES = 20;
+            const textArr = registered.textStyles.map((s: { name: string; fontSize: number; fontFamily: string }) => ({ name: s.name, fontSize: s.fontSize, fontFamily: s.fontFamily }));
+            const paintArr = registered.paintStyles.map((s: { name: string; hex: string }) => ({ name: s.name, hex: s.hex }));
+            const effectArr = registered.effectStyles.map((s: { name: string; effectType: string }) => ({ name: s.name, effectType: s.effectType }));
             designContext.registeredStyles = {
-              textStyles: registered.textStyles.map((s: { name: string; fontSize: number; fontFamily: string }) => ({ name: s.name, fontSize: s.fontSize, fontFamily: s.fontFamily })),
-              paintStyles: registered.paintStyles.map((s: { name: string; hex: string }) => ({ name: s.name, hex: s.hex })),
-              effectStyles: registered.effectStyles.map((s: { name: string; effectType: string }) => ({ name: s.name, effectType: s.effectType })),
+              textStyleCount: textArr.length,
+              textStyles: textArr.slice(0, MAX_STYLE_SAMPLES),
+              paintStyleCount: paintArr.length,
+              paintStyles: paintArr.slice(0, MAX_STYLE_SAMPLES),
+              effectStyleCount: effectArr.length,
+              effectStyles: effectArr.slice(0, MAX_STYLE_SAMPLES),
+              ...(textArr.length > MAX_STYLE_SAMPLES || paintArr.length > MAX_STYLE_SAMPLES || effectArr.length > MAX_STYLE_SAMPLES
+                ? { _note: `Showing first ${MAX_STYLE_SAMPLES} per type. Use search_design_system(query) to find specific styles.` }
+                : {}),
             };
           }
         } catch { /* styles summary timeout or error — skip */ }

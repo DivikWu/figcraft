@@ -40,6 +40,9 @@ export class Bridge {
   private connecting = false;
   private apiToken: string | null = null;
   private libraryFileKeys = new Map<string, string>();
+  /** Cached REST library component results (keyed by fileKey, 60s TTL). */
+  private _restComponentCache: { fileKey: string; data: unknown; ts: number } | null = null;
+  private static readonly REST_CACHE_TTL_MS = 60_000;
   private _selectedLibrary: string | null | undefined = undefined;
   private _modeQueried = false;
   private reconnectAttempts = 0;
@@ -426,6 +429,22 @@ export class Bridge {
   /** Set the file key for a library (from plugin response or UI). */
   setLibraryFileKey(library: string, fileKey: string): void {
     this.libraryFileKeys.set(library, fileKey);
+  }
+
+  /** Cache REST library component data (60s TTL). */
+  setRestComponentCache(fileKey: string, data: unknown): void {
+    this._restComponentCache = { fileKey, data, ts: Date.now() };
+  }
+
+  /** Get cached REST library component data if still valid. */
+  getRestComponentCache(fileKey: string): unknown | null {
+    if (!this._restComponentCache) return null;
+    if (this._restComponentCache.fileKey !== fileKey) return null;
+    if (Date.now() - this._restComponentCache.ts > Bridge.REST_CACHE_TTL_MS) {
+      this._restComponentCache = null;
+      return null;
+    }
+    return this._restComponentCache.data;
   }
 
   /**
