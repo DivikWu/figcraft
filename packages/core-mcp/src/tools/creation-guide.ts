@@ -294,6 +294,184 @@ const UI_PATTERNS: Record<string, UiPattern> = {
       bold: { cornerRadius: '16-24px', colors: 'dark background, colored stat cards, vivid chart colors', typography: 'large stat values (32px+), strong hierarchy' },
     },
   },
+  'list-detail': {
+    structure:
+      'Screen (VERTICAL, FIXED 402×874, padding 0)\n' +
+      '  ├── Header (HORIZONTAL, FILL/HUG, padding 16-24, itemSpacing 12)\n' +
+      '  │     ├── Back arrow icon (24×24)\n' +
+      '  │     ├── Title ("Products")\n' +
+      '  │     └── Filter/Search icon (right-aligned)\n' +
+      '  ├── Search Bar (HORIZONTAL, FILL/HUG, margin-h 16, padding 12, cornerRadius 8, fill gray-100)\n' +
+      '  │     ├── Search icon (16×16, muted)\n' +
+      '  │     └── Placeholder text ("Search...")\n' +
+      '  └── List (VERTICAL, FILL/FILL, padding-h 16, itemSpacing 0)\n' +
+      '        └── List Item × N (HORIZONTAL, FILL/HUG, padding 12-16, itemSpacing 12)\n' +
+      '              ├── Thumbnail (48-64px square, cornerRadius 8, fill gray-100)\n' +
+      '              ├── Content (VERTICAL, FILL/HUG, itemSpacing 4)\n' +
+      '              │     ├── Title (16px, semibold)\n' +
+      '              │     └── Subtitle (14px, muted)\n' +
+      '              └── Trailing (price, chevron, or badge)',
+    keyDecisions: {
+      listScrolling: 'primaryAxisAlignItems: "MIN" (scrollable list, not SPACE_BETWEEN)',
+      itemSeparators: 'Use itemSpacing: 0 + bottom stroke on each item, OR itemSpacing: 8 with card-style items',
+      thumbnailAspect: 'Square (1:1) for products/avatars, 16:9 for articles/media',
+      emptyState: 'When list is empty: centered illustration + heading + CTA button',
+      pullToRefresh: 'Not applicable in Figma — design the static loaded state',
+    },
+    pitfalls: [
+      'overflow-parent: list items overflow screen when too many',
+      'wcag-target-size: list item < 48px total height',
+      'empty-container: thumbnail placeholder left empty',
+      'text-overflow: long titles overflow content column',
+      'no-autolayout: list items manually positioned instead of auto-layout',
+    ],
+    toneVariants: {
+      minimal: { cornerRadius: '8px', colors: 'white background, gray-100 thumbnails, subtle dividers', typography: 'clean sans-serif, regular/medium weights' },
+      warm: { cornerRadius: '12px', colors: 'warm surface tones, soft card backgrounds', typography: 'friendly geometric font' },
+      bold: { cornerRadius: '16px', colors: 'dark cards or colored backgrounds, vivid accent for badges', typography: 'strong weight for titles, condensed for metadata' },
+    },
+  },
+  settings: {
+    structure:
+      'Screen (VERTICAL, FIXED 402×874, padding 0)\n' +
+      '  ├── Header (HORIZONTAL, FILL/HUG, padding 16-24)\n' +
+      '  │     └── Title ("Settings")\n' +
+      '  └── Sections (VERTICAL, FILL/FILL, padding-h 0, itemSpacing 24)\n' +
+      '        └── Section × N (VERTICAL, FILL/HUG, itemSpacing 0)\n' +
+      '              ├── Section Header (padding-h 16, 12px uppercase, muted, letterSpacing 1)\n' +
+      '              └── Row × N (HORIZONTAL, FILL/HUG, padding 16, itemSpacing 12, min-height 48)\n' +
+      '                    ├── Icon (24×24, optional)\n' +
+      '                    ├── Label (FILL/HUG, layoutGrow 1, 16px)\n' +
+      '                    └── Trailing (toggle switch / chevron / value text)',
+    keyDecisions: {
+      sectionGrouping: 'Group related rows under section headers (Account, Preferences, About)',
+      rowTrailing: 'Toggle for on/off settings, chevron (>) for drill-down, value text for display-only',
+      destructiveRow: 'Red text for "Log out" / "Delete account" — always at bottom',
+      padding: 'Rows full-width (padding-h 16), sections separated by 24px gap or gray divider',
+      scrollBehavior: 'primaryAxisAlignItems: "MIN" — settings scroll vertically',
+    },
+    pitfalls: [
+      'wcag-target-size: toggle switch or row < 48px height',
+      'form-consistency: rows have inconsistent heights or padding',
+      'default-name: rows named "Frame 1" instead of "Settings Row / Notifications"',
+      'text-overflow: label text too long for single line',
+      'nav-overcrowded: too many rows without section grouping',
+    ],
+    toneVariants: {
+      minimal: { cornerRadius: '0px (full-width rows)', colors: 'white background, gray section headers, system blue toggles', typography: 'system font, 16px body' },
+      elegant: { cornerRadius: '12px (card sections)', colors: 'grouped card backgrounds, subtle shadows', typography: 'medium weight labels, light descriptions' },
+      bold: { cornerRadius: '16px (card sections)', colors: 'dark background, accent-colored icons', typography: 'larger labels (17-18px), strong weight' },
+    },
+  },
+  profile: {
+    structure:
+      'Screen (VERTICAL, FIXED 402×874, padding 0)\n' +
+      '  ├── Hero Area (VERTICAL, FILL/HUG, padding 24, counterAxisAlignItems CENTER)\n' +
+      '  │     ├── Avatar (80-120px circle, cornerRadius 9999, fill gray-200 placeholder)\n' +
+      '  │     ├── Name (20-24px, semibold, margin-top 16)\n' +
+      '  │     ├── Handle/bio (14px, muted, max 2 lines)\n' +
+      '  │     └── Action Row (HORIZONTAL, HUG/HUG, itemSpacing 12, margin-top 16)\n' +
+      '  │           ├── Primary CTA ("Edit Profile" / "Follow")\n' +
+      '  │           └── Secondary action (message icon / share)\n' +
+      '  ├── Stats Row (HORIZONTAL, FILL/HUG, padding 16, itemSpacing 0)\n' +
+      '  │     └── Stat × 3 (VERTICAL, layoutGrow 1, counterAxisAlignItems CENTER)\n' +
+      '  │           ├── Value (18-20px, bold)\n' +
+      '  │           └── Label (12px, muted)\n' +
+      '  └── Content Area (VERTICAL, FILL/FILL, padding 0)\n' +
+      '        ├── Tab bar (HORIZONTAL, FILL/HUG, itemSpacing 0) or section headers\n' +
+      '        └── Content list (VERTICAL, FILL/FILL)',
+    keyDecisions: {
+      avatarSize: '80px compact, 120px prominent — always circle (cornerRadius 9999)',
+      statsLayout: 'layoutGrow: 1 on each stat for equal distribution, centered text',
+      heroBg: 'Optional cover image behind avatar (200-240px height, clipsContent true)',
+      contentTabs: 'Posts / Media / Likes — underline active tab with accent color',
+      scrollBehavior: 'MIN — profile content scrolls, hero can be sticky or scroll away',
+    },
+    pitfalls: [
+      'stats-row-cramped: stat values too close together',
+      'empty-container: avatar placeholder empty (add gray circle + camera icon)',
+      'text-overflow: bio text > 2 lines overflows',
+      'wcag-contrast: muted handle/bio text below 4.5:1',
+      'button-structure: action buttons missing auto-layout or < 48px height',
+    ],
+    toneVariants: {
+      minimal: { cornerRadius: 'circle avatar, 8px buttons', colors: 'white background, gray avatar placeholder, minimal accent', typography: 'clean hierarchy, 3 size tiers' },
+      warm: { cornerRadius: 'circle avatar, 16px cards', colors: 'warm gradient header/cover, soft card backgrounds', typography: 'rounded font, generous spacing' },
+      bold: { cornerRadius: 'circle avatar, 20px cards', colors: 'dark header with cover image, bright accent CTA', typography: 'large name (24px), strong stat values' },
+    },
+  },
+  'card-grid': {
+    structure:
+      'Screen (VERTICAL, FIXED 402×874 mobile / 1280×800 web, padding 16-24)\n' +
+      '  ├── Header (HORIZONTAL, FILL/HUG, itemSpacing 12)\n' +
+      '  │     ├── Title ("Explore")\n' +
+      '  │     └── Filter chips (HORIZONTAL, HUG/HUG, itemSpacing 8)\n' +
+      '  └── Grid (VERTICAL, FILL/FILL, itemSpacing 16)\n' +
+      '        └── Row × N (HORIZONTAL, FILL/HUG, itemSpacing 12-16)\n' +
+      '              └── Card × 2-3 (VERTICAL, layoutGrow 1, cornerRadius 12-16, clipsContent true)\n' +
+      '                    ├── Image (FILL/FIXED height 140-180, fill gray-100)\n' +
+      '                    └── Content (VERTICAL, FILL/HUG, padding 12-16, itemSpacing 4-8)\n' +
+      '                          ├── Title (16px, semibold, max 2 lines)\n' +
+      '                          ├── Subtitle (14px, muted)\n' +
+      '                          └── Footer (HORIZONTAL, FILL/HUG) — price, rating, action',
+    keyDecisions: {
+      columns: 'Mobile: 2 columns (layoutGrow: 1 each). Web: 3-4 columns',
+      cardImage: 'Image placeholder with fill color + description — NEVER empty frame',
+      cardAspectRatio: '4:3 for products, 16:9 for content/media, 1:1 for square thumbnails',
+      equalHeight: 'Cards in same row should have equal height via matching image + content height',
+      interactionHint: 'Optional: subtle shadow or scale on card for tap affordance',
+    },
+    pitfalls: [
+      'overflow-parent: cards overflow screen width (need layoutGrow, not fixed width)',
+      'empty-container: image placeholder frames empty',
+      'text-overflow: titles overflow card width at 2 columns',
+      'no-autolayout: cards manually positioned instead of auto-layout grid rows',
+      'default-name: cards named "Frame 1" instead of "Card / Product Name"',
+      'cta-width-inconsistent: footer action buttons different sizes across cards',
+    ],
+    toneVariants: {
+      minimal: { cornerRadius: '12px', colors: 'white cards, no shadow, subtle gray-100 images', typography: 'clean sans, 2 weights' },
+      warm: { cornerRadius: '16px', colors: 'warm card shadows, soft rounded aesthetic', typography: 'friendly font, generous line height' },
+      bold: { cornerRadius: '20px', colors: 'dark cards or vivid image overlays, strong CTA colors', typography: 'compact bold titles, high contrast' },
+    },
+  },
+  checkout: {
+    structure:
+      'Use Multi-Screen Flow Architecture (see get_creation_guide topic:"multi-screen").\n\n' +
+      'Typical 3-4 screens:\n\n' +
+      'Screen 1 — Cart Review (VERTICAL, FIXED 402×874, SPACE_BETWEEN, padding 24)\n' +
+      '  ├── Cart Items (VERTICAL, FILL/HUG, itemSpacing 16)\n' +
+      '  │     └── Item × N (HORIZONTAL, FILL/HUG, padding 12, itemSpacing 12)\n' +
+      '  │           ├── Thumbnail (64×64, cornerRadius 8)\n' +
+      '  │           ├── Details (VERTICAL, FILL/HUG) — name, variant, qty\n' +
+      '  │           └── Price (right-aligned, bold)\n' +
+      '  └── Summary + CTA (VERTICAL, FILL/HUG, itemSpacing 12)\n' +
+      '        ├── Subtotal / Shipping / Total rows\n' +
+      '        └── "Proceed to Payment" CTA\n\n' +
+      'Screen 2 — Shipping (form with address fields)\n' +
+      'Screen 3 — Payment (card fields + billing)\n' +
+      'Screen 4 — Confirmation (success icon + order summary)',
+    keyDecisions: {
+      progressBar: 'Step indicator at top: Cart → Shipping → Payment → Done (HORIZONTAL dots or numbered steps)',
+      priceSummary: 'Right-aligned prices, bold total, clear subtotal/tax/shipping breakdown',
+      formFields: 'Reuse input structure from login/signup patterns — consistent height, stroke, cornerRadius',
+      confirmationScreen: 'Large check icon (64px) + "Order Confirmed" heading + order number + "Continue Shopping" CTA',
+      security: 'Lock icon near payment fields, "Secure checkout" label — builds trust',
+    },
+    pitfalls: [
+      'screen-bottom-overflow: cart with many items pushes CTA below viewport',
+      'form-consistency: shipping/payment inputs inconsistent with other forms',
+      'button-structure: CTA not full-width or < 48px height',
+      'text-overflow: long product names overflow item row',
+      'cta-width-inconsistent: different CTA widths across checkout screens',
+      'mobile-dimensions: screens not matching 402×874',
+    ],
+    toneVariants: {
+      minimal: { cornerRadius: '8-12px', colors: 'white, clean lines, green for success/confirmation', typography: 'system font, emphasis on prices' },
+      elegant: { cornerRadius: '12-16px', colors: 'warm neutrals, gold accent for premium feel', typography: 'serif for headings, clean numbers for prices' },
+      bold: { cornerRadius: '16-24px', colors: 'branded color CTA, dark summary sections', typography: 'large price emphasis, strong CTA text' },
+    },
+  },
 };
 
 function formatUiPattern(uiType: string, pattern: UiPattern): string {

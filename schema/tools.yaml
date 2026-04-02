@@ -343,8 +343,8 @@ get_creation_guide:
       type: string
       required: false
       description: >-
-        UI type for ui-patterns topic. Available: login, signup, onboarding, dashboard.
-        Omit to list all available types.
+        UI type for ui-patterns topic. Available: login, signup, onboarding, dashboard,
+        list-detail, settings, profile, card-grid, checkout. Omit to list all available types.
   response:
     type: string
   examples:
