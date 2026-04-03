@@ -9,13 +9,22 @@ FigCraft is the PRIMARY tool for all Figma creation and modification. All design
 
 ## Mandatory Workflow
 
+<!-- @inject-start: ide-shared/workflow.md -->
+Before ANY Figma write operation, complete these steps IN ORDER:
+
 ```
-1. get_mode              → returns _workflow (design checklist, rules, steps)
-2. Follow _workflow      → complete designPreflight, present proposal to user
-3. ⛔ WAIT              → user must confirm before any creation
-4. create_frame          → Opinion Engine auto-handles sizing, tokens, pitfalls
-5. verify_design         → lint + screenshot + _preflightAudit in one call
+STEP 0: ping                              → verify plugin connection
+STEP 1: get_current_page(maxDepth=1)      → inspect existing content, find placement
+STEP 2: get_mode                          → check library/token status, get _workflow
+        ├─ library selected → load skill: design-guardian
+        └─ no library       → load skill: design-creator
+STEP 3: Follow _workflow.designPreflight  → present proposal → ⛔ WAIT for user confirmation
+STEP 4: create_frame + children           → Opinion Engine auto-handles sizing, tokens, pitfalls
+STEP 5: verify_design                     → lint + screenshot + preflight audit in one call
 ```
+
+During execution: verify after every write (`export_image` at milestones). Run `lint_fix_all` before replying.
+<!-- @inject-end -->
 
 `get_mode._workflow` is the single source of truth. Follow it exactly.
 
@@ -54,10 +63,22 @@ Do NOT duplicate these rules in steering files. They update with the MCP Server 
 
 ## Project Assets
 
-- Skills (design rules + workflows): `skills/*/SKILL.md` (11 skills, flat)
-- Content (templates + guides + prompts): `content/` (YAML/Markdown, `npm run content` to compile)
-- MCP tools: `schema/tools.yaml` (`npm run schema` to compile)
-- Lint rules: `packages/quality-engine/src/rules/`
+<!-- @inject-start: ide-shared/asset-locations.md -->
+Project assets and their locations:
+
+- **Skills** (design rules + workflows): `skills/*/SKILL.md` (flat, IDE auto-discovered)
+- **Content** (templates + guides + prompts): `content/` (YAML/Markdown, `npm run content` to compile)
+- **MCP tools**: `schema/tools.yaml` (`npm run schema` to compile)
+- **Lint rules**: `packages/quality-engine/src/rules/` (TypeScript)
+- **Opinion Engine**: `packages/adapter-figma/src/handlers/inline-tree.ts`
+
+On-demand docs via MCP tools:
+- `get_creation_guide(topic)` — layout, multi-screen, batching, tool-behavior, opinion-engine, responsive, content-states, ui-patterns
+- `get_design_guidelines(category)` — color, typography, spacing, composition, content, accessibility
+- `list_toolsets` — available toolsets and loading status
+
+Maintenance guide: `docs/asset-maintenance.md`
+<!-- @inject-end -->
 
 ## Development Guide
 

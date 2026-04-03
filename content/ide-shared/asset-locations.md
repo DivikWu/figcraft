@@ -1,20 +1,3 @@
----
-description: "FigCraft Figma design creation rules"
-alwaysApply: true
----
-
-FigCraft design and creation rules are in AGENTS.md (auto-loaded by Cursor).
-
-If the FigCraft MCP server is configured, use its declarative tools
-(create_frame, get_mode, get_creation_guide, lint_fix_all) instead of use_figma.
-FigCraft's create_frame includes an Opinion Engine that auto-handles sizing,
-FILL ordering, token binding, and failure cleanup.
-
-For detailed docs during creation, use MCP tools:
-- get_creation_guide(topic) — layout, multi-screen, batching, tool-behavior, opinion-engine, responsive, content-states, ui-patterns
-- get_design_guidelines(category) — color, typography, spacing, composition, content, accessibility
-
-<!-- @inject-start: ide-shared/asset-locations.md -->
 Project assets and their locations:
 
 - **Skills** (design rules + workflows): `skills/*/SKILL.md` (flat, IDE auto-discovered)
@@ -29,4 +12,3 @@ On-demand docs via MCP tools:
 - `list_toolsets` — available toolsets and loading status
 
 Maintenance guide: `docs/asset-maintenance.md`
-<!-- @inject-end -->

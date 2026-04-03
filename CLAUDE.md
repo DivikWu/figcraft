@@ -128,13 +128,49 @@ figcraft/
 
 ## MCP 工具体系
 
-111 个工具，31 核心 + 13 可选工具集 + 5 端点（33 个方法）。
+MCP 工具分为核心（始终加载）和可选工具集（按需 `load_toolset`），含资源端点。
 
 - 工具定义 single source of truth：`schema/tools.yaml`
 - 运行 `npm run schema` 重新生成 registry
-- AI 调 `list_toolsets` 查看完整列表和加载状态
-- 质量引擎：38 条 lint 规则 + 自动修复（`packages/quality-engine/src/rules/`）
+- AI 调 `list_toolsets` 查看完整工具列表和加载状态
+- 质量引擎：lint 规则 + 自动修复（`packages/quality-engine/src/rules/`）
 - 内容资产：`content/` 下 YAML/Markdown → `npm run content` 生成 TypeScript（见 `docs/asset-maintenance.md`）
+
+<!-- @inject-start: ide-shared/toolsets.md -->
+Core tools are always enabled. Load additional toolsets as needed via `load_toolset`:
+
+| Toolset | When to load |
+|---------|-------------|
+| `variables` | Managing Figma variables, collections, modes |
+| `tokens` | Syncing DTCG design tokens |
+| `styles` | Managing paint/text/effect styles |
+| `components-advanced` | Building component libraries, managing variants |
+| `library` | Importing from shared Figma libraries |
+| `shapes-vectors` | Stars, polygons, sections, boolean ops, flatten |
+| `annotations` | Adding, reading, and clearing annotations on nodes |
+| `prototype` | Prototype interactions, flow analysis, batch-connect screens |
+| `lint` | Fine-grained lint (beyond lint_fix_all) |
+| `auth` | Figma OAuth setup |
+| `pages` | Creating/renaming pages |
+| `staging` | Staged workflow — preview changes before finalizing |
+| `debug` | execute_js (raw Plugin API) |
+
+Use `list_toolsets` to see current status. Load multiple: `load_toolset({ names: "tokens,variables" })`.
+<!-- @inject-end -->
+
+<!-- @inject-start: ide-shared/endpoints.md -->
+Resource-oriented endpoints with method dispatch:
+
+| Endpoint | Methods |
+|----------|---------|
+| `nodes` | `get`, `get_batch`, `list`, `update`, `delete`, `clone`, `reparent` |
+| `text` | `set_content`, `set_range` |
+| `components` | `list`, `list_library`, `get`, `list_properties` |
+| `variables_ep` | `list`, `get`, `list_collections`, `get_bindings`, `set_binding`, `create`, `update`, `delete`, `create_collection`, `delete_collection`, `batch_create`, `export` (requires `load_toolset("variables")`) |
+| `styles_ep` | `list`, `get`, `create_paint`, `update_paint`, `update_text`, `update_effect`, `delete`, `sync` (requires `load_toolset("styles")`) |
+
+Call syntax: `nodes({ method: "get", nodeId: "1:23" })`
+<!-- @inject-end -->
 
 ## DTCG → Figma 类型映射
 
@@ -270,11 +306,15 @@ figcraft/
 
 ## Constraints
 
-- IMPORTANT: Plugin UI 是纯 HTML/CSS 内联在 ui.html，不使用任何前端框架
-- IMPORTANT: Linter 在 Plugin 侧运行（不在 MCP Server 侧），避免通过 WebSocket 传输大量节点数据
-- IMPORTANT: DTCG 解析仅在 MCP Server 侧执行，Plugin 只接收已解析的 `DesignToken[]`
-- IMPORTANT: 复合类型（typography/shadow）映射为 Figma Style 而非 Variable，因为 Figma Variable 不支持复合类型
-- IMPORTANT: `figma.teamLibrary` API 可以枚举 Library Variables，但不能枚举 Library Styles（需 REST API 补充）
-- Plugin API 绕过 REST API 的 Enterprise 付费限制，所有 Figma 计划均可使用 Variable 写入
-- 批量操作使用 `items[]` + per-item error handling，单项失败不中断批量
-- Token 同步是幂等的：第二次执行 created=0
+<!-- @inject-start: ide-shared/constraints.md -->
+Key architectural constraints:
+
+- Plugin UI is pure HTML/CSS inline in ui.html — no frontend frameworks
+- Linter runs in Plugin side (not MCP Server) — avoids transmitting large node data over WebSocket
+- DTCG parsing runs in MCP Server only — Plugin receives parsed `DesignToken[]`
+- Composite types (typography/shadow) map to Figma Styles, not Variables — Figma Variables don't support compound types
+- `figma.teamLibrary` API can enumerate Library Variables but not Library Styles (REST API supplement needed)
+- Plugin API bypasses REST API Enterprise restrictions — Variable writes work on all Figma plans
+- Batch operations use `items[]` + per-item error handling — single-item failure doesn't block batch
+- Token sync is idempotent — second run: created=0
+<!-- @inject-end -->

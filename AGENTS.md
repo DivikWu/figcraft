@@ -24,11 +24,22 @@ STEP 4: IF multi-screen flow →
 
 During execution: verify after every write (`get_current_page(maxDepth=1)` + `export_image` at milestones). Run `lint_fix_all` before replying to user.
 
-Reference docs (read on demand):
-- Skills: `skills/ui-ux-fundamentals/`, `skills/design-guardian/`, `skills/design-creator/` (design rules)
-- Content: `content/guides/*.md` (creation guides), `content/templates/*.yaml` (UI templates)
-- MCP tools: `get_creation_guide(topic)`, `get_design_guidelines(category)`
-- Maintenance: see `docs/asset-maintenance.md` for full asset map
+<!-- @inject-start: ide-shared/asset-locations.md -->
+Project assets and their locations:
+
+- **Skills** (design rules + workflows): `skills/*/SKILL.md` (flat, IDE auto-discovered)
+- **Content** (templates + guides + prompts): `content/` (YAML/Markdown, `npm run content` to compile)
+- **MCP tools**: `schema/tools.yaml` (`npm run schema` to compile)
+- **Lint rules**: `packages/quality-engine/src/rules/` (TypeScript)
+- **Opinion Engine**: `packages/adapter-figma/src/handlers/inline-tree.ts`
+
+On-demand docs via MCP tools:
+- `get_creation_guide(topic)` — layout, multi-screen, batching, tool-behavior, opinion-engine, responsive, content-states, ui-patterns
+- `get_design_guidelines(category)` — color, typography, spacing, composition, content, accessibility
+- `list_toolsets` — available toolsets and loading status
+
+Maintenance guide: `docs/asset-maintenance.md`
+<!-- @inject-end -->
 
 ## API Mode (Endpoint)
 
@@ -36,41 +47,45 @@ FigCraft uses resource-oriented endpoints with method dispatch. Legacy flat tool
 
 ### Endpoint Mode
 
-In endpoint mode, related operations are grouped under resource endpoints:
+<!-- @inject-start: ide-shared/endpoints.md -->
+Resource-oriented endpoints with method dispatch:
 
-| Endpoint | Methods | Replaces |
-|----------|---------|----------|
-| `nodes` | `get`, `get_batch`, `list`, `update`, `delete`, `clone`, `reparent` | `get_node_info`, `search_nodes`, `patch_nodes`, `delete_nodes` |
-| `text` | `set_content`, `set_range` | `set_text_content` |
-| `components` | `list`, `list_library`, `get`, `list_properties` | `list_components`, `list_library_components`, `get_component`, `list_component_properties` |
-| `variables_ep` | 12 methods | 12 flat variable tools (requires `load_toolset("variables")`) |
-| `styles_ep` | 8 methods | 8 flat style tools (requires `load_toolset("styles")`) |
+| Endpoint | Methods |
+|----------|---------|
+| `nodes` | `get`, `get_batch`, `list`, `update`, `delete`, `clone`, `reparent` |
+| `text` | `set_content`, `set_range` |
+| `components` | `list`, `list_library`, `get`, `list_properties` |
+| `variables_ep` | `list`, `get`, `list_collections`, `get_bindings`, `set_binding`, `create`, `update`, `delete`, `create_collection`, `delete_collection`, `batch_create`, `export` (requires `load_toolset("variables")`) |
+| `styles_ep` | `list`, `get`, `create_paint`, `update_paint`, `update_text`, `update_effect`, `delete`, `sync` (requires `load_toolset("styles")`) |
 
-Endpoint call syntax: `nodes({ method: "get", nodeId: "1:23" })`
+Call syntax: `nodes({ method: "get", nodeId: "1:23" })`
+<!-- @inject-end -->
 
 Standalone tools (not grouped into endpoints): `ping`, `get_mode`, `set_mode`, `join_channel`, `get_channel`, `export_image`, `lint_fix_all`, `set_current_page`, `save_version_history`, `set_selection`, `get_selection`, `get_current_page`, `get_document_info`, `list_fonts`, `audit_node`, `get_design_guidelines`
 
 ## Dynamic Toolsets
 
-Core tools are enabled by default, including `audit_node` and `get_design_guidelines`. Load additional toolsets as needed:
+<!-- @inject-start: ide-shared/toolsets.md -->
+Core tools are always enabled. Load additional toolsets as needed via `load_toolset`:
 
-| Toolset | Tools | When to load |
-|---------|-------|-------------|
-| `variables` | 7 | Managing Figma variables, collections, modes |
-| `tokens` | 11 | Syncing DTCG design tokens |
-| `styles` | 3 | Managing paint/text/effect styles |
-| `components-advanced` | 16 | Building component libraries, managing variants |
-| `library` | 7 | Importing from shared Figma libraries |
-| `shapes-vectors` | 9 | Stars, polygons, sections, boolean ops, flatten |
-| `annotations` | 4 | Adding, reading, and clearing annotations on nodes |
-| `prototype` | 6 | Prototype interactions — get/add/remove/set reactions, analyze flows, batch-connect screens |
-| `lint` | 6 | Fine-grained lint (beyond lint_fix_all) |
-| `auth` | 3 | Figma OAuth setup |
-| `pages` | 3 | Creating/renaming pages |
-| `staging` | 4 | Staged workflow — preview changes before finalizing |
+| Toolset | When to load |
+|---------|-------------|
+| `variables` | Managing Figma variables, collections, modes |
+| `tokens` | Syncing DTCG design tokens |
+| `styles` | Managing paint/text/effect styles |
+| `components-advanced` | Building component libraries, managing variants |
+| `library` | Importing from shared Figma libraries |
+| `shapes-vectors` | Stars, polygons, sections, boolean ops, flatten |
+| `annotations` | Adding, reading, and clearing annotations on nodes |
+| `prototype` | Prototype interactions, flow analysis, batch-connect screens |
+| `lint` | Fine-grained lint (beyond lint_fix_all) |
+| `auth` | Figma OAuth setup |
+| `pages` | Creating/renaming pages |
+| `staging` | Staged workflow — preview changes before finalizing |
+| `debug` | execute_js (raw Plugin API) |
 
-Use `load_toolset` to enable, `unload_toolset` to disable, `list_toolsets` to see status.
-Load multiple at once: `load_toolset({ names: "tokens,variables" })`
+Use `list_toolsets` to see current status. Load multiple: `load_toolset({ names: "tokens,variables" })`.
+<!-- @inject-end -->
 
 > **Note:** FigCraft provides self-sufficient capabilities: design system search (`search_design_system`), UI creation (`create_frame`, `create_text`, `create_svg`), text range styling (`text(method: "set_range")`), node grouping (`group_nodes`), lint, audit, token sync, and node operations. `execute_js` is available in the `debug` toolset for diagnostics only. Code generation and Code Connect are optionally provided by Figma Power (official Figma MCP) when available.
 

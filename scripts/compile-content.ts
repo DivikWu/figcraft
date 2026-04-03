@@ -162,8 +162,46 @@ ${entries.join('\n')}
   console.log(`✅ Compiled ${files.length} templates → packages/core-mcp/src/tools/_templates.ts`);
 }
 
+// ─── IDE Shared Injection ───
+
+const IDE_SHARED_DIR = resolve(ROOT, 'content/ide-shared');
+const IDE_TARGETS = [
+  resolve(ROOT, 'CLAUDE.md'),
+  resolve(ROOT, 'AGENTS.md'),
+  resolve(ROOT, '.kiro/steering/figcraft.md'),
+  resolve(ROOT, '.cursor/rules/figcraft.mdc'),
+];
+
+const INJECT_PATTERN = /<!-- @inject-start: (.+?) -->\n[\s\S]*?<!-- @inject-end -->/g;
+
+function injectSharedContent(): void {
+  let totalInjections = 0;
+
+  for (const target of IDE_TARGETS) {
+    const original = readFileSync(target, 'utf-8');
+    let injections = 0;
+
+    const updated = original.replace(INJECT_PATTERN, (_match, snippetPath: string) => {
+      const fullPath = resolve(ROOT, 'content', snippetPath);
+      const snippet = readFileSync(fullPath, 'utf-8').trimEnd();
+      injections++;
+      return `<!-- @inject-start: ${snippetPath} -->\n${snippet}\n<!-- @inject-end -->`;
+    });
+
+    if (injections > 0) {
+      writeFileSync(target, updated);
+      totalInjections += injections;
+      const relPath = target.replace(ROOT + '/', '');
+      console.log(`  💉 ${relPath}: ${injections} injection(s)`);
+    }
+  }
+
+  console.log(`✅ Injected ${totalInjections} shared snippets across ${IDE_TARGETS.length} IDE files`);
+}
+
 // ─── Main ───
 
 compileGuides();
 compilePrompts();
 compileTemplates();
+injectSharedContent();
