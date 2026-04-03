@@ -47,7 +47,7 @@ All of these are returned by MCP tools and enforced at runtime:
 - Color/typography/spacing rules → `get_design_guidelines`
 - UI type templates (9 types) → `get_creation_guide(topic:"ui-patterns")`
 - Opinion Engine inferences → built into `create_frame`
-- 43 lint rules + auto-fix → `lint_fix_all` / `verify_design`
+- 38 lint rules + auto-fix → `lint_fix_all` / `verify_design`
 - Token binding → automatic in library mode
 
 Do NOT duplicate these rules in steering files. They update with the MCP Server code.

@@ -40,8 +40,8 @@ In endpoint mode, related operations are grouped under resource endpoints:
 
 | Endpoint | Methods | Replaces |
 |----------|---------|----------|
-| `nodes` | `get`, `list`, `update`, `delete` | `get_node_info`, `search_nodes`, `patch_nodes`, `delete_nodes` |
-| `text` | `set_content` | `set_text_content` |
+| `nodes` | `get`, `get_batch`, `list`, `update`, `delete`, `clone`, `reparent` | `get_node_info`, `search_nodes`, `patch_nodes`, `delete_nodes` |
+| `text` | `set_content`, `set_range` | `set_text_content` |
 | `components` | `list`, `list_library`, `get`, `list_properties` | `list_components`, `list_library_components`, `get_component`, `list_component_properties` |
 | `variables_ep` | 12 methods | 12 flat variable tools (requires `load_toolset("variables")`) |
 | `styles_ep` | 8 methods | 8 flat style tools (requires `load_toolset("styles")`) |
@@ -56,15 +56,15 @@ Core tools are enabled by default, including `audit_node` and `get_design_guidel
 
 | Toolset | Tools | When to load |
 |---------|-------|-------------|
-| `variables` | 19 | Managing Figma variables, collections, modes |
+| `variables` | 7 | Managing Figma variables, collections, modes |
 | `tokens` | 11 | Syncing DTCG design tokens |
-| `styles` | 11 | Managing paint/text/effect styles |
-| `components-advanced` | 13 | Building component libraries, managing variants |
+| `styles` | 3 | Managing paint/text/effect styles |
+| `components-advanced` | 16 | Building component libraries, managing variants |
 | `library` | 7 | Importing from shared Figma libraries |
-| `shapes-vectors` | 6 | Stars, polygons, sections, boolean ops, flatten |
+| `shapes-vectors` | 9 | Stars, polygons, sections, boolean ops, flatten |
 | `annotations` | 4 | Adding, reading, and clearing annotations on nodes |
 | `prototype` | 6 | Prototype interactions — get/add/remove/set reactions, analyze flows, batch-connect screens |
-| `lint` | 4 | Fine-grained lint (beyond lint_fix_all) |
+| `lint` | 6 | Fine-grained lint (beyond lint_fix_all) |
 | `auth` | 3 | Figma OAuth setup |
 | `pages` | 3 | Creating/renaming pages |
 | `staging` | 4 | Staged workflow — preview changes before finalizing |

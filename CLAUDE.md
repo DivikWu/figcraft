@@ -128,12 +128,12 @@ figcraft/
 
 ## MCP 工具体系
 
-~136 个工具，31 核心 + 13 可选工具集 + 5 端点（30+ 方法）。
+111 个工具，31 核心 + 13 可选工具集 + 5 端点（33 个方法）。
 
 - 工具定义 single source of truth：`schema/tools.yaml`
 - 运行 `npm run schema` 重新生成 registry
 - AI 调 `list_toolsets` 查看完整列表和加载状态
-- 质量引擎：43 条 lint 规则 + 自动修复（`packages/quality-engine/src/rules/`）
+- 质量引擎：38 条 lint 规则 + 自动修复（`packages/quality-engine/src/rules/`）
 - 内容资产：`content/` 下 YAML/Markdown → `npm run content` 生成 TypeScript（见 `docs/asset-maintenance.md`）
 
 ## DTCG → Figma 类型映射
