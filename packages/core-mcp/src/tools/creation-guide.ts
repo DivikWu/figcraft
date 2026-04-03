@@ -228,6 +228,8 @@ interface UiPattern {
   pitfalls: string[];
   /** How the design changes across different tones. */
   toneVariants: Record<string, Record<string, string>>;
+  /** Ready-to-use create_frame params skeleton (minimal tone). */
+  exampleParams: Record<string, unknown>;
 }
 
 const UI_PATTERNS: Record<string, UiPattern> = {
@@ -271,6 +273,43 @@ const UI_PATTERNS: Record<string, UiPattern> = {
       elegant: { cornerRadius: '12-16px', colors: 'warm neutrals + gold/copper accent', typography: 'serif heading + sans body' },
       bold: { cornerRadius: '16-24px', colors: 'gradient or saturated hero background + high-contrast CTA', typography: 'heavy weight heading, generous spacing' },
     },
+    exampleParams: {
+      name: 'Screen / Login',
+      width: 402, height: 874,
+      layoutMode: 'VERTICAL',
+      primaryAxisAlignItems: 'SPACE_BETWEEN',
+      padding: 24, paddingTop: 60, paddingBottom: 34,
+      cornerRadius: 28, fill: '#FFFFFF', clipsContent: true,
+      children: [
+        {
+          type: 'frame', name: 'Top Content',
+          layoutMode: 'VERTICAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+          itemSpacing: 24,
+          children: [
+            { type: 'frame', name: 'Logo', width: 48, height: 48, cornerRadius: 12, fill: '#F3F4F6' },
+          ],
+        },
+        {
+          type: 'frame', name: 'Form',
+          layoutMode: 'VERTICAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+          itemSpacing: 16,
+          children: [
+            { type: 'frame', name: 'Input / Email', layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'FIXED', height: 48, padding: 16, cornerRadius: 12, strokeColor: '#D1D5DB', strokeWeight: 1 },
+            { type: 'frame', name: 'Input / Password', layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'FIXED', height: 48, padding: 16, cornerRadius: 12, strokeColor: '#D1D5DB', strokeWeight: 1 },
+            { type: 'frame', name: 'Button / Primary', layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'FIXED', height: 48, cornerRadius: 12, fill: '#111827', primaryAxisAlignItems: 'CENTER', counterAxisAlignItems: 'CENTER' },
+          ],
+        },
+        {
+          type: 'frame', name: 'Bottom Content',
+          layoutMode: 'VERTICAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+          itemSpacing: 16,
+          children: [
+            { type: 'frame', name: 'Divider Row', layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG', counterAxisAlignItems: 'CENTER', itemSpacing: 12 },
+            { type: 'frame', name: 'Social Login Row', layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG', itemSpacing: 12 },
+          ],
+        },
+      ],
+    },
   },
   signup: {
     structure:
@@ -305,6 +344,41 @@ const UI_PATTERNS: Record<string, UiPattern> = {
       warm: { cornerRadius: '12-16px', colors: 'soft pastels, rounded friendly aesthetic', typography: 'rounded or geometric sans-serif' },
       bold: { cornerRadius: '16-24px', colors: 'vibrant accent on CTA, dark or colored background', typography: 'strong contrast between heading and body' },
     },
+    exampleParams: {
+      name: 'Screen / Signup',
+      width: 402, height: 874,
+      layoutMode: 'VERTICAL',
+      primaryAxisAlignItems: 'SPACE_BETWEEN',
+      padding: 24, paddingTop: 60, paddingBottom: 34,
+      cornerRadius: 28, fill: '#FFFFFF', clipsContent: true,
+      children: [
+        {
+          type: 'frame', name: 'Top Content',
+          layoutMode: 'VERTICAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+          itemSpacing: 8,
+        },
+        {
+          type: 'frame', name: 'Form',
+          layoutMode: 'VERTICAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+          itemSpacing: 16,
+          children: [
+            { type: 'frame', name: 'Input / Name', layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'FIXED', height: 48, padding: 16, cornerRadius: 12, strokeColor: '#D1D5DB', strokeWeight: 1 },
+            { type: 'frame', name: 'Input / Email', layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'FIXED', height: 48, padding: 16, cornerRadius: 12, strokeColor: '#D1D5DB', strokeWeight: 1 },
+            { type: 'frame', name: 'Input / Password', layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'FIXED', height: 48, padding: 16, cornerRadius: 12, strokeColor: '#D1D5DB', strokeWeight: 1 },
+            { type: 'frame', name: 'Terms Row', layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG', itemSpacing: 8, counterAxisAlignItems: 'CENTER' },
+            { type: 'frame', name: 'Button / Primary', layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'FIXED', height: 48, cornerRadius: 12, fill: '#111827', primaryAxisAlignItems: 'CENTER', counterAxisAlignItems: 'CENTER' },
+          ],
+        },
+        {
+          type: 'frame', name: 'Bottom Content',
+          layoutMode: 'VERTICAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+          itemSpacing: 16,
+          children: [
+            { type: 'frame', name: 'Social Signup Row', layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG', itemSpacing: 12 },
+          ],
+        },
+      ],
+    },
   },
   onboarding: {
     structure:
@@ -336,6 +410,42 @@ const UI_PATTERNS: Record<string, UiPattern> = {
       minimal: { cornerRadius: '8-12px', colors: 'white background, one accent for CTA and progress dots', typography: 'lightweight, generous line height' },
       warm: { cornerRadius: '16-20px', colors: 'soft gradient backgrounds, friendly illustration style', typography: 'rounded sans-serif, warm tones' },
       bold: { cornerRadius: '20-28px', colors: 'full-bleed colored backgrounds per screen, white text', typography: 'large heading (28-32px), strong hierarchy' },
+    },
+    exampleParams: {
+      name: 'Screen / Onboarding',
+      width: 402, height: 874,
+      layoutMode: 'VERTICAL',
+      primaryAxisAlignItems: 'SPACE_BETWEEN',
+      padding: 24, paddingTop: 60, paddingBottom: 34,
+      cornerRadius: 28, fill: '#FFFFFF', clipsContent: true,
+      children: [
+        {
+          type: 'frame', name: 'Top Content',
+          layoutMode: 'VERTICAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+          itemSpacing: 24,
+          children: [
+            { type: 'frame', name: 'Illustration', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'FIXED', height: 240, cornerRadius: 16, fill: '#F3F4F6' },
+          ],
+        },
+        {
+          type: 'frame', name: 'Bottom Content',
+          layoutMode: 'VERTICAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+          itemSpacing: 12,
+          children: [
+            {
+              type: 'frame', name: 'Progress Dots',
+              layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'HUG', layoutSizingVertical: 'HUG',
+              itemSpacing: 8,
+              children: [
+                { type: 'ellipse', name: 'Dot Active', width: 8, height: 8, fill: '#111827' },
+                { type: 'ellipse', name: 'Dot', width: 8, height: 8, fill: '#D1D5DB' },
+                { type: 'ellipse', name: 'Dot', width: 8, height: 8, fill: '#D1D5DB' },
+              ],
+            },
+            { type: 'frame', name: 'Button / Primary', layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'FIXED', height: 48, cornerRadius: 12, fill: '#111827', primaryAxisAlignItems: 'CENTER', counterAxisAlignItems: 'CENTER' },
+          ],
+        },
+      ],
     },
   },
   dashboard: {
@@ -379,6 +489,45 @@ const UI_PATTERNS: Record<string, UiPattern> = {
       elegant: { cornerRadius: '12-16px', colors: 'subtle card shadows, accent color for trends and chart highlights', typography: 'medium weight numbers, light labels' },
       bold: { cornerRadius: '16-24px', colors: 'dark background, colored stat cards, vivid chart colors', typography: 'large stat values (32px+), strong hierarchy' },
     },
+    exampleParams: {
+      name: 'Screen / Dashboard',
+      width: 402, height: 874,
+      layoutMode: 'VERTICAL',
+      primaryAxisAlignItems: 'MIN',
+      padding: 16,
+      cornerRadius: 28, fill: '#F9FAFB', clipsContent: true,
+      itemSpacing: 16,
+      children: [
+        {
+          type: 'frame', name: 'Header',
+          layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+          counterAxisAlignItems: 'CENTER', itemSpacing: 12,
+        },
+        {
+          type: 'frame', name: 'Stats Row',
+          layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+          itemSpacing: 12,
+          children: [
+            { type: 'frame', name: 'Stat Card / Revenue', layoutMode: 'VERTICAL', layoutSizingVertical: 'HUG', layoutGrow: 1, padding: 16, cornerRadius: 12, fill: '#FFFFFF', itemSpacing: 4 },
+            { type: 'frame', name: 'Stat Card / Users', layoutMode: 'VERTICAL', layoutSizingVertical: 'HUG', layoutGrow: 1, padding: 16, cornerRadius: 12, fill: '#FFFFFF', itemSpacing: 4 },
+            { type: 'frame', name: 'Stat Card / Orders', layoutMode: 'VERTICAL', layoutSizingVertical: 'HUG', layoutGrow: 1, padding: 16, cornerRadius: 12, fill: '#FFFFFF', itemSpacing: 4 },
+          ],
+        },
+        {
+          type: 'frame', name: 'Chart Area',
+          layoutMode: 'VERTICAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+          padding: 16, cornerRadius: 12, fill: '#FFFFFF', itemSpacing: 12,
+          children: [
+            { type: 'frame', name: 'Chart Placeholder', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'FIXED', height: 200, cornerRadius: 8, fill: '#F3F4F6' },
+          ],
+        },
+        {
+          type: 'frame', name: 'Recent Activity',
+          layoutMode: 'VERTICAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+          itemSpacing: 0,
+        },
+      ],
+    },
   },
   'list-detail': {
     structure:
@@ -416,6 +565,43 @@ const UI_PATTERNS: Record<string, UiPattern> = {
       warm: { cornerRadius: '12px', colors: 'warm surface tones, soft card backgrounds', typography: 'friendly geometric font' },
       bold: { cornerRadius: '16px', colors: 'dark cards or colored backgrounds, vivid accent for badges', typography: 'strong weight for titles, condensed for metadata' },
     },
+    exampleParams: {
+      name: 'Screen / List',
+      width: 402, height: 874,
+      layoutMode: 'VERTICAL',
+      primaryAxisAlignItems: 'MIN',
+      cornerRadius: 28, fill: '#FFFFFF', clipsContent: true,
+      itemSpacing: 0,
+      children: [
+        {
+          type: 'frame', name: 'Header',
+          layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+          padding: 16, counterAxisAlignItems: 'CENTER', itemSpacing: 12,
+        },
+        {
+          type: 'frame', name: 'Search Bar',
+          layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+          padding: 12, marginLeft: 16, marginRight: 16,
+          cornerRadius: 8, fill: '#F3F4F6', counterAxisAlignItems: 'CENTER', itemSpacing: 8,
+        },
+        {
+          type: 'frame', name: 'List',
+          layoutMode: 'VERTICAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'FILL',
+          paddingLeft: 16, paddingRight: 16, itemSpacing: 0,
+          children: [
+            {
+              type: 'frame', name: 'List Item',
+              layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+              padding: 12, itemSpacing: 12, counterAxisAlignItems: 'CENTER',
+              children: [
+                { type: 'frame', name: 'Thumbnail', width: 48, height: 48, cornerRadius: 8, fill: '#F3F4F6' },
+                { type: 'frame', name: 'Content', layoutMode: 'VERTICAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG', itemSpacing: 4, layoutGrow: 1 },
+              ],
+            },
+          ],
+        },
+      ],
+    },
   },
   settings: {
     structure:
@@ -450,6 +636,38 @@ const UI_PATTERNS: Record<string, UiPattern> = {
       minimal: { cornerRadius: '0px (full-width rows)', colors: 'white background, gray section headers, system blue toggles', typography: 'system font, 16px body' },
       elegant: { cornerRadius: '12px (card sections)', colors: 'grouped card backgrounds, subtle shadows', typography: 'medium weight labels, light descriptions' },
       bold: { cornerRadius: '16px (card sections)', colors: 'dark background, accent-colored icons', typography: 'larger labels (17-18px), strong weight' },
+    },
+    exampleParams: {
+      name: 'Screen / Settings',
+      width: 402, height: 874,
+      layoutMode: 'VERTICAL',
+      primaryAxisAlignItems: 'MIN',
+      cornerRadius: 28, fill: '#F9FAFB', clipsContent: true,
+      itemSpacing: 0,
+      children: [
+        {
+          type: 'frame', name: 'Header',
+          layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+          padding: 16, counterAxisAlignItems: 'CENTER',
+        },
+        {
+          type: 'frame', name: 'Sections',
+          layoutMode: 'VERTICAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'FILL',
+          itemSpacing: 24, paddingTop: 16,
+          children: [
+            {
+              type: 'frame', name: 'Section / Account',
+              layoutMode: 'VERTICAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+              itemSpacing: 0, cornerRadius: 12, fill: '#FFFFFF', paddingTop: 4, paddingBottom: 4,
+              children: [
+                { type: 'frame', name: 'Row / Profile', layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'FIXED', height: 48, padding: 16, itemSpacing: 12, counterAxisAlignItems: 'CENTER' },
+                { type: 'frame', name: 'Row / Notifications', layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'FIXED', height: 48, padding: 16, itemSpacing: 12, counterAxisAlignItems: 'CENTER' },
+                { type: 'frame', name: 'Row / Privacy', layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'FIXED', height: 48, padding: 16, itemSpacing: 12, counterAxisAlignItems: 'CENTER' },
+              ],
+            },
+          ],
+        },
+      ],
     },
   },
   profile: {
@@ -490,6 +708,50 @@ const UI_PATTERNS: Record<string, UiPattern> = {
       warm: { cornerRadius: 'circle avatar, 16px cards', colors: 'warm gradient header/cover, soft card backgrounds', typography: 'rounded font, generous spacing' },
       bold: { cornerRadius: 'circle avatar, 20px cards', colors: 'dark header with cover image, bright accent CTA', typography: 'large name (24px), strong stat values' },
     },
+    exampleParams: {
+      name: 'Screen / Profile',
+      width: 402, height: 874,
+      layoutMode: 'VERTICAL',
+      primaryAxisAlignItems: 'MIN',
+      cornerRadius: 28, fill: '#FFFFFF', clipsContent: true,
+      itemSpacing: 0,
+      children: [
+        {
+          type: 'frame', name: 'Hero Area',
+          layoutMode: 'VERTICAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+          padding: 24, counterAxisAlignItems: 'CENTER', itemSpacing: 16,
+          children: [
+            { type: 'frame', name: 'Avatar', width: 80, height: 80, cornerRadius: 9999, fill: '#F3F4F6' },
+            {
+              type: 'frame', name: 'Action Row',
+              layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'HUG', layoutSizingVertical: 'HUG',
+              itemSpacing: 12,
+              children: [
+                { type: 'frame', name: 'Button / Edit Profile', layoutMode: 'HORIZONTAL', layoutSizingVertical: 'FIXED', height: 48, padding: 16, cornerRadius: 12, fill: '#111827', primaryAxisAlignItems: 'CENTER', counterAxisAlignItems: 'CENTER' },
+              ],
+            },
+          ],
+        },
+        {
+          type: 'frame', name: 'Stats Row',
+          layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+          padding: 16, itemSpacing: 0,
+          children: [
+            { type: 'frame', name: 'Stat / Posts', layoutMode: 'VERTICAL', layoutSizingVertical: 'HUG', layoutGrow: 1, counterAxisAlignItems: 'CENTER', itemSpacing: 2 },
+            { type: 'frame', name: 'Stat / Followers', layoutMode: 'VERTICAL', layoutSizingVertical: 'HUG', layoutGrow: 1, counterAxisAlignItems: 'CENTER', itemSpacing: 2 },
+            { type: 'frame', name: 'Stat / Following', layoutMode: 'VERTICAL', layoutSizingVertical: 'HUG', layoutGrow: 1, counterAxisAlignItems: 'CENTER', itemSpacing: 2 },
+          ],
+        },
+        {
+          type: 'frame', name: 'Content Area',
+          layoutMode: 'VERTICAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'FILL',
+          itemSpacing: 0,
+          children: [
+            { type: 'frame', name: 'Tab Bar', layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG', itemSpacing: 0 },
+          ],
+        },
+      ],
+    },
   },
   'card-grid': {
     structure:
@@ -524,6 +786,57 @@ const UI_PATTERNS: Record<string, UiPattern> = {
       minimal: { cornerRadius: '12px', colors: 'white cards, no shadow, subtle gray-100 images', typography: 'clean sans, 2 weights' },
       warm: { cornerRadius: '16px', colors: 'warm card shadows, soft rounded aesthetic', typography: 'friendly font, generous line height' },
       bold: { cornerRadius: '20px', colors: 'dark cards or vivid image overlays, strong CTA colors', typography: 'compact bold titles, high contrast' },
+    },
+    exampleParams: {
+      name: 'Screen / Card Grid',
+      width: 402, height: 874,
+      layoutMode: 'VERTICAL',
+      primaryAxisAlignItems: 'MIN',
+      padding: 16,
+      cornerRadius: 28, fill: '#FFFFFF', clipsContent: true,
+      itemSpacing: 16,
+      children: [
+        {
+          type: 'frame', name: 'Header',
+          layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+          counterAxisAlignItems: 'CENTER', itemSpacing: 12,
+          children: [
+            {
+              type: 'frame', name: 'Filter Chips',
+              layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'HUG', layoutSizingVertical: 'HUG',
+              itemSpacing: 8,
+            },
+          ],
+        },
+        {
+          type: 'frame', name: 'Grid',
+          layoutMode: 'VERTICAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'FILL',
+          itemSpacing: 16,
+          children: [
+            {
+              type: 'frame', name: 'Row 1',
+              layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+              itemSpacing: 12,
+              children: [
+                {
+                  type: 'frame', name: 'Card', layoutMode: 'VERTICAL', layoutSizingVertical: 'HUG', layoutGrow: 1, cornerRadius: 12, clipsContent: true, fill: '#FFFFFF',
+                  children: [
+                    { type: 'frame', name: 'Image', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'FIXED', height: 160, fill: '#F3F4F6' },
+                    { type: 'frame', name: 'Content', layoutMode: 'VERTICAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG', padding: 12, itemSpacing: 4 },
+                  ],
+                },
+                {
+                  type: 'frame', name: 'Card', layoutMode: 'VERTICAL', layoutSizingVertical: 'HUG', layoutGrow: 1, cornerRadius: 12, clipsContent: true, fill: '#FFFFFF',
+                  children: [
+                    { type: 'frame', name: 'Image', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'FIXED', height: 160, fill: '#F3F4F6' },
+                    { type: 'frame', name: 'Content', layoutMode: 'VERTICAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG', padding: 12, itemSpacing: 4 },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
     },
   },
   checkout: {
@@ -562,6 +875,42 @@ const UI_PATTERNS: Record<string, UiPattern> = {
       elegant: { cornerRadius: '12-16px', colors: 'warm neutrals, gold accent for premium feel', typography: 'serif for headings, clean numbers for prices' },
       bold: { cornerRadius: '16-24px', colors: 'branded color CTA, dark summary sections', typography: 'large price emphasis, strong CTA text' },
     },
+    exampleParams: {
+      name: 'Screen / Checkout',
+      width: 402, height: 874,
+      layoutMode: 'VERTICAL',
+      primaryAxisAlignItems: 'SPACE_BETWEEN',
+      padding: 24, paddingTop: 60, paddingBottom: 34,
+      cornerRadius: 28, fill: '#FFFFFF', clipsContent: true,
+      children: [
+        {
+          type: 'frame', name: 'Cart Items',
+          layoutMode: 'VERTICAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+          itemSpacing: 16,
+          children: [
+            {
+              type: 'frame', name: 'Cart Item',
+              layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+              padding: 12, itemSpacing: 12, counterAxisAlignItems: 'CENTER',
+              children: [
+                { type: 'frame', name: 'Thumbnail', width: 64, height: 64, cornerRadius: 8, fill: '#F3F4F6' },
+                { type: 'frame', name: 'Details', layoutMode: 'VERTICAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG', itemSpacing: 4, layoutGrow: 1 },
+              ],
+            },
+          ],
+        },
+        {
+          type: 'frame', name: 'Summary',
+          layoutMode: 'VERTICAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG',
+          itemSpacing: 12,
+          children: [
+            { type: 'frame', name: 'Row / Subtotal', layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG', primaryAxisAlignItems: 'SPACE_BETWEEN' },
+            { type: 'frame', name: 'Row / Total', layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'HUG', primaryAxisAlignItems: 'SPACE_BETWEEN' },
+            { type: 'frame', name: 'Button / Checkout', layoutMode: 'HORIZONTAL', layoutSizingHorizontal: 'FILL', layoutSizingVertical: 'FIXED', height: 48, cornerRadius: 12, fill: '#111827', primaryAxisAlignItems: 'CENTER', counterAxisAlignItems: 'CENTER' },
+          ],
+        },
+      ],
+    },
   },
 };
 
@@ -590,6 +939,12 @@ function formatUiPattern(uiType: string, pattern: UiPattern): string {
       lines.push(`- ${prop}: ${value}`);
     }
   }
+  lines.push('', '## Example Parameters (minimal tone)', '');
+  lines.push('Ready-to-use `create_frame` params skeleton. Customize text, colors, and icons after creation.');
+  lines.push('');
+  lines.push('```json');
+  lines.push(JSON.stringify(pattern.exampleParams, null, 2));
+  lines.push('```');
   return lines.join('\n');
 }
 

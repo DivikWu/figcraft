@@ -88,7 +88,7 @@ const FRAME_PARAMS = new Set([
   'layoutMode', 'itemSpacing', 'padding', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
   'counterAxisSpacing', 'primaryAxisAlignItems', 'counterAxisAlignItems', 'layoutWrap',
   'cornerRadius', 'topLeftRadius', 'topRightRadius', 'bottomRightRadius', 'bottomLeftRadius',
-  'blendMode', 'effectStyleName', 'shadow', 'clipsContent',
+  'blendMode', 'effectStyleName', 'shadow', 'innerShadow', 'blur', 'clipsContent',
   'minWidth', 'maxWidth', 'minHeight', 'maxHeight',
   'children', 'dryRun', 'noPreview', 'parentId', 'items',
 ]);

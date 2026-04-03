@@ -700,20 +700,40 @@ async function setupFrame(
         ctx.warnings.push(`effectStyle "${name}" not found`);
       }
     } catch (err) { ctx.warnings.push(`effectStyle failed: ${err instanceof Error ? err.message : String(err)}`); }
-  } else if (p.shadow) {
-    // Drop shadow shorthand — only when no effectStyleName (library style takes priority)
-    const s = p.shadow as Record<string, unknown>;
-    const colorHex = (s.color as string) ?? '#00000040';
-    const rgba = hexToFigmaRgba(colorHex);
-    frame.effects = [{
-      type: 'DROP_SHADOW',
-      visible: true,
-      color: rgba,
-      offset: { x: (s.x as number) ?? 0, y: (s.y as number) ?? 4 },
-      radius: (s.blur as number) ?? 12,
-      spread: (s.spread as number) ?? 0,
-      blendMode: 'NORMAL',
-    }];
+  } else {
+    // Effect shorthands — only when no effectStyleName (library style takes priority)
+    const effects: Effect[] = [];
+
+    if (p.shadow) {
+      const s = p.shadow as Record<string, unknown>;
+      const rgba = hexToFigmaRgba((s.color as string) ?? '#00000040');
+      effects.push({
+        type: 'DROP_SHADOW', visible: true, color: rgba,
+        offset: { x: (s.x as number) ?? 0, y: (s.y as number) ?? 4 },
+        radius: (s.blur as number) ?? 12, spread: (s.spread as number) ?? 0,
+        blendMode: 'NORMAL',
+      });
+    }
+
+    if (p.innerShadow) {
+      const s = p.innerShadow as Record<string, unknown>;
+      const rgba = hexToFigmaRgba((s.color as string) ?? '#0000001A');
+      effects.push({
+        type: 'INNER_SHADOW', visible: true, color: rgba,
+        offset: { x: (s.x as number) ?? 0, y: (s.y as number) ?? 2 },
+        radius: (s.blur as number) ?? 4, spread: (s.spread as number) ?? 0,
+        blendMode: 'NORMAL',
+      });
+    }
+
+    if (p.blur) {
+      effects.push({
+        type: 'BACKGROUND_BLUR', visible: true, blurType: 'NORMAL',
+        radius: p.blur as number,
+      });
+    }
+
+    if (effects.length > 0) frame.effects = effects;
   }
 
   // ── Responsive constraints ──

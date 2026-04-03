@@ -99,6 +99,8 @@ export function registerGeneratedTools(
       blendMode: z.enum(['PASS_THROUGH', 'NORMAL', 'DARKEN', 'MULTIPLY', 'SCREEN', 'OVERLAY', 'SOFT_LIGHT', 'HARD_LIGHT']).optional().describe("Layer blend mode"),
       effectStyleName: z.string().optional().describe("Effect style name for shadows/blurs"),
       shadow: z.record(z.unknown()).optional().describe("Drop shadow shorthand. {color?: hex (default '#00000040'), x?: offsetX (default 0), y?: offsetY (default 4), blur?: radius (default 12), spread?: (default 0)}. Ignored when effectStyleName is set."),
+      innerShadow: z.record(z.unknown()).optional().describe("Inner shadow shorthand. {color?: hex (default '#0000001A'), x?: offsetX (default 0), y?: offsetY (default 2), blur?: radius (default 4), spread?: (default 0)}. Ignored when effectStyleName is set. Can coexist with shadow and blur."),
+      blur: z.number().optional().describe("Background blur radius for glassmorphism/frosted-glass effects. Ignored when effectStyleName is set. Can coexist with shadow and innerShadow."),
       clipsContent: z.boolean().optional().describe("Clip children to frame bounds (default: true)"),
       minWidth: z.number().optional().describe("Min width for responsive auto-layout"),
       maxWidth: z.number().optional().describe("Max width for responsive auto-layout"),

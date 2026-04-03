@@ -842,6 +842,12 @@ create_frame:
     shadow:
       type: object
       description: "Drop shadow shorthand. {color?: hex (default '#00000040'), x?: offsetX (default 0), y?: offsetY (default 4), blur?: radius (default 12), spread?: (default 0)}. Ignored when effectStyleName is set."
+    innerShadow:
+      type: object
+      description: "Inner shadow shorthand. {color?: hex (default '#0000001A'), x?: offsetX (default 0), y?: offsetY (default 2), blur?: radius (default 4), spread?: (default 0)}. Ignored when effectStyleName is set. Can coexist with shadow and blur."
+    blur:
+      type: number
+      description: "Background blur radius for glassmorphism/frosted-glass effects. Ignored when effectStyleName is set. Can coexist with shadow and innerShadow."
     clipsContent:
       type: boolean
       description: "Clip children to frame bounds (default: true)"
