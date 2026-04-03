@@ -7,8 +7,8 @@
  * Category: layout | Severity: hint
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
 import { DESIGN_CONSTANTS } from '../../constants.js';
+import type { AbstractNode, LintContext, LintRule, LintViolation } from '../../types.js';
 
 const MAX_DEPTH = DESIGN_CONSTANTS.nesting.maxDepth;
 

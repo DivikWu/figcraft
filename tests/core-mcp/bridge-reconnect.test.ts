@@ -6,8 +6,9 @@
  * Bug 1: request() only calls waitForConnection() when disconnected, never connect().
  * Bug 2: Eviction (code 4001) leaves bridge permanently dead — no scheduleReconnect().
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
 import * as fc from 'fast-check';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Store event handlers registered by each WebSocket instance
 let wsInstances: Array<{
@@ -76,7 +77,7 @@ describe('Bug Condition Exploration: Bridge reconnection', () => {
   it('request() should call connect() when disconnected (property-based)', async () => {
     await fc.assert(
       fc.asyncProperty(
-        fc.string({ minLength: 1, maxLength: 50 }).filter(s => s.trim().length > 0),
+        fc.string({ minLength: 1, maxLength: 50 }).filter((s) => s.trim().length > 0),
         async (method) => {
           const bridge = new Bridge('ws://localhost:3055', 'test-channel');
 
@@ -143,7 +144,7 @@ describe('Bug Condition Exploration: Bridge reconnection', () => {
     expect(wsInstance).toBeDefined();
 
     // Trigger the 'open' handler to complete the connection
-    wsInstance.handlers['open']();
+    wsInstance.handlers.open();
     await connectPromise;
 
     expect(bridge.isConnected).toBe(true);
@@ -152,7 +153,7 @@ describe('Bug Condition Exploration: Bridge reconnection', () => {
     const scheduleReconnectSpy = vi.spyOn(bridge as any, 'scheduleReconnect');
 
     // Simulate eviction: fire close with code 4001
-    wsInstance.handlers['close'](4001, Buffer.from('same_role_eviction'));
+    wsInstance.handlers.close(4001, Buffer.from('same_role_eviction'));
 
     // scheduleReconnect() should NOT be called — eviction is intentionally terminal
     expect(scheduleReconnectSpy).not.toHaveBeenCalled();
@@ -162,7 +163,6 @@ describe('Bug Condition Exploration: Bridge reconnection', () => {
     scheduleReconnectSpy.mockRestore();
   });
 });
-
 
 describe('Preservation: Baseline behavior that must be unchanged after fix', () => {
   beforeEach(() => {
@@ -184,7 +184,7 @@ describe('Preservation: Baseline behavior that must be unchanged after fix', () 
     const connectPromise = bridge.connect();
     const wsInstance = wsInstances[wsInstances.length - 1];
     // Complete the handshake
-    wsInstance.handlers['open']();
+    wsInstance.handlers.open();
     await connectPromise;
     // Clear the join messages sent during connect
     wsInstance.send.mockClear();
@@ -203,7 +203,7 @@ describe('Preservation: Baseline behavior that must be unchanged after fix', () 
   it('connected request() sends immediately without reconnection overhead (property-based)', async () => {
     await fc.assert(
       fc.asyncProperty(
-        fc.string({ minLength: 1, maxLength: 50 }).filter(s => s.trim().length > 0),
+        fc.string({ minLength: 1, maxLength: 50 }).filter((s) => s.trim().length > 0),
         async (method) => {
           const { bridge, wsInstance } = await createConnectedBridge();
 
@@ -227,9 +227,7 @@ describe('Preservation: Baseline behavior that must be unchanged after fix', () 
 
           // Simulate a response so the request resolves and doesn't leak timers
           const responseId = sentPayload.id;
-          wsInstance.handlers['message'](
-            JSON.stringify({ type: 'response', id: responseId, result: { ok: true } }),
-          );
+          wsInstance.handlers.message(JSON.stringify({ type: 'response', id: responseId, result: { ok: true } }));
 
           const result = await requestPromise;
           expect(result).toEqual({ ok: true });
@@ -255,7 +253,7 @@ describe('Preservation: Baseline behavior that must be unchanged after fix', () 
   it('request() after disconnect() fails without reconnection attempt (property-based)', async () => {
     await fc.assert(
       fc.asyncProperty(
-        fc.string({ minLength: 1, maxLength: 50 }).filter(s => s.trim().length > 0),
+        fc.string({ minLength: 1, maxLength: 50 }).filter((s) => s.trim().length > 0),
         async (method) => {
           const { bridge } = await createConnectedBridge();
 
@@ -269,7 +267,9 @@ describe('Preservation: Baseline behavior that must be unchanged after fix', () 
           // disconnect() already called notifyConnectionWaiters(), so waitForConnection()
           // resolves immediately and request() throws synchronously after the await.
           const requestPromise = bridge.request(method, {}).then(
-            () => { throw new Error('Expected request to reject'); },
+            () => {
+              throw new Error('Expected request to reject');
+            },
             (err: Error) => err,
           );
 
@@ -303,7 +303,7 @@ describe('Preservation: Baseline behavior that must be unchanged after fix', () 
     const scheduleReconnectSpy = vi.spyOn(bridge as any, 'scheduleReconnect');
 
     // Simulate a normal (non-eviction) close — e.g. code 1006 (abnormal closure)
-    wsInstance.handlers['close'](1006, Buffer.from('connection lost'));
+    wsInstance.handlers.close(1006, Buffer.from('connection lost'));
 
     // scheduleReconnect() SHOULD be called for non-eviction disconnects
     expect(scheduleReconnectSpy).toHaveBeenCalledTimes(1);

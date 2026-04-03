@@ -7,7 +7,10 @@ async function flushMicrotasks(rounds = 6): Promise<void> {
   }
 }
 
-async function waitForQueueToIdle(queue: { pendingCount: () => number; isProcessing: () => boolean }, rounds = 20): Promise<void> {
+async function waitForQueueToIdle(
+  queue: { pendingCount: () => number; isProcessing: () => boolean },
+  rounds = 20,
+): Promise<void> {
   for (let i = 0; i < rounds; i++) {
     await flushMicrotasks();
     if (queue.pendingCount() === 0 && !queue.isProcessing()) return;
@@ -44,14 +47,7 @@ describe('createSerialTaskQueue', () => {
     queue.enqueue('b');
     await waitForQueueToIdle(queue);
 
-    expect(events).toEqual([
-      'start:a',
-      'run:a',
-      'result:a:done:a',
-      'start:b',
-      'run:b',
-      'result:b:done:b',
-    ]);
+    expect(events).toEqual(['start:a', 'run:a', 'result:a:done:a', 'start:b', 'run:b', 'result:b:done:b']);
   });
 
   it('does not start the next task until a timed-out task actually settles', async () => {
@@ -201,12 +197,7 @@ describe('priority queue', () => {
 
     // After blocking completes, high-1 should run before normal-1 and normal-2
     const startEvents = events.filter((e) => e.startsWith('start:'));
-    expect(startEvents).toEqual([
-      'start:blocking',
-      'start:high-1',
-      'start:normal-1',
-      'start:normal-2',
-    ]);
+    expect(startEvents).toEqual(['start:blocking', 'start:high-1', 'start:normal-1', 'start:normal-2']);
   });
 
   it('works without isHighPriority callback (all items go to normal queue)', async () => {
@@ -226,9 +217,6 @@ describe('priority queue', () => {
     queue.enqueue('b');
     await waitForQueueToIdle(queue);
 
-    expect(events).toEqual([
-      'result:a:done:a',
-      'result:b:done:b',
-    ]);
+    expect(events).toEqual(['result:a:done:a', 'result:b:done:b']);
   });
 });

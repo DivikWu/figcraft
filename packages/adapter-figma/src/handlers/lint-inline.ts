@@ -6,12 +6,12 @@
  * skipping the simplifyNode → CompressedNode → compressedToAbstract chain.
  */
 
+import type { AbstractNode, LintContext, LintOptions, LintViolation } from '@figcraft/quality-engine';
 import { runLint } from '@figcraft/quality-engine';
-import type { AbstractNode, LintContext, LintViolation, LintOptions } from '@figcraft/quality-engine';
-import { figmaRgbaToHex } from '../utils/color.js';
-import { getCachedModeLibrary } from './write-nodes.js';
 import { registerCache } from '../utils/cache-manager.js';
+import { figmaRgbaToHex } from '../utils/color.js';
 import { applyFixDescriptor, builtInDeferredStrategies } from '../utils/fix-applicator.js';
+import { getCachedModeLibrary } from './write-nodes.js';
 
 /**
  * Map from validateTree/inferStructure rule names to quality-engine rule names.
@@ -46,7 +46,9 @@ export function figmaNodeToAbstract(node: SceneNode): AbstractNode {
   try {
     const role = node.getPluginData('role');
     if (role) result.role = role;
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   // Geometry
   if ('width' in node) result.width = (node as any).width;
@@ -67,7 +69,9 @@ export function figmaNodeToAbstract(node: SceneNode): AbstractNode {
         if (f.type === 'SOLID') {
           const solid = f as SolidPaint;
           entry.color = figmaRgbaToHex({
-            r: solid.color.r, g: solid.color.g, b: solid.color.b,
+            r: solid.color.r,
+            g: solid.color.g,
+            b: solid.color.b,
             a: solid.opacity ?? 1,
           });
           entry.opacity = solid.opacity;
@@ -86,7 +90,9 @@ export function figmaNodeToAbstract(node: SceneNode): AbstractNode {
         if (s.type === 'SOLID') {
           const solid = s as SolidPaint;
           entry.color = figmaRgbaToHex({
-            r: solid.color.r, g: solid.color.g, b: solid.color.b,
+            r: solid.color.r,
+            g: solid.color.g,
+            b: solid.color.b,
             a: solid.opacity ?? 1,
           });
         }
@@ -199,7 +205,7 @@ export async function buildLintContextFromStorage(): Promise<LintContext> {
     return _cachedLintCtx;
   }
 
-  const [currentMode, currentLibrary] = await getCachedModeLibrary() as ['library' | 'spec', string | undefined];
+  const [currentMode, currentLibrary] = (await getCachedModeLibrary()) as ['library' | 'spec', string | undefined];
 
   // In inline lint we don't have tokenContext from MCP — use empty maps.
   // Token-based rules (spec-color, hardcoded-token, etc.) will be severity-downgraded
@@ -225,10 +231,7 @@ export async function buildLintContextFromStorage(): Promise<LintContext> {
  *
  * Returns true if fix was applied, false otherwise.
  */
-async function applyFixDirect(
-  node: SceneNode,
-  violation: LintViolation,
-): Promise<{ fixed: boolean; error?: string }> {
+async function applyFixDirect(node: SceneNode, violation: LintViolation): Promise<{ fixed: boolean; error?: string }> {
   if (!violation.autoFixable || !violation.fixDescriptor) {
     return { fixed: false };
   }
@@ -238,7 +241,6 @@ async function applyFixDirect(
     deferredStrategies: builtInDeferredStrategies,
   });
 }
-
 
 /** Build a node ID → SceneNode map from created node IDs. */
 function buildNodeMap(nodeIds: string[]): Map<string, SceneNode> {
@@ -266,7 +268,11 @@ export interface QuickLintSummary {
  * Does NOT fix anything — just counts violations and top issues.
  * Returns null if no violations found (to avoid bloating the response).
  */
-export async function quickLintSummary(nodeId: string, autoFix = false, skipRules?: Set<string>): Promise<QuickLintSummary | null> {
+export async function quickLintSummary(
+  nodeId: string,
+  autoFix = false,
+  skipRules?: Set<string>,
+): Promise<QuickLintSummary | null> {
   const node = figma.getNodeById(nodeId);
   if (!node || !('type' in node) || node.type === 'PAGE' || node.type === 'DOCUMENT') return null;
 
@@ -280,13 +286,13 @@ export async function quickLintSummary(nodeId: string, autoFix = false, skipRule
 
   if (report.summary.violations === 0) return null;
 
-  const allViolations = report.categories.flatMap(c => c.nodes);
-  const autoFixable = allViolations.filter(v => v.autoFixable).length;
+  const allViolations = report.categories.flatMap((c) => c.nodes);
+  const autoFixable = allViolations.filter((v) => v.autoFixable).length;
 
   // ── Auto-fix deterministic layout issues (no library lookups) ──
   let autoFixed = 0;
   if (autoFix && autoFixable > 0) {
-    const fixableViolations = allViolations.filter(v => v.autoFixable && v.fixDescriptor);
+    const fixableViolations = allViolations.filter((v) => v.autoFixable && v.fixDescriptor);
     for (const v of fixableViolations) {
       // Skip deferred fixes (library lookups) — too expensive for inline mode
       if (v.fixDescriptor!.kind === 'deferred') continue;
@@ -301,7 +307,7 @@ export async function quickLintSummary(nodeId: string, autoFix = false, skipRule
 
   // Top issues: grouped by rule, sorted by count descending, max 5
   const topIssues = report.categories
-    .map(c => ({ rule: c.rule, count: c.count, severity: c.nodes[0]?.severity ?? 'heuristic' }))
+    .map((c) => ({ rule: c.rule, count: c.count, severity: c.nodes[0]?.severity ?? 'heuristic' }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 
@@ -336,7 +342,9 @@ export async function quickLintSummary(nodeId: string, autoFix = false, skipRule
         }
       }
     }
-  } catch { /* component scan is best-effort */ }
+  } catch {
+    /* component scan is best-effort */
+  }
 
   const result: QuickLintSummary = {
     violations: autoFix ? report.summary.violations - autoFixed : report.summary.violations,
@@ -391,7 +399,12 @@ export async function runInlineLintAndFix(
   }
 
   if (rootNodes.length === 0) {
-    const empty = { total: 0, pass: 0, violations: 0, bySeverity: { error: 0, unsafe: 0, heuristic: 0, style: 0, verbose: 0 } };
+    const empty = {
+      total: 0,
+      pass: 0,
+      violations: 0,
+      bySeverity: { error: 0, unsafe: 0, heuristic: 0, style: 0, verbose: 0 },
+    };
     return {
       initial: empty,
       fixable: 0,

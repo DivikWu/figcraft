@@ -6,8 +6,8 @@
  */
 
 import { createHash, randomBytes } from 'node:crypto';
+import { mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
-import { readFileSync, writeFileSync, mkdirSync, unlinkSync, renameSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -17,7 +17,8 @@ const FIGMA_OAUTH_AUTHORIZE = 'https://www.figma.com/oauth';
 const FIGMA_OAUTH_TOKEN = 'https://api.figma.com/v1/oauth/token';
 const REDIRECT_URI = 'http://localhost:9274/callback';
 const OAUTH_PORT = 9274;
-const SCOPES = 'current_user:read,file_content:read,file_metadata:read,file_comments:read,file_comments:write,file_versions:read,library_assets:read,library_content:read,team_library_content:read,file_dev_resources:read,file_dev_resources:write,projects:read,webhooks:read,webhooks:write';
+const SCOPES =
+  'current_user:read,file_content:read,file_metadata:read,file_comments:read,file_comments:write,file_versions:read,library_assets:read,library_content:read,team_library_content:read,file_dev_resources:read,file_dev_resources:write,projects:read,webhooks:read,webhooks:write';
 
 function getClientId(): string {
   const id = process.env.FIGMA_CLIENT_ID;
@@ -61,7 +62,7 @@ function loadCredentials(): Credentials | null {
 function saveCredentials(creds: Credentials): void {
   const dir = credentialsDir();
   mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const tmp = credentialsPath() + '.tmp';
+  const tmp = `${credentialsPath()}.tmp`;
   writeFileSync(tmp, JSON.stringify(creds, null, 2), { mode: 0o600 });
   renameSync(tmp, credentialsPath());
 }
@@ -69,7 +70,9 @@ function saveCredentials(creds: Credentials): void {
 export function clearCredentials(): void {
   try {
     unlinkSync(credentialsPath());
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 // ─── PKCE ───
@@ -127,7 +130,7 @@ function bridgeTokenPath(): string {
 export function saveBridgeToken(token: string): void {
   const dir = credentialsDir();
   mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const tmp = bridgeTokenPath() + '.tmp';
+  const tmp = `${bridgeTokenPath()}.tmp`;
   writeFileSync(tmp, JSON.stringify({ token, savedAt: Date.now() }), { mode: 0o600 });
   renameSync(tmp, bridgeTokenPath());
   console.error('[FigCraft auth] Bridge token persisted to disk');
@@ -185,7 +188,9 @@ export async function getToken(): Promise<string> {
     if (!refreshPromise) {
       refreshPromise = refreshToken(creds.refresh_token)
         .then((c) => c.access_token)
-        .finally(() => { refreshPromise = null; });
+        .finally(() => {
+          refreshPromise = null;
+        });
     }
     return refreshPromise;
   }
@@ -215,10 +220,13 @@ export function startOAuthFlow(): { url: string; completion: Promise<{ ok: true 
 
   const completion = new Promise<{ ok: true }>((resolve, reject) => {
     let server: Server;
-    const timeout = setTimeout(() => {
-      server?.close();
-      reject(new Error('OAuth flow timed out after 5 minutes. Please try figma_login again.'));
-    }, 5 * 60 * 1000);
+    const timeout = setTimeout(
+      () => {
+        server?.close();
+        reject(new Error('OAuth flow timed out after 5 minutes. Please try figma_login again.'));
+      },
+      5 * 60 * 1000,
+    );
 
     server = createServer(async (req, res) => {
       try {
@@ -317,7 +325,10 @@ export function startOAuthFlow(): { url: string; completion: Promise<{ ok: true 
  * Get current auth status.
  * Reports the highest-priority auth method available.
  */
-export function getAuthStatus(): { method: 'pat' | 'bridge' | 'bridge-persisted' | 'oauth' | 'none'; expiresAt?: number } {
+export function getAuthStatus(): {
+  method: 'pat' | 'bridge' | 'bridge-persisted' | 'oauth' | 'none';
+  expiresAt?: number;
+} {
   if (process.env.FIGMA_API_TOKEN) return { method: 'pat' };
   const bridgeToken = bridgeTokenFn?.();
   if (bridgeToken) return { method: 'bridge' };

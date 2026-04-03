@@ -3,23 +3,20 @@
  * Used by endpoint tools for library component operations.
  */
 
-import type { Bridge } from '../../bridge.js';
-import { fetchLibraryComponents, fetchLibraryComponentSets, groupComponentsBySet } from '../../figma-api.js';
 import { getToken } from '../../auth.js';
+import type { Bridge } from '../../bridge.js';
+import { fetchLibraryComponentSets, fetchLibraryComponents, groupComponentsBySet } from '../../figma-api.js';
 import type { McpResponse } from './node-logic.js';
 
 /**
  * List published library components via REST API.
  * Resolves fileKey from: param → plugin get_mode → bridge cache.
  */
-export async function listLibraryComponentsLogic(
-  bridge: Bridge,
-  params: { fileKey?: string },
-): Promise<McpResponse> {
+export async function listLibraryComponentsLogic(bridge: Bridge, params: { fileKey?: string }): Promise<McpResponse> {
   try {
     let resolvedKey = params.fileKey ?? null;
     if (!resolvedKey) {
-      const modeResult = await bridge.request('get_mode', {}) as {
+      const modeResult = (await bridge.request('get_mode', {})) as {
         selectedLibrary?: string;
         libraryFileKey?: string | null;
       };
@@ -33,7 +30,12 @@ export async function listLibraryComponentsLogic(
     if (!resolvedKey) {
       return {
         isError: true,
-        content: [{ type: 'text' as const, text: 'No fileKey available. Paste the library file URL in the FigCraft plugin panel, or provide the fileKey parameter.' }],
+        content: [
+          {
+            type: 'text' as const,
+            text: 'No fileKey available. Paste the library file URL in the FigCraft plugin panel, or provide the fileKey parameter.',
+          },
+        ],
       };
     }
     const token = await getToken();
@@ -43,11 +45,20 @@ export async function listLibraryComponentsLogic(
     ]);
     const grouped = groupComponentsBySet(components, componentSets);
     return {
-      content: [{ type: 'text' as const, text: JSON.stringify({
-        componentSetCount: grouped.componentSets.length,
-        standaloneCount: grouped.standalone.length,
-        ...grouped,
-      }, null, 2) }],
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify(
+            {
+              componentSetCount: grouped.componentSets.length,
+              standaloneCount: grouped.standalone.length,
+              ...grouped,
+            },
+            null,
+            2,
+          ),
+        },
+      ],
     };
   } catch (err) {
     return {

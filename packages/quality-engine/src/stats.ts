@@ -69,9 +69,7 @@ export function getStats(sortBy?: 'frequency'): RuleStats {
   if (!sortBy) return { ...stats };
 
   // Sort by totalViolations descending
-  const entries = Object.entries(stats).sort(
-    ([, a], [, b]) => b.totalViolations - a.totalViolations,
-  );
+  const entries = Object.entries(stats).sort(([, a], [, b]) => b.totalViolations - a.totalViolations);
   const sorted: RuleStats = {};
   for (const [name, entry] of entries) {
     sorted[name] = entry;

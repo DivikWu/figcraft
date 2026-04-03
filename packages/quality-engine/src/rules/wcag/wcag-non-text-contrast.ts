@@ -6,15 +6,22 @@
  * elements (≤200px). Large containers are skipped as they're likely backgrounds.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import type { AbstractNode, LintContext, LintRule, LintViolation } from '../../types.js';
 import { hexToRgbTuple } from '../../utils/color.js';
 import { contrastRatioTuple } from './wcag-helpers.js';
 
 const NON_TEXT_THRESHOLD = 3;
 
 const APPLICABLE_TYPES = new Set([
-  'RECTANGLE', 'ELLIPSE', 'FRAME', 'VECTOR', 'LINE',
-  'STAR', 'POLYGON', 'COMPONENT', 'INSTANCE',
+  'RECTANGLE',
+  'ELLIPSE',
+  'FRAME',
+  'VECTOR',
+  'LINE',
+  'STAR',
+  'POLYGON',
+  'COMPONENT',
+  'INSTANCE',
 ]);
 
 /** Large nodes are likely backgrounds, not interactive elements. */
@@ -31,7 +38,8 @@ export const wcagNonTextContrastRule: LintRule = {
   category: 'wcag',
   severity: 'heuristic',
   ai: {
-    preventionHint: 'Ensure non-text UI elements (borders, icons, form controls) have at least 3:1 contrast ratio against their background.',
+    preventionHint:
+      'Ensure non-text UI elements (borders, icons, form controls) have at least 3:1 contrast ratio against their background.',
     phase: ['styling', 'accessibility'],
     tags: ['non-text', 'contrast'],
   },
@@ -47,7 +55,7 @@ export const wcagNonTextContrastRule: LintRule = {
 
     // Check 1: Stroke contrast (form borders, icon outlines)
     if (node.strokes?.length && node.strokeWeight && node.strokeWeight > 0) {
-      const strokeFill = node.strokes.find(s => s.type === 'SOLID' && s.visible !== false);
+      const strokeFill = node.strokes.find((s) => s.type === 'SOLID' && s.visible !== false);
       if (strokeFill?.color) {
         const strokeRgb = hexToRgbTuple(strokeFill.color);
         if (strokeRgb) {
@@ -74,7 +82,7 @@ export const wcagNonTextContrastRule: LintRule = {
     if (w > MAX_INTERACTIVE_SIZE && h > MAX_INTERACTIVE_SIZE) return violations;
 
     if (node.fills?.length) {
-      const solidFill = node.fills.find(f => f.type === 'SOLID' && f.visible !== false);
+      const solidFill = node.fills.find((f) => f.type === 'SOLID' && f.visible !== false);
       if (solidFill?.color) {
         const fillRgb = hexToRgbTuple(solidFill.color);
         if (fillRgb) {

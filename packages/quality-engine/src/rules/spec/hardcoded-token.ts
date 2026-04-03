@@ -7,15 +7,16 @@
  * come from the shared library.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
+import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
 
 export const hardcodedTokenRule: LintRule = {
   name: 'hardcoded-token',
-  description: 'Detect fill colors or corner radii that aren\'t linked to a shared library variable.',
+  description: "Detect fill colors or corner radii that aren't linked to a shared library variable.",
   category: 'token',
   severity: 'heuristic',
   ai: {
-    preventionHint: 'Bind fill colors with fillVariableName and corner radii with variable references from the shared library',
+    preventionHint:
+      'Bind fill colors with fillVariableName and corner radii with variable references from the shared library',
     phase: ['styling'],
     tags: ['color', 'radius'],
   },
@@ -31,18 +32,17 @@ export const hardcodedTokenRule: LintRule = {
     // Skip if already bound to a paint style, or if fills are bound via variables
     if (node.fills && !node.fillStyleId) {
       const hasSolidFill = node.fills.some((f) => f.type === 'SOLID' && f.visible !== false);
-      const fillsBound = bv['fills'] || (Array.isArray(bv['fills']) && bv['fills'].length > 0);
+      const fillsBound = bv.fills || (Array.isArray(bv.fills) && bv.fills.length > 0);
       if (hasSolidFill && !fillsBound) {
         // Skip container frames that use default white/transparent — these are structural,
         // not design surfaces. Only flag if the fill is a non-default color.
         const fill = node.fills.find((f) => f.type === 'SOLID' && f.visible !== false);
-        const isDefaultWhite = fill?.color && (
-          fill.color === '#ffffff' || fill.color === '#FFFFFF' ||
-          fill.color.toLowerCase() === '#fff'
-        );
+        const isDefaultWhite =
+          fill?.color && (fill.color === '#ffffff' || fill.color === '#FFFFFF' || fill.color.toLowerCase() === '#fff');
         if (!isDefaultWhite) {
           const colorStr = fill?.color ?? 'solid';
-          const opacityStr = fill?.opacity !== undefined && fill.opacity !== 1 ? ` ${Math.round(fill.opacity * 100)}%` : '';
+          const opacityStr =
+            fill?.opacity !== undefined && fill.opacity !== 1 ? ` ${Math.round(fill.opacity * 100)}%` : '';
           violations.push({
             nodeId: node.id,
             nodeName: node.name,
@@ -58,7 +58,7 @@ export const hardcodedTokenRule: LintRule = {
     }
 
     // Check corner radius
-    if (node.cornerRadius !== undefined && node.cornerRadius !== 0 && !bv['cornerRadius']) {
+    if (node.cornerRadius !== undefined && node.cornerRadius !== 0 && !bv.cornerRadius) {
       const radiusVal = Array.isArray(node.cornerRadius) ? node.cornerRadius.join('/') : node.cornerRadius;
       violations.push({
         nodeId: node.id,

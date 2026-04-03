@@ -5,7 +5,7 @@
  * Category: component | Severity: warning
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import type { AbstractNode, LintContext, LintRule, LintViolation } from '../../types.js';
 
 /** Collect all componentPropertyReferences values from the subtree. */
 function collectReferences(node: AbstractNode): Set<string> {

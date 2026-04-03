@@ -6,7 +6,7 @@
  * algorithm directly.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 // Test the color distance logic used in findClosestPaintStyle
 // (extracted here since the actual function depends on internal paintStyleMap state)
@@ -14,11 +14,7 @@ import { describe, it, expect } from 'vitest';
 function colorDistance(hex1: string, hex2: string): number {
   const parse = (h: string) => {
     const c = h.replace('#', '');
-    return [
-      parseInt(c.slice(0, 2), 16),
-      parseInt(c.slice(2, 4), 16),
-      parseInt(c.slice(4, 6), 16),
-    ];
+    return [parseInt(c.slice(0, 2), 16), parseInt(c.slice(2, 4), 16), parseInt(c.slice(4, 6), 16)];
   };
   const [r1, g1, b1] = parse(hex1);
   const [r2, g2, b2] = parse(hex2);

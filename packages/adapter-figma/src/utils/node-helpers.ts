@@ -5,11 +5,17 @@
  * and the batch node creation pipeline.
  */
 
-import { hexToFigmaRgb } from './color.js';
-import { autoBindDefault, autoBindStrokeDefault, suggestColorVariable, findColorVariableByName, findColorVariableById, findFloatVariableByName } from './design-context.js';
-import { ensureLoaded, getPaintStyleId, getAvailablePaintStyleNames, findClosestPaintStyle } from './style-registry.js';
-import { findNodeByIdAsync } from './node-lookup.js';
 import { registerCache } from './cache-manager.js';
+import { hexToFigmaRgb } from './color.js';
+import {
+  autoBindDefault,
+  autoBindStrokeDefault,
+  findColorVariableById,
+  findColorVariableByName,
+  findFloatVariableByName,
+  suggestColorVariable,
+} from './design-context.js';
+import { ensureLoaded, findClosestPaintStyle, getAvailablePaintStyleNames, getPaintStyleId } from './style-registry.js';
 
 // ─── FLOAT variable scope mapping ───
 // Maps node property names to Figma variable scopes for scope-aware auto-bind.
@@ -68,10 +74,7 @@ async function getFloatVarsWithModes(): Promise<{ vars: Variable[]; defaultModes
  * Match a numeric value against existing local FLOAT variables by value + Figma scope.
  * Returns the matched variable or null.
  */
-async function matchFloatVariable(
-  numericValue: number,
-  field: string,
-): Promise<Variable | null> {
+async function matchFloatVariable(numericValue: number, field: string): Promise<Variable | null> {
   if (numericValue === 0) return null; // 0 is too common to match
   const scope = FIELD_TO_SCOPE[field];
   if (!scope) return null;
@@ -120,12 +123,16 @@ export async function applyTokenField(
         try {
           (node as SceneNode).setBoundVariable(field as VariableBindableNodeField, variable);
           return variable.name;
-        } catch { /* binding not supported — ignore */ }
+        } catch {
+          /* binding not supported — ignore */
+        }
       }
-    } catch { /* ambiguous variable name — fall through to numeric parse */ }
+    } catch {
+      /* ambiguous variable name — fall through to numeric parse */
+    }
     // String didn't resolve to a variable — try parsing as number
     const parsed = parseFloat(value);
-    if (!isNaN(parsed)) {
+    if (!Number.isNaN(parsed)) {
       (node as any)[field] = parsed;
     }
     return null;
@@ -215,7 +222,9 @@ async function clearFillStyle(node: SceneNode): Promise<void> {
     if ('fillStyleId' in node && (node as any).fillStyleId) {
       await (node as any).setFillStyleIdAsync('');
     }
-  } catch { /* best effort */ }
+  } catch {
+    /* best effort */
+  }
 }
 
 /**
@@ -226,7 +235,9 @@ async function clearStrokeStyle(node: SceneNode): Promise<void> {
     if ('strokeStyleId' in node && (node as any).strokeStyleId) {
       await (node as any).setStrokeStyleIdAsync('');
     }
-  } catch { /* best effort */ }
+  } catch {
+    /* best effort */
+  }
 }
 
 // ─── Fill application ───
@@ -276,7 +287,7 @@ export async function applyFill(
     if (variable) {
       await clearFillStyle(node);
       node.fills = [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }];
-      const fills = [...node.fills as Paint[]];
+      const fills = [...(node.fills as Paint[])];
       if (fills[0]) {
         fills[0] = figma.variables.setBoundVariableForPaint(fills[0] as SolidPaint, 'color', variable);
         node.fills = fills;
@@ -301,7 +312,7 @@ export async function applyFill(
       if (variable) {
         await clearFillStyle(node);
         node.fills = [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }];
-        const fills = [...node.fills as Paint[]];
+        const fills = [...(node.fills as Paint[])];
         if (fills[0]) {
           fills[0] = figma.variables.setBoundVariableForPaint(fills[0] as SolidPaint, 'color', variable);
           node.fills = fills;
@@ -349,14 +360,16 @@ export async function applyFill(
         if (variable) {
           await clearFillStyle(node);
           node.fills = [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }];
-          const fills = [...node.fills as Paint[]];
+          const fills = [...(node.fills as Paint[])];
           if (fills[0]) {
             fills[0] = figma.variables.setBoundVariableForPaint(fills[0] as SolidPaint, 'color', variable);
             node.fills = fills;
             return { autoBound: `var:${variable.name}` };
           }
         }
-      } catch { /* variable lookup failed — try style */ }
+      } catch {
+        /* variable lookup failed — try style */
+      }
       // Try as style name
       if (useLibrary && library) {
         if (!options?.stylesPreloaded) await ensureLoaded(library);
@@ -365,7 +378,9 @@ export async function applyFill(
           try {
             await (node as any).setFillStyleIdAsync(paintMatch.id);
             return { autoBound: `fill:${paintMatch.name}` };
-          } catch { /* style apply failed */ }
+          } catch {
+            /* style apply failed */
+          }
         }
       }
       colorHint = `"${fill}" is not a hex color and no matching variable or style found. Use "#RRGGBB" format or check the name.`;
@@ -380,21 +395,25 @@ export async function applyFill(
         try {
           await (node as any).setFillStyleIdAsync(paintMatch.id);
           autoBound = `fill:${paintMatch.name}`;
-        } catch (err) { console.warn('[figcraft] Paint style apply failed:', err); }
+        } catch (err) {
+          console.warn('[figcraft] Paint style apply failed:', err);
+        }
       } else {
         // No exact paint style match — try scope-aware COLOR variable binding
         try {
           const colorVar = await suggestColorVariable(fill, role);
           if (colorVar) {
             await clearFillStyle(node);
-            const fills = [...node.fills as Paint[]];
+            const fills = [...(node.fills as Paint[])];
             if (fills[0]) {
               fills[0] = figma.variables.setBoundVariableForPaint(fills[0] as SolidPaint, 'color', colorVar);
               node.fills = fills;
               autoBound = `var:${colorVar.name}`;
             }
           }
-        } catch { /* best effort */ }
+        } catch {
+          /* best effort */
+        }
 
         if (!autoBound) {
           // No variable match either — provide self-correction hints
@@ -414,7 +433,9 @@ export async function applyFill(
     if (!options?.stylesPreloaded) await ensureLoaded(library);
     try {
       autoBound = await autoBindDefault(node, role, library);
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   } else {
     // No fill specified and no library — clear Figma's default white fill
     node.fills = [];
@@ -461,7 +482,7 @@ export async function applyStroke(
     if (variable) {
       await clearStrokeStyle(node);
       node.strokes = [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }];
-      const strokes = [...node.strokes as Paint[]];
+      const strokes = [...(node.strokes as Paint[])];
       if (strokes[0]) {
         strokes[0] = figma.variables.setBoundVariableForPaint(strokes[0] as SolidPaint, 'color', variable);
         node.strokes = strokes;
@@ -476,14 +497,14 @@ export async function applyStroke(
   // Handle { _variable: "name" } — variable binding with 3-level resolution
   if (stroke && typeof stroke === 'object' && '_variable' in stroke) {
     try {
-      const variable = await findColorVariableByName(
-        (stroke as { _variable: string })._variable,
-        ['STROKE_COLOR', 'ALL_SCOPES'],
-      );
+      const variable = await findColorVariableByName((stroke as { _variable: string })._variable, [
+        'STROKE_COLOR',
+        'ALL_SCOPES',
+      ]);
       if (variable) {
         await clearStrokeStyle(node);
         node.strokes = [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }];
-        const strokes = [...node.strokes as Paint[]];
+        const strokes = [...(node.strokes as Paint[])];
         if (strokes[0]) {
           strokes[0] = figma.variables.setBoundVariableForPaint(strokes[0] as SolidPaint, 'color', variable);
           node.strokes = strokes;
@@ -491,7 +512,9 @@ export async function applyStroke(
         (node as any).strokeWeight = strokeWeight ?? 1;
         return `var:${variable.name}`;
       }
-    } catch { /* ambiguous variable — fall through */ }
+    } catch {
+      /* ambiguous variable — fall through */
+    }
     (node as any).strokeWeight = strokeWeight ?? 1;
     return null;
   }
@@ -500,7 +523,11 @@ export async function applyStroke(
   if (stroke && typeof stroke === 'object' && '_style' in stroke) {
     const paintMatch = getPaintStyleId(undefined, (stroke as { _style: string })._style);
     if (paintMatch) {
-      try { await (node as any).setStrokeStyleIdAsync(paintMatch.id); } catch { /* skip */ }
+      try {
+        await (node as any).setStrokeStyleIdAsync(paintMatch.id);
+      } catch {
+        /* skip */
+      }
     }
     (node as any).strokeWeight = strokeWeight ?? 1;
     return paintMatch ? `stroke:${paintMatch.name}` : null;
@@ -515,7 +542,7 @@ export async function applyStroke(
         if (variable) {
           await clearStrokeStyle(node);
           node.strokes = [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }];
-          const strokes = [...node.strokes as Paint[]];
+          const strokes = [...(node.strokes as Paint[])];
           if (strokes[0]) {
             strokes[0] = figma.variables.setBoundVariableForPaint(strokes[0] as SolidPaint, 'color', variable);
             node.strokes = strokes;
@@ -523,12 +550,18 @@ export async function applyStroke(
           (node as any).strokeWeight = strokeWeight ?? 1;
           return `var:${variable.name}`;
         }
-      } catch { /* variable lookup failed — try style */ }
+      } catch {
+        /* variable lookup failed — try style */
+      }
       // Try as style name
       if (useLibrary && library) {
         const paintMatch = getPaintStyleId(undefined, stroke);
         if (paintMatch) {
-          try { await (node as any).setStrokeStyleIdAsync(paintMatch.id); } catch { /* skip */ }
+          try {
+            await (node as any).setStrokeStyleIdAsync(paintMatch.id);
+          } catch {
+            /* skip */
+          }
           (node as any).strokeWeight = strokeWeight ?? 1;
           return `stroke:${paintMatch.name}`;
         }
@@ -543,7 +576,11 @@ export async function applyStroke(
     if (useLibrary && library) {
       const paintMatch = getPaintStyleId(stroke);
       if (paintMatch) {
-        try { await (node as any).setStrokeStyleIdAsync(paintMatch.id); } catch { /* skip */ }
+        try {
+          await (node as any).setStrokeStyleIdAsync(paintMatch.id);
+        } catch {
+          /* skip */
+        }
       }
     }
     return null;
@@ -555,7 +592,9 @@ export async function applyStroke(
         (node as any).strokeWeight = strokeWeight;
       }
       return bound;
-    } catch { /* skip — best effort */ }
+    } catch {
+      /* skip — best effort */
+    }
   }
   return null;
 }
@@ -577,7 +616,10 @@ export async function applyPerSideStrokeWeights(
   const sides = ['strokeTopWeight', 'strokeBottomWeight', 'strokeLeftWeight', 'strokeRightWeight'] as const;
   let hasSide = false;
   for (const side of sides) {
-    if (props[side] != null) { hasSide = true; break; }
+    if (props[side] != null) {
+      hasSide = true;
+      break;
+    }
   }
   if (!hasSide) return bound;
 
@@ -655,16 +697,11 @@ export function translateSingleSizing(
     case 'HUG':
       return { mode: 'AUTO' };
     case 'FILL':
-      return axis === 'primary'
-        ? { mode: 'AUTO', layoutGrow: 1 }
-        : { mode: 'AUTO', layoutAlign: 'STRETCH' };
+      return axis === 'primary' ? { mode: 'AUTO', layoutGrow: 1 } : { mode: 'AUTO', layoutAlign: 'STRETCH' };
   }
 }
 
-export function translateLayoutSizing(
-  p: AutoLayoutProps,
-  dir: 'HORIZONTAL' | 'VERTICAL',
-): SizingResult {
+export function translateLayoutSizing(p: AutoLayoutProps, dir: 'HORIZONTAL' | 'VERTICAL'): SizingResult {
   const isHorizontal = dir === 'HORIZONTAL';
   // Map horizontal/vertical to primary/counter based on layout direction
   const primarySizing = isHorizontal ? p.layoutSizingHorizontal : p.layoutSizingVertical;
@@ -715,13 +752,17 @@ export async function applyAutoLayout(
 
   if (useTokens) {
     // Bind spacing/padding to FLOAT variables by scope
-    const bound = await applyTokenFields(frame, {
-      itemSpacing: p.itemSpacing ?? 0,
-      paddingLeft: p.paddingLeft ?? uniformPad,
-      paddingRight: p.paddingRight ?? uniformPad,
-      paddingTop: p.paddingTop ?? uniformPad,
-      paddingBottom: p.paddingBottom ?? uniformPad,
-    }, skip);
+    const bound = await applyTokenFields(
+      frame,
+      {
+        itemSpacing: p.itemSpacing ?? 0,
+        paddingLeft: p.paddingLeft ?? uniformPad,
+        paddingRight: p.paddingRight ?? uniformPad,
+        paddingTop: p.paddingTop ?? uniformPad,
+        paddingBottom: p.paddingBottom ?? uniformPad,
+      },
+      skip,
+    );
     tokensBound.push(...bound);
   } else {
     frame.itemSpacing = p.itemSpacing ?? 0;
@@ -757,8 +798,8 @@ export async function applyAutoLayout(
     const useHeight = vSizing === 'FIXED' || (!vSizing && p.height != null);
     if (useWidth || useHeight) {
       frame.resize(
-        useWidth ? (p.width as number) ?? 100 : frame.width,
-        useHeight ? (p.height as number) ?? 100 : frame.height,
+        useWidth ? ((p.width as number) ?? 100) : frame.width,
+        useHeight ? ((p.height as number) ?? 100) : frame.height,
       );
     }
 
@@ -862,15 +903,16 @@ export async function applyCornerRadius(
  * Set component properties on an instance, matching keys with Figma's `name#id` suffix format.
  * Silently skips unknown or type-mismatched properties.
  */
-export function setComponentProperties(
-  instance: InstanceNode,
-  props: Record<string, string | boolean>,
-): void {
+export function setComponentProperties(instance: InstanceNode, props: Record<string, string | boolean>): void {
   const defs = instance.componentProperties;
   for (const [key, value] of Object.entries(props)) {
-    const matchKey = Object.keys(defs).find(k => k.startsWith(key + '#') || k === key);
+    const matchKey = Object.keys(defs).find((k) => k.startsWith(`${key}#`) || k === key);
     if (matchKey) {
-      try { instance.setProperties({ [matchKey]: value }); } catch { /* skip */ }
+      try {
+        instance.setProperties({ [matchKey]: value });
+      } catch {
+        /* skip */
+      }
     }
   }
 }

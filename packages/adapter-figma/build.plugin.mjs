@@ -1,7 +1,7 @@
-import { build } from 'esbuild';
-import { readFileSync, writeFileSync, mkdirSync, cpSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { build } from 'esbuild';
 
 const PACKAGE_ROOT = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(PACKAGE_ROOT, '../..');

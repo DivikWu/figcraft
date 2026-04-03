@@ -27,7 +27,10 @@ export function createSerialTaskQueue<TItem, TResult>(
     try {
       await fn();
     } catch (error) {
-      console.warn(`[figcraft] serial-task-queue ${label} failed:`, error instanceof Error ? error.message : String(error));
+      console.warn(
+        `[figcraft] serial-task-queue ${label} failed:`,
+        error instanceof Error ? error.message : String(error),
+      );
     }
   }
 
@@ -56,10 +59,7 @@ export function createSerialTaskQueue<TItem, TResult>(
       );
 
       const timeoutMs = callbacks.getTimeoutMs?.(item);
-      let outcome:
-        | { kind: 'result'; result: TResult }
-        | { kind: 'error'; error: unknown }
-        | { kind: 'timeout' };
+      let outcome: { kind: 'result'; result: TResult } | { kind: 'error'; error: unknown } | { kind: 'timeout' };
 
       if (timeoutMs != null) {
         let timer: ReturnType<typeof setTimeout> | undefined;

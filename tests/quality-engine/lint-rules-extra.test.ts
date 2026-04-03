@@ -2,26 +2,26 @@
  * Tests for additional lint rules — layout, wcag, token rules.
  */
 
-import { describe, it, expect } from 'vitest';
-import type { AbstractNode, LintContext } from '../../packages/quality-engine/src/types.js';
+import { describe, expect, it } from 'vitest';
 import { fixedInAutolayoutRule } from '../../packages/quality-engine/src/rules/layout/fixed-in-autolayout.js';
-import { hardcodedTokenRule } from '../../packages/quality-engine/src/rules/spec/hardcoded-token.js';
-import { wcagTargetSizeRule } from '../../packages/quality-engine/src/rules/wcag/wcag-target-size.js';
-import { wcagLineHeightRule } from '../../packages/quality-engine/src/rules/wcag/wcag-line-height.js';
 import { maxNestingDepthRule } from '../../packages/quality-engine/src/rules/layout/max-nesting-depth.js';
+import { screenBottomOverflowRule } from '../../packages/quality-engine/src/rules/layout/screen-bottom-overflow.js';
+import { sectionSpacingCollapseRule } from '../../packages/quality-engine/src/rules/layout/section-spacing-collapse.js';
+import { hardcodedTokenRule } from '../../packages/quality-engine/src/rules/spec/hardcoded-token.js';
+import { ctaWidthInconsistentRule } from '../../packages/quality-engine/src/rules/structure/cta-width-inconsistent.js';
 import { formConsistencyRule } from '../../packages/quality-engine/src/rules/structure/form-consistency.js';
 import { headerFragmentedRule } from '../../packages/quality-engine/src/rules/structure/header-fragmented.js';
-import { ctaWidthInconsistentRule } from '../../packages/quality-engine/src/rules/structure/cta-width-inconsistent.js';
-import { sectionSpacingCollapseRule } from '../../packages/quality-engine/src/rules/layout/section-spacing-collapse.js';
 import { headerOutOfBandRule } from '../../packages/quality-engine/src/rules/structure/header-out-of-band.js';
-import { screenBottomOverflowRule } from '../../packages/quality-engine/src/rules/layout/screen-bottom-overflow.js';
-import { socialRowCrampedRule } from '../../packages/quality-engine/src/rules/structure/social-row-cramped.js';
-import { navOvercrowdedRule } from '../../packages/quality-engine/src/rules/structure/nav-overcrowded.js';
-import { statsRowCrampedRule } from '../../packages/quality-engine/src/rules/structure/stats-row-cramped.js';
-import { rootMisclassifiedInteractiveRule } from '../../packages/quality-engine/src/rules/structure/root-misclassified-interactive.js';
-import { nestedInteractiveShellRule } from '../../packages/quality-engine/src/rules/structure/nested-interactive-shell.js';
-import { screenShellInvalidRule } from '../../packages/quality-engine/src/rules/structure/screen-shell-invalid.js';
 import { inputFieldStructureRule } from '../../packages/quality-engine/src/rules/structure/input-field-structure.js';
+import { navOvercrowdedRule } from '../../packages/quality-engine/src/rules/structure/nav-overcrowded.js';
+import { nestedInteractiveShellRule } from '../../packages/quality-engine/src/rules/structure/nested-interactive-shell.js';
+import { rootMisclassifiedInteractiveRule } from '../../packages/quality-engine/src/rules/structure/root-misclassified-interactive.js';
+import { screenShellInvalidRule } from '../../packages/quality-engine/src/rules/structure/screen-shell-invalid.js';
+import { socialRowCrampedRule } from '../../packages/quality-engine/src/rules/structure/social-row-cramped.js';
+import { statsRowCrampedRule } from '../../packages/quality-engine/src/rules/structure/stats-row-cramped.js';
+import { wcagLineHeightRule } from '../../packages/quality-engine/src/rules/wcag/wcag-line-height.js';
+import { wcagTargetSizeRule } from '../../packages/quality-engine/src/rules/wcag/wcag-target-size.js';
+import type { AbstractNode, LintContext } from '../../packages/quality-engine/src/types.js';
 
 const emptyCtx: LintContext = {
   colorTokens: new Map(),
@@ -48,9 +48,7 @@ describe('fixed-in-autolayout', () => {
     const node = makeNode({
       type: 'FRAME',
       layoutMode: 'VERTICAL',
-      children: [
-        makeNode({ id: '2:1', layoutPositioning: 'ABSOLUTE' }),
-      ],
+      children: [makeNode({ id: '2:1', layoutPositioning: 'ABSOLUTE' })],
     });
     const v = fixedInAutolayoutRule.check(node, emptyCtx);
     expect(v).toHaveLength(1);
@@ -186,11 +184,7 @@ describe('max-nesting-depth', () => {
   it('passes shallow nesting', () => {
     const node = makeNode({
       type: 'FRAME',
-      children: [
-        makeNode({ id: '2:1', type: 'FRAME', children: [
-          makeNode({ id: '3:1', type: 'TEXT' }),
-        ]}),
-      ],
+      children: [makeNode({ id: '2:1', type: 'FRAME', children: [makeNode({ id: '3:1', type: 'TEXT' })] })],
     });
     const v = maxNestingDepthRule.check(node, emptyCtx);
     expect(v).toHaveLength(0);
@@ -204,8 +198,8 @@ describe('max-nesting-depth', () => {
 
 // ─── button-structure (enhanced) ───
 
-import { buttonStructureRule } from '../../packages/quality-engine/src/rules/structure/button-structure.js';
 import { textOverflowRule } from '../../packages/quality-engine/src/rules/layout/text-overflow.js';
+import { buttonStructureRule } from '../../packages/quality-engine/src/rules/structure/button-structure.js';
 
 describe('button-structure', () => {
   it('flags non-frame button', () => {
@@ -220,26 +214,33 @@ describe('button-structure', () => {
   it('flags button without auto-layout', () => {
     const v = buttonStructureRule.check(
       makeNode({
-        name: 'Login Button', type: 'FRAME', width: 120, height: 48,
+        name: 'Login Button',
+        type: 'FRAME',
+        width: 120,
+        height: 48,
         children: [makeNode({ id: '2:1', type: 'TEXT', name: 'Login', characters: 'Login' })],
       }),
       emptyCtx,
     );
-    expect(v.some(vi => vi.fixData?.fix === 'layout' || vi.fixData?.layoutMode)).toBe(true);
-    expect(v.some(vi => vi.autoFixable)).toBe(true);
+    expect(v.some((vi) => vi.fixData?.fix === 'layout' || vi.fixData?.layoutMode)).toBe(true);
+    expect(v.some((vi) => vi.autoFixable)).toBe(true);
   });
 
   it('flags button with insufficient padding', () => {
     const v = buttonStructureRule.check(
       makeNode({
-        name: 'Submit Btn', type: 'FRAME', width: 120, height: 48,
+        name: 'Submit Btn',
+        type: 'FRAME',
+        width: 120,
+        height: 48,
         layoutMode: 'HORIZONTAL',
-        paddingLeft: 4, paddingRight: 4,
+        paddingLeft: 4,
+        paddingRight: 4,
         children: [makeNode({ id: '2:1', type: 'TEXT', name: 'Submit', characters: 'Submit' })],
       }),
       emptyCtx,
     );
-    const padViolation = v.find(vi => vi.fixData?.fix === 'padding');
+    const padViolation = v.find((vi) => vi.fixData?.fix === 'padding');
     expect(padViolation).toBeDefined();
     expect(padViolation!.autoFixable).toBe(true);
     expect(padViolation!.fixData!.paddingLeft).toBe(24);
@@ -248,26 +249,35 @@ describe('button-structure', () => {
   it('passes button with adequate padding', () => {
     const v = buttonStructureRule.check(
       makeNode({
-        name: 'Submit Btn', type: 'FRAME', width: 120, height: 48,
+        name: 'Submit Btn',
+        type: 'FRAME',
+        width: 120,
+        height: 48,
         layoutMode: 'HORIZONTAL',
-        paddingLeft: 24, paddingRight: 24,
+        paddingLeft: 24,
+        paddingRight: 24,
         children: [makeNode({ id: '2:1', type: 'TEXT', name: 'Submit', characters: 'Submit' })],
       }),
       emptyCtx,
     );
-    const padViolation = v.find(vi => vi.fixData?.fix === 'padding');
+    const padViolation = v.find((vi) => vi.fixData?.fix === 'padding');
     expect(padViolation).toBeUndefined();
   });
 
   it('flags button with height below 44', () => {
     const v = buttonStructureRule.check(
       makeNode({
-        name: 'Tiny Button', type: 'FRAME', width: 120, height: 30,
-        layoutMode: 'HORIZONTAL', paddingLeft: 24, paddingRight: 24,
+        name: 'Tiny Button',
+        type: 'FRAME',
+        width: 120,
+        height: 30,
+        layoutMode: 'HORIZONTAL',
+        paddingLeft: 24,
+        paddingRight: 24,
       }),
       emptyCtx,
     );
-    const heightViolation = v.find(vi => vi.fixData?.fix === 'height');
+    const heightViolation = v.find((vi) => vi.fixData?.fix === 'height');
     expect(heightViolation).toBeDefined();
     expect(heightViolation!.autoFixable).toBe(true);
     expect(heightViolation!.fixData!.height).toBe(48);
@@ -276,19 +286,27 @@ describe('button-structure', () => {
   it('passes button with adequate height', () => {
     const v = buttonStructureRule.check(
       makeNode({
-        name: 'Good Button', type: 'FRAME', width: 120, height: 48,
-        layoutMode: 'HORIZONTAL', paddingLeft: 24, paddingRight: 24,
+        name: 'Good Button',
+        type: 'FRAME',
+        width: 120,
+        height: 48,
+        layoutMode: 'HORIZONTAL',
+        paddingLeft: 24,
+        paddingRight: 24,
       }),
       emptyCtx,
     );
-    const heightViolation = v.find(vi => vi.fixData?.fix === 'height');
+    const heightViolation = v.find((vi) => vi.fixData?.fix === 'height');
     expect(heightViolation).toBeUndefined();
   });
 
   it('flags decorative shapes overlapping text without auto-layout', () => {
     const v = buttonStructureRule.check(
       makeNode({
-        name: 'Fancy Button', type: 'FRAME', width: 120, height: 48,
+        name: 'Fancy Button',
+        type: 'FRAME',
+        width: 120,
+        height: 48,
         children: [
           makeNode({ id: '2:1', type: 'TEXT', name: 'Click', characters: 'Click' }),
           makeNode({ id: '2:2', type: 'ELLIPSE', name: 'Circle', width: 40, height: 40 }),
@@ -296,7 +314,7 @@ describe('button-structure', () => {
       }),
       emptyCtx,
     );
-    const shapeViolation = v.find(vi => String(vi.currentValue).includes('shape'));
+    const shapeViolation = v.find((vi) => String(vi.currentValue).includes('shape'));
     expect(shapeViolation).toBeDefined();
     expect(shapeViolation!.autoFixable).toBe(true); // now fixable via auto-layout
   });
@@ -304,7 +322,10 @@ describe('button-structure', () => {
   it('detects button by fill + single text child pattern', () => {
     const v = buttonStructureRule.check(
       makeNode({
-        name: 'Primary Action', type: 'FRAME', width: 120, height: 48,
+        name: 'Primary Action',
+        type: 'FRAME',
+        width: 120,
+        height: 48,
         fills: [{ type: 'SOLID', color: '#007AFF', visible: true }],
         children: [makeNode({ id: '2:1', type: 'TEXT', name: 'Go', characters: 'Go' })],
       }),
@@ -325,14 +346,19 @@ describe('button-structure', () => {
   it('skips padding/height checks for COMPONENT buttons', () => {
     const v = buttonStructureRule.check(
       makeNode({
-        name: 'Submit Button', type: 'COMPONENT', width: 120, height: 30,
-        layoutMode: 'HORIZONTAL', paddingLeft: 4, paddingRight: 4,
+        name: 'Submit Button',
+        type: 'COMPONENT',
+        width: 120,
+        height: 30,
+        layoutMode: 'HORIZONTAL',
+        paddingLeft: 4,
+        paddingRight: 4,
       }),
       emptyCtx,
     );
     // Should NOT have padding or height violations (component-defined)
-    const padViolation = v.find(vi => vi.fixData?.fix === 'padding');
-    const heightViolation = v.find(vi => vi.fixData?.fix === 'height');
+    const padViolation = v.find((vi) => vi.fixData?.fix === 'padding');
+    const heightViolation = v.find((vi) => vi.fixData?.fix === 'height');
     expect(padViolation).toBeUndefined();
     expect(heightViolation).toBeUndefined();
   });
@@ -340,13 +366,18 @@ describe('button-structure', () => {
   it('skips padding/height checks for INSTANCE buttons', () => {
     const v = buttonStructureRule.check(
       makeNode({
-        name: 'Submit Button', type: 'INSTANCE', width: 120, height: 30,
-        layoutMode: 'HORIZONTAL', paddingLeft: 2, paddingRight: 2,
+        name: 'Submit Button',
+        type: 'INSTANCE',
+        width: 120,
+        height: 30,
+        layoutMode: 'HORIZONTAL',
+        paddingLeft: 2,
+        paddingRight: 2,
       }),
       emptyCtx,
     );
-    const padViolation = v.find(vi => vi.fixData?.fix === 'padding');
-    const heightViolation = v.find(vi => vi.fixData?.fix === 'height');
+    const padViolation = v.find((vi) => vi.fixData?.fix === 'padding');
+    const heightViolation = v.find((vi) => vi.fixData?.fix === 'height');
     expect(padViolation).toBeUndefined();
     expect(heightViolation).toBeUndefined();
   });
@@ -358,7 +389,10 @@ describe('text-overflow', () => {
   it('flags text wider than parent', () => {
     const v = textOverflowRule.check(
       makeNode({
-        type: 'TEXT', name: 'Long Label', width: 500, height: 20,
+        type: 'TEXT',
+        name: 'Long Label',
+        width: 500,
+        height: 20,
         characters: 'This is a very long text that overflows',
         parentWidth: 300,
       }),
@@ -373,7 +407,10 @@ describe('text-overflow', () => {
   it('uses HEIGHT fix when parent has auto-layout', () => {
     const v = textOverflowRule.check(
       makeNode({
-        type: 'TEXT', name: 'Long Label', width: 500, height: 20,
+        type: 'TEXT',
+        name: 'Long Label',
+        width: 500,
+        height: 20,
         characters: 'This is a very long text that overflows',
         parentWidth: 300,
         parentLayoutMode: 'VERTICAL',
@@ -387,7 +424,10 @@ describe('text-overflow', () => {
   it('passes text within parent bounds', () => {
     const v = textOverflowRule.check(
       makeNode({
-        type: 'TEXT', name: 'Short Label', width: 100, height: 20,
+        type: 'TEXT',
+        name: 'Short Label',
+        width: 100,
+        height: 20,
         characters: 'Hello',
         parentWidth: 300,
       }),
@@ -400,8 +440,12 @@ describe('text-overflow', () => {
     const longText = 'A'.repeat(200);
     const v = textOverflowRule.check(
       makeNode({
-        type: 'TEXT', name: 'Clipped Text', width: 100, height: 20,
-        characters: longText, fontSize: 16,
+        type: 'TEXT',
+        name: 'Clipped Text',
+        width: 100,
+        height: 20,
+        characters: longText,
+        fontSize: 16,
       }),
       emptyCtx,
     );
@@ -410,18 +454,19 @@ describe('text-overflow', () => {
   });
 
   it('ignores non-text nodes', () => {
-    const v = textOverflowRule.check(
-      makeNode({ type: 'FRAME', name: 'Container', width: 300 }),
-      emptyCtx,
-    );
+    const v = textOverflowRule.check(makeNode({ type: 'FRAME', name: 'Container', width: 300 }), emptyCtx);
     expect(v).toHaveLength(0);
   });
 
   it('ignores short text', () => {
     const v = textOverflowRule.check(
       makeNode({
-        type: 'TEXT', name: 'OK', width: 30, height: 20,
-        characters: 'OK', fontSize: 16,
+        type: 'TEXT',
+        name: 'OK',
+        width: 30,
+        height: 20,
+        characters: 'OK',
+        fontSize: 16,
       }),
       emptyCtx,
     );
@@ -440,12 +485,27 @@ describe('form-consistency', () => {
         layoutMode: 'VERTICAL',
         width: 350,
         children: [
-          makeNode({ id: '2:1', name: 'Email Input', type: 'FRAME', width: 350,
-            fills: [{ type: 'SOLID', color: '#FFFFFF', visible: true }] }),
-          makeNode({ id: '2:2', name: 'Password Input', type: 'FRAME', width: 350,
-            strokes: [{ type: 'SOLID', color: '#E0E0E0', visible: true }] }),
-          makeNode({ id: '2:3', name: 'Login Button', type: 'FRAME', width: 200,
-            fills: [{ type: 'SOLID', color: '#0066FF', visible: true }] }),
+          makeNode({
+            id: '2:1',
+            name: 'Email Input',
+            type: 'FRAME',
+            width: 350,
+            fills: [{ type: 'SOLID', color: '#FFFFFF', visible: true }],
+          }),
+          makeNode({
+            id: '2:2',
+            name: 'Password Input',
+            type: 'FRAME',
+            width: 350,
+            strokes: [{ type: 'SOLID', color: '#E0E0E0', visible: true }],
+          }),
+          makeNode({
+            id: '2:3',
+            name: 'Login Button',
+            type: 'FRAME',
+            width: 200,
+            fills: [{ type: 'SOLID', color: '#0066FF', visible: true }],
+          }),
         ],
       }),
       emptyCtx,
@@ -464,10 +524,20 @@ describe('form-consistency', () => {
         layoutMode: 'VERTICAL',
         width: 350,
         children: [
-          makeNode({ id: '2:1', name: 'Email Input', type: 'FRAME', width: 350,
-            strokes: [{ type: 'SOLID', color: '#E0E0E0', visible: true }] }),
-          makeNode({ id: '2:2', name: 'Login Button', type: 'FRAME', width: 350,
-            fills: [{ type: 'SOLID', color: '#0066FF', visible: true }] }),
+          makeNode({
+            id: '2:1',
+            name: 'Email Input',
+            type: 'FRAME',
+            width: 350,
+            strokes: [{ type: 'SOLID', color: '#E0E0E0', visible: true }],
+          }),
+          makeNode({
+            id: '2:2',
+            name: 'Login Button',
+            type: 'FRAME',
+            width: 350,
+            fills: [{ type: 'SOLID', color: '#0066FF', visible: true }],
+          }),
         ],
       }),
       emptyCtx,
@@ -500,10 +570,20 @@ describe('form-consistency', () => {
         layoutMode: 'HORIZONTAL',
         width: 350,
         children: [
-          makeNode({ id: '2:1', name: 'Email Input', type: 'FRAME', width: 200,
-            strokes: [{ type: 'SOLID', color: '#E0E0E0', visible: true }] }),
-          makeNode({ id: '2:2', name: 'Login Button', type: 'FRAME', width: 100,
-            fills: [{ type: 'SOLID', color: '#0066FF', visible: true }] }),
+          makeNode({
+            id: '2:1',
+            name: 'Email Input',
+            type: 'FRAME',
+            width: 200,
+            strokes: [{ type: 'SOLID', color: '#E0E0E0', visible: true }],
+          }),
+          makeNode({
+            id: '2:2',
+            name: 'Login Button',
+            type: 'FRAME',
+            width: 100,
+            fills: [{ type: 'SOLID', color: '#0066FF', visible: true }],
+          }),
         ],
       }),
       emptyCtx,
@@ -639,9 +719,7 @@ describe('header-out-of-band', () => {
         role: 'screen',
         type: 'FRAME',
         height: 874,
-        children: [
-          makeNode({ id: '2:1', name: 'Header', role: 'header', type: 'FRAME', y: 220, height: 72 }),
-        ],
+        children: [makeNode({ id: '2:1', name: 'Header', role: 'header', type: 'FRAME', y: 220, height: 72 })],
       }),
       emptyCtx,
     );
@@ -656,9 +734,7 @@ describe('header-out-of-band', () => {
         role: 'screen',
         type: 'FRAME',
         height: 874,
-        children: [
-          makeNode({ id: '2:1', name: 'Header', role: 'header', type: 'FRAME', y: 80, height: 72 }),
-        ],
+        children: [makeNode({ id: '2:1', name: 'Header', role: 'header', type: 'FRAME', y: 80, height: 72 })],
       }),
       emptyCtx,
     );
@@ -674,9 +750,7 @@ describe('screen-bottom-overflow', () => {
         role: 'screen',
         type: 'FRAME',
         height: 874,
-        children: [
-          makeNode({ id: '2:1', name: 'Footer', role: 'footer', type: 'FRAME', y: 820, height: 100 }),
-        ],
+        children: [makeNode({ id: '2:1', name: 'Footer', role: 'footer', type: 'FRAME', y: 820, height: 100 })],
       }),
       emptyCtx,
     );
@@ -691,9 +765,7 @@ describe('screen-bottom-overflow', () => {
         role: 'screen',
         type: 'FRAME',
         height: 874,
-        children: [
-          makeNode({ id: '2:1', name: 'Footer', role: 'footer', type: 'FRAME', y: 720, height: 100 }),
-        ],
+        children: [makeNode({ id: '2:1', name: 'Footer', role: 'footer', type: 'FRAME', y: 720, height: 100 })],
       }),
       emptyCtx,
     );
@@ -883,9 +955,7 @@ describe('nested-interactive-shell', () => {
         type: 'FRAME',
         width: 354,
         height: 48,
-        children: [
-          makeNode({ id: '2:1', name: 'Inner Input', role: 'input', type: 'FRAME', width: 320, height: 48 }),
-        ],
+        children: [makeNode({ id: '2:1', name: 'Inner Input', role: 'input', type: 'FRAME', width: 320, height: 48 })],
       }),
       emptyCtx,
     );
@@ -902,9 +972,7 @@ describe('nested-interactive-shell', () => {
         type: 'FRAME',
         width: 354,
         height: 48,
-        children: [
-          makeNode({ id: '2:1', name: 'Placeholder', type: 'TEXT', characters: 'Email' }),
-        ],
+        children: [makeNode({ id: '2:1', name: 'Placeholder', type: 'TEXT', characters: 'Email' })],
       }),
       emptyCtx,
     );
@@ -958,10 +1026,13 @@ describe('input-field-structure', () => {
       children: [
         makeNode({ id: '2:1', name: 'Email', type: 'TEXT' }),
         makeNode({
-          id: '2:2', name: 'Email Input', type: 'FRAME',
+          id: '2:2',
+          name: 'Email Input',
+          type: 'FRAME',
           strokes: [{ type: 'SOLID', visible: true, opacity: 1 }],
           cornerRadius: 12,
-          paddingLeft: 16, paddingRight: 16,
+          paddingLeft: 16,
+          paddingRight: 16,
         }),
       ],
     });
@@ -993,14 +1064,12 @@ describe('input-field-structure', () => {
       paddingRight: 0,
       cornerRadius: 0,
       strokes: [{ type: 'SOLID', visible: true, opacity: 1 }],
-      children: [
-        makeNode({ id: '2:1', name: 'Search...', type: 'TEXT' }),
-      ],
+      children: [makeNode({ id: '2:1', name: 'Search...', type: 'TEXT' })],
     });
     const v = inputFieldStructureRule.check(node, emptyCtx);
     // Should flag: no cornerRadius + insufficient padding
     expect(v.length).toBeGreaterThanOrEqual(1);
-    expect(v.some(violation => violation.rule === 'input-field-structure')).toBe(true);
+    expect(v.some((violation) => violation.rule === 'input-field-structure')).toBe(true);
   });
 
   it('flags input fields matched by name without field group structure', () => {

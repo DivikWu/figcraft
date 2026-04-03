@@ -5,13 +5,11 @@
  * (e.g. "layout", "structure") instead of getting all rules in every prompt.
  */
 
+import { DESIGN_CONSTANTS, getAvailableRules } from '@figcraft/quality-engine';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { getAvailableRules, DESIGN_CONSTANTS } from '@figcraft/quality-engine';
 
 /** Format rules as concise Markdown for AI consumption. */
-function formatRulesMarkdown(
-  filter?: { tags?: string[]; phases?: string[] },
-): string {
+function formatRulesMarkdown(filter?: { tags?: string[]; phases?: string[] }): string {
   const rules = getAvailableRules().filter((r) => {
     if (!r.ai) return false;
     if (filter?.tags?.length && r.ai.tags) {

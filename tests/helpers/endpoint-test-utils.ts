@@ -23,8 +23,14 @@ export function buildMinimalParams(endpoint: string, method: string): Record<str
 
   // text endpoint
   if (endpoint === 'text') {
-    if (method === 'set_content') { params.nodeId = '1:1'; params.content = 'hi'; }
-    if (method === 'set_range') { params.nodeId = '1:1'; params.operations = []; }
+    if (method === 'set_content') {
+      params.nodeId = '1:1';
+      params.content = 'hi';
+    }
+    if (method === 'set_range') {
+      params.nodeId = '1:1';
+      params.operations = [];
+    }
   }
 
   // components endpoint
@@ -38,20 +44,35 @@ export function buildMinimalParams(endpoint: string, method: string): Record<str
   if (endpoint === 'variables_ep') {
     if (method === 'get') params.variableId = 'v1';
     if (method === 'get_bindings') params.nodeId = '1:1';
-    if (method === 'set_binding') { params.nodeId = '1:1'; params.field = 'f'; params.variableId = 'v1'; }
-    if (method === 'create') { params.name = 'n'; params.collectionId = 'c'; params.resolvedType = 'COLOR'; }
+    if (method === 'set_binding') {
+      params.nodeId = '1:1';
+      params.field = 'f';
+      params.variableId = 'v1';
+    }
+    if (method === 'create') {
+      params.name = 'n';
+      params.collectionId = 'c';
+      params.resolvedType = 'COLOR';
+    }
     if (method === 'update') params.variableId = 'v1';
     if (method === 'delete') params.variableId = 'v1';
     if (method === 'create_collection') params.name = 'c';
     if (method === 'delete_collection') params.collectionId = 'c1';
-    if (method === 'batch_create') { params.collectionName = 'cn'; params.modeName = 'mn'; params.variables = []; }
+    if (method === 'batch_create') {
+      params.collectionName = 'cn';
+      params.modeName = 'mn';
+      params.variables = [];
+    }
     if (method === 'export') params.collectionId = 'c1';
   }
 
   // styles_ep endpoint
   if (endpoint === 'styles_ep') {
     if (method === 'get') params.styleId = 's1';
-    if (method === 'create_paint') { params.name = 'n'; params.color = '#000'; }
+    if (method === 'create_paint') {
+      params.name = 'n';
+      params.color = '#000';
+    }
     if (method === 'update_paint') params.styleId = 's1';
     if (method === 'update_text') params.styleId = 's1';
     if (method === 'update_effect') params.styleId = 's1';

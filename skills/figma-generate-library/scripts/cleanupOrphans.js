@@ -19,47 +19,47 @@
  *   removedIds: string[]
  * }>}
  */
-async function cleanupOrphans(runId) {
+async function _cleanupOrphans(runId) {
   if (!runId) {
-    throw new Error('cleanupOrphans: runId is required.')
+    throw new Error('cleanupOrphans: runId is required.');
   }
 
-  const removedIds = []
-  const originalPage = figma.currentPage
+  const removedIds = [];
+  const originalPage = figma.currentPage;
 
   // --- Remove tagged scene nodes (pages, frames, components, etc.) ---
   // Collect pages to remove (can't remove during iteration)
-  const pagesToRemove = []
+  const pagesToRemove = [];
 
   for (const page of figma.root.children) {
     if (page.getPluginData('dsb_run_id') === runId) {
-      pagesToRemove.push(page)
-      continue
+      pagesToRemove.push(page);
+      continue;
     }
 
     // Traverse all nodes on this page
-    await figma.setCurrentPageAsync(page)
+    await figma.setCurrentPageAsync(page);
 
-    const nodesToRemove = []
+    const nodesToRemove = [];
     page.findAll((node) => {
       if (node.getPluginData('dsb_run_id') === runId) {
-        nodesToRemove.push(node)
-        return false // Don't descend — removing the parent removes its children
+        nodesToRemove.push(node);
+        return false; // Don't descend — removing the parent removes its children
       }
-      return true
-    })
+      return true;
+    });
 
     // Remove deepest nodes first (children before parents) to avoid
     // "parent no longer exists" errors
     const sorted = nodesToRemove.sort((a, b) => {
       // Sort by depth descending: deeper nodes first
-      return getDepth(b) - getDepth(a)
-    })
+      return getDepth(b) - getDepth(a);
+    });
 
     for (const node of sorted) {
-      if (node && node.parent) {
-        removedIds.push(node.id)
-        node.remove()
+      if (node?.parent) {
+        removedIds.push(node.id);
+        node.remove();
       }
     }
   }
@@ -68,45 +68,45 @@ async function cleanupOrphans(runId) {
   for (const page of pagesToRemove) {
     // Cannot remove the last page in the document
     if (figma.root.children.length <= 1) {
-      break
+      break;
     }
-    removedIds.push(page.id)
-    page.remove()
+    removedIds.push(page.id);
+    page.remove();
   }
 
   // --- Remove tagged variables ---
-  const allVariables = await figma.variables.getLocalVariablesAsync()
+  const allVariables = await figma.variables.getLocalVariablesAsync();
   for (const variable of allVariables) {
     if (variable.getPluginData('dsb_run_id') === runId) {
-      removedIds.push(variable.id)
-      variable.remove()
+      removedIds.push(variable.id);
+      variable.remove();
     }
   }
 
   // --- Remove tagged variable collections ---
   // Must be done after variables are removed
-  const allCollections = await figma.variables.getLocalVariableCollectionsAsync()
+  const allCollections = await figma.variables.getLocalVariableCollectionsAsync();
   for (const collection of allCollections) {
     if (collection.getPluginData('dsb_run_id') === runId) {
-      removedIds.push(collection.id)
-      collection.remove()
+      removedIds.push(collection.id);
+      collection.remove();
     }
   }
 
   // Restore original page (if it still exists)
   try {
-    await figma.setCurrentPageAsync(originalPage)
+    await figma.setCurrentPageAsync(originalPage);
   } catch (_) {
     // Original page was removed — switch to first available page
     if (figma.root.children.length > 0) {
-      await figma.setCurrentPageAsync(figma.root.children[0])
+      await figma.setCurrentPageAsync(figma.root.children[0]);
     }
   }
 
   return {
     removedCount: removedIds.length,
     removedIds,
-  }
+  };
 }
 
 /**
@@ -117,11 +117,11 @@ async function cleanupOrphans(runId) {
  * @returns {number}
  */
 function getDepth(node) {
-  let depth = 0
-  let current = node
+  let depth = 0;
+  let current = node;
   while (current.parent) {
-    depth++
-    current = current.parent
+    depth++;
+    current = current.parent;
   }
-  return depth
+  return depth;
 }

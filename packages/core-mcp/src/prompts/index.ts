@@ -6,8 +6,8 @@
  * This file only handles registration and runtime substitution.
  */
 
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getPreventionChecklist } from '@figcraft/quality-engine';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { PROMPT_DEFINITIONS } from './_prompts.js';
 
 // Design rules live in skills/ as independent SKILL.md files (ui-ux-fundamentals, design-guardian, design-creator).
@@ -16,7 +16,10 @@ import { PROMPT_DEFINITIONS } from './_prompts.js';
 
 export function registerPrompts(server: McpServer): void {
   // Runtime substitution for dynamic placeholders
-  const preventionCount = getPreventionChecklist({ phases: ['layout', 'structure', 'content'], minSeverity: 'style' }).length;
+  const preventionCount = getPreventionChecklist({
+    phases: ['layout', 'structure', 'content'],
+    minSeverity: 'style',
+  }).length;
   const substitutions: Record<string, string> = {
     '{{PREVENTION_CHECKLIST_COUNT}}': String(preventionCount),
   };
@@ -28,18 +31,16 @@ export function registerPrompts(server: McpServer): void {
       steps = steps.replaceAll(placeholder, value);
     }
 
-    server.prompt(
-      def.name,
-      def.description,
-      () => ({
-        messages: [{
+    server.prompt(def.name, def.description, () => ({
+      messages: [
+        {
           role: 'user' as const,
           content: {
             type: 'text' as const,
             text: steps,
           },
-        }],
-      }),
-    );
+        },
+      ],
+    }));
   }
 }

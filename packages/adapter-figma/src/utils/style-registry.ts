@@ -53,9 +53,7 @@ function storageKey(library: string): string {
 function importWithTimeout(key: string, timeoutMs = 5000): Promise<{ id: string }> {
   return Promise.race([
     figma.importStyleByKeyAsync(key),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`Import timeout: ${key}`)), timeoutMs),
-    ),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`Import timeout: ${key}`)), timeoutMs)),
   ]);
 }
 
@@ -75,7 +73,13 @@ export async function registerStyles(
     Promise.allSettled(
       styles.textStyles.map(async (ts) => {
         const imported = await importWithTimeout(ts.key);
-        return { fontSize: ts.fontSize, id: imported.id, name: ts.name, fontFamily: ts.fontFamily, fontWeight: ts.fontWeight };
+        return {
+          fontSize: ts.fontSize,
+          id: imported.id,
+          name: ts.name,
+          fontFamily: ts.fontFamily,
+          fontWeight: ts.fontWeight,
+        };
       }),
     ),
     Promise.allSettled(
@@ -95,7 +99,12 @@ export async function registerStyles(
   for (const r of textResults) {
     if (r.status === 'fulfilled') {
       const existing = textStyleMap.get(r.value.fontSize) ?? [];
-      existing.push({ id: r.value.id, name: r.value.name, fontFamily: r.value.fontFamily, fontWeight: r.value.fontWeight });
+      existing.push({
+        id: r.value.id,
+        name: r.value.name,
+        fontFamily: r.value.fontFamily,
+        fontWeight: r.value.fontWeight,
+      });
       textStyleMap.set(r.value.fontSize, existing);
     }
   }
@@ -132,7 +141,7 @@ export async function registerStyles(
 export async function ensureLoaded(library: string): Promise<void> {
   if (loadedLibrary === library) return;
 
-  const json = await figma.clientStorage.getAsync(storageKey(library)) as string | undefined;
+  const json = (await figma.clientStorage.getAsync(storageKey(library))) as string | undefined;
   if (!json) {
     loadedLibrary = library;
     return;
@@ -175,9 +184,7 @@ export function getTextStyleId(
 
   // Try to match by fontFamily + fontWeight for best precision
   if (hints.fontFamily && hints.fontWeight) {
-    const exact = entries.find(
-      (e) => e.fontFamily === hints.fontFamily && e.fontWeight === hints.fontWeight,
-    );
+    const exact = entries.find((e) => e.fontFamily === hints.fontFamily && e.fontWeight === hints.fontWeight);
     if (exact) return exact;
   }
   // Fall back to fontWeight match only
@@ -223,7 +230,7 @@ export async function getRegisteredStylesSummary(
   library: string,
 ): Promise<(RegisteredStyles & { _loaded?: { text: number; paint: number; effect: number } }) | null> {
   // Read from storage (source of truth for full registered list)
-  const json = await figma.clientStorage.getAsync(storageKey(library)) as string | undefined;
+  const json = (await figma.clientStorage.getAsync(storageKey(library))) as string | undefined;
   if (!json) return null;
   try {
     const styles = JSON.parse(json) as RegisteredStyles;
@@ -262,7 +269,7 @@ export async function registerStylesIncremental(
   // so we look up stored data to find which value keys to delete.
   if (removedKeys.length > 0) {
     const removedSet = new Set(removedKeys);
-    const storedJson = await figma.clientStorage.getAsync(storageKey(library)) as string | undefined;
+    const storedJson = (await figma.clientStorage.getAsync(storageKey(library))) as string | undefined;
     if (storedJson) {
       const stored = JSON.parse(storedJson) as RegisteredStyles;
       for (const ts of stored.textStyles) {
@@ -292,12 +299,18 @@ export async function registerStylesIncremental(
   }
 
   // Import only changed styles (added + modified) in parallel
-  let imported = 0;
+  let _imported = 0;
   const [textResults, paintResults, effectResults] = await Promise.all([
     Promise.allSettled(
       changedStyles.textStyles.map(async (ts) => {
         const style = await importWithTimeout(ts.key);
-        return { fontSize: ts.fontSize, id: style.id, name: ts.name, fontFamily: ts.fontFamily, fontWeight: ts.fontWeight };
+        return {
+          fontSize: ts.fontSize,
+          id: style.id,
+          name: ts.name,
+          fontFamily: ts.fontFamily,
+          fontWeight: ts.fontWeight,
+        };
       }),
     ),
     Promise.allSettled(
@@ -319,11 +332,16 @@ export async function registerStylesIncremental(
       const existing = textStyleMap.get(r.value.fontSize) ?? [];
       // Replace existing entry with same name, or append
       const idx = existing.findIndex((e) => e.name === r.value.name);
-      const entry = { id: r.value.id, name: r.value.name, fontFamily: r.value.fontFamily, fontWeight: r.value.fontWeight };
+      const entry = {
+        id: r.value.id,
+        name: r.value.name,
+        fontFamily: r.value.fontFamily,
+        fontWeight: r.value.fontWeight,
+      };
       if (idx >= 0) existing[idx] = entry;
       else existing.push(entry);
       textStyleMap.set(r.value.fontSize, existing);
-      imported++;
+      _imported++;
     }
   }
   for (const r of paintResults) {
@@ -334,13 +352,13 @@ export async function registerStylesIncremental(
       if (idx >= 0) existing[idx] = entry;
       else existing.push(entry);
       paintStyleMap.set(r.value.hex, existing);
-      imported++;
+      _imported++;
     }
   }
   for (const r of effectResults) {
     if (r.status === 'fulfilled') {
       effectStyleMap.set(r.value.effectType, { id: r.value.id, name: r.value.name });
-      imported++;
+      _imported++;
     }
   }
 
@@ -390,7 +408,7 @@ export function findClosestPaintStyle(hex: string): { name: string; hex: string 
   const tr = parseInt(target.slice(0, 2), 16);
   const tg = parseInt(target.slice(2, 4), 16);
   const tb = parseInt(target.slice(4, 6), 16);
-  if (isNaN(tr) || isNaN(tg) || isNaN(tb)) return null;
+  if (Number.isNaN(tr) || Number.isNaN(tg) || Number.isNaN(tb)) return null;
 
   let bestDist = Infinity;
   let bestName = '';
@@ -402,7 +420,7 @@ export function findClosestPaintStyle(hex: string): { name: string; hex: string 
     const sr = parseInt(h.slice(0, 2), 16);
     const sg = parseInt(h.slice(2, 4), 16);
     const sb = parseInt(h.slice(4, 6), 16);
-    if (isNaN(sr)) continue;
+    if (Number.isNaN(sr)) continue;
     // Weighted Euclidean distance — human vision is most sensitive to green, least to blue.
     // Weights from "redmean" approximation (low-cost perceptual color distance).
     const rmean = (tr + sr) / 2;
@@ -447,13 +465,20 @@ export function suggestTextStyle(
   if (entries && entries.length > 0) {
     // Exact fontSize match — check if family/weight also match
     if (fontFamily && fontWeight) {
-      const exact = entries.find(
-        (e) => e.fontFamily === fontFamily && e.fontWeight === fontWeight,
-      );
-      if (exact) return { name: exact.name, exact: true, hint: `Text style "${exact.name}" matches exactly. Consider using it for consistency.` };
+      const exact = entries.find((e) => e.fontFamily === fontFamily && e.fontWeight === fontWeight);
+      if (exact)
+        return {
+          name: exact.name,
+          exact: true,
+          hint: `Text style "${exact.name}" matches exactly. Consider using it for consistency.`,
+        };
     }
     // Partial match
-    return { name: entries[0].name, exact: false, hint: `Text style "${entries[0].name}" has the same fontSize (${fontSize}px). Consider using it.` };
+    return {
+      name: entries[0].name,
+      exact: false,
+      hint: `Text style "${entries[0].name}" has the same fontSize (${fontSize}px). Consider using it.`,
+    };
   }
 
   // No exact fontSize match — find closest
@@ -469,7 +494,11 @@ export function suggestTextStyle(
     }
   }
   if (bestName && bestDiff <= 4) {
-    return { name: bestName, exact: false, hint: `No text style at ${fontSize}px. Closest: "${bestName}" (${bestSize}px, ${bestDiff}px away).` };
+    return {
+      name: bestName,
+      exact: false,
+      hint: `No text style at ${fontSize}px. Closest: "${bestName}" (${bestSize}px, ${bestDiff}px away).`,
+    };
   }
   return null;
 }

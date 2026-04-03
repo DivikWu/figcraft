@@ -11,8 +11,8 @@
  * Proper buttons should be auto-layout frames with centered text inside.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
 import { DESIGN_CONSTANTS, SCREEN_NAME_RE } from '../../constants.js';
+import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
 
 const BUTTON_NAME_RE = /button|btn|按钮|登录|注册|submit|sign.?in|sign.?up|log.?in/i;
 const PILL_TAG_NAME_RE = /pill|tag|badge|chip|label|step|标签|步骤/i;
@@ -21,7 +21,8 @@ function looksLikeScreenContainer(node: AbstractNode): boolean {
   if (node.type !== 'FRAME') return false;
   if (SCREEN_NAME_RE.test(node.name) && (node.children?.length ?? 0) >= 2) return true;
   if ((node.children?.length ?? 0) >= 3) return true;
-  const frameLikeChildren = node.children?.filter((child) => child.type === 'FRAME' || child.type === 'INSTANCE').length ?? 0;
+  const frameLikeChildren =
+    node.children?.filter((child) => child.type === 'FRAME' || child.type === 'INSTANCE').length ?? 0;
   return frameLikeChildren >= 2;
 }
 
@@ -37,9 +38,12 @@ function looksLikeButton(node: AbstractNode): boolean {
   if (looksLikeScreenContainer(node)) return false;
   if (BUTTON_NAME_RE.test(node.name)) return true;
   // A frame with exactly one text child + a fill is likely a button
-  if (node.type === 'FRAME' && node.children?.length === 1 &&
-      node.children[0].type === 'TEXT' &&
-      node.fills && node.fills.some(f => f.visible !== false && f.opacity !== 0)) {
+  if (
+    node.type === 'FRAME' &&
+    node.children?.length === 1 &&
+    node.children[0].type === 'TEXT' &&
+    node.fills?.some((f) => f.visible !== false && f.opacity !== 0)
+  ) {
     // Exclude pill-shaped frames from structural heuristic too
     if (looksLikePill(node)) return false;
     return true;
@@ -100,12 +104,11 @@ export const buttonStructureRule: LintRule = {
 
     // Check 3: Button has non-text children that could overlap text (decorative shapes)
     if (node.children && node.children.length > 1) {
-      const textChildren = node.children.filter(c => c.type === 'TEXT');
-      const shapeChildren = node.children.filter(c =>
-        c.type === 'ELLIPSE' || c.type === 'RECTANGLE' || c.type === 'VECTOR',
+      const textChildren = node.children.filter((c) => c.type === 'TEXT');
+      const shapeChildren = node.children.filter(
+        (c) => c.type === 'ELLIPSE' || c.type === 'RECTANGLE' || c.type === 'VECTOR',
       );
-      if (textChildren.length > 0 && shapeChildren.length > 0 &&
-          (!node.layoutMode || node.layoutMode === 'NONE')) {
+      if (textChildren.length > 0 && shapeChildren.length > 0 && (!node.layoutMode || node.layoutMode === 'NONE')) {
         violations.push({
           nodeId: node.id,
           nodeName: node.name,

@@ -2,7 +2,7 @@
  * Spec typography rule — detect text nodes not using a text style token.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
+import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
 
 export const specTypographyRule: LintRule = {
   name: 'spec-typography',
@@ -50,10 +50,7 @@ export const specTypographyRule: LintRule = {
   },
 };
 
-function findMatchingTypography(
-  node: AbstractNode,
-  ctx: LintContext,
-): { tokenName: string } | null {
+function findMatchingTypography(node: AbstractNode, ctx: LintContext): { tokenName: string } | null {
   for (const [name, token] of ctx.typographyTokens) {
     if (token.fontSize === node.fontSize) {
       if (!token.fontFamily || token.fontFamily === node.fontName?.family) {

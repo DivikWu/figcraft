@@ -2,13 +2,13 @@
  * Tests for lint rules — pure logic, no Figma API dependency.
  */
 
-import { describe, it, expect } from 'vitest';
-import type { AbstractNode, LintContext } from '../../packages/quality-engine/src/types.js';
-import { defaultNameRule } from '../../packages/quality-engine/src/rules/naming/default-name.js';
+import { describe, expect, it } from 'vitest';
 import { emptyContainerRule } from '../../packages/quality-engine/src/rules/layout/empty-container.js';
-import { wcagTextSizeRule } from '../../packages/quality-engine/src/rules/wcag/wcag-text-size.js';
+import { defaultNameRule } from '../../packages/quality-engine/src/rules/naming/default-name.js';
 import { noTextStyleRule } from '../../packages/quality-engine/src/rules/spec/no-text-style.js';
 import { componentBindingsRule } from '../../packages/quality-engine/src/rules/structure/component-bindings.js';
+import { wcagTextSizeRule } from '../../packages/quality-engine/src/rules/wcag/wcag-text-size.js';
+import type { AbstractNode, LintContext } from '../../packages/quality-engine/src/types.js';
 
 const emptyCtx: LintContext = {
   colorTokens: new Map(),
@@ -97,18 +97,12 @@ describe('wcag-text-size', () => {
 
 describe('no-text-style', () => {
   it('flags text without textStyleId', () => {
-    const v = noTextStyleRule.check(
-      makeNode({ type: 'TEXT', fontSize: 16 }),
-      emptyCtx,
-    );
+    const v = noTextStyleRule.check(makeNode({ type: 'TEXT', fontSize: 16 }), emptyCtx);
     expect(v).toHaveLength(1);
   });
 
   it('passes text with textStyleId', () => {
-    const v = noTextStyleRule.check(
-      makeNode({ type: 'TEXT', fontSize: 16, textStyleId: 'S:abc' }),
-      emptyCtx,
-    );
+    const v = noTextStyleRule.check(makeNode({ type: 'TEXT', fontSize: 16, textStyleId: 'S:abc' }), emptyCtx);
     expect(v).toHaveLength(0);
   });
 });

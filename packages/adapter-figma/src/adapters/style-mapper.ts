@@ -136,7 +136,7 @@ export async function syncShadowToStyle(
 function resolveWeight(weight: number | string | undefined): string {
   if (!weight) return 'Regular';
   const w = typeof weight === 'string' ? parseInt(weight, 10) : weight;
-  if (isNaN(w)) return String(weight);
+  if (Number.isNaN(w)) return String(weight);
   if (w <= 100) return 'Thin';
   if (w <= 200) return 'ExtraLight';
   if (w <= 300) return 'Light';

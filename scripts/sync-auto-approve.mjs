@@ -10,9 +10,9 @@
  * Usage: node scripts/sync-auto-approve.mjs
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { resolve, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
@@ -40,15 +40,11 @@ for (const meta of ['load_toolset', 'unload_toolset', 'list_toolsets']) {
 
 // Filter out non-tool entries (description strings, enum values, etc.)
 // Tool names are lowercase with underscores, typically 3-40 chars
-const filtered = [...toolNames]
-  .filter(n => n.length >= 3 && n.length <= 50 && !n.includes(' '))
-  .sort();
+const filtered = [...toolNames].filter((n) => n.length >= 3 && n.length <= 50 && !n.includes(' ')).sort();
 
 // Update .mcp.json
 const mcpConfig = JSON.parse(readFileSync(mcpConfigPath, 'utf8'));
-const serverKey = Object.keys(mcpConfig.mcpServers).find(k =>
-  k === 'figcraft' || k.startsWith('figcraft'),
-);
+const serverKey = Object.keys(mcpConfig.mcpServers).find((k) => k === 'figcraft' || k.startsWith('figcraft'));
 
 if (!serverKey) {
   console.error('❌ No figcraft server found in .mcp.json');
@@ -58,5 +54,5 @@ if (!serverKey) {
 const before = mcpConfig.mcpServers[serverKey].autoApprove?.length ?? 0;
 mcpConfig.mcpServers[serverKey].autoApprove = filtered;
 
-writeFileSync(mcpConfigPath, JSON.stringify(mcpConfig, null, 2) + '\n');
+writeFileSync(mcpConfigPath, `${JSON.stringify(mcpConfig, null, 2)}\n`);
 console.log(`✅ Updated .mcp.json autoApprove: ${before} → ${filtered.length} tools`);

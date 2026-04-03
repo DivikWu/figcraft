@@ -2,7 +2,7 @@
  * Tests for Bridge.guardResponseSize — response size limiting.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { Bridge } from '../../packages/core-mcp/src/bridge.js';
 
 describe('Bridge.guardResponseSize', () => {
@@ -46,9 +46,10 @@ describe('Bridge.guardResponseSize', () => {
     // A single massive string can't be structurally truncated
     const bigStr = 'x'.repeat(60_000);
     const result = { data: bigStr };
-    const guarded = Bridge.guardResponseSize(result, 'search_nodes', [
-      'Use a more specific query',
-    ]) as Record<string, unknown>;
+    const guarded = Bridge.guardResponseSize(result, 'search_nodes', ['Use a more specific query']) as Record<
+      string,
+      unknown
+    >;
     expect(guarded._error).toBe('response_too_large');
     expect(guarded.hints).toEqual(['Use a more specific query']);
   });

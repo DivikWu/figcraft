@@ -2,8 +2,9 @@
 
 ## 产品
 
-- [product-overview.md](product-overview.md) — 产品概览：功能、架构、设计规则体系
+- [product-overview.md](product-overview.md) — 产品定位、差异化、核心价值观
 - [user-guide.md](user-guide.md) — 用户指南：安装、配置、使用方式
+- [roadmap.md](roadmap.md) — 产品路线图：已完成 / 短期 / 中期 / 长期
 
 ## 维护
 
@@ -13,7 +14,7 @@
 
 ## 战略
 
-- [architecture-review.md](architecture-review.md) — 架构审查：增长资产管理的最终方案（2026-04-03）
+- [architecture-review.md](architecture-review.md) — 架构决策记录：增长资产混合架构方案（2026-04-03）
 - [growth-assets.md](growth-assets.md) — 增长资产路线图：六类资产的扩展方向和优先级
 - [skills-strategy.md](skills-strategy.md) — Skills 长期战略：拓展路线、编排模式、质量衡量
 

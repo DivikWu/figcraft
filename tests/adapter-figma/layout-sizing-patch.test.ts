@@ -5,7 +5,7 @@
  *
  * Regression test for the axis-direction bug fixed in write-nodes.ts.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { translateSingleSizing } from '../../packages/adapter-figma/src/utils/node-helpers.js';
 
 describe('translateSingleSizing', () => {
@@ -43,7 +43,10 @@ describe('translateSingleSizing', () => {
  *   isPrimary = (key === 'layoutSizingHorizontal') === (parentDir === 'HORIZONTAL')
  */
 describe('axis resolution for parent direction', () => {
-  function resolveAxis(key: 'layoutSizingHorizontal' | 'layoutSizingVertical', parentDir: 'HORIZONTAL' | 'VERTICAL'): 'primary' | 'counter' {
+  function resolveAxis(
+    key: 'layoutSizingHorizontal' | 'layoutSizingVertical',
+    parentDir: 'HORIZONTAL' | 'VERTICAL',
+  ): 'primary' | 'counter' {
     const parentIsHorizontal = parentDir === 'HORIZONTAL';
     const isPrimary = (key === 'layoutSizingHorizontal') === parentIsHorizontal;
     return isPrimary ? 'primary' : 'counter';

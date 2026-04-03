@@ -11,7 +11,7 @@
  * - hexToFigmaRgba color conversion
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { hexToFigmaRgba } from '../../packages/adapter-figma/src/utils/color.js';
 
 // ─── effect builders (mirror write-nodes-create.ts setupFrame logic) ───
@@ -55,7 +55,11 @@ function buildBlurEffect(radius: number) {
 
 /** Mirrors the combined effect collection logic in setupFrame */
 function buildEffects(p: { shadow?: Record<string, unknown>; innerShadow?: Record<string, unknown>; blur?: number }) {
-  const effects: Array<ReturnType<typeof buildShadowEffect> | ReturnType<typeof buildInnerShadowEffect> | ReturnType<typeof buildBlurEffect>> = [];
+  const effects: Array<
+    | ReturnType<typeof buildShadowEffect>
+    | ReturnType<typeof buildInnerShadowEffect>
+    | ReturnType<typeof buildBlurEffect>
+  > = [];
   if (p.shadow) effects.push(buildShadowEffect(p.shadow));
   if (p.innerShadow) effects.push(buildInnerShadowEffect(p.innerShadow));
   if (p.blur) effects.push(buildBlurEffect(p.blur));
@@ -129,7 +133,7 @@ describe('innerShadow param defaults', () => {
     expect(effect.color.r).toBeCloseTo(0);
     expect(effect.color.g).toBeCloseTo(0);
     expect(effect.color.b).toBeCloseTo(0);
-    expect(effect.color.a).toBeCloseTo(0x1A / 255, 2);
+    expect(effect.color.a).toBeCloseTo(0x1a / 255, 2);
   });
 
   it('uses custom values', () => {
@@ -196,7 +200,11 @@ describe('effectStyleName priority over all effect shorthands', () => {
     const hasShadow = true;
     const hasInnerShadow = true;
     const hasBlur = true;
-    const appliedEffect = hasEffectStyle ? 'effectStyle' : (hasShadow || hasInnerShadow || hasBlur) ? 'shorthands' : 'none';
+    const appliedEffect = hasEffectStyle
+      ? 'effectStyle'
+      : hasShadow || hasInnerShadow || hasBlur
+        ? 'shorthands'
+        : 'none';
     expect(appliedEffect).toBe('effectStyle');
   });
 
@@ -204,7 +212,7 @@ describe('effectStyleName priority over all effect shorthands', () => {
     const hasEffectStyle = false;
     const hasShadow = true;
     const hasInnerShadow = true;
-    const appliedEffect = hasEffectStyle ? 'effectStyle' : (hasShadow || hasInnerShadow) ? 'shorthands' : 'none';
+    const appliedEffect = hasEffectStyle ? 'effectStyle' : hasShadow || hasInnerShadow ? 'shorthands' : 'none';
     expect(appliedEffect).toBe('shorthands');
   });
 
@@ -213,7 +221,11 @@ describe('effectStyleName priority over all effect shorthands', () => {
     const hasShadow = false;
     const hasInnerShadow = false;
     const hasBlur = false;
-    const appliedEffect = hasEffectStyle ? 'effectStyle' : (hasShadow || hasInnerShadow || hasBlur) ? 'shorthands' : 'none';
+    const appliedEffect = hasEffectStyle
+      ? 'effectStyle'
+      : hasShadow || hasInnerShadow || hasBlur
+        ? 'shorthands'
+        : 'none';
     expect(appliedEffect).toBe('none');
   });
 });

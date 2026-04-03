@@ -34,13 +34,25 @@
     "docs:contracts": "node scripts/generate-api-contract-doc.mjs",
     "test": "vitest --run --config vitest.workspace.ts",
     "test:watch": "vitest --config vitest.workspace.ts",
-    "release:verify": "npm run check:schema-generated && npm run typecheck && npm run test && npm run build"
+    "test:coverage": "vitest --run --config vitest.workspace.ts --coverage",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "release:verify": "npm run check:schema-generated && npm run lint && npm run typecheck && npm run test && npm run build",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,mts,js,mjs,json}": "biome check --write --no-errors-on-unmatched"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.4.10",
     "@figma/plugin-typings": "^1",
     "@types/ws": "^8",
+    "@vitest/coverage-v8": "^4.1.2",
     "esbuild": "^0.27.4",
     "fast-check": "^4.6.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "tsup": "^8",
     "tsx": "^4",
     "typescript": "^5.9",

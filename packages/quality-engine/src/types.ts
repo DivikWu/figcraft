@@ -111,8 +111,7 @@ export function isLeafNode(node: AbstractNode): boolean {
 
 /** Check if a node is small (width or height < 48px). */
 export function isSmallNode(node: AbstractNode): boolean {
-  return (node.width != null && node.width < 48)
-    || (node.height != null && node.height < 48);
+  return (node.width != null && node.width < 48) || (node.height != null && node.height < 48);
 }
 
 /**

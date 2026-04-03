@@ -46,22 +46,17 @@ export function registerChannelTools(server: McpServer, bridge: Bridge): void {
     },
   );
 
-  server.tool(
-    'get_channel',
-    'Get the current channel ID that the MCP Server is connected to.',
-    {},
-    async () => {
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify({
-              channel: bridge.currentChannel,
-              connected: bridge.isConnected,
-            }),
-          },
-        ],
-      };
-    },
-  );
+  server.tool('get_channel', 'Get the current channel ID that the MCP Server is connected to.', {}, async () => {
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({
+            channel: bridge.currentChannel,
+            connected: bridge.isConnected,
+          }),
+        },
+      ],
+    };
+  });
 }

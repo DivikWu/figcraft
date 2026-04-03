@@ -16,8 +16,9 @@
  *
  * **Validates: Requirements 3.4, 5.1, 5.2, 5.3, 5.4**
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+
 import fc from 'fast-check';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ─── Mock setup (same pattern as method-dispatcher.test.ts) ───
 
@@ -58,9 +59,9 @@ vi.mock('../../packages/core-mcp/src/tools/logic/component-logic.js', () => ({
   }),
 }));
 
+import { GENERATED_ENDPOINT_METHOD_ACCESS } from '../../packages/core-mcp/src/tools/_registry.js';
 import { registerEndpointTools } from '../../packages/core-mcp/src/tools/endpoints.js';
 import { getAccessLevel } from '../../packages/core-mcp/src/tools/toolset-manager.js';
-import { GENERATED_ENDPOINT_METHOD_ACCESS } from '../../packages/core-mcp/src/tools/_registry.js';
 import { buildMinimalParams } from '../helpers/endpoint-test-utils.js';
 
 const mockGetAccessLevel = vi.mocked(getAccessLevel);
@@ -104,11 +105,7 @@ type AccessLevel = (typeof ACCESS_LEVELS)[number];
  * Determine expected behavior for a (endpoint, method, accessLevel) triple.
  * Returns 'allowed' or 'blocked'.
  */
-function expectedBehavior(
-  endpoint: string,
-  method: string,
-  accessLevel: AccessLevel,
-): 'allowed' | 'blocked' {
+function expectedBehavior(endpoint: string, method: string, accessLevel: AccessLevel): 'allowed' | 'blocked' {
   const methodAccess = GENERATED_ENDPOINT_METHOD_ACCESS[endpoint]?.[method];
   if (!methodAccess) return 'allowed'; // shouldn't happen for valid pairs
 
@@ -174,7 +171,7 @@ describe('Feature: endpoint-mode-refactor, Property 9: Method 级别访问控制
           mockGetAccessLevel.mockReturnValue(accessLevel);
 
           const params = buildMinimalParams(endpoint, method);
-          const result = await registeredTools[endpoint](params) as any;
+          const result = (await registeredTools[endpoint](params)) as any;
 
           const expected = expectedBehavior(endpoint, method, accessLevel);
 

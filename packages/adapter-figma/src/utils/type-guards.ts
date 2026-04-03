@@ -8,8 +8,12 @@
 
 /** Check if a value is a VariableAlias (`{ type: 'VARIABLE_ALIAS', id: string }`). */
 export function isVariableAlias(val: unknown): val is { type: 'VARIABLE_ALIAS'; id: string } {
-  return val !== null && typeof val === 'object' && 'type' in (val as object) &&
-    (val as { type: unknown }).type === 'VARIABLE_ALIAS';
+  return (
+    val !== null &&
+    typeof val === 'object' &&
+    'type' in (val as object) &&
+    (val as { type: unknown }).type === 'VARIABLE_ALIAS'
+  );
 }
 
 /** Check if a value looks like an RGB/RGBA color object (has `r` property). */
@@ -19,7 +23,11 @@ export function isRgbaLike(val: unknown): val is RGBA {
 
 /** Writable spacing/layout properties on FrameNode that lint fixes may set. */
 const WRITABLE_SPACING_PROPS = new Set([
-  'itemSpacing', 'paddingLeft', 'paddingRight', 'paddingTop', 'paddingBottom',
+  'itemSpacing',
+  'paddingLeft',
+  'paddingRight',
+  'paddingTop',
+  'paddingBottom',
   'counterAxisSpacing',
 ]);
 

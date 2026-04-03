@@ -1,8 +1,12 @@
 /**
  * Tests for layoutSizingHorizontal / layoutSizingVertical translation.
  */
-import { describe, it, expect } from 'vitest';
-import { translateLayoutSizing, translateSingleSizing, type AutoLayoutProps } from '../../packages/adapter-figma/src/utils/node-helpers.js';
+import { describe, expect, it } from 'vitest';
+import {
+  type AutoLayoutProps,
+  translateLayoutSizing,
+  translateSingleSizing,
+} from '../../packages/adapter-figma/src/utils/node-helpers.js';
 
 describe('translateLayoutSizing', () => {
   // ─── VERTICAL layout direction ───
@@ -18,8 +22,8 @@ describe('translateLayoutSizing', () => {
       };
       const r = translateLayoutSizing(p, dir);
       // VERTICAL: primary=vertical, counter=horizontal
-      expect(r.primaryMode).toBe('AUTO');   // vertical HUG
-      expect(r.counterMode).toBe('AUTO');   // horizontal HUG
+      expect(r.primaryMode).toBe('AUTO'); // vertical HUG
+      expect(r.counterMode).toBe('AUTO'); // horizontal HUG
       expect(r.layoutGrow).toBe(0);
       expect(r.layoutAlign).toBe('INHERIT');
     });
@@ -60,8 +64,8 @@ describe('translateLayoutSizing', () => {
         width: 300,
       };
       const r = translateLayoutSizing(p, dir);
-      expect(r.counterMode).toBe('FIXED');  // horizontal FIXED
-      expect(r.primaryMode).toBe('AUTO');    // vertical HUG
+      expect(r.counterMode).toBe('FIXED'); // horizontal FIXED
+      expect(r.primaryMode).toBe('AUTO'); // vertical HUG
     });
 
     it('FILL horizontal + FIXED vertical', () => {

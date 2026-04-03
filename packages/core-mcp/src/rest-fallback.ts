@@ -6,12 +6,12 @@
  * the Figma REST API when an API token is available.
  */
 
-import type { Bridge } from './bridge.js';
-import { getToken } from './auth.js';
-import { fetchFileNodes, fetchFileInfo, fetchNodeImages } from './figma-api.js';
-import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { getToken } from './auth.js';
+import type { Bridge } from './bridge.js';
+import { fetchFileInfo, fetchFileNodes, fetchNodeImages } from './figma-api.js';
 
 /** Metadata about the current file, cached from the last successful plugin ping. */
 interface FileContext {
@@ -36,10 +36,12 @@ function persistFileContext(ctx: FileContext): void {
   try {
     const dir = join(homedir(), '.config', 'figcraft');
     mkdirSync(dir, { recursive: true, mode: 0o700 });
-    const tmp = contextPath() + '.tmp';
+    const tmp = `${contextPath()}.tmp`;
     writeFileSync(tmp, JSON.stringify(ctx), { mode: 0o600 });
     renameSync(tmp, contextPath());
-  } catch { /* best effort */ }
+  } catch {
+    /* best effort */
+  }
 }
 
 function loadPersistedFileContext(): FileContext | null {
@@ -104,18 +106,14 @@ export async function requestWithFallback(
 
     // Try REST API fallback
     try {
-      console.error(
-        `[FigCraft fallback] Plugin request "${method}" failed, falling back to REST API`,
-      );
+      console.error(`[FigCraft fallback] Plugin request "${method}" failed, falling back to REST API`);
       const result = await restFallback();
       return { result, source: 'rest-api' };
     } catch (restErr) {
       // If REST also fails, throw the original plugin error with a hint
       const msg = pluginErr instanceof Error ? pluginErr.message : String(pluginErr);
       const restMsg = restErr instanceof Error ? restErr.message : String(restErr);
-      throw new Error(
-        `Plugin: ${msg}. REST API fallback also failed: ${restMsg}`,
-      );
+      throw new Error(`Plugin: ${msg}. REST API fallback also failed: ${restMsg}`);
     }
   }
 }
@@ -127,9 +125,7 @@ export async function requestWithFallback(
  * Fetches node data via GET /v1/files/:fileKey/nodes?ids=nodeId
  * Note: function name uses legacy bridge protocol name for internal consistency.
  */
-export async function restGetNodeInfo(
-  nodeId: string,
-): Promise<unknown> {
+export async function restGetNodeInfo(nodeId: string): Promise<unknown> {
   const ctx = getFileContext();
   if (!ctx?.fileKey) {
     throw new Error('No file key available. Open the file in Figma with the plugin, or provide a Figma URL.');
@@ -166,11 +162,7 @@ export async function restGetDocumentInfo(): Promise<unknown> {
  * REST fallback for export_image (standalone tool).
  * Fetches rendered image URL via GET /v1/images/:fileKey
  */
-export async function restExportImage(
-  nodeId: string,
-  format: string = 'PNG',
-  scale: number = 2,
-): Promise<unknown> {
+export async function restExportImage(nodeId: string, format: string = 'PNG', scale: number = 2): Promise<unknown> {
   const ctx = getFileContext();
   if (!ctx?.fileKey) {
     throw new Error('No file key available. Open the file in Figma with the plugin, or provide a Figma URL.');

@@ -6,7 +6,7 @@
  *
  * Validates: Requirements 1.5, 12.2
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { McpResponse } from '../../packages/core-mcp/src/tools/logic/node-logic.js';
 
 // ─── Mock setup ───
@@ -43,12 +43,12 @@ vi.mock('../../packages/core-mcp/src/figma-api.js', () => ({
 }));
 
 import { requestWithFallback } from '../../packages/core-mcp/src/rest-fallback.js';
+import { exportImageLogic } from '../../packages/core-mcp/src/tools/logic/export-logic.js';
 import {
-  getNodeInfoLogic,
   getCurrentPageLogic,
+  getNodeInfoLogic,
   searchNodesLogic,
 } from '../../packages/core-mcp/src/tools/logic/node-logic.js';
-import { exportImageLogic } from '../../packages/core-mcp/src/tools/logic/export-logic.js';
 
 const mockRequestWithFallback = vi.mocked(requestWithFallback);
 
@@ -162,9 +162,7 @@ describe('searchNodesLogic', () => {
 
   it('returns valid McpResponse format', async () => {
     const bridge = createMockBridge();
-    bridge.request.mockResolvedValue([
-      { id: '1:1', name: 'Button', type: 'FRAME' },
-    ]);
+    bridge.request.mockResolvedValue([{ id: '1:1', name: 'Button', type: 'FRAME' }]);
 
     const response = await searchNodesLogic(bridge, { query: 'Button' });
 
@@ -254,21 +252,17 @@ describe('Feature: endpoint-mode-refactor, Property 2: Tool_Logic_Function 返�
 
   it('bridgeRequestLogic always returns valid McpResponse for any bridge method name and any JSON-serializable result', async () => {
     await fc.assert(
-      fc.asyncProperty(
-        fc.string({ minLength: 1, maxLength: 50 }),
-        fc.jsonValue(),
-        async (methodName, bridgeResult) => {
-          const bridge = createMockBridge();
-          bridge.request.mockResolvedValue(bridgeResult);
+      fc.asyncProperty(fc.string({ minLength: 1, maxLength: 50 }), fc.jsonValue(), async (methodName, bridgeResult) => {
+        const bridge = createMockBridge();
+        bridge.request.mockResolvedValue(bridgeResult);
 
-          const response = await bridgeRequestLogic(bridge, methodName, { someParam: 'value' });
+        const response = await bridgeRequestLogic(bridge, methodName, { someParam: 'value' });
 
-          expect(isValidMcpResponse(response)).toBe(true);
-          expect(response.content.length).toBeGreaterThan(0);
-          expect(response.content[0].type).toBe('text');
-          expect(typeof response.content[0].text).toBe('string');
-        },
-      ),
+        expect(isValidMcpResponse(response)).toBe(true);
+        expect(response.content.length).toBeGreaterThan(0);
+        expect(response.content[0].type).toBe('text');
+        expect(typeof response.content[0].text).toBe('string');
+      }),
       { numRuns: 100 },
     );
   });
@@ -279,10 +273,13 @@ describe('Feature: endpoint-mode-refactor, Property 2: Tool_Logic_Function 返�
         fc.oneof(
           fc.string({ minLength: 0, maxLength: 100 }),
           fc.constantFrom(
-            '1:23', '999:999', '',
+            '1:23',
+            '999:999',
+            '',
             'https://www.figma.com/design/abc123?node-id=705-60',
             'https://www.figma.com/design/abc123',
-            'not-a-url', '0:0',
+            'not-a-url',
+            '0:0',
           ),
         ),
         async (nodeId) => {
@@ -307,25 +304,33 @@ describe('Feature: endpoint-mode-refactor, Property 2: Tool_Logic_Function 返�
 const ENDPOINT_FLAT_EQUIVALENCE: Array<{
   endpoint: string;
   method: string;
-  handler: { type: 'logic'; fn: 'getNodeInfoLogic' | 'searchNodesLogic' | 'listLibraryComponentsLogic' } | { type: 'bridge'; bridgeMethod: string };
+  handler:
+    | { type: 'logic'; fn: 'getNodeInfoLogic' | 'searchNodesLogic' | 'listLibraryComponentsLogic' }
+    | { type: 'bridge'; bridgeMethod: string };
   paramsArb: fc.Arbitrary<Record<string, unknown>>;
 }> = [
   {
-    endpoint: 'nodes', method: 'get',
+    endpoint: 'nodes',
+    method: 'get',
     handler: { type: 'logic', fn: 'getNodeInfoLogic' },
     paramsArb: fc.record({ nodeId: fc.stringMatching(/^[0-9]{1,4}:[0-9]{1,4}$/) }),
   },
   {
-    endpoint: 'nodes', method: 'list',
+    endpoint: 'nodes',
+    method: 'list',
     handler: { type: 'logic', fn: 'searchNodesLogic' },
     paramsArb: fc.record({
       query: fc.string({ minLength: 1, maxLength: 30 }),
-      types: fc.option(fc.array(fc.constantFrom('FRAME', 'TEXT', 'RECTANGLE', 'ELLIPSE'), { minLength: 0, maxLength: 3 }), { nil: undefined }),
+      types: fc.option(
+        fc.array(fc.constantFrom('FRAME', 'TEXT', 'RECTANGLE', 'ELLIPSE'), { minLength: 0, maxLength: 3 }),
+        { nil: undefined },
+      ),
       limit: fc.option(fc.integer({ min: 1, max: 100 }), { nil: undefined }),
     }),
   },
   {
-    endpoint: 'nodes', method: 'update',
+    endpoint: 'nodes',
+    method: 'update',
     handler: { type: 'bridge', bridgeMethod: 'patch_nodes' },
     paramsArb: fc.record({
       patches: fc.array(
@@ -338,14 +343,16 @@ const ENDPOINT_FLAT_EQUIVALENCE: Array<{
     }),
   },
   {
-    endpoint: 'nodes', method: 'delete',
+    endpoint: 'nodes',
+    method: 'delete',
     handler: { type: 'bridge', bridgeMethod: 'delete_nodes' },
     paramsArb: fc.record({
       nodeIds: fc.array(fc.stringMatching(/^[0-9]{1,4}:[0-9]{1,4}$/), { minLength: 0, maxLength: 5 }),
     }),
   },
   {
-    endpoint: 'text', method: 'set_content',
+    endpoint: 'text',
+    method: 'set_content',
     handler: { type: 'bridge', bridgeMethod: 'set_text_content' },
     paramsArb: fc.record({
       nodeId: fc.stringMatching(/^[0-9]{1,4}:[0-9]{1,4}$/),
@@ -353,22 +360,26 @@ const ENDPOINT_FLAT_EQUIVALENCE: Array<{
     }),
   },
   {
-    endpoint: 'components', method: 'list',
+    endpoint: 'components',
+    method: 'list',
     handler: { type: 'bridge', bridgeMethod: 'list_components' },
     paramsArb: fc.constant({}),
   },
   {
-    endpoint: 'components', method: 'get',
+    endpoint: 'components',
+    method: 'get',
     handler: { type: 'bridge', bridgeMethod: 'get_component' },
     paramsArb: fc.record({ nodeId: fc.stringMatching(/^[0-9]{1,4}:[0-9]{1,4}$/) }),
   },
   {
-    endpoint: 'components', method: 'list_properties',
+    endpoint: 'components',
+    method: 'list_properties',
     handler: { type: 'bridge', bridgeMethod: 'list_component_properties' },
     paramsArb: fc.record({ nodeId: fc.stringMatching(/^[0-9]{1,4}:[0-9]{1,4}$/) }),
   },
   {
-    endpoint: 'components', method: 'list_library',
+    endpoint: 'components',
+    method: 'list_library',
     handler: { type: 'logic', fn: 'listLibraryComponentsLogic' },
     paramsArb: fc.record({
       fileKey: fc.option(fc.stringMatching(/^[a-zA-Z0-9]{5,15}$/), { nil: undefined }),
@@ -379,9 +390,16 @@ const ENDPOINT_FLAT_EQUIVALENCE: Array<{
 function createMockServerForEndpoints() {
   const registeredTools: Record<string, (params: Record<string, unknown>) => Promise<unknown>> = {};
   const mockServer = {
-    tool: vi.fn((name: string, _desc: string, _schema: unknown, callback: (params: Record<string, unknown>) => Promise<unknown>) => {
-      registeredTools[name] = callback;
-    }),
+    tool: vi.fn(
+      (
+        name: string,
+        _desc: string,
+        _schema: unknown,
+        callback: (params: Record<string, unknown>) => Promise<unknown>,
+      ) => {
+        registeredTools[name] = callback;
+      },
+    ),
   };
   return { server: mockServer as any, registeredTools };
 }
@@ -406,9 +424,9 @@ describe('Feature: endpoint-mode-refactor, Property 1: Endpoint 与 Flat Tool �
   it('endpoint call and direct logic function call produce identical results for any valid (endpoint, method, params)', async () => {
     await fc.assert(
       fc.asyncProperty(
-        fc.constantFrom(...ENDPOINT_FLAT_EQUIVALENCE).chain((entry) =>
-          entry.paramsArb.map((params) => ({ ...entry, generatedParams: params })),
-        ),
+        fc
+          .constantFrom(...ENDPOINT_FLAT_EQUIVALENCE)
+          .chain((entry) => entry.paramsArb.map((params) => ({ ...entry, generatedParams: params }))),
         async ({ endpoint, method, handler, generatedParams }) => {
           sharedBridge.request.mockClear();
           mockRequestWithFallback.mockClear();
@@ -417,7 +435,7 @@ describe('Feature: endpoint-mode-refactor, Property 1: Endpoint 与 Flat Tool �
           mockListLibraryComponentsLogic.mockClear();
 
           const endpointParams = { method, ...generatedParams };
-          const endpointResult = await registeredTools[endpoint](endpointParams) as McpResponse;
+          const endpointResult = (await registeredTools[endpoint](endpointParams)) as McpResponse;
 
           let flatResult: McpResponse;
           if (handler.type === 'logic') {

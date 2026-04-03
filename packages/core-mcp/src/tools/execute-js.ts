@@ -29,28 +29,18 @@ export function registerExecuteJsTools(server: McpServer, bridge: Bridge): void 
             'Use top-level await freely. Use `return` to send data back. ' +
             'The `figma` global (Plugin API) is available.',
         ),
-      timeoutMs: z
-        .number()
-        .optional()
-        .describe('Execution timeout in milliseconds (default: 30000, max: 120000).'),
+      timeoutMs: z.number().optional().describe('Execution timeout in milliseconds (default: 30000, max: 120000).'),
     },
     async ({ code, timeoutMs }) => {
       // The handler-side timeout (inside the plugin) defaults to 30s, max 120s.
       // The bridge timeout must be higher so the handler's structured error
       // fires before the bridge/queue timeout kills the request.
       // Add 10s buffer over the handler timeout.
-      const handlerTimeout = Math.min(
-        Math.max(Number(timeoutMs) || 30_000, 1_000),
-        120_000,
-      );
+      const handlerTimeout = Math.min(Math.max(Number(timeoutMs) || 30_000, 1_000), 120_000);
       const bridgeTimeout = handlerTimeout + 10_000;
 
       try {
-        const result = await bridge.request(
-          'execute_js',
-          { code, timeoutMs },
-          bridgeTimeout,
-        );
+        const result = await bridge.request('execute_js', { code, timeoutMs }, bridgeTimeout);
 
         return {
           content: [

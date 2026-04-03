@@ -30,14 +30,21 @@ export type DeferredStrategyHandler = (
 
 /** Known spacing properties that use setSpacingProp instead of direct assignment. */
 const SPACING_PROPS = new Set([
-  'itemSpacing', 'paddingLeft', 'paddingRight', 'paddingTop', 'paddingBottom',
+  'itemSpacing',
+  'paddingLeft',
+  'paddingRight',
+  'paddingTop',
+  'paddingBottom',
   'counterAxisSpacing',
 ]);
 
 /** Properties that must be applied last — sizing depends on spacing/padding being set first. */
 const LATE_PROPS = new Set([
-  'layoutSizingHorizontal', 'layoutSizingVertical', 'layoutAlign',
-  'primaryAxisSizingMode', 'counterAxisSizingMode',
+  'layoutSizingHorizontal',
+  'layoutSizingVertical',
+  'layoutAlign',
+  'primaryAxisSizingMode',
+  'counterAxisSizingMode',
 ]);
 
 /** Properties that need lineHeight wrapper: { value, unit: 'PIXELS' }. */
@@ -138,10 +145,7 @@ async function applyPropertyFix(
 /**
  * Resize a node, optionally setting minHeight.
  */
-function applyResizeFix(
-  node: SceneNode,
-  desc: { width?: number; height?: number; minHeight?: number },
-): FixResult {
+function applyResizeFix(node: SceneNode, desc: { width?: number; height?: number; minHeight?: number }): FixResult {
   try {
     if (node.type !== 'FRAME' && node.type !== 'COMPONENT') {
       return { fixed: false, error: `Cannot resize ${node.type}` };
@@ -163,10 +167,7 @@ function applyResizeFix(
  * Remove a spacer node and redistribute its dimension to parent spacing/padding.
  * Extracted from the duplicated logic in lint.ts and lint-inline.ts.
  */
-function applyRemoveAndRedistribute(
-  node: SceneNode,
-  dimension: { width?: number; height?: number },
-): FixResult {
+function applyRemoveAndRedistribute(node: SceneNode, dimension: { width?: number; height?: number }): FixResult {
   try {
     const parent = node.parent;
     if (!parent || !('layoutMode' in parent)) {

@@ -23,7 +23,7 @@ function scoreMatch(name: string, queryTokens: string[]): number {
       score += 60; // prefix
     } else {
       // Check path segments (e.g. "color/primary" matches "primary")
-      const segments = lower.split(/[\/\-_.]/);
+      const segments = lower.split(/[/\-_.]/);
       const segExact = segments.some((s) => s === token);
       const segPrefix = segments.some((s) => s.startsWith(token));
       if (segExact) {
@@ -41,21 +41,33 @@ function scoreMatch(name: string, queryTokens: string[]): number {
 
 export function registerSearchDesignSystemHandler(): void {
   registerHandler('search_design_system', async (params) => {
-    const query = (params.query as string || '').trim();
+    const query = ((params.query as string) || '').trim();
     assertHandler(query, 'query is required', 'VALIDATION_ERROR');
 
     const queryTokens = query.toLowerCase().split(/\s+/).filter(Boolean);
     const typesParam = params.types as string[] | undefined;
-    const types = new Set(typesParam && typesParam.length > 0
-      ? typesParam
-      : ['components', 'variables', 'styles']);
+    const types = new Set(typesParam && typesParam.length > 0 ? typesParam : ['components', 'variables', 'styles']);
     const limit = (params.limit as number) || 20;
     const selectedLibrary = (params.selectedLibrary as string | undefined) ?? null;
     const isLocalOnly = selectedLibrary === '__local__';
 
     const results: {
-      components: Array<{ key: string; name: string; description: string; isSet: boolean; libraryName: string; _score: number }>;
-      variables: Array<{ key: string; name: string; resolvedType: string; collection: string; libraryName: string; _score: number }>;
+      components: Array<{
+        key: string;
+        name: string;
+        description: string;
+        isSet: boolean;
+        libraryName: string;
+        _score: number;
+      }>;
+      variables: Array<{
+        key: string;
+        name: string;
+        resolvedType: string;
+        collection: string;
+        libraryName: string;
+        _score: number;
+      }>;
       styles: Array<{ key: string; name: string; styleType: string; _score: number }>;
     } = { components: [], variables: [], styles: [] };
 
@@ -102,9 +114,7 @@ export function registerSearchDesignSystemHandler(): void {
         const localCollections = await figma.variables.getLocalVariableCollectionsAsync();
         for (const coll of localCollections) {
           // Fetch all variables in this collection in parallel
-          const vars = await Promise.all(
-            coll.variableIds.map((varId) => figma.variables.getVariableByIdAsync(varId)),
-          );
+          const vars = await Promise.all(coll.variableIds.map((varId) => figma.variables.getVariableByIdAsync(varId)));
           for (const v of vars) {
             if (!v) continue;
             const score = scoreMatch(v.name, queryTokens);
@@ -181,7 +191,7 @@ export function registerSearchDesignSystemHandler(): void {
             if (isLocalOnly && mc.remote) {
               // still walk children below
             } else {
-              const cs = mc.parent?.type === 'COMPONENT_SET' ? mc.parent as ComponentSetNode : null;
+              const cs = mc.parent?.type === 'COMPONENT_SET' ? (mc.parent as ComponentSetNode) : null;
               const target = cs || mc;
               const score = scoreMatch(target.name, queryTokens);
               if (score > 0 && !seen.has(target.key)) {

@@ -1,13 +1,7 @@
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { execSync } from 'node:child_process';
-import { readFileSync, existsSync, readdirSync } from 'node:fs';
 
-const IDE_FILES = [
-  'CLAUDE.md',
-  'AGENTS.md',
-  '.kiro/steering/figcraft.md',
-  '.cursor/rules/figcraft.mdc',
-];
+const IDE_FILES = ['CLAUDE.md', 'AGENTS.md', '.kiro/steering/figcraft.md', '.cursor/rules/figcraft.mdc'];
 
 const INJECT_PATTERN = /<!-- @inject-start: (.+?) -->\n([\s\S]*?)<!-- @inject-end -->/g;
 
@@ -16,7 +10,7 @@ describe('IDE config consistency', () => {
     for (const file of IDE_FILES) {
       if (!existsSync(file)) continue;
       const content = readFileSync(file, 'utf-8');
-      let match;
+      let match: RegExpExecArray | null;
       while ((match = INJECT_PATTERN.exec(content)) !== null) {
         const [, snippetPath, injected] = match;
         const sourcePath = `content/${snippetPath}`;
@@ -34,8 +28,8 @@ describe('IDE config consistency', () => {
   });
 
   it('all ide-shared snippets are used in at least one IDE file', () => {
-    const snippets = readdirSync('content/ide-shared').filter(f => f.endsWith('.md'));
-    const allContent = IDE_FILES.map(f => readFileSync(f, 'utf-8')).join('\n');
+    const snippets = readdirSync('content/ide-shared').filter((f) => f.endsWith('.md'));
+    const allContent = IDE_FILES.map((f) => readFileSync(f, 'utf-8')).join('\n');
     for (const snippet of snippets) {
       expect(
         allContent.includes(`ide-shared/${snippet}`),

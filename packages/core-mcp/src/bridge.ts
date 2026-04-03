@@ -5,26 +5,26 @@
  * Auto-reconnects on disconnect.
  */
 
-import WebSocket from 'ws';
 import http from 'node:http';
 import type { ChannelId, RequestId } from '@figcraft/shared';
-import { truncateStructurally } from './tools/response-helpers.js';
 import {
-  generateId,
-  REQUEST_TIMEOUT_MS,
-  HEARTBEAT_INTERVAL_MS,
   CONTROL_CHANNEL,
-  isResponseMessage,
-  isErrorMessage,
-  isPongMessage,
-  isSetApiTokenMessage,
-  isSetLibraryFileKeyMessage,
-  isResolveFileNameMessage,
+  generateId,
+  HEARTBEAT_INTERVAL_MS,
   isChannelAnnounceMessage,
   isCommandProgressMessage,
+  isErrorMessage,
+  isPongMessage,
+  isResolveFileNameMessage,
+  isResponseMessage,
+  isSetApiTokenMessage,
+  isSetLibraryFileKeyMessage,
+  REQUEST_TIMEOUT_MS,
 } from '@figcraft/shared';
-import { fetchFileName } from './figma-api.js';
+import WebSocket from 'ws';
 import { saveBridgeToken } from './auth.js';
+import { fetchFileName } from './figma-api.js';
+import { truncateStructurally } from './tools/response-helpers.js';
 
 interface PendingRequest {
   resolve: (result: unknown) => void;
@@ -81,7 +81,12 @@ export class Bridge {
     if (this.ws) {
       const oldWs = this.ws;
       this.ws = null;
-      try { oldWs.removeAllListeners(); oldWs.terminate(); } catch { /* already closed */ }
+      try {
+        oldWs.removeAllListeners();
+        oldWs.terminate();
+      } catch {
+        /* already closed */
+      }
     }
 
     return new Promise<void>((resolve, reject) => {
@@ -153,7 +158,9 @@ export class Bridge {
 
         if (isChannelAnnounceMessage(msg)) {
           if (msg.designChannel && msg.designChannel !== this.channel) {
-            console.error(`[FigCraft bridge] plugin announced channel "${msg.designChannel}", switching from "${this.channel}"`);
+            console.error(
+              `[FigCraft bridge] plugin announced channel "${msg.designChannel}", switching from "${this.channel}"`,
+            );
             this.joinChannel(msg.designChannel);
           }
           return;
@@ -197,17 +204,43 @@ export class Bridge {
         if (isResolveFileNameMessage(msg)) {
           const token = this.apiToken;
           if (!token || !ws) {
-            ws?.send(JSON.stringify({ type: 'file-name-resolved', channel: this.channel, fileKey: msg.fileKey, url: msg.url, name: null, error: 'No API token configured' }));
+            ws?.send(
+              JSON.stringify({
+                type: 'file-name-resolved',
+                channel: this.channel,
+                fileKey: msg.fileKey,
+                url: msg.url,
+                name: null,
+                error: 'No API token configured',
+              }),
+            );
             return;
           }
           fetchFileName(msg.fileKey, token)
             .then((name) => {
-              ws.send(JSON.stringify({ type: 'file-name-resolved', channel: this.channel, fileKey: msg.fileKey, url: msg.url, name }));
+              ws.send(
+                JSON.stringify({
+                  type: 'file-name-resolved',
+                  channel: this.channel,
+                  fileKey: msg.fileKey,
+                  url: msg.url,
+                  name,
+                }),
+              );
               this.libraryFileKeys.set(name, msg.fileKey);
               console.error(`[FigCraft bridge] Resolved file name: "${name}" for key ${msg.fileKey}`);
             })
             .catch((err: Error) => {
-              ws.send(JSON.stringify({ type: 'file-name-resolved', channel: this.channel, fileKey: msg.fileKey, url: msg.url, name: null, error: err.message }));
+              ws.send(
+                JSON.stringify({
+                  type: 'file-name-resolved',
+                  channel: this.channel,
+                  fileKey: msg.fileKey,
+                  url: msg.url,
+                  name: null,
+                  error: err.message,
+                }),
+              );
             });
           return;
         }
@@ -232,8 +265,8 @@ export class Bridge {
           this.rejectAllPending('Evicted by another MCP instance');
           console.error(
             `[FigCraft bridge] evicted by another MCP instance (4001: ${reason?.toString()}). ` +
-            `This instance will NOT reconnect. Remove duplicate figcraft server configs ` +
-            `from .mcp.json / .kiro/settings/mcp.json / .vscode/mcp.json, then restart.`,
+              `This instance will NOT reconnect. Remove duplicate figcraft server configs ` +
+              `from .mcp.json / .kiro/settings/mcp.json / .vscode/mcp.json, then restart.`,
           );
           if (!settled) {
             settled = true;
@@ -269,9 +302,7 @@ export class Bridge {
   }
 
   /** UI creation methods that require get_mode to be called first. */
-  private static readonly DESIGN_PREFLIGHT_METHODS = new Set([
-    'create_frame', 'create_text', 'create_svg',
-  ]);
+  private static readonly DESIGN_PREFLIGHT_METHODS = new Set(['create_frame', 'create_text', 'create_svg']);
 
   /** Send a request to the Plugin and await its response. */
   async request(method: string, params: Record<string, unknown> = {}, timeoutMs?: number): Promise<unknown> {
@@ -280,8 +311,8 @@ export class Bridge {
     if (Bridge.DESIGN_PREFLIGHT_METHODS.has(method) && !this._modeQueried) {
       throw new Error(
         `[FigCraft] Cannot call ${method} before get_mode. ` +
-        'Design preflight required: call get_mode first to check library status and get workflow instructions, ' +
-        'then present a design proposal to the user and wait for confirmation before creating UI elements.',
+          'Design preflight required: call get_mode first to check library status and get workflow instructions, ' +
+          'then present a design proposal to the user and wait for confirmation before creating UI elements.',
       );
     }
     // If disconnected, wait for reconnection (up to 10s)
@@ -294,12 +325,16 @@ export class Bridge {
     if (!this.ws || !this.connected) {
       if (!this.intentionalDisconnect && !this.evicted) {
         for (let attempt = 0; attempt < Bridge.MAX_REQUEST_RECONNECT_ATTEMPTS; attempt++) {
-          console.error(`[FigCraft bridge] request() triggering active reconnect for ${method} (attempt ${attempt + 1}/${Bridge.MAX_REQUEST_RECONNECT_ATTEMPTS})`);
+          console.error(
+            `[FigCraft bridge] request() triggering active reconnect for ${method} (attempt ${attempt + 1}/${Bridge.MAX_REQUEST_RECONNECT_ATTEMPTS})`,
+          );
           try {
             await this.connect();
             await this.discoverPluginChannel();
             if (this.connected) break;
-          } catch { /* continue to next attempt */ }
+          } catch {
+            /* continue to next attempt */
+          }
         }
       }
     }
@@ -499,11 +534,16 @@ export class Bridge {
       const body = await new Promise<string>((resolve, reject) => {
         const req = http.get(channelsUrl, { timeout: 3000 }, (res) => {
           let data = '';
-          res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
+          res.on('data', (chunk: Buffer) => {
+            data += chunk.toString();
+          });
           res.on('end', () => resolve(data));
         });
         req.on('error', reject);
-        req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+        req.on('timeout', () => {
+          req.destroy();
+          reject(new Error('timeout'));
+        });
       });
 
       const json = JSON.parse(body) as {
@@ -518,9 +558,7 @@ export class Bridge {
       if (!json.ok || !json.channels) return;
 
       // Find channels that have a plugin member but exclude the control channel
-      const pluginChannels = json.channels.filter(
-        (ch) => ch.channel !== '__control__' && ch.roles.includes('plugin'),
-      );
+      const pluginChannels = json.channels.filter((ch) => ch.channel !== '__control__' && ch.roles.includes('plugin'));
 
       if (pluginChannels.length === 0) return;
 
@@ -561,11 +599,7 @@ export class Bridge {
    * @param method - The tool method name (for error context)
    * @param hints - Optional hints for the agent on how to reduce response size
    */
-  static guardResponseSize(
-    result: unknown,
-    method: string,
-    hints?: string[],
-  ): unknown {
+  static guardResponseSize(result: unknown, method: string, hints?: string[]): unknown {
     const json = JSON.stringify(result);
     if (json.length <= Bridge.MAX_RESPONSE_CHARS) return result;
 
@@ -615,7 +649,9 @@ export class Bridge {
             this.missedPongs = 1;
             return;
           }
-          console.error(`[FigCraft bridge] relay unresponsive (${this.missedPongs} missed pongs, last pong ${sincePong}ms ago), forcing reconnect`);
+          console.error(
+            `[FigCraft bridge] relay unresponsive (${this.missedPongs} missed pongs, last pong ${sincePong}ms ago), forcing reconnect`,
+          );
           this.ws.terminate();
           return;
         }
@@ -632,7 +668,7 @@ export class Bridge {
   }
 
   private rejectAllPending(reason: string): void {
-    for (const [id, req] of this.pending) {
+    for (const [_id, req] of this.pending) {
       clearTimeout(req.timer);
       req.reject(new Error(reason));
     }
@@ -642,7 +678,7 @@ export class Bridge {
   private scheduleReconnect(): void {
     if (this.reconnectTimer) return;
     // Exponential backoff: 1s, 2s, 4s, 8s … capped at 60s, with ±20% jitter
-    const base = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 60_000);
+    const base = Math.min(1000 * 2 ** this.reconnectAttempts, 60_000);
     const jitter = base * 0.2 * (Math.random() * 2 - 1);
     const delay = Math.round(base + jitter);
     this.reconnectAttempts++;

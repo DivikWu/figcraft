@@ -42,12 +42,7 @@ function renderJson(value) {
 
 function renderToolSection() {
   const toolNames = Object.keys(GENERATED_TOOL_RESPONSE_EXAMPLES).sort();
-  const lines = [
-    '## Tool Response Coverage',
-    '',
-    `Covered flat/custom tools: ${toolNames.length}`,
-    '',
-  ];
+  const lines = ['## Tool Response Coverage', '', `Covered flat/custom tools: ${toolNames.length}`, ''];
 
   for (const toolName of toolNames) {
     const examples = GENERATED_TOOL_RESPONSE_EXAMPLES[toolName] ?? [];
@@ -68,10 +63,7 @@ function renderToolSection() {
 
 function renderEndpointSection() {
   const endpointNames = Object.keys(GENERATED_ENDPOINT_METHOD_RESPONSE_EXAMPLES).sort();
-  const lines = [
-    '## Endpoint Response Coverage',
-    '',
-  ];
+  const lines = ['## Endpoint Response Coverage', ''];
 
   let totalMethods = 0;
   for (const endpointName of endpointNames) {

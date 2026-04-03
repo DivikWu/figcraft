@@ -2,12 +2,8 @@
   "name": "FigCraft",
   "id": "figcraft-plugin",
   "api": "1.0.0",
-  "editorType": [
-    "figma"
-  ],
-  "permissions": [
-    "teamlibrary"
-  ],
+  "editorType": ["figma"],
+  "permissions": ["teamlibrary"],
   "networkAccess": {
     "allowedDomains": [
       "ws://localhost:3055",

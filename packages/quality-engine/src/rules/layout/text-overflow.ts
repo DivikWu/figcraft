@@ -10,7 +10,7 @@
  * - In non-auto-layout parent: set textAutoResize to WIDTH_AND_HEIGHT
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
+import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
 
 function pickFixResize(node: AbstractNode): string {
   // If parent has auto-layout, width is managed by the layout engine.

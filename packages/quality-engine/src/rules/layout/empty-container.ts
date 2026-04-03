@@ -2,7 +2,7 @@
  * Empty container rule — detect frames/groups with no visible children.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import type { AbstractNode, LintContext, LintRule, LintViolation } from '../../types.js';
 
 export const emptyContainerRule: LintRule = {
   name: 'empty-container',
@@ -21,15 +21,17 @@ export const emptyContainerRule: LintRule = {
     const hasVisibleChildren = node.children?.some((c) => c.type !== 'VECTOR' || c.width !== 0) ?? false;
 
     if (!hasVisibleChildren) {
-      return [{
-        nodeId: node.id,
-        nodeName: node.name,
-        rule: 'empty-container',
-        severity: 'style',
-        currentValue: `${node.type} with ${node.children?.length ?? 0} children (none visible)`,
-        suggestion: `"${node.name}" is an empty container with nothing visible inside — remove it or add content`,
-        autoFixable: false,
-      }];
+      return [
+        {
+          nodeId: node.id,
+          nodeName: node.name,
+          rule: 'empty-container',
+          severity: 'style',
+          currentValue: `${node.type} with ${node.children?.length ?? 0} children (none visible)`,
+          suggestion: `"${node.name}" is an empty container with nothing visible inside — remove it or add content`,
+          autoFixable: false,
+        },
+      ];
     }
 
     return [];

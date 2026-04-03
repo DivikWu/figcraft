@@ -11,12 +11,12 @@
  * as Claude Code and Kiro.
  */
 
-import { z } from 'zod';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getPreventionChecklist } from '@figcraft/quality-engine';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 import { GUIDES } from './_guides.js';
-import { UI_PATTERNS } from './_templates.js';
 import type { UiPattern } from './_templates.js';
+import { UI_PATTERNS } from './_templates.js';
 
 // Guide aliases — keys generated from content/guides/*.md filenames
 const MULTI_SCREEN_GUIDE = GUIDES.MULTI_SCREEN;
@@ -78,17 +78,34 @@ export function registerCreationGuide(server: McpServer): void {
       'templates with structure, key decisions, pitfalls, and tone variants. ' +
       'Use before creating complex UI to understand best practices.',
     {
-      topic: z.enum(['layout', 'multi-screen', 'batching', 'tool-behavior', 'opinion-engine', 'ui-patterns', 'responsive', 'content-states'])
-        .describe('Topic: layout (structural rules), multi-screen (flow architecture), batching (context budget), tool-behavior (usage patterns), opinion-engine (auto-inference docs), ui-patterns (UI type templates — requires uiType), responsive (web breakpoints + auto-layout), content-states (empty/loading/error patterns)'),
-      uiType: z.string().optional()
-        .describe(`UI type for ui-patterns topic. Available: ${VALID_UI_TYPES.join(', ')}. Omit to list all available types.`),
+      topic: z
+        .enum([
+          'layout',
+          'multi-screen',
+          'batching',
+          'tool-behavior',
+          'opinion-engine',
+          'ui-patterns',
+          'responsive',
+          'content-states',
+        ])
+        .describe(
+          'Topic: layout (structural rules), multi-screen (flow architecture), batching (context budget), tool-behavior (usage patterns), opinion-engine (auto-inference docs), ui-patterns (UI type templates — requires uiType), responsive (web breakpoints + auto-layout), content-states (empty/loading/error patterns)',
+        ),
+      uiType: z
+        .string()
+        .optional()
+        .describe(
+          `UI type for ui-patterns topic. Available: ${VALID_UI_TYPES.join(', ')}. Omit to list all available types.`,
+        ),
     },
     async ({ topic, uiType }) => {
       let content: string;
 
       switch (topic) {
         case 'layout':
-          content = '# Layout & Structure Rules\n\n' +
+          content =
+            '# Layout & Structure Rules\n\n' +
             getPreventionChecklist({ phases: ['layout', 'structure'], minSeverity: 'style' })
               .map((hint, i) => `${i + 1}. ${hint}`)
               .join('\n');
@@ -113,8 +130,11 @@ export function registerCreationGuide(server: McpServer): void {
           break;
         case 'ui-patterns': {
           if (!uiType) {
-            content = '# Available UI Patterns\n\n' +
-              VALID_UI_TYPES.map(t => `- **${t}**: ${UI_PATTERNS[t].keyDecisions.layout?.slice(0, 80) ?? ''}`).join('\n') +
+            content =
+              '# Available UI Patterns\n\n' +
+              VALID_UI_TYPES.map((t) => `- **${t}**: ${UI_PATTERNS[t].keyDecisions.layout?.slice(0, 80) ?? ''}`).join(
+                '\n',
+              ) +
               '\n\nUse get_creation_guide(topic: "ui-patterns", uiType: "<type>") for the full template.';
             break;
           }
@@ -129,10 +149,12 @@ export function registerCreationGuide(server: McpServer): void {
       }
 
       return {
-        content: [{
-          type: 'text' as const,
-          text: content,
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: content,
+          },
+        ],
       };
     },
   );

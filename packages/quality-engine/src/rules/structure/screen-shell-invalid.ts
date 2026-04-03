@@ -1,14 +1,15 @@
-import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
 import { SCREEN_NAME_RE } from '../../constants.js';
+import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
 
 function isScreenLike(node: AbstractNode): boolean {
   if (node.type !== 'FRAME' && node.type !== 'COMPONENT') return false;
   if (node.role === 'screen' || node.role === 'page') return true;
-  const frameLikeChildren = node.children?.filter((child) => child.type === 'FRAME' || child.type === 'COMPONENT' || child.type === 'INSTANCE').length ?? 0;
-  return SCREEN_NAME_RE.test(node.name) &&
-    (node.width ?? 0) >= 360 &&
-    (node.height ?? 0) >= 640 &&
-    frameLikeChildren >= 2;
+  const frameLikeChildren =
+    node.children?.filter((child) => child.type === 'FRAME' || child.type === 'COMPONENT' || child.type === 'INSTANCE')
+      .length ?? 0;
+  return (
+    SCREEN_NAME_RE.test(node.name) && (node.width ?? 0) >= 360 && (node.height ?? 0) >= 640 && frameLikeChildren >= 2
+  );
 }
 
 export const screenShellInvalidRule: LintRule = {
@@ -48,7 +49,7 @@ export const screenShellInvalidRule: LintRule = {
   },
 
   describeFix(v): FixDescriptor | null {
-    if (!v.fixData || !v.fixData.layoutMode) return null;
+    if (!v.fixData?.layoutMode) return null;
     return {
       kind: 'set-properties',
       props: { layoutMode: v.fixData.layoutMode },

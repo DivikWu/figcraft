@@ -2,11 +2,10 @@
  * Token tools — list, sync, diff DTCG tokens against Figma.
  */
 
-import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 import type { Bridge } from '../bridge.js';
 import { parseDtcgFile } from '../dtcg.js';
-import type { DesignToken } from '@figcraft/shared';
 
 /** Build a nested DTCG object from flat token entries. */
 function buildDtcgTree(
@@ -33,8 +32,7 @@ function buildDtcgTree(
 export function registerTokenTools(server: McpServer, bridge: Bridge): void {
   server.tool(
     'list_tokens',
-    'Parse a DTCG JSON file and list all design tokens. ' +
-      'Resolves aliases and returns flat token list.',
+    'Parse a DTCG JSON file and list all design tokens. ' + 'Resolves aliases and returns flat token list.',
     {
       filePath: z.string().describe('Path to DTCG JSON file'),
       type: z.string().optional().describe('Filter by token type (e.g. "color", "typography")'),
@@ -43,10 +41,12 @@ export function registerTokenTools(server: McpServer, bridge: Bridge): void {
       const tokens = await parseDtcgFile(filePath);
       const filtered = type ? tokens.filter((t) => t.type === type) : tokens;
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({ total: tokens.length, showing: filtered.length, tokens: filtered }, null, 2),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({ total: tokens.length, showing: filtered.length, tokens: filtered }, null, 2),
+          },
+        ],
       };
     },
   );
@@ -64,36 +64,38 @@ export function registerTokenTools(server: McpServer, bridge: Bridge): void {
       const allTokens = await parseDtcgFile(filePath);
 
       // Atomic tokens → Variables
-      const atomicTokens = allTokens.filter(
-        (t) => t.type !== 'typography' && t.type !== 'shadow',
-      );
-      const compositeTokens = allTokens.filter(
-        (t) => t.type === 'typography' || t.type === 'shadow',
-      );
+      const atomicTokens = allTokens.filter((t) => t.type !== 'typography' && t.type !== 'shadow');
+      const compositeTokens = allTokens.filter((t) => t.type === 'typography' || t.type === 'shadow');
 
-      const varResult = await bridge.request('sync_tokens', {
+      const varResult = (await bridge.request('sync_tokens', {
         tokens: atomicTokens,
         collectionName,
         modeName,
-      }) as { created: number; updated: number; skipped: number; failed: number; failures: unknown[] };
+      })) as { created: number; updated: number; skipped: number; failed: number; failures: unknown[] };
 
       // Composite tokens → Styles
       let styleResult = { created: 0, updated: 0, skipped: 0, failed: 0, failures: [] as unknown[] };
       if (compositeTokens.length > 0) {
-        styleResult = await bridge.request('sync_styles', {
+        styleResult = (await bridge.request('sync_styles', {
           tokens: compositeTokens,
-        }) as typeof styleResult;
+        })) as typeof styleResult;
       }
 
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            variables: varResult,
-            styles: styleResult,
-            totalTokens: allTokens.length,
-          }, null, 2),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                variables: varResult,
+                styles: styleResult,
+                totalTokens: allTokens.length,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
       };
     },
   );
@@ -102,7 +104,7 @@ export function registerTokenTools(server: McpServer, bridge: Bridge): void {
     'sync_tokens_multi_mode',
     'Sync DTCG tokens from multiple files into different modes of the same collection. ' +
       'Each entry maps a mode name to a DTCG file path. ' +
-      'Modes are created automatically if they don\'t exist. ' +
+      "Modes are created automatically if they don't exist. " +
       'Example: { "Light": "tokens-light.json", "Dark": "tokens-dark.json" }',
     {
       modes: z.record(z.string()).describe('Map of mode name → DTCG file path'),
@@ -119,10 +121,10 @@ export function registerTokenTools(server: McpServer, bridge: Bridge): void {
       }
 
       // Ensure collection and modes exist
-      const setupResult = await bridge.request('ensure_collection_modes', {
+      const setupResult = (await bridge.request('ensure_collection_modes', {
         collectionName: colName,
         modeNames: modeEntries.map(([name]) => name),
-      }) as { collectionId: string; modes: Array<{ modeId: string; name: string }> };
+      })) as { collectionId: string; modes: Array<{ modeId: string; name: string }> };
 
       const results: Record<string, { variables: unknown; styles: unknown; totalTokens: number }> = {};
 
@@ -141,7 +143,7 @@ export function registerTokenTools(server: McpServer, bridge: Bridge): void {
 
         let styleResult = { created: 0, updated: 0, skipped: 0, failed: 0, failures: [] };
         if (compositeTokens.length > 0) {
-          styleResult = await bridge.request('sync_styles', { tokens: compositeTokens }) as typeof styleResult;
+          styleResult = (await bridge.request('sync_styles', { tokens: compositeTokens })) as typeof styleResult;
         }
 
         results[modeName] = {
@@ -152,14 +154,20 @@ export function registerTokenTools(server: McpServer, bridge: Bridge): void {
       }
 
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            collectionId: setupResult.collectionId,
-            modes: setupResult.modes,
-            results,
-          }, null, 2),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                collectionId: setupResult.collectionId,
+                modes: setupResult.modes,
+                results,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
       };
     },
   );
@@ -176,11 +184,11 @@ export function registerTokenTools(server: McpServer, bridge: Bridge): void {
       const tokens = await parseDtcgFile(filePath);
 
       // Get current Figma variables
-      const figmaVars = await bridge.request('list_variables', {}) as {
+      const figmaVars = (await bridge.request('list_variables', {})) as {
         variables: Array<{ name: string; resolvedType: string; valuesByMode: Record<string, unknown> }>;
       };
 
-      const figmaMap = new Map<string, typeof figmaVars.variables[0]>();
+      const figmaMap = new Map<string, (typeof figmaVars.variables)[0]>();
       for (const v of figmaVars.variables) {
         figmaMap.set(v.name, v);
       }
@@ -231,10 +239,12 @@ export function registerTokenTools(server: McpServer, bridge: Bridge): void {
       };
 
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({ summary, diff }, null, 2),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({ summary, diff }, null, 2),
+          },
+        ],
       };
     },
   );
@@ -251,7 +261,7 @@ export function registerTokenTools(server: McpServer, bridge: Bridge): void {
     },
     async ({ filePath, collectionId, modeName }) => {
       // Get variables from Figma
-      const exported = await bridge.request('export_variables', { collectionId }) as {
+      const exported = (await bridge.request('export_variables', { collectionId })) as {
         count: number;
         variables: Array<{
           path: string;
@@ -279,20 +289,26 @@ export function registerTokenTools(server: McpServer, bridge: Bridge): void {
 
       // Build nested DTCG tree and write
       const tree = buildDtcgTree(entries);
-      const { writeFile, mkdir } = await import('fs/promises');
-      const { dirname } = await import('path');
+      const { writeFile, mkdir } = await import('node:fs/promises');
+      const { dirname } = await import('node:path');
       await mkdir(dirname(filePath), { recursive: true });
       await writeFile(filePath, JSON.stringify(tree, null, 2), 'utf-8');
 
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            ok: true,
-            filePath,
-            tokenCount: entries.length,
-          }, null, 2),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                ok: true,
+                filePath,
+                tokenCount: entries.length,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
       };
     },
   );

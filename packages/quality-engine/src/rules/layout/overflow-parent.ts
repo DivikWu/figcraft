@@ -8,7 +8,7 @@
  * Auto-fix: set layoutAlign=STRETCH (for cross-axis overflow) or reduce child dimension.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor, RuleAI } from '../../types.js';
+import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
 
 function getInnerWidth(node: AbstractNode): number | null {
   if (node.width == null) return null;
@@ -30,7 +30,8 @@ export const overflowParentRule: LintRule = {
   category: 'layout',
   severity: 'unsafe',
   ai: {
-    preventionHint: 'Responsive children (inputs, buttons, dividers, content sections) use layoutAlign: STRETCH to fill parent width',
+    preventionHint:
+      'Responsive children (inputs, buttons, dividers, content sections) use layoutAlign: STRETCH to fill parent width',
     phase: ['layout'],
   },
 

@@ -51,7 +51,7 @@ describe('relay observability endpoints', () => {
     const baseUrl = `http://127.0.0.1:${runtime.port}`;
     const wsUrl = `ws://127.0.0.1:${runtime.port}`;
 
-    const healthBefore = await fetch(`${baseUrl}/health`).then((res) => res.json()) as Record<string, unknown>;
+    const healthBefore = (await fetch(`${baseUrl}/health`).then((res) => res.json())) as Record<string, unknown>;
     expect(healthBefore.ok).toBe(true);
     expect(healthBefore.port).toBe(runtime.port);
     expect(healthBefore.channels).toBe(0);
@@ -64,7 +64,7 @@ describe('relay observability endpoints', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 25));
 
-    const channels = await fetch(`${baseUrl}/channels`).then((res) => res.json()) as {
+    const channels = (await fetch(`${baseUrl}/channels`).then((res) => res.json())) as {
       ok: boolean;
       count: number;
       channels: Array<{ channel: string; memberCount: number; roles: string[] }>;
@@ -75,7 +75,7 @@ describe('relay observability endpoints', () => {
     expect(channels.channels[0]?.memberCount).toBe(2);
     expect(channels.channels[0]?.roles).toEqual(expect.arrayContaining(['mcp', 'plugin']));
 
-    const stats = await fetch(`${baseUrl}/stats`).then((res) => res.json()) as {
+    const stats = (await fetch(`${baseUrl}/stats`).then((res) => res.json())) as {
       ok: boolean;
       stats: Record<string, number>;
     };

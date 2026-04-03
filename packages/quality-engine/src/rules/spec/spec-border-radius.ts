@@ -2,11 +2,11 @@
  * Spec border radius rule — detect non-token corner radius values.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
+import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
 
 export const specBorderRadiusRule: LintRule = {
   name: 'spec-border-radius',
-  description: 'Detect corner radius values that don\'t match any radius token.',
+  description: "Detect corner radius values that don't match any radius token.",
   category: 'token',
   severity: 'error',
   ai: {
@@ -18,13 +18,11 @@ export const specBorderRadiusRule: LintRule = {
   check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     if (ctx.radiusTokens.size === 0) return [];
     if (node.cornerRadius === undefined) return [];
-    if (node.boundVariables?.['cornerRadius']) return [];
+    if (node.boundVariables?.cornerRadius) return [];
 
     const violations: LintViolation[] = [];
 
-    const radii = typeof node.cornerRadius === 'number'
-      ? [node.cornerRadius]
-      : node.cornerRadius;
+    const radii = typeof node.cornerRadius === 'number' ? [node.cornerRadius] : node.cornerRadius;
 
     for (const radius of radii) {
       if (radius === 0) continue;
@@ -32,7 +30,10 @@ export const specBorderRadiusRule: LintRule = {
       // Check if value matches any token
       let matched = false;
       for (const [, tv] of ctx.radiusTokens) {
-        if (tv === radius) { matched = true; break; }
+        if (tv === radius) {
+          matched = true;
+          break;
+        }
       }
 
       if (!matched) {

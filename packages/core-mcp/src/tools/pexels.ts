@@ -4,8 +4,8 @@
  * Photos are placed via create_frame with imageUrl:"pexel:<id>" (handled by image-vector handler).
  */
 
-import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 import { jsonResponse } from './response-helpers.js';
 
 const PEXELS_API = 'https://api.pexels.com/v1';
@@ -56,9 +56,9 @@ async function searchPhotos(params: {
   });
   if (!res.ok) return { error: `Pexels API error (HTTP ${res.status})` };
 
-  const data = await res.json() as PexelsSearchResponse;
+  const data = (await res.json()) as PexelsSearchResponse;
   return {
-    photos: data.photos.map(p => ({
+    photos: data.photos.map((p) => ({
       id: p.id,
       alt: p.alt,
       avg_color: p.avg_color,
@@ -70,7 +70,7 @@ async function searchPhotos(params: {
     total_results: data.total_results,
     page: data.page,
     per_page: data.per_page,
-    _hint: 'To place a photo: use create_frame with imageUrl set to the photo\'s imageUrl field.',
+    _hint: "To place a photo: use create_frame with imageUrl set to the photo's imageUrl field.",
   };
 }
 
@@ -85,7 +85,7 @@ async function previewPhoto(id: number, size?: string): Promise<unknown> {
   });
   if (!res.ok) return { error: `Photo ${id} not found (HTTP ${res.status})` };
 
-  const photo = await res.json() as PexelsPhoto;
+  const photo = (await res.json()) as PexelsPhoto;
   const sizeKey = (size ?? 'medium') as keyof typeof photo.src;
   const imageUrl = photo.src[sizeKey] ?? photo.src.medium;
 
@@ -100,14 +100,17 @@ async function previewPhoto(id: number, size?: string): Promise<unknown> {
   return {
     content: [
       { type: 'image' as const, data: base64, mimeType },
-      { type: 'text' as const, text: JSON.stringify({
-        id: photo.id,
-        alt: photo.alt,
-        photographer: photo.photographer,
-        width: photo.width,
-        height: photo.height,
-        _hint: `To place: create_frame with imageUrl:"${photo.src.large}"`,
-      }) },
+      {
+        type: 'text' as const,
+        text: JSON.stringify({
+          id: photo.id,
+          alt: photo.alt,
+          photographer: photo.photographer,
+          width: photo.width,
+          height: photo.height,
+          _hint: `To place: create_frame with imageUrl:"${photo.src.large}"`,
+        }),
+      },
     ],
   };
 }
@@ -139,7 +142,7 @@ export function registerPexelsTools(server: McpServer): void {
       size: z.enum(['small', 'medium', 'large']).optional().describe('Preview size (default: medium)'),
     },
     async ({ id, size }) => {
-      const result = await previewPhoto(id, size) as any;
+      const result = (await previewPhoto(id, size)) as any;
       // If result has content array (image + text), return directly
       if (result.content) return result;
       // Otherwise it's an error

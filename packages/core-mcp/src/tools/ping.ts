@@ -3,11 +3,11 @@
  * Includes version mismatch detection.
  */
 
+import { VERSION as SERVER_VERSION } from '@figcraft/shared';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { Bridge } from '../bridge.js';
 import { setFileContext } from '../rest-fallback.js';
-import { VERSION as SERVER_VERSION } from '@figcraft/shared';
 
 export function registerPing(server: McpServer, bridge: Bridge): void {
   server.tool(
@@ -15,10 +15,7 @@ export function registerPing(server: McpServer, bridge: Bridge): void {
     'Test connectivity to the Figma plugin through the WebSocket relay. ' +
       'Returns connection status, round-trip latency, and version check.',
     {
-      channel: z
-        .string()
-        .optional()
-        .describe('Channel ID (defaults to current channel)'),
+      channel: z.string().optional().describe('Channel ID (defaults to current channel)'),
     },
     async () => {
       if (!bridge.isConnected) {
@@ -47,7 +44,7 @@ export function registerPing(server: McpServer, bridge: Bridge): void {
 
       const start = Date.now();
       try {
-        const result = await bridge.request('ping', {}) as Record<string, unknown>;
+        const result = (await bridge.request('ping', {})) as Record<string, unknown>;
         const latency = Date.now() - start;
 
         const pluginVersion = result.pluginVersion as string | undefined;
@@ -85,7 +82,7 @@ export function registerPing(server: McpServer, bridge: Bridge): void {
         try {
           await bridge.discoverPluginChannel();
           const retryStart = Date.now();
-          const retryResult = await bridge.request('ping', {}) as Record<string, unknown>;
+          const retryResult = (await bridge.request('ping', {})) as Record<string, unknown>;
           const retryLatency = Date.now() - retryStart;
 
           const pluginVersion = retryResult.pluginVersion as string | undefined;

@@ -127,29 +127,19 @@ function extractCoveredFields(source: string, funcName: string): Set<string> {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('AbstractNode conversion parity', () => {
-  const lintSource = readFileSync(
-    resolve('packages/adapter-figma/src/handlers/lint.ts'),
-    'utf-8',
-  );
-  const inlineSource = readFileSync(
-    resolve('packages/adapter-figma/src/handlers/lint-inline.ts'),
-    'utf-8',
-  );
+  const lintSource = readFileSync(resolve('packages/adapter-figma/src/handlers/lint.ts'), 'utf-8');
+  const inlineSource = readFileSync(resolve('packages/adapter-figma/src/handlers/lint-inline.ts'), 'utf-8');
 
   const compressedFields = extractCoveredFields(lintSource, 'compressedToAbstract');
   const figmaFields = extractCoveredFields(inlineSource, 'figmaNodeToAbstract');
 
   it('compressedToAbstract covers all required AbstractNode fields', () => {
-    const missing = [...REQUIRED_ABSTRACT_NODE_FIELDS].filter(
-      (f) => !compressedFields.has(f),
-    );
+    const missing = [...REQUIRED_ABSTRACT_NODE_FIELDS].filter((f) => !compressedFields.has(f));
     expect(missing, `compressedToAbstract is missing fields: ${missing.join(', ')}`).toEqual([]);
   });
 
   it('figmaNodeToAbstract covers all required AbstractNode fields', () => {
-    const missing = [...REQUIRED_ABSTRACT_NODE_FIELDS].filter(
-      (f) => !figmaFields.has(f),
-    );
+    const missing = [...REQUIRED_ABSTRACT_NODE_FIELDS].filter((f) => !figmaFields.has(f));
     expect(missing, `figmaNodeToAbstract is missing fields: ${missing.join(', ')}`).toEqual([]);
   });
 
@@ -171,10 +161,7 @@ describe('AbstractNode conversion parity', () => {
   it('REQUIRED_ABSTRACT_NODE_FIELDS is a subset of the AbstractNode interface (no phantom fields)', () => {
     // Read the AbstractNode interface source and verify every required field
     // actually appears as a declared member (catches typos in this test).
-    const typesSource = readFileSync(
-      resolve('packages/quality-engine/src/types.ts'),
-      'utf-8',
-    );
+    const typesSource = readFileSync(resolve('packages/quality-engine/src/types.ts'), 'utf-8');
     const phantom = [...REQUIRED_ABSTRACT_NODE_FIELDS].filter(
       (f) => !typesSource.includes(`${f}?`) && !typesSource.includes(`${f}:`),
     );

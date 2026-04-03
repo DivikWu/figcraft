@@ -2,7 +2,7 @@
  * Tests for DTCG parser — flat token extraction, alias resolution, type inheritance.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { parseDtcg } from '../../packages/core-mcp/src/dtcg.js';
 
 describe('parseDtcg', () => {

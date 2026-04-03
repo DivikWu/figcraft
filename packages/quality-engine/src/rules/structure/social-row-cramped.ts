@@ -1,4 +1,4 @@
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import type { AbstractNode, LintContext, LintRule, LintViolation } from '../../types.js';
 
 function isSocialRow(node: AbstractNode): boolean {
   if (node.role === 'social_row') return true;
@@ -7,7 +7,8 @@ function isSocialRow(node: AbstractNode): boolean {
 
 export const socialRowCrampedRule: LintRule = {
   name: 'social-row-cramped',
-  description: 'Social login rows should have enough horizontal room for their children instead of compressing or clipping them.',
+  description:
+    'Social login rows should have enough horizontal room for their children instead of compressing or clipping them.',
   category: 'layout',
   severity: 'heuristic',
 
@@ -23,12 +24,12 @@ export const socialRowCrampedRule: LintRule = {
     const spacing = node.itemSpacing ?? 0;
     const paddingLeft = node.paddingLeft ?? 0;
     const paddingRight = node.paddingRight ?? 0;
-    const childWidths = node.children
-      .map((child) => child.width)
-      .filter((width): width is number => width != null);
+    const childWidths = node.children.map((child) => child.width).filter((width): width is number => width != null);
     if (childWidths.length !== node.children.length) return [];
 
-    const requiredWidth = paddingLeft + paddingRight +
+    const requiredWidth =
+      paddingLeft +
+      paddingRight +
       childWidths.reduce((sum, width) => sum + width, 0) +
       spacing * Math.max(0, node.children.length - 1);
 

@@ -1,5 +1,5 @@
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
 import { SCREEN_NAME_RE } from '../../constants.js';
+import type { AbstractNode, LintContext, LintRule, LintViolation } from '../../types.js';
 
 function isScreenLike(node: AbstractNode): boolean {
   return node.role === 'screen' || node.role === 'page' || SCREEN_NAME_RE.test(node.name);
@@ -16,7 +16,8 @@ function isLikelyBackControl(node: AbstractNode): boolean {
 
 export const headerFragmentedRule: LintRule = {
   name: 'header-fragmented',
-  description: 'Screen-level header elements should be grouped into a dedicated header container instead of floating as separate top-level children.',
+  description:
+    'Screen-level header elements should be grouped into a dedicated header container instead of floating as separate top-level children.',
   category: 'layout',
   severity: 'heuristic',
 
@@ -31,14 +32,16 @@ export const headerFragmentedRule: LintRule = {
     const hasBack = topBand.some(isLikelyBackControl);
     if (!(hasTitle && hasBack)) return [];
 
-    return [{
-      nodeId: node.id,
-      nodeName: node.name,
-      rule: 'header-fragmented',
-      severity: 'heuristic',
-      currentValue: 'top-level title/back elements are not grouped',
-      suggestion: `"${node.name}" has header-like elements floating at the screen root. Group the back control, title, and subtitle into a dedicated header frame for more stable layout.`,
-      autoFixable: false,
-    }];
+    return [
+      {
+        nodeId: node.id,
+        nodeName: node.name,
+        rule: 'header-fragmented',
+        severity: 'heuristic',
+        currentValue: 'top-level title/back elements are not grouped',
+        suggestion: `"${node.name}" has header-like elements floating at the screen root. Group the back control, title, and subtitle into a dedicated header frame for more stable layout.`,
+        autoFixable: false,
+      },
+    ];
   },
 };

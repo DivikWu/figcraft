@@ -30,7 +30,7 @@ function buildMobileScreen(options: {
   });
 }
 
-function buildDesktopScreen(options: {
+function _buildDesktopScreen(options: {
   id: string;
   name: string;
   itemSpacing?: number;
@@ -144,8 +144,20 @@ export const screenBenchmarkCases: ScreenBenchmarkCase[] = [
             children: [
               benchmarkNode({ id: 'field:sign-up-name', name: 'Name Input', role: 'input', width: 354, height: 48 }),
               benchmarkNode({ id: 'field:sign-up-email', name: 'Email Input', role: 'input', width: 354, height: 48 }),
-              benchmarkNode({ id: 'field:sign-up-password', name: 'Password Input', role: 'input', width: 354, height: 48 }),
-              benchmarkNode({ id: 'cta:sign-up', name: 'Create Account Button', role: 'button', width: 354, height: 48 }),
+              benchmarkNode({
+                id: 'field:sign-up-password',
+                name: 'Password Input',
+                role: 'input',
+                width: 354,
+                height: 48,
+              }),
+              benchmarkNode({
+                id: 'cta:sign-up',
+                name: 'Create Account Button',
+                role: 'button',
+                width: 354,
+                height: 48,
+              }),
             ],
           }),
           benchmarkNode({ id: 'footer:sign-up', name: 'Footer', role: 'footer', y: 724, width: 402, height: 88 }),
@@ -162,7 +174,14 @@ export const screenBenchmarkCases: ScreenBenchmarkCase[] = [
         id: 'screen:forgot-password',
         name: 'Forgot Password',
         children: [
-          benchmarkNode({ id: 'header:forgot-password', name: 'Header', role: 'header', y: 56, width: 402, height: 96 }),
+          benchmarkNode({
+            id: 'header:forgot-password',
+            name: 'Header',
+            role: 'header',
+            y: 56,
+            width: 402,
+            height: 96,
+          }),
           benchmarkNode({
             id: 'form:forgot-password',
             name: 'Reset Form',
@@ -172,11 +191,30 @@ export const screenBenchmarkCases: ScreenBenchmarkCase[] = [
             layoutMode: 'VERTICAL',
             itemSpacing: 16,
             children: [
-              benchmarkNode({ id: 'field:forgot-password-email', name: 'Email Input', role: 'input', width: 354, height: 48 }),
-              benchmarkNode({ id: 'cta:forgot-password', name: 'Reset Password Button', role: 'button', width: 354, height: 48 }),
+              benchmarkNode({
+                id: 'field:forgot-password-email',
+                name: 'Email Input',
+                role: 'input',
+                width: 354,
+                height: 48,
+              }),
+              benchmarkNode({
+                id: 'cta:forgot-password',
+                name: 'Reset Password Button',
+                role: 'button',
+                width: 354,
+                height: 48,
+              }),
             ],
           }),
-          benchmarkNode({ id: 'footer:forgot-password', name: 'Footer', role: 'footer', y: 706, width: 402, height: 88 }),
+          benchmarkNode({
+            id: 'footer:forgot-password',
+            name: 'Footer',
+            role: 'footer',
+            y: 706,
+            width: 402,
+            height: 88,
+          }),
         ],
       }),
     ],
@@ -186,12 +224,7 @@ export const screenBenchmarkCases: ScreenBenchmarkCase[] = [
     name: 'Broken auth screen',
     expected: 'flagged',
     minViolations: 4,
-    requiredRules: [
-      'header-out-of-band',
-      'cta-width-inconsistent',
-      'screen-bottom-overflow',
-      'social-row-cramped',
-    ],
+    requiredRules: ['header-out-of-band', 'cta-width-inconsistent', 'screen-bottom-overflow', 'social-row-cramped'],
     nodes: [
       benchmarkNode({
         id: 'screen:1',
@@ -202,7 +235,15 @@ export const screenBenchmarkCases: ScreenBenchmarkCase[] = [
         layoutMode: 'VERTICAL',
         itemSpacing: 8,
         children: [
-          benchmarkNode({ id: 'header:1', name: 'Header', role: 'header', type: 'FRAME', y: 220, width: 402, height: 88 }),
+          benchmarkNode({
+            id: 'header:1',
+            name: 'Header',
+            role: 'header',
+            type: 'FRAME',
+            y: 220,
+            width: 402,
+            height: 88,
+          }),
           benchmarkNode({
             id: 'form:1',
             name: 'Login Form',
@@ -225,7 +266,13 @@ export const screenBenchmarkCases: ScreenBenchmarkCase[] = [
                 children: [
                   benchmarkNode({ id: 'social:apple', name: 'Apple Button', role: 'button', width: 96, height: 48 }),
                   benchmarkNode({ id: 'social:google', name: 'Google Button', role: 'button', width: 96, height: 48 }),
-                  benchmarkNode({ id: 'social:facebook', name: 'Facebook Button', role: 'button', width: 96, height: 48 }),
+                  benchmarkNode({
+                    id: 'social:facebook',
+                    name: 'Facebook Button',
+                    role: 'button',
+                    width: 96,
+                    height: 48,
+                  }),
                 ],
               }),
             ],
@@ -322,7 +369,14 @@ export const screenBenchmarkCases: ScreenBenchmarkCase[] = [
         children: [
           benchmarkNode({ id: 'header:empty-state', name: 'Header', role: 'header', y: 56, width: 402, height: 88 }),
           benchmarkNode({ id: 'hero:empty-state', name: 'Hero', role: 'hero', y: 192, width: 402, height: 220 }),
-          benchmarkNode({ id: 'actions:empty-state', name: 'Actions', role: 'actions', y: 452, width: 402, height: 96 }),
+          benchmarkNode({
+            id: 'actions:empty-state',
+            name: 'Actions',
+            role: 'actions',
+            y: 452,
+            width: 402,
+            height: 96,
+          }),
         ],
       }),
     ],
@@ -365,11 +419,7 @@ export const screenBenchmarkCases: ScreenBenchmarkCase[] = [
     name: 'Broken pricing screen',
     expected: 'flagged',
     minViolations: 3,
-    requiredRules: [
-      'header-out-of-band',
-      'section-spacing-collapse',
-      'screen-bottom-overflow',
-    ],
+    requiredRules: ['header-out-of-band', 'section-spacing-collapse', 'screen-bottom-overflow'],
     nodes: [
       benchmarkNode({
         id: 'screen:1',
@@ -478,11 +528,7 @@ export const screenBenchmarkCases: ScreenBenchmarkCase[] = [
     name: 'Broken analytics screen',
     expected: 'flagged',
     minViolations: 3,
-    requiredRules: [
-      'nav-overcrowded',
-      'stats-row-cramped',
-      'screen-bottom-overflow',
-    ],
+    requiredRules: ['nav-overcrowded', 'stats-row-cramped', 'screen-bottom-overflow'],
     nodes: [
       benchmarkNode({
         id: 'screen:1',
@@ -547,7 +593,14 @@ export const screenBenchmarkCases: ScreenBenchmarkCase[] = [
         layoutMode: 'HORIZONTAL',
         children: [
           benchmarkNode({ id: 'header:invalid-shell', name: 'Header', role: 'header', y: 64, width: 402, height: 88 }),
-          benchmarkNode({ id: 'content:invalid-shell', name: 'Content', role: 'content', y: 180, width: 402, height: 420 }),
+          benchmarkNode({
+            id: 'content:invalid-shell',
+            name: 'Content',
+            role: 'content',
+            y: 180,
+            width: 402,
+            height: 420,
+          }),
         ],
       }),
     ],

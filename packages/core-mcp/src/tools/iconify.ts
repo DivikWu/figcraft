@@ -4,8 +4,8 @@
  * In-memory cache: each icon+size combo is fetched once per MCP session.
  */
 
-import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 import type { Bridge } from '../bridge.js';
 import { jsonResponse } from './response-helpers.js';
 
@@ -36,7 +36,9 @@ async function fetchIconSvg(icon: string, size?: number): Promise<{ svg: string 
   const url = `${ICONIFY_API}/${parsed.prefix}/${parsed.name}.svg?height=${height}`;
   const res = await fetch(url);
   if (!res.ok) {
-    return { error: `Icon "${icon}" not found (HTTP ${res.status}). Check the name at https://icon-sets.iconify.design/` };
+    return {
+      error: `Icon "${icon}" not found (HTTP ${res.status}). Check the name at https://icon-sets.iconify.design/`,
+    };
   }
   const svg = await res.text();
   if (!svg.startsWith('<svg')) {
@@ -52,7 +54,7 @@ async function searchIcons(query: string, prefix?: string, limit?: number): Prom
   if (prefix) params.set('prefix', prefix);
   const res = await fetch(`${ICONIFY_API}/search?${params}`);
   if (!res.ok) return { error: `Search failed (HTTP ${res.status})` };
-  const data = await res.json() as { icons: string[]; total: number };
+  const data = (await res.json()) as { icons: string[]; total: number };
   return { icons: data.icons ?? [], total: data.total ?? 0 };
 }
 
@@ -60,7 +62,10 @@ async function searchIcons(query: string, prefix?: string, limit?: number): Prom
 async function listCollections(query?: string, limit?: number): Promise<unknown> {
   const res = await fetch(`${ICONIFY_API}/collections`);
   if (!res.ok) return { error: `Collections fetch failed (HTTP ${res.status})` };
-  const data = await res.json() as Record<string, { name: string; total: number; category?: string; license?: { title: string } }>;
+  const data = (await res.json()) as Record<
+    string,
+    { name: string; total: number; category?: string; license?: { title: string } }
+  >;
   let collections = Object.entries(data).map(([prefix, info]) => ({
     prefix,
     name: info.name,
@@ -70,7 +75,7 @@ async function listCollections(query?: string, limit?: number): Promise<unknown>
   }));
   if (query) {
     const q = query.toLowerCase();
-    collections = collections.filter(c => c.prefix.includes(q) || c.name.toLowerCase().includes(q));
+    collections = collections.filter((c) => c.prefix.includes(q) || c.name.toLowerCase().includes(q));
   }
   const total = collections.length;
   if (limit) collections = collections.slice(0, limit);

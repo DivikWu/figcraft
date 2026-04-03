@@ -3,10 +3,10 @@
  * Also checks that generated files are in sync with schema/tools.yaml.
  */
 
-import { describe, it, expect } from 'vitest';
-import { readFileSync, statSync } from 'fs';
-import { VERSION } from '../../packages/shared/src/version.js';
+import { readFileSync, statSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
 import { PLUGIN_VERSION } from '../../packages/adapter-figma/src/constants.js';
+import { VERSION } from '../../packages/shared/src/version.js';
 
 const pkgVersion = JSON.parse(readFileSync('package.json', 'utf-8')).version;
 const GENERATED_OUTPUTS = [
@@ -41,7 +41,11 @@ describe('version consistency', () => {
 });
 
 describe('generated file freshness', () => {
-  it.each(GENERATED_OUTPUTS)('$label generated files are not older than schema/tools.yaml', ({ generated, registry, contracts }) => {
+  it.each(GENERATED_OUTPUTS)('$label generated files are not older than schema/tools.yaml', ({
+    generated,
+    registry,
+    contracts,
+  }) => {
     const yamlMtime = statSync('schema/tools.yaml').mtimeMs;
     const genMtime = statSync(generated).mtimeMs;
     const regMtime = statSync(registry).mtimeMs;

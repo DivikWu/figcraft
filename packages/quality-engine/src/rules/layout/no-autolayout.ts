@@ -9,7 +9,7 @@
  * The fix also infers direction from children positions when possible.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
+import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
 
 /** Infer layout direction from children positions. */
 function inferDirection(children: AbstractNode[]): 'HORIZONTAL' | 'VERTICAL' {
@@ -35,7 +35,8 @@ function inferDirection(children: AbstractNode[]): 'HORIZONTAL' | 'VERTICAL' {
 
 export const noAutolayoutRule: LintRule = {
   name: 'no-autolayout',
-  description: 'Detect frames with multiple children but no auto-layout, causing overlapping or non-responsive layouts.',
+  description:
+    'Detect frames with multiple children but no auto-layout, causing overlapping or non-responsive layouts.',
   category: 'layout',
   severity: 'heuristic',
   ai: {
@@ -54,19 +55,21 @@ export const noAutolayoutRule: LintRule = {
 
     const direction = inferDirection(node.children);
 
-    return [{
-      nodeId: node.id,
-      nodeName: node.name,
-      rule: 'no-autolayout',
-      severity: 'heuristic',
-      currentValue: `${node.children.length} children without auto-layout`,
-      suggestion: `"${node.name}" has ${node.children.length} children but no auto-layout — children may overlap. Enable ${direction} auto-layout.`,
-      autoFixable: true,
-      fixData: {
-        fix: 'autolayout',
-        layoutMode: direction,
+    return [
+      {
+        nodeId: node.id,
+        nodeName: node.name,
+        rule: 'no-autolayout',
+        severity: 'heuristic',
+        currentValue: `${node.children.length} children without auto-layout`,
+        suggestion: `"${node.name}" has ${node.children.length} children but no auto-layout — children may overlap. Enable ${direction} auto-layout.`,
+        autoFixable: true,
+        fixData: {
+          fix: 'autolayout',
+          layoutMode: direction,
+        },
       },
-    }];
+    ];
   },
 
   describeFix(v): FixDescriptor | null {

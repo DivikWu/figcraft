@@ -8,9 +8,7 @@ import type { DesignToken } from '@figcraft/shared';
 import { hexToFigmaRgba } from '../utils/color.js';
 
 /** Figma variable resolved type for a given DTCG type. */
-export function dtcgTypeToFigmaType(
-  dtcgType: string,
-): 'COLOR' | 'FLOAT' | 'STRING' | 'BOOLEAN' {
+export function dtcgTypeToFigmaType(dtcgType: string): 'COLOR' | 'FLOAT' | 'STRING' | 'BOOLEAN' {
   switch (dtcgType) {
     case 'color':
       return 'COLOR';
@@ -30,10 +28,7 @@ export function dtcgTypeToFigmaType(
 }
 
 /** Convert a DTCG value to a Figma-compatible value. */
-export function dtcgValueToFigma(
-  value: unknown,
-  dtcgType: string,
-): VariableValue {
+export function dtcgValueToFigma(value: unknown, dtcgType: string): VariableValue {
   switch (dtcgType) {
     case 'color': {
       if (typeof value === 'string') {

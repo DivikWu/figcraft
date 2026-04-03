@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  GENERATED_TOOL_RESPONSE_EXAMPLES,
-  GENERATED_TOOL_RESPONSE_SCHEMAS,
   GENERATED_ENDPOINT_METHOD_RESPONSE_EXAMPLES,
   GENERATED_ENDPOINT_METHOD_RESPONSE_SCHEMAS,
+  GENERATED_TOOL_RESPONSE_EXAMPLES,
+  GENERATED_TOOL_RESPONSE_SCHEMAS,
 } from '../../packages/core-mcp/src/tools/_contracts.js';
 
 const EXPECTED_TOOLS = [
@@ -128,27 +128,22 @@ const EXPECTED_ENDPOINT_METHODS = [
 
 describe('generated tool response contracts', () => {
   it('exports response schemas for annotated tools', () => {
-    expect(Object.keys(GENERATED_TOOL_RESPONSE_SCHEMAS)).toEqual(
-      expect.arrayContaining(EXPECTED_TOOLS),
-    );
+    expect(Object.keys(GENERATED_TOOL_RESPONSE_SCHEMAS)).toEqual(expect.arrayContaining(EXPECTED_TOOLS));
     expect(Object.keys(GENERATED_TOOL_RESPONSE_SCHEMAS).length).toBeGreaterThanOrEqual(EXPECTED_TOOLS.length);
   });
 
-  it.each(EXPECTED_TOOLS)(
-    '%s examples satisfy the generated response schema',
-    (toolName) => {
-      const schema = GENERATED_TOOL_RESPONSE_SCHEMAS[toolName];
-      const examples = GENERATED_TOOL_RESPONSE_EXAMPLES[toolName];
+  it.each(EXPECTED_TOOLS)('%s examples satisfy the generated response schema', (toolName) => {
+    const schema = GENERATED_TOOL_RESPONSE_SCHEMAS[toolName];
+    const examples = GENERATED_TOOL_RESPONSE_EXAMPLES[toolName];
 
-      expect(schema).toBeDefined();
-      expect(examples.length).toBeGreaterThan(0);
+    expect(schema).toBeDefined();
+    expect(examples.length).toBeGreaterThan(0);
 
-      for (const example of examples) {
-        const parsed = schema.safeParse(example);
-        expect(parsed.success, JSON.stringify(parsed, null, 2)).toBe(true);
-      }
-    },
-  );
+    for (const example of examples) {
+      const parsed = schema.safeParse(example);
+      expect(parsed.success, JSON.stringify(parsed, null, 2)).toBe(true);
+    }
+  });
 });
 
 describe('generated endpoint method response contracts', () => {
@@ -158,18 +153,17 @@ describe('generated endpoint method response contracts', () => {
     }
   });
 
-  it.each(EXPECTED_ENDPOINT_METHODS)(
-    'validates %s.%s examples against the generated response schema',
-    (endpointName, methodName) => {
-      const schema = GENERATED_ENDPOINT_METHOD_RESPONSE_SCHEMAS[endpointName][methodName];
-      const examples = GENERATED_ENDPOINT_METHOD_RESPONSE_EXAMPLES[endpointName][methodName];
+  it.each(
+    EXPECTED_ENDPOINT_METHODS,
+  )('validates %s.%s examples against the generated response schema', (endpointName, methodName) => {
+    const schema = GENERATED_ENDPOINT_METHOD_RESPONSE_SCHEMAS[endpointName][methodName];
+    const examples = GENERATED_ENDPOINT_METHOD_RESPONSE_EXAMPLES[endpointName][methodName];
 
-      expect(examples.length).toBeGreaterThan(0);
+    expect(examples.length).toBeGreaterThan(0);
 
-      for (const example of examples) {
-        const parsed = schema.safeParse(example);
-        expect(parsed.success, JSON.stringify(parsed, null, 2)).toBe(true);
-      }
-    },
-  );
+    for (const example of examples) {
+      const parsed = schema.safeParse(example);
+      expect(parsed.success, JSON.stringify(parsed, null, 2)).toBe(true);
+    }
+  });
 });

@@ -22,7 +22,7 @@ interface DtcgTokenDef {
 }
 
 /** Parse a DTCG JSON object into flat DesignToken[]. */
-export function parseDtcg(root: Record<string, unknown>): DesignToken[] {
+export function parseDtcg(root: DtcgGroup): DesignToken[] {
   const tokens: DesignToken[] = [];
   const tokenMap = new Map<string, DesignToken>();
 
@@ -42,7 +42,7 @@ export function parseDtcg(root: Record<string, unknown>): DesignToken[] {
 }
 
 function walkGroup(
-  obj: Record<string, unknown>,
+  obj: DtcgGroup,
   pathParts: string[],
   inheritedType: string | undefined,
   tokens: DesignToken[],
@@ -62,30 +62,17 @@ function walkGroup(
         extensions: value.$extensions,
       });
     } else if (typeof value === 'object' && value !== null) {
-      walkGroup(
-        value as Record<string, unknown>,
-        [...pathParts, key],
-        groupType,
-        tokens,
-      );
+      walkGroup(value as Record<string, unknown>, [...pathParts, key], groupType, tokens);
     }
   }
 }
 
 function isTokenDef(value: unknown): value is DtcgTokenDef {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    '$value' in (value as Record<string, unknown>)
-  );
+  return typeof value === 'object' && value !== null && '$value' in (value as Record<string, unknown>);
 }
 
 /** Resolve {alias.path} references recursively. */
-function resolveAliases(
-  value: unknown,
-  tokenMap: Map<string, DesignToken>,
-  visited = new Set<string>(),
-): unknown {
+function resolveAliases(value: unknown, tokenMap: Map<string, DesignToken>, visited = new Set<string>()): unknown {
   if (typeof value === 'string') {
     const aliasMatch = value.match(/^\{(.+)\}$/);
     if (aliasMatch) {
@@ -119,7 +106,7 @@ function resolveAliases(
 
 /** Read and parse a DTCG JSON file from disk. */
 export async function parseDtcgFile(filePath: string): Promise<DesignToken[]> {
-  const { readFile } = await import('fs/promises');
+  const { readFile } = await import('node:fs/promises');
   const content = await readFile(filePath, 'utf-8');
   const json = JSON.parse(content);
   return parseDtcg(json);

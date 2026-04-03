@@ -5,11 +5,11 @@
  * MCP Server round-trips to the plugin via bridge for every get/set.
  */
 
-import { z } from 'zod';
-import { readFileSync, existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 import type { Bridge } from '../bridge.js';
 import { getModeLogic } from './logic/mode-logic.js';
 
@@ -63,8 +63,7 @@ export function registerModeTools(server: McpServer, bridge: Bridge): void {
   const skillsDir = join(selfDir, '..', '..', '..', '..', 'skills');
   const useSkills = existsSync(join(skillsDir, 'ui-ux-fundamentals', 'SKILL.md'));
 
-  const stripFrontmatter = (content: string): string =>
-    content.replace(/^---[\s\S]*?---\s*/, '');
+  const stripFrontmatter = (content: string): string => content.replace(/^---[\s\S]*?---\s*/, '');
 
   const loadRules = (skillName: string, fallbackFilename: string): string => {
     try {
@@ -72,15 +71,17 @@ export function registerModeTools(server: McpServer, bridge: Bridge): void {
         return stripFrontmatter(readFileSync(join(skillsDir, skillName, 'SKILL.md'), 'utf-8'));
       }
       return readFileSync(join(selfDir, fallbackFilename), 'utf-8');
-    } catch { return ''; }
+    } catch {
+      return '';
+    }
   };
   const fundamentalsRules = loadRules('ui-ux-fundamentals', 'ui-ux-fundamentals.md');
   const guardianRules = loadRules('design-guardian', 'design-guardian.md');
   const creatorRules = loadRules('design-creator', 'design-creator.md');
 
   // Pre-compute category sections for both modes (avoids re-parsing on every call)
-  const guardianFull = fundamentalsRules + '\n\n---\n\n' + guardianRules;
-  const creatorFull = fundamentalsRules + '\n\n---\n\n' + creatorRules;
+  const guardianFull = `${fundamentalsRules}\n\n---\n\n${guardianRules}`;
+  const creatorFull = `${fundamentalsRules}\n\n---\n\n${creatorRules}`;
   const guardianCategoryCache = buildCategoryCache(guardianFull);
   const creatorCategoryCache = buildCategoryCache(creatorFull);
 
@@ -105,27 +106,40 @@ export function registerModeTools(server: McpServer, bridge: Bridge): void {
       'In library mode, optionally specify which library to use.',
     {
       mode: z.enum(['library', 'spec']).describe('Operation mode to switch to'),
-      library: z.string().optional().describe('Library name to use in library mode (from list_library_collections libraryName). Use "__local__" to select current file local styles/variables.'),
+      library: z
+        .string()
+        .optional()
+        .describe(
+          'Library name to use in library mode (from list_library_collections libraryName). Use "__local__" to select current file local styles/variables.',
+        ),
     },
     async ({ mode, library }) => {
       const params: Record<string, unknown> = { mode };
       if (library !== undefined) params.library = library;
-      const result = await bridge.request('set_mode', params) as { mode: string; selectedLibrary: string | null };
+      const result = (await bridge.request('set_mode', params)) as { mode: string; selectedLibrary: string | null };
       // Reset modeQueried to force get_mode call for fresh workflow/designContext
       bridge.modeQueried = false;
       bridge.selectedLibrary = result.selectedLibrary;
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            mode: result.mode,
-            selectedLibrary: result.selectedLibrary,
-            description: result.mode === 'library'
-              ? 'Using Figma shared library as token source. Lint checks variable/style bindings.'
-              : 'Using DTCG spec documents as token source. Lint checks against DTCG token values.',
-            _nextAction: 'Call get_mode to load design context, tokens, and workflow instructions for the new mode.',
-          }, null, 2),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                mode: result.mode,
+                selectedLibrary: result.selectedLibrary,
+                description:
+                  result.mode === 'library'
+                    ? 'Using Figma shared library as token source. Lint checks variable/style bindings.'
+                    : 'Using DTCG spec documents as token source. Lint checks against DTCG token values.',
+                _nextAction:
+                  'Call get_mode to load design context, tokens, and workflow instructions for the new mode.',
+              },
+              null,
+              2,
+            ),
+          },
+        ],
       };
     },
   );
@@ -136,7 +150,19 @@ export function registerModeTools(server: McpServer, bridge: Bridge): void {
       'or Design Creator rules (no library). Use this to understand design best practices before creating elements. ' +
       'Optionally specify a category to get focused rules.',
     {
-      category: z.enum(['all', 'color', 'typography', 'spacing', 'layout', 'composition', 'content', 'accessibility', 'buttons', 'inputs'])
+      category: z
+        .enum([
+          'all',
+          'color',
+          'typography',
+          'spacing',
+          'layout',
+          'composition',
+          'content',
+          'accessibility',
+          'buttons',
+          'inputs',
+        ])
         .optional()
         .describe('Rule category to return (default: "all")'),
     },
@@ -150,44 +176,62 @@ export function registerModeTools(server: McpServer, bridge: Bridge): void {
 
       if (category === 'all') {
         return {
-          content: [{
-            type: 'text' as const,
-            text: JSON.stringify({
-              mode: ruleName,
-              selectedLibrary: library,
-              guidelines: rules,
-            }, null, 2),
-          }],
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(
+                {
+                  mode: ruleName,
+                  selectedLibrary: library,
+                  guidelines: rules,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
         };
       }
 
       // Moved categories redirect to lint system
       if (MOVED_CATEGORIES[category]) {
         return {
-          content: [{
-            type: 'text' as const,
-            text: JSON.stringify({
-              mode: ruleName,
-              selectedLibrary: library,
-              category,
-              guidelines: MOVED_CATEGORIES[category],
-            }, null, 2),
-          }],
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(
+                {
+                  mode: ruleName,
+                  selectedLibrary: library,
+                  category,
+                  guidelines: MOVED_CATEGORIES[category],
+                },
+                null,
+                2,
+              ),
+            },
+          ],
         };
       }
 
       // Serve from pre-computed cache (no re-parsing on each call)
       const cached = categoryCache.get(category);
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            mode: ruleName,
-            selectedLibrary: library,
-            category,
-            guidelines: cached ?? `No "${category}" section found in ${ruleName} rules.`,
-          }, null, 2),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                mode: ruleName,
+                selectedLibrary: library,
+                category,
+                guidelines: cached ?? `No "${category}" section found in ${ruleName} rules.`,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
       };
     },
   );

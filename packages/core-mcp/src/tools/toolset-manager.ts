@@ -11,52 +11,48 @@
  *   3. Call disableNonCoreTools(server) — disables non-core tools, notifies client
  */
 
-import { z } from 'zod';
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 import type { Bridge } from '../bridge.js';
-
-// Import all register functions
-import { registerPing } from './ping.js';
-import { registerNodeTools } from './nodes.js';
-import { registerLibraryStyleTools } from './library-styles.js';
-import { registerExportTools } from './export.js';
-import { registerTokenTools } from './tokens.js';
-import { registerStorageTools } from './storage.js';
-import { registerLintTools } from './lint.js';
-import { registerModeTools } from './mode.js';
-import { registerCreationGuide } from './creation-guide.js';
-import { registerChannelTools } from './channel.js';
-import { registerWriteStyleTools } from './write-styles.js';
-import { registerPrototypeTools } from './prototype.js';
-import { registerAuditTools } from './audit.js';
-import { registerStagingTools } from './staging.js';
-import { registerAuthTools } from './auth.js';
 import { registerGeneratedTools } from './_generated.js';
-import { registerExecuteJsTools } from './execute-js.js';
-import { registerIconTools } from './iconify.js';
-import { registerPexelsTools } from './pexels.js';
-import { registerSearchDesignSystemTool } from './search-design-system.js';
-import { registerHelpTool } from './help.js';
-
-
 // ─── Generated registry (single source of truth from schema/tools.yaml) ───
 import {
   GENERATED_BRIDGE_TOOLS,
   GENERATED_CORE_TOOLS,
-  GENERATED_WRITE_TOOLS,
-  GENERATED_EDIT_TOOLS,
-  GENERATED_TOOLSETS,
-  GENERATED_ENDPOINT_TOOLS,
-  GENERATED_ENDPOINT_REPLACES,
-  GENERATED_ENDPOINT_METHOD_ACCESS,
   GENERATED_DEPRECATED_TOOLS,
+  GENERATED_EDIT_TOOLS,
+  GENERATED_ENDPOINT_METHOD_ACCESS,
+  GENERATED_ENDPOINT_REPLACES,
+  GENERATED_ENDPOINT_TOOLS,
   GENERATED_REMOVED_TOOLS,
+  GENERATED_TOOLSETS,
+  GENERATED_WRITE_TOOLS,
 } from './_registry.js';
+import { registerAuditTools } from './audit.js';
+import { registerAuthTools } from './auth.js';
+import { registerChannelTools } from './channel.js';
+import { registerCreationGuide } from './creation-guide.js';
 import { registerEndpointTools } from './endpoints.js';
+import { registerExecuteJsTools } from './execute-js.js';
+import { registerExportTools } from './export.js';
+import { registerHelpTool } from './help.js';
+import { registerIconTools } from './iconify.js';
+import { registerLibraryStyleTools } from './library-styles.js';
+import { registerLintTools } from './lint.js';
+import { registerModeTools } from './mode.js';
+import { registerNodeTools } from './nodes.js';
+import { registerPexelsTools } from './pexels.js';
+// Import all register functions
+import { registerPing } from './ping.js';
+import { registerPrototypeTools } from './prototype.js';
+import { registerSearchDesignSystemTool } from './search-design-system.js';
+import { registerStagingTools } from './staging.js';
+import { registerStorageTools } from './storage.js';
+import { registerTokenTools } from './tokens.js';
+import { registerWriteStyleTools } from './write-styles.js';
 
 const CORE_TOOLS = GENERATED_CORE_TOOLS;
 const TOOLSETS = GENERATED_TOOLSETS;
-
 
 // ─── State ───
 
@@ -111,7 +107,9 @@ export function isToolBlocked(toolName: string): string | null {
 }
 
 /** Get the current access level. */
-export function getAccessLevel(): AccessLevel { return ACCESS_LEVEL; }
+export function getAccessLevel(): AccessLevel {
+  return ACCESS_LEVEL;
+}
 
 /** Whether toolset management is operational (false = graceful degradation). */
 let toolsetManagementActive = false;
@@ -140,14 +138,19 @@ function captureToolHandles(server: McpServer): boolean {
   }
 
   if (!registry) {
-    console.error('[FigCraft toolset] WARNING: cannot access tool registry — SDK may have changed. All tools will remain enabled.');
+    console.error(
+      '[FigCraft toolset] WARNING: cannot access tool registry — SDK may have changed. All tools will remain enabled.',
+    );
     return false;
   }
 
   for (const [name, handle] of Object.entries(registry)) {
-    if (handle && typeof handle === 'object' &&
-        typeof (handle as RegisteredTool).enable === 'function' &&
-        typeof (handle as RegisteredTool).disable === 'function') {
+    if (
+      handle &&
+      typeof handle === 'object' &&
+      typeof (handle as RegisteredTool).enable === 'function' &&
+      typeof (handle as RegisteredTool).disable === 'function'
+    ) {
       toolHandles.set(name, handle as RegisteredTool);
     }
   }
@@ -198,14 +201,20 @@ function registerRemovedToolGhosts(server: McpServer): void {
       `[REMOVED] This tool has been removed. Use ${info.endpoint}(method: "${info.method}") instead.`,
       {},
       async () => ({
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            ok: false,
-            error: `Tool "${toolName}" has been removed. Use ${info.endpoint}(method: "${info.method}") instead.`,
-            migration: { endpoint: info.endpoint, method: info.method },
-          }, null, 2),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                ok: false,
+                error: `Tool "${toolName}" has been removed. Use ${info.endpoint}(method: "${info.method}") instead.`,
+                migration: { endpoint: info.endpoint, method: info.method },
+              },
+              null,
+              2,
+            ),
+          },
+        ],
         isError: true,
       }),
     );
@@ -265,7 +274,9 @@ export function registerAllTools(server: McpServer, bridge: Bridge): void {
     annotated++;
   }
 
-  console.error(`[FigCraft toolset] registered ${toolHandles.size} tools total, ${annotated} annotated with readOnlyHint`);
+  console.error(
+    `[FigCraft toolset] registered ${toolHandles.size} tools total, ${annotated} annotated with readOnlyHint`,
+  );
 }
 
 /**
@@ -283,14 +294,15 @@ export function registerToolsetMetaTools(server: McpServer): void {
         'Call list_toolsets to see available toolsets and their descriptions. ' +
         'You can load multiple toolsets at once by passing a comma-separated string.',
       inputSchema: {
-        names: z.string().describe(
-          `Comma-separated toolset names to load. Available: ${toolsetNames.join(', ')}`,
-        ),
+        names: z.string().describe(`Comma-separated toolset names to load. Available: ${toolsetNames.join(', ')}`),
       },
     },
     async ({ names }) => {
       const results: string[] = [];
-      for (const name of names.split(',').map((s) => s.trim()).filter(Boolean)) {
+      for (const name of names
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)) {
         results.push(enableToolset(server, name));
       }
       return { content: [{ type: 'text' as const, text: results.join('\n') }] };
@@ -302,14 +314,15 @@ export function registerToolsetMetaTools(server: McpServer): void {
     {
       description: 'Unload a previously loaded toolset to reduce context. Core tools cannot be unloaded.',
       inputSchema: {
-        names: z.string().describe(
-          'Comma-separated toolset names to unload.',
-        ),
+        names: z.string().describe('Comma-separated toolset names to unload.'),
       },
     },
     async ({ names }) => {
       const results: string[] = [];
-      for (const name of names.split(',').map((s) => s.trim()).filter(Boolean)) {
+      for (const name of names
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)) {
         results.push(disableToolset(server, name));
       }
       return { content: [{ type: 'text' as const, text: results.join('\n') }] };
@@ -326,13 +339,17 @@ export function registerToolsetMetaTools(server: McpServer): void {
       const lines: string[] = [];
       if (ACCESS_LEVEL !== 'edit') {
         const icon = ACCESS_LEVEL === 'read' ? '🔒' : '🔏';
-        lines.push(`${icon} Access level: ${ACCESS_LEVEL.toUpperCase()} (FIGCRAFT_ACCESS=${ACCESS_LEVEL}). ${ACCESS_LEVEL === 'read' ? 'All write tools disabled.' : 'Edit tools disabled, create tools allowed.'}`, '');
+        lines.push(
+          `${icon} Access level: ${ACCESS_LEVEL.toUpperCase()} (FIGCRAFT_ACCESS=${ACCESS_LEVEL}). ${ACCESS_LEVEL === 'read' ? 'All write tools disabled.' : 'Edit tools disabled, create tools allowed.'}`,
+          '',
+        );
       }
-      const blockedCoreCount = ACCESS_LEVEL === 'read'
-        ? [...CORE_TOOLS].filter(t => WRITE_TOOLS.has(t)).length
-        : ACCESS_LEVEL === 'create'
-          ? [...CORE_TOOLS].filter(t => EDIT_TOOLS.has(t)).length
-          : 0;
+      const blockedCoreCount =
+        ACCESS_LEVEL === 'read'
+          ? [...CORE_TOOLS].filter((t) => WRITE_TOOLS.has(t)).length
+          : ACCESS_LEVEL === 'create'
+            ? [...CORE_TOOLS].filter((t) => EDIT_TOOLS.has(t)).length
+            : 0;
       lines.push(
         `Core tools (always enabled): ${CORE_TOOLS.size}${blockedCoreCount > 0 ? ` (${blockedCoreCount} tools disabled by access level)` : ''}`,
         '',
@@ -354,22 +371,26 @@ export function registerToolsetMetaTools(server: McpServer): void {
       lines.push('Available toolsets:');
       for (const [name, def] of Object.entries(TOOLSETS)) {
         const status = loadedToolsets.has(name) ? '✅ loaded' : '⬚ not loaded';
-        const blockedCount = ACCESS_LEVEL === 'read'
-          ? def.tools.filter(t => WRITE_TOOLS.has(t)).length
-          : ACCESS_LEVEL === 'create'
-            ? def.tools.filter(t => EDIT_TOOLS.has(t)).length
-            : 0;
+        const blockedCount =
+          ACCESS_LEVEL === 'read'
+            ? def.tools.filter((t) => WRITE_TOOLS.has(t)).length
+            : ACCESS_LEVEL === 'create'
+              ? def.tools.filter((t) => EDIT_TOOLS.has(t)).length
+              : 0;
         const blockedSuffix = blockedCount > 0 ? ` (${blockedCount} tools blocked)` : '';
         lines.push(`  ${name} (${def.tools.length} tools) [${status}]${blockedSuffix}`);
         lines.push(`    ${def.description}`);
       }
       const totalNonCore = Object.values(TOOLSETS).reduce((sum, d) => sum + d.tools.length, 0);
-      lines.push('', `Total: ${CORE_TOOLS.size} core + ${totalNonCore} in toolsets = ${CORE_TOOLS.size + totalNonCore} tools`);
+      lines.push(
+        '',
+        `Total: ${CORE_TOOLS.size} core + ${totalNonCore} in toolsets = ${CORE_TOOLS.size + totalNonCore} tools`,
+      );
       const activeCoreCount = CORE_TOOLS.size - blockedCoreCount;
       const activeLoadedCount = [...loadedToolsets].reduce((sum, n) => {
         const ts = TOOLSETS[n];
         if (!ts) return sum;
-        return sum + ts.tools.filter(t => !isToolBlocked(t)).length;
+        return sum + ts.tools.filter((t) => !isToolBlocked(t)).length;
       }, 0);
       lines.push(`Currently active: ${activeCoreCount + activeLoadedCount}`);
       // Show deprecated tools if any
@@ -422,7 +443,7 @@ export function disableNonCoreTools(server: McpServer): void {
     for (const flatTool of replaces) {
       if (CORE_TOOLS.has(flatTool)) {
         const h = toolHandles.get(flatTool);
-        if (h && h.enabled && safeDisable(h)) apiModeDisabled++;
+        if (h?.enabled && safeDisable(h)) apiModeDisabled++;
       }
     }
   }
@@ -443,16 +464,22 @@ export function disableNonCoreTools(server: McpServer): void {
     const blockedSet = ACCESS_LEVEL === 'read' ? WRITE_TOOLS : EDIT_TOOLS;
     for (const toolName of blockedSet) {
       const h = toolHandles.get(toolName);
-      if (h && h.enabled && safeDisable(h)) accessDisabled++;
+      if (h?.enabled && safeDisable(h)) accessDisabled++;
     }
   }
 
   if (orphaned.length > 0) {
-    console.error(`[FigCraft toolset] WARNING: orphaned tools (not in CORE_TOOLS or any toolset): ${orphaned.join(', ')}`);
-    console.error('[FigCraft toolset] These tools are disabled with no way to enable them. Add them to CORE_TOOLS or a TOOLSETS entry.');
+    console.error(
+      `[FigCraft toolset] WARNING: orphaned tools (not in CORE_TOOLS or any toolset): ${orphaned.join(', ')}`,
+    );
+    console.error(
+      '[FigCraft toolset] These tools are disabled with no way to enable them. Add them to CORE_TOOLS or a TOOLSETS entry.',
+    );
   }
 
-  console.error(`[FigCraft toolset] disabled ${disabled} non-core tools, ${CORE_TOOLS.size} core + ${META_TOOLS.length} meta tools active`);
+  console.error(
+    `[FigCraft toolset] disabled ${disabled} non-core tools, ${CORE_TOOLS.size} core + ${META_TOOLS.length} meta tools active`,
+  );
   if (ACCESS_LEVEL !== 'edit') {
     console.error(`[FigCraft toolset] access level "${ACCESS_LEVEL}": additionally disabled ${accessDisabled} tools`);
   }
@@ -469,8 +496,12 @@ export function disableNonCoreTools(server: McpServer): void {
     }
   }
   if (staleWriteTools.length > 0) {
-    console.error(`[FigCraft toolset] WARNING: WRITE_TOOLS contains ${staleWriteTools.length} unregistered tool(s): ${staleWriteTools.join(', ')}`);
-    console.error('[FigCraft toolset] These may be stale entries — verify they still exist or remove them from WRITE_TOOLS.');
+    console.error(
+      `[FigCraft toolset] WARNING: WRITE_TOOLS contains ${staleWriteTools.length} unregistered tool(s): ${staleWriteTools.join(', ')}`,
+    );
+    console.error(
+      '[FigCraft toolset] These may be stale entries — verify they still exist or remove them from WRITE_TOOLS.',
+    );
   }
 
   server.sendToolListChanged();
@@ -499,7 +530,7 @@ function enableToolset(server: McpServer, name: string): string {
     }
     // Skip flat tools that are replaced by endpoints
     if (!GENERATED_ENDPOINT_TOOLS.has(tool)) {
-      const isReplaced = Object.values(GENERATED_ENDPOINT_REPLACES).some(r => r.includes(tool));
+      const isReplaced = Object.values(GENERATED_ENDPOINT_REPLACES).some((r) => r.includes(tool));
       if (isReplaced) {
         skippedReplaced.push(tool);
         continue;
@@ -511,7 +542,7 @@ function enableToolset(server: McpServer, name: string): string {
   loadedToolsets.add(name);
   server.sendToolListChanged();
 
-  const enabledTools = def.tools.filter(t => !isToolBlocked(t) && !skippedReplaced.includes(t));
+  const enabledTools = def.tools.filter((t) => !isToolBlocked(t) && !skippedReplaced.includes(t));
   let msg = `Loaded "${name}" — ${count} tools enabled: ${enabledTools.join(', ')}`;
   if (skippedAccess.length > 0) {
     msg += `\n⚠️ Access level "${ACCESS_LEVEL}": ${skippedAccess.length} tools skipped: ${skippedAccess.join(', ')}`;
@@ -536,7 +567,7 @@ function disableToolset(server: McpServer, name: string): string {
   for (const tool of def.tools) {
     if (CORE_TOOLS.has(tool)) continue;
     const h = toolHandles.get(tool);
-    if (h && h.enabled && safeDisable(h)) count++;
+    if (h?.enabled && safeDisable(h)) count++;
   }
   loadedToolsets.delete(name);
   server.sendToolListChanged();

@@ -7,10 +7,7 @@
 // ─── Layout sizing ───
 
 /** Apply layoutSizingHorizontal/Vertical if explicitly provided in params. */
-export function applySizingOverrides(
-  node: SceneNode,
-  params: Record<string, unknown>,
-): void {
+export function applySizingOverrides(node: SceneNode, params: Record<string, unknown>): void {
   if (params.layoutSizingHorizontal) {
     setLayoutSizing(node, 'horizontal', params.layoutSizingHorizontal as string);
   }
@@ -20,20 +17,13 @@ export function applySizingOverrides(
 }
 
 /** Set layout sizing on a node (wraps the untyped Figma property). */
-export function setLayoutSizing(
-  node: SceneNode,
-  axis: 'horizontal' | 'vertical',
-  value: string,
-): void {
+export function setLayoutSizing(node: SceneNode, axis: 'horizontal' | 'vertical', value: string): void {
   const prop = axis === 'horizontal' ? 'layoutSizingHorizontal' : 'layoutSizingVertical';
   (node as any)[prop] = value;
 }
 
 /** Get layout sizing from a node. */
-export function getLayoutSizing(
-  node: SceneNode,
-  axis: 'horizontal' | 'vertical',
-): string | undefined {
+export function getLayoutSizing(node: SceneNode, axis: 'horizontal' | 'vertical'): string | undefined {
   const prop = axis === 'horizontal' ? 'layoutSizingHorizontal' : 'layoutSizingVertical';
   return (node as any)[prop] as string | undefined;
 }
@@ -70,12 +60,15 @@ export function setBlendMode(node: SceneNode, value: string): void {
 // ─── Stroke ───
 
 /** Set stroke-related properties. */
-export function setStrokeProps(node: SceneNode, props: {
-  strokeAlign?: string;
-  dashPattern?: number[];
-  strokeCap?: string;
-  strokeJoin?: string;
-}): void {
+export function setStrokeProps(
+  node: SceneNode,
+  props: {
+    strokeAlign?: string;
+    dashPattern?: number[];
+    strokeCap?: string;
+    strokeJoin?: string;
+  },
+): void {
   if (props.strokeAlign) (node as any).strokeAlign = props.strokeAlign;
   if (props.dashPattern) (node as any).dashPattern = props.dashPattern;
   if (props.strokeCap) (node as any).strokeCap = props.strokeCap;
@@ -103,10 +96,7 @@ export async function setEffectStyleIdAsync(node: SceneNode, styleId: string): P
 
 /** Resolve a ComponentNode from a node that may be a COMPONENT or COMPONENT_SET.
  *  If variantProperties are provided and the node is a COMPONENT_SET, picks the matching variant. */
-export function resolveComponent(
-  node: BaseNode,
-  variantProperties?: Record<string, string>,
-): ComponentNode {
+export function resolveComponent(node: BaseNode, variantProperties?: Record<string, string>): ComponentNode {
   if (node.type === 'COMPONENT') {
     return node as ComponentNode;
   }
@@ -114,7 +104,7 @@ export function resolveComponent(
     const set = node as ComponentSetNode;
     if (variantProperties) {
       const variants = set.children as ComponentNode[];
-      const match = variants.find(v => {
+      const match = variants.find((v) => {
         const vProps = v.variantProperties;
         if (!vProps) return false;
         return Object.entries(variantProperties).every(([k, val]) => vProps[k] === val);

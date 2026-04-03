@@ -9,8 +9,8 @@
  * - non-autoFixable violations are always skipped (regardless of severity)
  */
 
-import { describe, it, expect } from 'vitest';
-import type { LintViolation, LintSeverity, FixDescriptor } from '../../packages/quality-engine/src/types.js';
+import { describe, expect, it } from 'vitest';
+import type { LintSeverity, LintViolation } from '../../packages/quality-engine/src/types.js';
 
 /**
  * Extracted filter logic from lint_fix handler (lint.ts lines 510-514).
@@ -23,7 +23,9 @@ function classifyViolation(v: Pick<LintViolation, 'autoFixable' | 'severity' | '
   return 'fix';
 }
 
-function makeViolation(overrides: Partial<LintViolation>): Pick<LintViolation, 'autoFixable' | 'severity' | 'fixDescriptor'> {
+function makeViolation(
+  overrides: Partial<LintViolation>,
+): Pick<LintViolation, 'autoFixable' | 'severity' | 'fixDescriptor'> {
   return {
     autoFixable: true,
     severity: 'heuristic',
@@ -61,11 +63,15 @@ describe('lint_fix severity filter (regression)', () => {
   });
 
   it('fails gracefully when fixDescriptor is missing', () => {
-    expect(classifyViolation(makeViolation({
-      severity: 'heuristic',
-      autoFixable: true,
-      fixDescriptor: undefined,
-    }))).toBe('skip-no-descriptor');
+    expect(
+      classifyViolation(
+        makeViolation({
+          severity: 'heuristic',
+          autoFixable: true,
+          fixDescriptor: undefined,
+        }),
+      ),
+    ).toBe('skip-no-descriptor');
   });
 });
 

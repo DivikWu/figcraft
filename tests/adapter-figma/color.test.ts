@@ -2,16 +2,16 @@
  * Tests for color conversion utilities.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  hexToFigmaRgba,
-  hexToFigmaRgb,
-  figmaRgbaToHex,
-  relativeLuminance,
-  contrastRatio,
   colorsEqual,
+  contrastRatio,
+  figmaRgbaToHex,
   hexContrastRatio,
+  hexToFigmaRgb,
+  hexToFigmaRgba,
   hexToRgbTuple,
+  relativeLuminance,
 } from '../../packages/adapter-figma/src/utils/color.js';
 
 describe('hexToFigmaRgba', () => {

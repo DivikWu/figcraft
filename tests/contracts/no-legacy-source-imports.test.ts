@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { describe, expect, it } from 'vitest';
 
 const ROOT = process.cwd();
 const PACKAGE_ROOT = join(ROOT, 'packages');

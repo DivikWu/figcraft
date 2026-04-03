@@ -1,0 +1,93 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "assist": {
+    "enabled": true
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 120
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "trailingCommas": "all",
+      "semicolons": "always"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "complexity": {
+        "noForEach": "off",
+        "noBannedTypes": "warn"
+      },
+      "correctness": {
+        "noUnusedFunctionParameters": "off"
+      },
+      "style": {
+        "noNonNullAssertion": "off",
+        "useNodejsImportProtocol": "error"
+      },
+      "suspicious": {
+        "noExplicitAny": "warn",
+        "noAssignInExpressions": "off",
+        "useIterableCallbackReturn": "warn"
+      }
+    }
+  },
+  "files": {
+    "includes": [
+      "**",
+      "!dist",
+      "!packages/core-mcp/src/tools/_generated.ts",
+      "!packages/core-mcp/src/tools/_registry.ts",
+      "!packages/core-mcp/src/tools/_contracts.ts",
+      "!packages/core-mcp/src/tools/_guides.ts",
+      "!packages/core-mcp/src/tools/_templates.ts",
+      "!packages/core-mcp/src/tools/_help.ts",
+      "!packages/core-mcp/src/prompts/_prompts.ts",
+      "!packages/adapter-figma/src/ui.html",
+      "!.kiro",
+      "!.mcp.json",
+      "!.vscode",
+      "!.claude",
+      "!skills/**/references",
+      "!**/*.d.ts"
+    ]
+  },
+  "overrides": [
+    {
+      "includes": ["tests/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["scripts/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/adapter-figma/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off"
+          }
+        }
+      }
+    }
+  ]
+}

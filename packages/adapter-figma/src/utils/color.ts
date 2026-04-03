@@ -31,12 +31,20 @@ export function hexToFigmaRgb(hex: string): RGB {
 
 /** Convert Figma RGB or RGBA to hex string. Alpha channel omitted when opaque. */
 export function figmaRgbaToHex(color: RGB | RGBA): string {
-  const r = Math.round(color.r * 255).toString(16).padStart(2, '0');
-  const g = Math.round(color.g * 255).toString(16).padStart(2, '0');
-  const b = Math.round(color.b * 255).toString(16).padStart(2, '0');
+  const r = Math.round(color.r * 255)
+    .toString(16)
+    .padStart(2, '0');
+  const g = Math.round(color.g * 255)
+    .toString(16)
+    .padStart(2, '0');
+  const b = Math.round(color.b * 255)
+    .toString(16)
+    .padStart(2, '0');
   const hex = `#${r}${g}${b}`;
   if ('a' in color && color.a !== 1) {
-    const a = Math.round(color.a * 255).toString(16).padStart(2, '0');
+    const a = Math.round(color.a * 255)
+      .toString(16)
+      .padStart(2, '0');
     return hex + a;
   }
   return hex;
@@ -45,7 +53,7 @@ export function figmaRgbaToHex(color: RGB | RGBA): string {
 /** Calculate relative luminance (WCAG 2.1). */
 export function relativeLuminance(color: RGB): number {
   const [rs, gs, bs] = [color.r, color.g, color.b].map((c) =>
-    c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4),
+    c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4,
   );
   return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
 }

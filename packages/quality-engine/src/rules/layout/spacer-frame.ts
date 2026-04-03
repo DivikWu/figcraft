@@ -10,10 +10,11 @@
  * auto-layout itemSpacing instead.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor, RuleAI } from '../../types.js';
+import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
 
 // Unified spacer detection — matches all known AI-generated spacer naming patterns
-export const SPACER_RE = /^(?:(?:top|bottom|left|right|flex|vertical|horizontal)[\s_-]?)?(?:spacer|space|gap)(?:[\s_-]?(?:top|bottom|left|right|\d+))?$/i;
+export const SPACER_RE =
+  /^(?:(?:top|bottom|left|right|flex|vertical|horizontal)[\s_-]?)?(?:spacer|space|gap)(?:[\s_-]?(?:top|bottom|left|right|\d+))?$/i;
 
 function isEmptyOrInvisible(node: AbstractNode): boolean {
   if (!node.children || node.children.length === 0) return true;
@@ -43,25 +44,27 @@ export const spacerFrameRule: LintRule = {
     const nameMatch = SPACER_RE.test(node.name);
 
     // Check 2: Invisible thin frame (no fill, one dimension ≤ 4px)
-    const thinSpacer = hasNoVisibleFill(node) &&
-      ((node.width != null && node.width <= 4) || (node.height != null && node.height <= 4));
+    const thinSpacer =
+      hasNoVisibleFill(node) && ((node.width != null && node.width <= 4) || (node.height != null && node.height <= 4));
 
     if (!nameMatch && !thinSpacer) return [];
 
-    return [{
-      nodeId: node.id,
-      nodeName: node.name,
-      rule: 'spacer-frame',
-      severity: 'style',
-      currentValue: `${node.width ?? '?'}×${node.height ?? '?'} empty frame`,
-      suggestion: `"${node.name}" looks like a spacing hack. Group related elements into semantic auto-layout frames with itemSpacing instead.`,
-      autoFixable: true,
-      fixData: {
-        action: 'remove-spacer',
-        width: node.width,
-        height: node.height,
+    return [
+      {
+        nodeId: node.id,
+        nodeName: node.name,
+        rule: 'spacer-frame',
+        severity: 'style',
+        currentValue: `${node.width ?? '?'}×${node.height ?? '?'} empty frame`,
+        suggestion: `"${node.name}" looks like a spacing hack. Group related elements into semantic auto-layout frames with itemSpacing instead.`,
+        autoFixable: true,
+        fixData: {
+          action: 'remove-spacer',
+          width: node.width,
+          height: node.height,
+        },
       },
-    }];
+    ];
   },
 
   describeFix(v): FixDescriptor | null {

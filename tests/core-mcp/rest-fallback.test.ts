@@ -4,7 +4,7 @@
  * Mocks file system operations to prevent writing to real disk.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock fs to prevent disk writes during tests
 vi.mock('node:fs', async (importOriginal) => {
@@ -14,25 +14,28 @@ vi.mock('node:fs', async (importOriginal) => {
     writeFileSync: vi.fn(),
     renameSync: vi.fn(),
     mkdirSync: vi.fn(),
-    readFileSync: vi.fn(() => { throw new Error('ENOENT'); }),
+    readFileSync: vi.fn(() => {
+      throw new Error('ENOENT');
+    }),
   };
 });
 
+import type { Bridge } from '../../packages/core-mcp/src/bridge.js';
 import {
+  getFileContext,
   requestWithFallback,
   setFileContext,
-  getFileContext,
   setFileKey,
 } from '../../packages/core-mcp/src/rest-fallback.js';
-import type { Bridge } from '../../packages/core-mcp/src/bridge.js';
 
 // ─── Helpers ───
 
 function mockBridge(behavior: 'success' | 'fail'): Bridge {
   return {
-    request: behavior === 'success'
-      ? vi.fn().mockResolvedValue({ id: '1:2', name: 'TestNode' })
-      : vi.fn().mockRejectedValue(new Error('Request ping timed out after 30000ms')),
+    request:
+      behavior === 'success'
+        ? vi.fn().mockResolvedValue({ id: '1:2', name: 'TestNode' })
+        : vi.fn().mockRejectedValue(new Error('Request ping timed out after 30000ms')),
   } as unknown as Bridge;
 }
 
@@ -46,12 +49,10 @@ describe('requestWithFallback', () => {
 
   it('returns plugin result when bridge succeeds', async () => {
     const bridge = mockBridge('success');
-    const { result, source } = await requestWithFallback(
-      bridge,
-      'get_node_info',
-      { nodeId: '1:2' },
-      async () => ({ id: '1:2', name: 'FromREST' }),
-    );
+    const { result, source } = await requestWithFallback(bridge, 'get_node_info', { nodeId: '1:2' }, async () => ({
+      id: '1:2',
+      name: 'FromREST',
+    }));
     expect(source).toBe('plugin');
     expect(result).toEqual({ id: '1:2', name: 'TestNode' });
   });
@@ -71,20 +72,15 @@ describe('requestWithFallback', () => {
 
   it('throws original error when no fallback provided', async () => {
     const bridge = mockBridge('fail');
-    await expect(
-      requestWithFallback(bridge, 'get_node_info', { nodeId: '1:2' }),
-    ).rejects.toThrow('timed out');
+    await expect(requestWithFallback(bridge, 'get_node_info', { nodeId: '1:2' })).rejects.toThrow('timed out');
   });
 
   it('throws combined error when both plugin and REST fail', async () => {
     const bridge = mockBridge('fail');
     await expect(
-      requestWithFallback(
-        bridge,
-        'get_node_info',
-        { nodeId: '1:2' },
-        async () => { throw new Error('No API token'); },
-      ),
+      requestWithFallback(bridge, 'get_node_info', { nodeId: '1:2' }, async () => {
+        throw new Error('No API token');
+      }),
     ).rejects.toThrow(/Plugin:.*REST API fallback also failed/);
   });
 });

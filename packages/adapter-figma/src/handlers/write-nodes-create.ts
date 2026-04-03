@@ -4,22 +4,45 @@
  * Extracted from write-nodes.ts for maintainability.
  */
 
-import { registerHandler } from '../registry.js';
 import { simplifyNode } from '../adapters/node-simplifier.js';
-import { autoBindTypography } from '../utils/design-context.js';
-import { ensureLoaded, getTextStyleId, getEffectStyleByName } from '../utils/style-registry.js';
-import { findNodeByIdAsync } from '../utils/node-lookup.js';
-import { applyFill, applyStroke, applyCornerRadius, applyTokenField, applyTokenFields, setComponentProperties } from '../utils/node-helpers.js';
+import { registerHandler } from '../registry.js';
 import { hexToFigmaRgb, hexToFigmaRgba } from '../utils/color.js';
-import { structuredHintsToInferences, formatDiff, buildCorrectedPayload, validateParams, inferDirection } from './inline-tree.js';
-import type { Inference } from './inline-tree.js';
-import { aggregateHints, structuredHintsToTyped } from '../utils/hint-aggregator.js';
-import type { StructuredHint } from '../utils/hint-aggregator.js';
-import type { Hint } from '../utils/hint-aggregator.js';
-import { quickLintSummary, PRE_RULE_TO_LINT_RULE } from './lint-inline.js';
+import { autoBindTypography } from '../utils/design-context.js';
+import {
+  applySizingOverrides,
+  getLayoutSizing,
+  resolveComponent,
+  setBlendMode,
+  setEffectStyleIdAsync,
+  setFillStyleIdAsync,
+  setLayoutPositioning,
+  setLayoutSizing,
+  setLayoutWrap,
+  setStrokeProps,
+  setTextStyleIdAsync,
+} from '../utils/figma-compat.js';
 import { assertHandler } from '../utils/handler-error.js';
-import { getCachedModeLibrary, loadFontWithFallback, resolveFontAsync } from './write-nodes.js';
-import { applySizingOverrides, getLayoutSizing, setLayoutSizing, setLayoutWrap, setBlendMode, setLayoutPositioning, setStrokeProps, setEffectStyleIdAsync, setFillStyleIdAsync, setTextStyleIdAsync, resolveComponent } from '../utils/figma-compat.js';
+import type { Hint, StructuredHint } from '../utils/hint-aggregator.js';
+import { aggregateHints, structuredHintsToTyped } from '../utils/hint-aggregator.js';
+import {
+  applyCornerRadius,
+  applyFill,
+  applyStroke,
+  applyTokenFields,
+  setComponentProperties,
+} from '../utils/node-helpers.js';
+import { findNodeByIdAsync } from '../utils/node-lookup.js';
+import { ensureLoaded, getEffectStyleByName, getTextStyleId } from '../utils/style-registry.js';
+import type { Inference } from './inline-tree.js';
+import {
+  buildCorrectedPayload,
+  formatDiff,
+  inferDirection,
+  structuredHintsToInferences,
+  validateParams,
+} from './inline-tree.js';
+import { PRE_RULE_TO_LINT_RULE, quickLintSummary } from './lint-inline.js';
+import { getCachedModeLibrary, resolveFontAsync } from './write-nodes.js';
 
 // ─── Shared context for library-aware creation ───
 interface CreateContext {
@@ -42,8 +65,9 @@ async function initCreateContext(): Promise<CreateContext> {
 // ─── Alias normalization: fillVariableName/fillStyleName → fill ───
 function normalizeAliases(p: Record<string, unknown>): void {
   // Conflict detection: fill + alias cannot coexist
-  const fillAliases = ['fillVariableName', 'fillStyleName', 'fontColorVariableName', 'fontColorStyleName']
-    .filter(k => p[k] != null);
+  const fillAliases = ['fillVariableName', 'fillStyleName', 'fontColorVariableName', 'fontColorStyleName'].filter(
+    (k) => p[k] != null,
+  );
   if (p.fill != null && fillAliases.length > 0) {
     throw new Error(`Conflicting fill: "fill" and "${fillAliases.join('", "')}" both specified. Use only one.`);
   }
@@ -52,23 +76,28 @@ function normalizeAliases(p: Record<string, unknown>): void {
   }
   // Fill aliases
   if (!p.fill && p.fillVariableName) {
-    p.fill = { _variable: p.fillVariableName }; delete p.fillVariableName;
+    p.fill = { _variable: p.fillVariableName };
+    delete p.fillVariableName;
   } else if (!p.fill && p.fillStyleName) {
-    p.fill = { _style: p.fillStyleName }; delete p.fillStyleName;
+    p.fill = { _style: p.fillStyleName };
+    delete p.fillStyleName;
   }
   // Font color aliases (for text)
   if (!p.fill && p.fontColorVariableName) {
-    p.fill = { _variable: p.fontColorVariableName }; delete p.fontColorVariableName;
+    p.fill = { _variable: p.fontColorVariableName };
+    delete p.fontColorVariableName;
   } else if (!p.fill && p.fontColorStyleName) {
-    p.fill = { _style: p.fontColorStyleName }; delete p.fontColorStyleName;
+    p.fill = { _style: p.fontColorStyleName };
+    delete p.fontColorStyleName;
   }
   // Stroke aliases
   if (!p.strokeColor && p.strokeVariableName) {
-    p.strokeColor = { _variable: p.strokeVariableName }; delete p.strokeVariableName;
+    p.strokeColor = { _variable: p.strokeVariableName };
+    delete p.strokeVariableName;
   }
   // Padding shorthand — warn if mixed with per-side padding (ambiguous intent)
   if (p.padding != null) {
-    const perSide = ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'].filter(k => p[k] != null);
+    const perSide = ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'].filter((k) => p[k] != null);
     if (perSide.length > 0) {
       throw new Error(
         `Conflicting padding: "padding" and "${perSide.join('", "')}" both specified. Use either "padding" shorthand or individual sides, not both.`,
@@ -89,9 +118,15 @@ function sendBatchProgress(commandId: string | undefined, current: number, total
 
 // ─── Font style normalization: numeric weights → Figma style names ───
 const WEIGHT_TO_STYLE: Record<string, string> = {
-  '100': 'Thin', '200': 'ExtraLight', '300': 'Light',
-  '400': 'Regular', '500': 'Medium', '600': 'SemiBold',
-  '700': 'Bold', '800': 'ExtraBold', '900': 'Black',
+  '100': 'Thin',
+  '200': 'ExtraLight',
+  '300': 'Light',
+  '400': 'Regular',
+  '500': 'Medium',
+  '600': 'SemiBold',
+  '700': 'Bold',
+  '800': 'ExtraBold',
+  '900': 'Black',
 };
 function normalizeFontStyle(style: string): string {
   // Numeric weight (e.g. "700") → Figma style name (e.g. "Bold")
@@ -124,10 +159,8 @@ async function getCachedColorVars(): Promise<ColorVarEntry[]> {
     return _colorVarCache.entries;
   }
   const colorVars = await figma.variables.getLocalVariablesAsync('COLOR');
-  const uniqueCollIds = [...new Set(colorVars.map(v => v.variableCollectionId))];
-  const fetchedColls = await Promise.all(
-    uniqueCollIds.map(id => figma.variables.getVariableCollectionByIdAsync(id)),
-  );
+  const uniqueCollIds = [...new Set(colorVars.map((v) => v.variableCollectionId))];
+  const fetchedColls = await Promise.all(uniqueCollIds.map((id) => figma.variables.getVariableCollectionByIdAsync(id)));
   const collectionMap = new Map<string, VariableCollection>();
   for (let i = 0; i < uniqueCollIds.length; i++) {
     if (fetchedColls[i]) collectionMap.set(uniqueCollIds[i], fetchedColls[i]!);
@@ -156,7 +189,7 @@ async function getCachedPaintStyles(): Promise<PaintStyle[]> {
 
 async function tryLocalColorMatch(
   node: SceneNode & { fills: readonly Paint[] | Paint[] },
-  role: string,
+  _role: string,
 ): Promise<string | null> {
   const fills = node.fills as Paint[];
   if (!fills.length || fills[0].type !== 'SOLID') return null;
@@ -182,7 +215,9 @@ async function tryLocalColorMatch(
         try {
           await setFillStyleIdAsync(node, s.id);
           return `fill:${s.name}`;
-        } catch { /* skip */ }
+        } catch {
+          /* skip */
+        }
       }
     }
   }
@@ -193,23 +228,25 @@ async function tryLocalColorMatch(
 // ─── Smart default: infer layoutMode from AL params ───
 function inferLayoutMode(p: Record<string, unknown>, hints: StructuredHint[]): 'HORIZONTAL' | 'VERTICAL' | null {
   const hasALParams =
-    p.itemSpacing != null || p.paddingTop != null || p.paddingRight != null ||
-    p.paddingBottom != null || p.paddingLeft != null ||
-    p.primaryAxisAlignItems != null || p.counterAxisAlignItems != null ||
+    p.itemSpacing != null ||
+    p.paddingTop != null ||
+    p.paddingRight != null ||
+    p.paddingBottom != null ||
+    p.paddingLeft != null ||
+    p.primaryAxisAlignItems != null ||
+    p.counterAxisAlignItems != null ||
     (p.layoutWrap != null && p.layoutWrap !== 'NO_WRAP');
-  const hasHUGSizing =
-    p.layoutSizingHorizontal === 'HUG' || p.layoutSizingVertical === 'HUG';
+  const hasHUGSizing = p.layoutSizingHorizontal === 'HUG' || p.layoutSizingVertical === 'HUG';
   const hasChildren = Array.isArray(p.children) && p.children.length > 0;
 
   // Conflict: explicit NONE + AL params is contradictory
   if (p.layoutMode === 'NONE' && (hasALParams || hasHUGSizing)) {
-    const conflicting = [
-      hasALParams && 'padding/spacing/alignment',
-      hasHUGSizing && 'HUG sizing',
-    ].filter(Boolean).join(' and ');
+    const conflicting = [hasALParams && 'padding/spacing/alignment', hasHUGSizing && 'HUG sizing']
+      .filter(Boolean)
+      .join(' and ');
     throw new Error(
       `layoutMode:"NONE" conflicts with ${conflicting}. ` +
-      'Static frames do not support layout properties. Remove layoutMode:"NONE" to enable auto-layout.',
+        'Static frames do not support layout properties. Remove layoutMode:"NONE" to enable auto-layout.',
     );
   }
 
@@ -217,12 +254,22 @@ function inferLayoutMode(p: Record<string, unknown>, hints: StructuredHint[]): '
 
   if (hasALParams || hasHUGSizing) {
     const direction = inferDirection(p);
-    hints.push({ confidence: 'deterministic', field: 'layoutMode', value: direction, reason: `inferred from padding/spacing/alignment params${direction === 'HORIZONTAL' ? ' (horizontal signals detected)' : ''}` });
+    hints.push({
+      confidence: 'deterministic',
+      field: 'layoutMode',
+      value: direction,
+      reason: `inferred from padding/spacing/alignment params${direction === 'HORIZONTAL' ? ' (horizontal signals detected)' : ''}`,
+    });
     return direction;
   }
   if (hasChildren) {
     const direction = inferDirection(p);
-    hints.push({ confidence: 'deterministic', field: 'layoutMode', value: direction, reason: `inferred from children param${direction === 'HORIZONTAL' ? ' (horizontal signals detected)' : ''}` });
+    hints.push({
+      confidence: 'deterministic',
+      field: 'layoutMode',
+      value: direction,
+      reason: `inferred from children param${direction === 'HORIZONTAL' ? ' (horizontal signals detected)' : ''}`,
+    });
     return direction;
   }
   return null;
@@ -240,12 +287,7 @@ function inferLayoutMode(p: Record<string, unknown>, hints: StructuredHint[]): '
  * Touch target & cross-sibling consistency are deferred to quickLintSummary
  * (wcag-target-size, form-consistency) which uses more reliable heuristics.
  */
-function validateChildNode(
-  node: SceneNode,
-  parent: FrameNode,
-  childPath: string,
-  ctx: CreateContext,
-): void {
+function validateChildNode(node: SceneNode, parent: FrameNode, childPath: string, ctx: CreateContext): void {
   try {
     const w = Math.round(node.width);
     const h = Math.round(node.height);
@@ -296,7 +338,10 @@ function validateChildNode(
 
       // Font size below mobile readability (suggest — may be intentional)
       if (fontSize > 0 && fontSize < 12) {
-        ctx.typedHints.push({ type: 'suggest', message: `[${childPath}] fontSize ${fontSize} below mobile minimum (12px)` });
+        ctx.typedHints.push({
+          type: 'suggest',
+          message: `[${childPath}] fontSize ${fontSize} below mobile minimum (12px)`,
+        });
       }
     }
 
@@ -313,10 +358,14 @@ function validateChildNode(
     // Invisible frame (no fills, no strokes, no children)
     if (node.type === 'FRAME') {
       const frame = node as FrameNode;
-      const hasFills = Array.isArray(frame.fills) && (frame.fills as readonly Paint[]).some(f => f.visible !== false);
-      const hasStrokes = Array.isArray(frame.strokes) && (frame.strokes as readonly Paint[]).some(s => s.visible !== false);
+      const hasFills = Array.isArray(frame.fills) && (frame.fills as readonly Paint[]).some((f) => f.visible !== false);
+      const hasStrokes =
+        Array.isArray(frame.strokes) && (frame.strokes as readonly Paint[]).some((s) => s.visible !== false);
       if (!hasFills && !hasStrokes && frame.children.length === 0) {
-        ctx.typedHints.push({ type: 'suggest', message: `[${childPath}] invisible empty frame — no fills, strokes, or children` });
+        ctx.typedHints.push({
+          type: 'suggest',
+          message: `[${childPath}] invisible empty frame — no fills, strokes, or children`,
+        });
       }
     }
 
@@ -324,13 +373,24 @@ function validateChildNode(
     if (node.type === 'TEXT') {
       const chars = (node as TextNode).characters.trim();
       const iconPlaceholders: Record<string, string> = {
-        '>': 'lucide:chevron-right', '›': 'lucide:chevron-right', '→': 'lucide:arrow-right',
-        '<': 'lucide:chevron-left', '‹': 'lucide:chevron-left', '←': 'lucide:arrow-left',
-        '...': 'lucide:ellipsis', '…': 'lucide:ellipsis', '•••': 'lucide:ellipsis',
-        '×': 'lucide:x', '✕': 'lucide:x', 'X': 'lucide:x',
+        '>': 'lucide:chevron-right',
+        '›': 'lucide:chevron-right',
+        '→': 'lucide:arrow-right',
+        '<': 'lucide:chevron-left',
+        '‹': 'lucide:chevron-left',
+        '←': 'lucide:arrow-left',
+        '...': 'lucide:ellipsis',
+        '…': 'lucide:ellipsis',
+        '•••': 'lucide:ellipsis',
+        '×': 'lucide:x',
+        '✕': 'lucide:x',
+        X: 'lucide:x',
       };
       if (iconPlaceholders[chars]) {
-        ctx.typedHints.push({ type: 'warn', message: `[${childPath}] "${chars}" looks like an icon placeholder — use icon_create(icon:"${iconPlaceholders[chars]}") instead of text` });
+        ctx.typedHints.push({
+          type: 'warn',
+          message: `[${childPath}] "${chars}" looks like an icon placeholder — use icon_create(icon:"${iconPlaceholders[chars]}") instead of text`,
+        });
       }
     }
 
@@ -338,7 +398,10 @@ function validateChildNode(
     if (node.type === 'RECTANGLE') {
       const nameLC = node.name.toLowerCase();
       if (/logo|avatar|icon|placeholder|image|thumb/.test(nameLC)) {
-        ctx.typedHints.push({ type: 'warn', message: `[${childPath}] "${node.name}" is a rectangle — use type:"frame" with centered icon inside if it needs children later` });
+        ctx.typedHints.push({
+          type: 'warn',
+          message: `[${childPath}] "${node.name}" is a rectangle — use type:"frame" with centered icon inside if it needs children later`,
+        });
       }
     }
   } catch {
@@ -373,7 +436,7 @@ function isShapeNode(node: SceneNode): boolean {
     // Use majority check — an SVG frame may contain a TEXT label alongside vector shapes
     const kids = (node as FrameNode).children;
     const vectorCount = kids.filter(
-      c => c.type === 'VECTOR' || c.type === 'BOOLEAN_OPERATION' || c.type === 'GROUP',
+      (c) => c.type === 'VECTOR' || c.type === 'BOOLEAN_OPERATION' || c.type === 'GROUP',
     ).length;
     if (vectorCount > kids.length / 2) return true;
   }
@@ -396,22 +459,42 @@ function inferChildSizing(
     if (isScreenSize(node)) {
       if (!explicitH) {
         setLayoutSizing(node, 'horizontal', 'FIXED');
-        hints.push({ confidence: 'deterministic', field: 'layoutSizingHorizontal', value: 'FIXED', reason: 'mobile screen dimensions detected — locked to FIXED' });
+        hints.push({
+          confidence: 'deterministic',
+          field: 'layoutSizingHorizontal',
+          value: 'FIXED',
+          reason: 'mobile screen dimensions detected — locked to FIXED',
+        });
       }
       if (!explicitV) {
         setLayoutSizing(node, 'vertical', 'FIXED');
-        hints.push({ confidence: 'deterministic', field: 'layoutSizingVertical', value: 'FIXED', reason: 'mobile screen dimensions detected — locked to FIXED' });
+        hints.push({
+          confidence: 'deterministic',
+          field: 'layoutSizingVertical',
+          value: 'FIXED',
+          reason: 'mobile screen dimensions detected — locked to FIXED',
+        });
       }
       return;
     }
     if ('layoutMode' in node && (node as FrameNode).layoutMode !== 'NONE') {
       if (!explicitH) {
         setLayoutSizing(node, 'horizontal', 'HUG');
-        hints.push({ confidence: 'deterministic', field: 'layoutSizingHorizontal', value: 'HUG', reason: 'root frame — HUG to wrap content (no auto-layout parent)' });
+        hints.push({
+          confidence: 'deterministic',
+          field: 'layoutSizingHorizontal',
+          value: 'HUG',
+          reason: 'root frame — HUG to wrap content (no auto-layout parent)',
+        });
       }
       if (!explicitV) {
         setLayoutSizing(node, 'vertical', 'HUG');
-        hints.push({ confidence: 'deterministic', field: 'layoutSizingVertical', value: 'HUG', reason: 'root frame — HUG to wrap content (no auto-layout parent)' });
+        hints.push({
+          confidence: 'deterministic',
+          field: 'layoutSizingVertical',
+          value: 'HUG',
+          reason: 'root frame — HUG to wrap content (no auto-layout parent)',
+        });
       }
     }
     return;
@@ -424,11 +507,21 @@ function inferChildSizing(
   if (isScreenSize(node)) {
     if (!explicitH) {
       setLayoutSizing(node, 'horizontal', 'FIXED');
-      hints.push({ confidence: 'deterministic', field: 'layoutSizingHorizontal', value: 'FIXED', reason: 'mobile screen dimensions detected — locked to FIXED' });
+      hints.push({
+        confidence: 'deterministic',
+        field: 'layoutSizingHorizontal',
+        value: 'FIXED',
+        reason: 'mobile screen dimensions detected — locked to FIXED',
+      });
     }
     if (!explicitV) {
       setLayoutSizing(node, 'vertical', 'FIXED');
-      hints.push({ confidence: 'deterministic', field: 'layoutSizingVertical', value: 'FIXED', reason: 'mobile screen dimensions detected — locked to FIXED' });
+      hints.push({
+        confidence: 'deterministic',
+        field: 'layoutSizingVertical',
+        value: 'FIXED',
+        reason: 'mobile screen dimensions detected — locked to FIXED',
+      });
     }
     return;
   }
@@ -472,7 +565,12 @@ function inferChildSizing(
     if (hasExplicitWidth) {
       // Explicit width provided without layoutSizingHorizontal → keep FIXED (don't override with HUG/FILL)
       setLayoutSizing(node, 'horizontal', 'FIXED');
-      hints.push({ confidence: 'deterministic', field: 'layoutSizingHorizontal', value: 'FIXED', reason: 'explicit width provided — keeping FIXED' });
+      hints.push({
+        confidence: 'deterministic',
+        field: 'layoutSizingHorizontal',
+        value: 'FIXED',
+        reason: 'explicit width provided — keeping FIXED',
+      });
     } else {
       const val = isVertical ? cross.sizing : primaryDefault;
       setLayoutSizing(node, 'horizontal', val);
@@ -485,7 +583,12 @@ function inferChildSizing(
     if (hasExplicitHeight) {
       // Explicit height provided without layoutSizingVertical → keep FIXED (don't override with HUG/FILL)
       setLayoutSizing(node, 'vertical', 'FIXED');
-      hints.push({ confidence: 'deterministic', field: 'layoutSizingVertical', value: 'FIXED', reason: 'explicit height provided — keeping FIXED' });
+      hints.push({
+        confidence: 'deterministic',
+        field: 'layoutSizingVertical',
+        value: 'FIXED',
+        reason: 'explicit height provided — keeping FIXED',
+      });
     } else {
       const val = isVertical ? primaryDefault : cross.sizing;
       setLayoutSizing(node, 'vertical', val);
@@ -497,11 +600,7 @@ function inferChildSizing(
 }
 
 // ─── Core frame setup (shared by create_frame and inline children) ───
-async function setupFrame(
-  frame: FrameNode,
-  p: Record<string, unknown>,
-  ctx: CreateContext,
-): Promise<void> {
+async function setupFrame(frame: FrameNode, p: Record<string, unknown>, ctx: CreateContext): Promise<void> {
   normalizeAliases(p);
 
   frame.name = (p.name as string) ?? 'Frame';
@@ -521,10 +620,9 @@ async function setupFrame(
 
   // ── Fill ──
   if (p.fill != null) {
-    const fillResult = await applyFill(
-      frame, p.fill as any, 'background', ctx.useLib, ctx.library,
-      { stylesPreloaded: true },
-    );
+    const fillResult = await applyFill(frame, p.fill as any, 'background', ctx.useLib, ctx.library, {
+      stylesPreloaded: true,
+    });
     if (fillResult.autoBound) ctx.libraryBindings.push(fillResult.autoBound);
     if (fillResult.colorHint) ctx.warnings.push(fillResult.colorHint);
     // When not in library mode but fill is a hex color, try matching local variables/styles
@@ -532,13 +630,14 @@ async function setupFrame(
       try {
         const localBound = await tryLocalColorMatch(frame as any, 'background');
         if (localBound) ctx.libraryBindings.push(localBound);
-      } catch { /* best effort */ }
+      } catch {
+        /* best effort */
+      }
     }
   } else if (ctx.useLib) {
-    const fillResult = await applyFill(
-      frame, undefined, 'background', ctx.useLib, ctx.library,
-      { stylesPreloaded: true },
-    );
+    const fillResult = await applyFill(frame, undefined, 'background', ctx.useLib, ctx.library, {
+      stylesPreloaded: true,
+    });
     if (fillResult.autoBound) ctx.libraryBindings.push(fillResult.autoBound);
     if (fillResult.colorHint) ctx.warnings.push(fillResult.colorHint);
   } else {
@@ -549,7 +648,7 @@ async function setupFrame(
   if (p.gradient) {
     const g = p.gradient as { type?: string; stops: Array<{ color: string; position: number }>; angle?: number };
     if (g.stops && g.stops.length >= 2) {
-      const gradStops: ColorStop[] = g.stops.map(s => ({
+      const gradStops: ColorStop[] = g.stops.map((s) => ({
         position: s.position,
         color: { ...hexToFigmaRgb(s.color), a: 1 },
       }));
@@ -559,14 +658,16 @@ async function setupFrame(
       const angleRad = (angleDeg * Math.PI) / 180;
       const cos = Math.cos(angleRad);
       const sin = Math.sin(angleRad);
-      frame.fills = [{
-        type: gradType,
-        gradientStops: gradStops,
-        gradientTransform: [
-          [cos, sin, 0.5 - cos * 0.5 - sin * 0.5],
-          [-sin, cos, 0.5 + sin * 0.5 - cos * 0.5],
-        ],
-      } as GradientPaint];
+      frame.fills = [
+        {
+          type: gradType,
+          gradientStops: gradStops,
+          gradientTransform: [
+            [cos, sin, 0.5 - cos * 0.5 - sin * 0.5],
+            [-sin, cos, 0.5 + sin * 0.5 - cos * 0.5],
+          ],
+        } as GradientPaint,
+      ];
     }
   }
 
@@ -576,11 +677,13 @@ async function setupFrame(
       const url = p.imageUrl as string;
       const image = await figma.createImageAsync(url);
       const scaleMode = (p.imageScaleMode as string) ?? 'FILL';
-      frame.fills = [{
-        type: 'IMAGE',
-        imageHash: image.hash,
-        scaleMode: scaleMode as 'FILL' | 'FIT' | 'CROP' | 'TILE',
-      }];
+      frame.fills = [
+        {
+          type: 'IMAGE',
+          imageHash: image.hash,
+          scaleMode: scaleMode as 'FILL' | 'FIT' | 'CROP' | 'TILE',
+        },
+      ];
     } catch (err) {
       ctx.warnings.push(`imageUrl failed: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -594,8 +697,8 @@ async function setupFrame(
     frame.strokeWeight = 0;
   }
   setStrokeProps(frame, {
-    strokeAlign: (p.strokeAlign && 'strokeAlign' in frame) ? p.strokeAlign as string : undefined,
-    dashPattern: (p.strokeDashes && Array.isArray(p.strokeDashes)) ? p.strokeDashes as number[] : undefined,
+    strokeAlign: p.strokeAlign && 'strokeAlign' in frame ? (p.strokeAlign as string) : undefined,
+    dashPattern: p.strokeDashes && Array.isArray(p.strokeDashes) ? (p.strokeDashes as number[]) : undefined,
     strokeCap: p.strokeCap as string | undefined,
     strokeJoin: p.strokeJoin as string | undefined,
   });
@@ -614,7 +717,14 @@ async function setupFrame(
   }
 
   // ── Spacing & padding: bind to float tokens in library mode ──
-  const spacingFields = ['itemSpacing', 'paddingLeft', 'paddingRight', 'paddingTop', 'paddingBottom', 'counterAxisSpacing'] as const;
+  const spacingFields = [
+    'itemSpacing',
+    'paddingLeft',
+    'paddingRight',
+    'paddingTop',
+    'paddingBottom',
+    'counterAxisSpacing',
+  ] as const;
   if (ctx.useLib) {
     const tokenFieldMap: Record<string, number | undefined> = {};
     for (const key of spacingFields) {
@@ -639,11 +749,15 @@ async function setupFrame(
     const pr = (p.paddingRight as number) ?? 0;
     const pt = (p.paddingTop as number) ?? 0;
     const pb = (p.paddingBottom as number) ?? 0;
-    if (fw > 0 && (pl + pr) >= fw) {
-      ctx.warnings.push(`Padding H (${pl}+${pr}=${pl + pr}) ≥ frame width (${fw}px) — children will have no horizontal space`);
+    if (fw > 0 && pl + pr >= fw) {
+      ctx.warnings.push(
+        `Padding H (${pl}+${pr}=${pl + pr}) ≥ frame width (${fw}px) — children will have no horizontal space`,
+      );
     }
-    if (fh > 0 && (pt + pb) >= fh) {
-      ctx.warnings.push(`Padding V (${pt}+${pb}=${pt + pb}) ≥ frame height (${fh}px) — children will have no vertical space`);
+    if (fh > 0 && pt + pb >= fh) {
+      ctx.warnings.push(
+        `Padding V (${pt}+${pb}=${pt + pb}) ≥ frame height (${fh}px) — children will have no vertical space`,
+      );
     }
   }
 
@@ -683,8 +797,9 @@ async function setupFrame(
       const name = p.effectStyleName as string;
       // 1. Search local styles first
       const effectStyles = await figma.getLocalEffectStylesAsync();
-      const localMatch = effectStyles.find(s => s.name === name)
-        ?? effectStyles.find(s => s.name.toLowerCase() === name.toLowerCase());
+      const localMatch =
+        effectStyles.find((s) => s.name === name) ??
+        effectStyles.find((s) => s.name.toLowerCase() === name.toLowerCase());
       if (localMatch) {
         await setEffectStyleIdAsync(frame, localMatch.id);
       } else if (ctx.useLib && ctx.library) {
@@ -699,7 +814,9 @@ async function setupFrame(
       } else {
         ctx.warnings.push(`effectStyle "${name}" not found`);
       }
-    } catch (err) { ctx.warnings.push(`effectStyle failed: ${err instanceof Error ? err.message : String(err)}`); }
+    } catch (err) {
+      ctx.warnings.push(`effectStyle failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
   } else {
     // Effect shorthands — only when no effectStyleName (library style takes priority)
     const effects: Effect[] = [];
@@ -708,9 +825,12 @@ async function setupFrame(
       const s = p.shadow as Record<string, unknown>;
       const rgba = hexToFigmaRgba((s.color as string) ?? '#00000040');
       effects.push({
-        type: 'DROP_SHADOW', visible: true, color: rgba,
+        type: 'DROP_SHADOW',
+        visible: true,
+        color: rgba,
         offset: { x: (s.x as number) ?? 0, y: (s.y as number) ?? 4 },
-        radius: (s.blur as number) ?? 12, spread: (s.spread as number) ?? 0,
+        radius: (s.blur as number) ?? 12,
+        spread: (s.spread as number) ?? 0,
         blendMode: 'NORMAL',
       });
     }
@@ -719,16 +839,21 @@ async function setupFrame(
       const s = p.innerShadow as Record<string, unknown>;
       const rgba = hexToFigmaRgba((s.color as string) ?? '#0000001A');
       effects.push({
-        type: 'INNER_SHADOW', visible: true, color: rgba,
+        type: 'INNER_SHADOW',
+        visible: true,
+        color: rgba,
         offset: { x: (s.x as number) ?? 0, y: (s.y as number) ?? 2 },
-        radius: (s.blur as number) ?? 4, spread: (s.spread as number) ?? 0,
+        radius: (s.blur as number) ?? 4,
+        spread: (s.spread as number) ?? 0,
         blendMode: 'NORMAL',
       });
     }
 
     if (p.blur) {
       effects.push({
-        type: 'BACKGROUND_BLUR', visible: true, blurType: 'NORMAL',
+        type: 'BACKGROUND_BLUR',
+        visible: true,
+        blurType: 'NORMAL',
         radius: p.blur as number,
       });
     }
@@ -748,29 +873,45 @@ async function setupFrame(
     // Cards and panels: set minWidth to avoid collapse
     if (/card|panel|tile/.test(name) && frame.width >= 120) {
       frame.minWidth = Math.max(120, Math.round(frame.width * 0.5));
-      ctx.hints.push({ confidence: 'deterministic', field: 'minWidth', value: frame.minWidth, reason: 'card/panel minimum' });
+      ctx.hints.push({
+        confidence: 'deterministic',
+        field: 'minWidth',
+        value: frame.minWidth,
+        reason: 'card/panel minimum',
+      });
     }
     // Buttons: minimum touch target + label space
     if (/button|btn|cta/.test(name)) {
       frame.minWidth = Math.max(48, Math.round(frame.width * 0.5));
       frame.minHeight = frame.minHeight ?? Math.max(36, Math.min(frame.height, 48));
-      ctx.hints.push({ confidence: 'deterministic', field: 'minWidth', value: frame.minWidth, reason: 'button constraints' });
-      ctx.hints.push({ confidence: 'deterministic', field: 'minHeight', value: frame.minHeight, reason: 'button constraints' });
+      ctx.hints.push({
+        confidence: 'deterministic',
+        field: 'minWidth',
+        value: frame.minWidth,
+        reason: 'button constraints',
+      });
+      ctx.hints.push({
+        confidence: 'deterministic',
+        field: 'minHeight',
+        value: frame.minHeight,
+        reason: 'button constraints',
+      });
     }
     // Input fields: minimum usable width
     if (/input|field|text.?field|search.?bar/.test(name)) {
       frame.minWidth = Math.max(80, Math.round(frame.width * 0.4));
-      ctx.hints.push({ confidence: 'deterministic', field: 'minWidth', value: frame.minWidth, reason: 'input field minimum' });
+      ctx.hints.push({
+        confidence: 'deterministic',
+        field: 'minWidth',
+        value: frame.minWidth,
+        reason: 'input field minimum',
+      });
     }
   }
 }
 
 // ─── Core text setup (shared by create_text and inline children) ───
-async function setupText(
-  text: TextNode,
-  p: Record<string, unknown>,
-  ctx: CreateContext,
-): Promise<void> {
+async function setupText(text: TextNode, p: Record<string, unknown>, ctx: CreateContext): Promise<void> {
   normalizeAliases(p);
 
   const content = (p.content as string) ?? (p.text as string) ?? '';
@@ -797,10 +938,9 @@ async function setupText(
 
   // ── Fill / color ──
   if (p.fill != null) {
-    const fillResult = await applyFill(
-      text, p.fill as any, 'textColor', ctx.useLib, ctx.library,
-      { stylesPreloaded: true },
-    );
+    const fillResult = await applyFill(text, p.fill as any, 'textColor', ctx.useLib, ctx.library, {
+      stylesPreloaded: true,
+    });
     if (fillResult.autoBound) ctx.libraryBindings.push(fillResult.autoBound);
     if (fillResult.colorHint) ctx.warnings.push(fillResult.colorHint);
     // When not in library mode but fill is a hex color, try matching local variables/styles
@@ -808,13 +948,14 @@ async function setupText(
       try {
         const localBound = await tryLocalColorMatch(text as any, 'textColor');
         if (localBound) ctx.libraryBindings.push(localBound);
-      } catch { /* best effort */ }
+      } catch {
+        /* best effort */
+      }
     }
   } else if (ctx.useLib) {
-    const fillResult = await applyFill(
-      text, undefined, 'textColor', ctx.useLib, ctx.library,
-      { stylesPreloaded: true },
-    );
+    const fillResult = await applyFill(text, undefined, 'textColor', ctx.useLib, ctx.library, {
+      stylesPreloaded: true,
+    });
     if (fillResult.autoBound) ctx.libraryBindings.push(fillResult.autoBound);
     if (fillResult.colorHint) ctx.warnings.push(fillResult.colorHint);
   }
@@ -832,10 +973,12 @@ async function setupText(
       const styleMatch = getTextStyleId(fontSize, { styleName: p.textStyleName as string } as any);
       if (styleMatch) {
         try {
-          await setTextStyleIdAsync(text,styleMatch.id);
+          await setTextStyleIdAsync(text, styleMatch.id);
           ctx.libraryBindings.push(`textStyle:${styleMatch.name}`);
           bound = true;
-        } catch (err) { ctx.warnings.push(`textStyle bind failed: ${err instanceof Error ? err.message : String(err)}`); }
+        } catch (err) {
+          ctx.warnings.push(`textStyle bind failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
     }
     // Fallback: try local text styles
@@ -843,15 +986,18 @@ async function setupText(
       try {
         const localStyles = await figma.getLocalTextStylesAsync();
         const name = p.textStyleName as string;
-        const match = localStyles.find(s => s.name === name)
-          ?? localStyles.find(s => s.name.toLowerCase() === name.toLowerCase());
+        const match =
+          localStyles.find((s) => s.name === name) ??
+          localStyles.find((s) => s.name.toLowerCase() === name.toLowerCase());
         if (match) {
-          await setTextStyleIdAsync(text,match.id);
+          await setTextStyleIdAsync(text, match.id);
           ctx.libraryBindings.push(`textStyle:${match.name}`);
         } else {
           ctx.warnings.push(`textStyle "${name}" not found`);
         }
-      } catch (err) { ctx.warnings.push(`textStyle lookup failed: ${err instanceof Error ? err.message : String(err)}`); }
+      } catch (err) {
+        ctx.warnings.push(`textStyle lookup failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
   } else if (ctx.useLib) {
     // Auto-bind typography by fontSize
@@ -859,16 +1005,20 @@ async function setupText(
     const styleMatch = getTextStyleId(fontSize, fontHints);
     if (styleMatch) {
       try {
-        await setTextStyleIdAsync(text,styleMatch.id);
+        await setTextStyleIdAsync(text, styleMatch.id);
         ctx.libraryBindings.push(`textStyle:${styleMatch.name}`);
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     } else {
       try {
         const typoResult = await autoBindTypography(text, fontSize, ctx.library!, {
           skipFontFamily: p.fontFamily !== undefined,
         });
         if (typoResult?.scale) ctx.libraryBindings.push(`typo:${typoResult.scale}`);
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     }
   }
 
@@ -901,15 +1051,15 @@ async function setupText(
     const ancestorComp = findAncestorComponent(text);
     if (ancestorComp) {
       const defs = ancestorComp.componentPropertyDefinitions;
-      const matchingKey = Object.keys(defs).find(
-        k => defs[k].type === 'TEXT' && k.startsWith(text.name + '#'),
-      );
+      const matchingKey = Object.keys(defs).find((k) => defs[k].type === 'TEXT' && k.startsWith(`${text.name}#`));
       if (matchingKey) {
         text.componentPropertyReferences = { characters: matchingKey };
         ctx.warnings.push(`Auto-bound text "${text.name}" to component property`);
       }
     }
-  } catch { /* best effort — do not fail text creation */ }
+  } catch {
+    /* best effort — do not fail text creation */
+  }
 }
 
 /** Walk up the parent chain to find the nearest ComponentNode ancestor. */
@@ -944,15 +1094,24 @@ async function createShapeChild(
   (node as any).name = (child.name as string) ?? defaultName;
   (node as any).resize((child.width as number) ?? 100, (child.height as number) ?? 100);
 
-  const fillInput = child.fillVariableName ? { _variable: child.fillVariableName }
-    : child.fillStyleName ? { _style: child.fillStyleName } : child.fill;
+  const fillInput = child.fillVariableName
+    ? { _variable: child.fillVariableName }
+    : child.fillStyleName
+      ? { _style: child.fillStyleName }
+      : child.fill;
   if (fillInput != null) {
     const fr = await applyFill(node as any, fillInput as any, 'background', ctx.useLib, ctx.library);
     if (fr.autoBound) ctx.libraryBindings.push(fr.autoBound);
   }
   const strokeInput = child.strokeVariableName ? { _variable: child.strokeVariableName } : child.strokeColor;
   if (strokeInput != null) {
-    const sb = await applyStroke(node as any, strokeInput as any, (child.strokeWeight as number) ?? 1, ctx.useLib, ctx.library);
+    const sb = await applyStroke(
+      node as any,
+      strokeInput as any,
+      (child.strokeWeight as number) ?? 1,
+      ctx.useLib,
+      ctx.library,
+    );
     if (sb) ctx.libraryBindings.push(sb);
   }
   if (opts?.supportsCornerRadius && child.cornerRadius != null) {
@@ -963,8 +1122,15 @@ async function createShapeChild(
   if (child.rotation != null) (node as any).rotation = child.rotation as number;
 
   insertOrAppend(parent, node, child.index as number | undefined);
-  inferChildSizing(node, parent, child.layoutSizingHorizontal as string | undefined,
-    child.layoutSizingVertical as string | undefined, ctx.hints, child.width != null, child.height != null);
+  inferChildSizing(
+    node,
+    parent,
+    child.layoutSizingHorizontal as string | undefined,
+    child.layoutSizingVertical as string | undefined,
+    ctx.hints,
+    child.width != null,
+    child.height != null,
+  );
   applySizingOverrides(node, child);
   return { id: node.id, type: figmaType, name: (node as any).name };
 }
@@ -1005,9 +1171,9 @@ async function createInlineChildren(
   // Batch-preload all text fonts at root level (parallel Promise.all vs serial per-node)
   if (depth === 0) {
     const fonts = collectTextFonts(children);
-    const unique = [...new Map(fonts.map(f => [`${f.family}:${f.style}`, f])).values()];
+    const unique = [...new Map(fonts.map((f) => [`${f.family}:${f.style}`, f])).values()];
     if (unique.length > 0) {
-      await Promise.all(unique.map(f => resolveFontAsync(f.family, f.style)));
+      await Promise.all(unique.map((f) => resolveFontAsync(f.family, f.style)));
     }
   }
 
@@ -1021,108 +1187,140 @@ async function createInlineChildren(
     let createdNode: SceneNode | undefined;
 
     try {
-    if (childType === 'text') {
-      const text = figma.createText();
-      await setupText(text, child, ctx);
-      insertOrAppend(parent, text, child.index as number | undefined);
-      // Smart default: text in vertical AL → FILL width + HEIGHT resize
-      inferChildSizing(text, parent, child.layoutSizingHorizontal as string | undefined, child.layoutSizingVertical as string | undefined, ctx.hints, child.width != null, child.height != null);
-      applySizingOverrides(text, child);
-      // Text in vertical auto-layout: default to HEIGHT auto-resize when FILL width
-      if (!child.textAutoResize && !child.width && parent.layoutMode === 'VERTICAL') {
-        text.textAutoResize = 'HEIGHT';
-      }
-      createdNode = text;
-      results.push({ id: text.id, type: 'TEXT', name: text.name });
-    } else if (childType === 'rectangle') {
-      const rect = figma.createRectangle();
-      const result = await createShapeChild(rect, 'RECTANGLE', 'Rectangle', child, parent, ctx, { supportsCornerRadius: true });
-      createdNode = rect;
-      results.push(result);
-    } else if (childType === 'instance') {
-      const componentId = child.componentId as string;
-      assertHandler(componentId, 'instance child requires componentId');
-      const cNode = await findNodeByIdAsync(componentId);
-      assertHandler(cNode, `Component not found: ${componentId}`, 'NOT_FOUND');
-
-      const component = resolveComponent(cNode, child.variantProperties as Record<string, string> | undefined);
-
-      const instance = component.createInstance();
-      if (child.name) instance.name = child.name as string;
-      if (child.width != null || child.height != null) {
-        instance.resize(
-          (child.width as number) ?? instance.width,
-          (child.height as number) ?? instance.height,
+      if (childType === 'text') {
+        const text = figma.createText();
+        await setupText(text, child, ctx);
+        insertOrAppend(parent, text, child.index as number | undefined);
+        // Smart default: text in vertical AL → FILL width + HEIGHT resize
+        inferChildSizing(
+          text,
+          parent,
+          child.layoutSizingHorizontal as string | undefined,
+          child.layoutSizingVertical as string | undefined,
+          ctx.hints,
+          child.width != null,
+          child.height != null,
         );
-      }
-      // Set component properties
-      if (child.properties) {
-        setComponentProperties(instance, child.properties as Record<string, string | boolean>);
-      }
-      insertOrAppend(parent, instance, child.index as number | undefined);
-      inferChildSizing(instance, parent, child.layoutSizingHorizontal as string | undefined, child.layoutSizingVertical as string | undefined, ctx.hints, child.width != null, child.height != null);
-      applySizingOverrides(instance, child);
-      createdNode = instance;
-      results.push({ id: instance.id, type: 'INSTANCE', name: instance.name });
-    } else if (childType === 'ellipse') {
-      const ellipse = figma.createEllipse();
-      const result = await createShapeChild(ellipse, 'ELLIPSE', 'Ellipse', child, parent, ctx);
-      createdNode = ellipse;
-      results.push(result);
-    } else if (childType === 'svg') {
-      const svg = child.svg as string;
-      assertHandler(svg, 'svg child requires svg parameter');
-      const svgNode = figma.createNodeFromSvg(svg);
-      svgNode.name = (child.name as string) ?? 'SVG';
-      if (child.width != null || child.height != null) {
-        svgNode.resize(
-          (child.width as number) ?? svgNode.width,
-          (child.height as number) ?? svgNode.height,
-        );
-      }
-      insertOrAppend(parent, svgNode, child.index as number | undefined);
-      inferChildSizing(svgNode, parent, child.layoutSizingHorizontal as string | undefined, child.layoutSizingVertical as string | undefined, ctx.hints, child.width != null, child.height != null);
-      applySizingOverrides(svgNode, child);
-      createdNode = svgNode;
-      results.push({ id: svgNode.id, type: 'FRAME', name: svgNode.name });
-    } else if (childType === 'star') {
-      const star = figma.createStar();
-      if (child.pointCount != null) star.pointCount = child.pointCount as number;
-      if (child.innerRadius != null) star.innerRadius = child.innerRadius as number;
-      const result = await createShapeChild(star, 'STAR', 'Star', child, parent, ctx);
-      createdNode = star;
-      results.push(result);
-    } else if (childType === 'polygon') {
-      const polygon = figma.createPolygon();
-      if (child.pointCount != null) polygon.pointCount = child.pointCount as number;
-      const result = await createShapeChild(polygon, 'POLYGON', 'Polygon', child, parent, ctx);
-      createdNode = polygon;
-      results.push(result);
-    } else {
-      // frame type (default)
-      const frame = figma.createFrame();
-      try {
-        await setupFrame(frame, child, ctx);
-        insertOrAppend(parent, frame, child.index as number | undefined);
-        // Smart default sizing
-        inferChildSizing(frame, parent, child.layoutSizingHorizontal as string | undefined, child.layoutSizingVertical as string | undefined, ctx.hints, child.width != null, child.height != null);
-        // Explicit sizing overrides smart defaults (AFTER appendChild)
-        applySizingOverrides(frame, child);
-        // Recurse into nested children
-        if (Array.isArray(child.children) && child.children.length > 0) {
-          await createInlineChildren(frame, child.children, ctx, depth + 1);
+        applySizingOverrides(text, child);
+        // Text in vertical auto-layout: default to HEIGHT auto-resize when FILL width
+        if (!child.textAutoResize && !child.width && parent.layoutMode === 'VERTICAL') {
+          text.textAutoResize = 'HEIGHT';
         }
-        createdNode = frame;
-        results.push({ id: frame.id, type: 'FRAME', name: frame.name });
-      } catch (e) {
-        frame.remove();
-        throw e;
+        createdNode = text;
+        results.push({ id: text.id, type: 'TEXT', name: text.name });
+      } else if (childType === 'rectangle') {
+        const rect = figma.createRectangle();
+        const result = await createShapeChild(rect, 'RECTANGLE', 'Rectangle', child, parent, ctx, {
+          supportsCornerRadius: true,
+        });
+        createdNode = rect;
+        results.push(result);
+      } else if (childType === 'instance') {
+        const componentId = child.componentId as string;
+        assertHandler(componentId, 'instance child requires componentId');
+        const cNode = await findNodeByIdAsync(componentId);
+        assertHandler(cNode, `Component not found: ${componentId}`, 'NOT_FOUND');
+
+        const component = resolveComponent(cNode, child.variantProperties as Record<string, string> | undefined);
+
+        const instance = component.createInstance();
+        if (child.name) instance.name = child.name as string;
+        if (child.width != null || child.height != null) {
+          instance.resize((child.width as number) ?? instance.width, (child.height as number) ?? instance.height);
+        }
+        // Set component properties
+        if (child.properties) {
+          setComponentProperties(instance, child.properties as Record<string, string | boolean>);
+        }
+        insertOrAppend(parent, instance, child.index as number | undefined);
+        inferChildSizing(
+          instance,
+          parent,
+          child.layoutSizingHorizontal as string | undefined,
+          child.layoutSizingVertical as string | undefined,
+          ctx.hints,
+          child.width != null,
+          child.height != null,
+        );
+        applySizingOverrides(instance, child);
+        createdNode = instance;
+        results.push({ id: instance.id, type: 'INSTANCE', name: instance.name });
+      } else if (childType === 'ellipse') {
+        const ellipse = figma.createEllipse();
+        const result = await createShapeChild(ellipse, 'ELLIPSE', 'Ellipse', child, parent, ctx);
+        createdNode = ellipse;
+        results.push(result);
+      } else if (childType === 'svg') {
+        const svg = child.svg as string;
+        assertHandler(svg, 'svg child requires svg parameter');
+        const svgNode = figma.createNodeFromSvg(svg);
+        svgNode.name = (child.name as string) ?? 'SVG';
+        if (child.width != null || child.height != null) {
+          svgNode.resize((child.width as number) ?? svgNode.width, (child.height as number) ?? svgNode.height);
+        }
+        insertOrAppend(parent, svgNode, child.index as number | undefined);
+        inferChildSizing(
+          svgNode,
+          parent,
+          child.layoutSizingHorizontal as string | undefined,
+          child.layoutSizingVertical as string | undefined,
+          ctx.hints,
+          child.width != null,
+          child.height != null,
+        );
+        applySizingOverrides(svgNode, child);
+        createdNode = svgNode;
+        results.push({ id: svgNode.id, type: 'FRAME', name: svgNode.name });
+      } else if (childType === 'star') {
+        const star = figma.createStar();
+        if (child.pointCount != null) star.pointCount = child.pointCount as number;
+        if (child.innerRadius != null) star.innerRadius = child.innerRadius as number;
+        const result = await createShapeChild(star, 'STAR', 'Star', child, parent, ctx);
+        createdNode = star;
+        results.push(result);
+      } else if (childType === 'polygon') {
+        const polygon = figma.createPolygon();
+        if (child.pointCount != null) polygon.pointCount = child.pointCount as number;
+        const result = await createShapeChild(polygon, 'POLYGON', 'Polygon', child, parent, ctx);
+        createdNode = polygon;
+        results.push(result);
+      } else {
+        // frame type (default)
+        const frame = figma.createFrame();
+        try {
+          await setupFrame(frame, child, ctx);
+          insertOrAppend(parent, frame, child.index as number | undefined);
+          // Smart default sizing
+          inferChildSizing(
+            frame,
+            parent,
+            child.layoutSizingHorizontal as string | undefined,
+            child.layoutSizingVertical as string | undefined,
+            ctx.hints,
+            child.width != null,
+            child.height != null,
+          );
+          // Explicit sizing overrides smart defaults (AFTER appendChild)
+          applySizingOverrides(frame, child);
+          // Recurse into nested children
+          if (Array.isArray(child.children) && child.children.length > 0) {
+            await createInlineChildren(frame, child.children, ctx, depth + 1);
+          }
+          createdNode = frame;
+          results.push({ id: frame.id, type: 'FRAME', name: frame.name });
+        } catch (e) {
+          frame.remove();
+          throw e;
+        }
       }
-    }
     } catch (e) {
       // Clean up orphaned node on failure (frame type handles its own cleanup above)
       if (createdNode) {
-        try { createdNode.remove(); } catch { /* already removed */ }
+        try {
+          createdNode.remove();
+        } catch {
+          /* already removed */
+        }
       }
       throw e;
     }
@@ -1148,7 +1346,9 @@ function postCreationValidation(frame: FrameNode, warnings: string[]): void {
     if (h > 0 && w > 0) {
       const ratio = Math.max(w, h) / Math.min(w, h);
       if (ratio > 20) {
-        warnings.push(`Root frame abnormal aspect ratio (${w}×${h}, ratio ${ratio.toFixed(0)}:1) — likely a sizing issue`);
+        warnings.push(
+          `Root frame abnormal aspect ratio (${w}×${h}, ratio ${ratio.toFixed(0)}:1) — likely a sizing issue`,
+        );
       }
     }
 
@@ -1166,7 +1366,9 @@ function postCreationValidation(frame: FrameNode, warnings: string[]): void {
           const cw = (child as any).width as number;
           const ch = (child as any).height as number;
           if (cx + cw > w + 2 || cy + ch > h + 2) {
-            warnings.push(`Child "${child.name}" (${Math.round(cw)}×${Math.round(ch)}) overflows root (${w}×${h}) in absolute layout`);
+            warnings.push(
+              `Child "${child.name}" (${Math.round(cw)}×${Math.round(ch)}) overflows root (${w}×${h}) in absolute layout`,
+            );
           }
         }
       }
@@ -1193,7 +1395,7 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
     }
     if (preValidation.inferences.length > 0) {
       result.inferences = preValidation.inferences;
-      const hasAmbiguity = preValidation.inferences.some(i => i.confidence === 'ambiguous');
+      const hasAmbiguity = preValidation.inferences.some((i) => i.confidence === 'ambiguous');
       if (hasAmbiguity) {
         result.ambiguous = true;
         result.diff = formatDiff(preValidation.inferences);
@@ -1208,7 +1410,7 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
   }
 
   // ── Two-Path Authoring: branch on access tier for ambiguous inferences ──
-  const hasAmbiguousInference = preValidation.inferences.some(i => i.confidence === 'ambiguous');
+  const hasAmbiguousInference = preValidation.inferences.some((i) => i.confidence === 'ambiguous');
   if (hasAmbiguousInference) {
     const canEdit = !!(params._caps as Record<string, unknown> | undefined)?.edit;
     const diff = formatDiff(preValidation.inferences);
@@ -1243,7 +1445,9 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
           status: 'staged',
           diff,
           correctedPayload,
-          _typedHints: [{ type: 'warn' as const, message: `Ambiguous layout staged — use commit to finalize or discard.` }],
+          _typedHints: [
+            { type: 'warn' as const, message: `Ambiguous layout staged — use commit to finalize or discard.` },
+          ],
         };
       } catch (e) {
         stageFrame.remove();
@@ -1273,7 +1477,15 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
       }
     }
 
-    inferChildSizing(frame, parentNode, params.layoutSizingHorizontal as string | undefined, params.layoutSizingVertical as string | undefined, ctx.hints, params.width != null, params.height != null);
+    inferChildSizing(
+      frame,
+      parentNode,
+      params.layoutSizingHorizontal as string | undefined,
+      params.layoutSizingVertical as string | undefined,
+      ctx.hints,
+      params.width != null,
+      params.height != null,
+    );
     applySizingOverrides(frame, params);
 
     let childResults: Array<{ id: string; type: string; name: string }> | undefined;
@@ -1296,7 +1508,7 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
       ...structuredHintsToInferences(ctx.hints, rootName),
     ];
     if (allInferences.length > 0) {
-      const ambiguousInferences = allInferences.filter(i => i.confidence === 'ambiguous');
+      const ambiguousInferences = allInferences.filter((i) => i.confidence === 'ambiguous');
       // Only include ambiguous inferences in response (deterministic ones are noise)
       if (ambiguousInferences.length > 0) {
         out._inferences = ambiguousInferences;
@@ -1307,12 +1519,9 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
     }
 
     // Attach typed hints for batch aggregation — cap at 10 most important
-    const typedHints: Hint[] = [
-      ...structuredHintsToTyped(ctx.hints),
-      ...ctx.typedHints,
-    ];
+    const typedHints: Hint[] = [...structuredHintsToTyped(ctx.hints), ...ctx.typedHints];
     if (ctx.warnings.length > 0) {
-      typedHints.push(...ctx.warnings.map(w => ({ type: 'error' as const, message: w })));
+      typedHints.push(...ctx.warnings.map((w) => ({ type: 'error' as const, message: w })));
     }
     if (typedHints.length > 0) {
       const priority: Record<string, number> = { error: 0, warn: 1, suggest: 2, confirm: 3 };
@@ -1337,7 +1546,9 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
         }
         const lintSummary = await quickLintSummary(frame.id, true, skipRules.size > 0 ? skipRules : undefined);
         if (lintSummary) out._lintSummary = lintSummary;
-      } catch { /* lint failure should not block creation */ }
+      } catch {
+        /* lint failure should not block creation */
+      }
     }
 
     // Preview hint: node is auto-focused in Figma viewport; AI can call export_image for visual verification
@@ -1371,15 +1582,22 @@ async function createSingleText(params: Record<string, unknown>): Promise<Record
 
     // ── Smart default sizing (AFTER appendChild) ──
     inferChildSizing(
-      text, parentNode,
+      text,
+      parentNode,
       params.layoutSizingHorizontal as string | undefined,
       params.layoutSizingVertical as string | undefined,
       ctx.hints,
-      params.width != null, params.height != null,
+      params.width != null,
+      params.height != null,
     );
     applySizingOverrides(text, params);
-    if (!params.textAutoResize && !params.width && parentNode && 'layoutMode' in parentNode
-        && (parentNode as FrameNode).layoutMode === 'VERTICAL') {
+    if (
+      !params.textAutoResize &&
+      !params.width &&
+      parentNode &&
+      'layoutMode' in parentNode &&
+      (parentNode as FrameNode).layoutMode === 'VERTICAL'
+    ) {
       text.textAutoResize = 'HEIGHT';
     }
 
@@ -1389,12 +1607,9 @@ async function createSingleText(params: Record<string, unknown>): Promise<Record
     // _hints removed — _typedHints carries the same info
     if (ctx.warnings.length > 0) out._warnings = ctx.warnings;
     // Attach typed hints for batch aggregation — cap at 10
-    const typedHints: Hint[] = [
-      ...structuredHintsToTyped(ctx.hints),
-      ...ctx.typedHints,
-    ];
+    const typedHints: Hint[] = [...structuredHintsToTyped(ctx.hints), ...ctx.typedHints];
     if (ctx.warnings.length > 0) {
-      typedHints.push(...ctx.warnings.map(w => ({ type: 'error' as const, message: w })));
+      typedHints.push(...ctx.warnings.map((w) => ({ type: 'error' as const, message: w })));
     }
     if (typedHints.length > 0) out._typedHints = typedHints;
     return out;
@@ -1405,143 +1620,157 @@ async function createSingleText(params: Record<string, unknown>): Promise<Record
 }
 
 export function registerCreateHandlers(): void {
+  registerHandler('create_frame', async (params) => {
+    // ── Batch mode: items[] array ──
+    if (Array.isArray(params.items)) {
+      const items = params.items as Array<Record<string, unknown>>;
+      assertHandler(items.length > 0, 'items array must not be empty');
+      assertHandler(items.length <= 20, 'Maximum 20 frames per batch');
 
-registerHandler('create_frame', async (params) => {
-  // ── Batch mode: items[] array ──
-  if (Array.isArray(params.items)) {
-    const items = params.items as Array<Record<string, unknown>>;
-    assertHandler(items.length > 0, 'items array must not be empty');
-    assertHandler(items.length <= 20, 'Maximum 20 frames per batch');
-
-    // Pre-validate all parentIds before starting batch creation
-    const uniqueParentIds = [...new Set(items.map(i => i.parentId as string | undefined).filter(Boolean))] as string[];
-    for (const pid of uniqueParentIds) {
-      const node = await findNodeByIdAsync(pid);
-      if (!node) throw new Error(`Batch aborted: parentId "${pid}" not found — no nodes were created`);
-      if (!('appendChild' in node)) throw new Error(`Batch aborted: parentId "${pid}" is not a container — no nodes were created`);
-    }
-
-    const results: Array<{ id: string; name: string; ok: boolean; error?: string }> = [];
-    const allHints: Hint[] = [];
-    const allInferences: Inference[] = [];
-    const progressId = items.length > 3 ? (params._commandId as string | undefined) : undefined;
-    if (progressId) sendBatchProgress(progressId, 0, items.length);
-    for (const [idx, item] of items.entries()) {
-      try {
-        const out = await createSingleFrame(item, true); // skip per-item lint
-        results.push({ id: (out as any).id, name: (out as any).name, ok: true });
-        // Collect typed hints from per-item results
-        if (out._typedHints) {
-          allHints.push(...(out._typedHints as Hint[]));
-          delete out._typedHints;
-        }
-        // Collect inferences for aggregated skipRules
-        if (out._inferences) {
-          allInferences.push(...(out._inferences as Inference[]));
-          delete out._inferences;
-        }
-      } catch (err) {
-        results.push({
-          id: '',
-          name: (item.name as string) ?? 'Frame',
-          ok: false,
-          error: err instanceof Error ? err.message : String(err),
-        });
+      // Pre-validate all parentIds before starting batch creation
+      const uniqueParentIds = [
+        ...new Set(items.map((i) => i.parentId as string | undefined).filter(Boolean)),
+      ] as string[];
+      for (const pid of uniqueParentIds) {
+        const node = await findNodeByIdAsync(pid);
+        if (!node) throw new Error(`Batch aborted: parentId "${pid}" not found — no nodes were created`);
+        if (!('appendChild' in node))
+          throw new Error(`Batch aborted: parentId "${pid}" is not a container — no nodes were created`);
       }
-      if (progressId && (idx + 1) % 3 === 0) sendBatchProgress(progressId, idx + 1, items.length);
-    }
-    if (progressId) sendBatchProgress(progressId, items.length, items.length);
-    // Run lint once for all created frames (instead of per-item)
-    const createdIds = results.filter(r => r.ok && r.id).map(r => r.id);
-    let batchLintSummary: unknown = undefined;
-    if (createdIds.length > 0) {
-      try {
-        // Build aggregated skipRules from all items' inferences
-        const batchSkipRules = new Set<string>();
-        for (const inf of allInferences) {
-          if (inf.field === 'type' && inf.to === 'rectangle') batchSkipRules.add('spacer-frame');
-          else if (inf.field === 'layoutMode') batchSkipRules.add('no-autolayout');
-          const mapped = PRE_RULE_TO_LINT_RULE[inf.field];
-          if (mapped) batchSkipRules.add(mapped);
-        }
-        const summaries = await Promise.all(
-          createdIds.map(id => quickLintSummary(id, true, batchSkipRules.size > 0 ? batchSkipRules : undefined))
-        );
-        const perItem: Array<{ nodeId: string; violations: number; autoFixed: number }> = [];
-        let totalViolations = 0;
-        let totalAutoFixed = 0;
-        for (let i = 0; i < createdIds.length; i++) {
-          const s = summaries[i];
-          const v = s?.violations ?? 0;
-          const af = (s as any)?.autoFixed ?? 0;
-          totalViolations += v;
-          totalAutoFixed += af;
-          if (v > 0 || af > 0) perItem.push({ nodeId: createdIds[i], violations: v, autoFixed: af });
-        }
-        if (totalViolations > 0 || totalAutoFixed > 0) {
-          batchLintSummary = { violations: totalViolations, autoFixed: totalAutoFixed, perItem };
-        }
-      } catch { /* lint failure should not block batch */ }
-    }
-    const batchResult: Record<string, unknown> = { created: results.filter(r => r.ok).length, total: items.length, items: results };
-    if (batchLintSummary) batchResult._lintSummary = batchLintSummary;
-    // Aggregate hints: suppress confirmations, dedup suggest/warn, batch hardcoded colors
-    const aggregated = aggregateHints(allHints);
-    if (aggregated.length > 0) batchResult.warnings = aggregated;
-    return batchResult;
-  }
 
-  // ── Single mode (default) ──
-  return createSingleFrame(params as Record<string, unknown>);
-});
-
-registerHandler('create_text', async (params) => {
-  // ── Batch mode: items[] array ──
-  if (Array.isArray(params.items)) {
-    const items = params.items as Array<Record<string, unknown>>;
-    assertHandler(items.length > 0, 'items array must not be empty');
-    assertHandler(items.length <= 50, 'Maximum 50 text nodes per batch');
-
-    // Pre-validate all parentIds before starting batch creation
-    const uniqueParentIds = [...new Set(items.map(i => i.parentId as string | undefined).filter(Boolean))] as string[];
-    for (const pid of uniqueParentIds) {
-      const node = await findNodeByIdAsync(pid);
-      if (!node) throw new Error(`Batch aborted: parentId "${pid}" not found — no nodes were created`);
-      if (!('appendChild' in node)) throw new Error(`Batch aborted: parentId "${pid}" is not a container — no nodes were created`);
-    }
-
-    const results: Array<{ id: string; name: string; ok: boolean; error?: string }> = [];
-    const allHints: Hint[] = [];
-    const textProgressId = items.length > 3 ? (params._commandId as string | undefined) : undefined;
-    if (textProgressId) sendBatchProgress(textProgressId, 0, items.length);
-    for (const [idx, item] of items.entries()) {
-      try {
-        const out = await createSingleText(item);
-        results.push({ id: out.id as string, name: out.name as string, ok: true });
-        // Collect typed hints
-        if (out._typedHints) {
-          allHints.push(...(out._typedHints as Hint[]));
-          delete out._typedHints;
+      const results: Array<{ id: string; name: string; ok: boolean; error?: string }> = [];
+      const allHints: Hint[] = [];
+      const allInferences: Inference[] = [];
+      const progressId = items.length > 3 ? (params._commandId as string | undefined) : undefined;
+      if (progressId) sendBatchProgress(progressId, 0, items.length);
+      for (const [idx, item] of items.entries()) {
+        try {
+          const out = await createSingleFrame(item, true); // skip per-item lint
+          results.push({ id: (out as any).id, name: (out as any).name, ok: true });
+          // Collect typed hints from per-item results
+          if (out._typedHints) {
+            allHints.push(...(out._typedHints as Hint[]));
+            delete out._typedHints;
+          }
+          // Collect inferences for aggregated skipRules
+          if (out._inferences) {
+            allInferences.push(...(out._inferences as Inference[]));
+            delete out._inferences;
+          }
+        } catch (err) {
+          results.push({
+            id: '',
+            name: (item.name as string) ?? 'Frame',
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
-      } catch (err) {
-        results.push({
-          id: '',
-          name: (item.content as string) ?? (item.name as string) ?? 'Text',
-          ok: false,
-          error: err instanceof Error ? err.message : String(err),
-        });
+        if (progressId && (idx + 1) % 3 === 0) sendBatchProgress(progressId, idx + 1, items.length);
       }
-      if (textProgressId && (idx + 1) % 3 === 0) sendBatchProgress(textProgressId, idx + 1, items.length);
+      if (progressId) sendBatchProgress(progressId, items.length, items.length);
+      // Run lint once for all created frames (instead of per-item)
+      const createdIds = results.filter((r) => r.ok && r.id).map((r) => r.id);
+      let batchLintSummary: unknown;
+      if (createdIds.length > 0) {
+        try {
+          // Build aggregated skipRules from all items' inferences
+          const batchSkipRules = new Set<string>();
+          for (const inf of allInferences) {
+            if (inf.field === 'type' && inf.to === 'rectangle') batchSkipRules.add('spacer-frame');
+            else if (inf.field === 'layoutMode') batchSkipRules.add('no-autolayout');
+            const mapped = PRE_RULE_TO_LINT_RULE[inf.field];
+            if (mapped) batchSkipRules.add(mapped);
+          }
+          const summaries = await Promise.all(
+            createdIds.map((id) => quickLintSummary(id, true, batchSkipRules.size > 0 ? batchSkipRules : undefined)),
+          );
+          const perItem: Array<{ nodeId: string; violations: number; autoFixed: number }> = [];
+          let totalViolations = 0;
+          let totalAutoFixed = 0;
+          for (let i = 0; i < createdIds.length; i++) {
+            const s = summaries[i];
+            const v = s?.violations ?? 0;
+            const af = (s as any)?.autoFixed ?? 0;
+            totalViolations += v;
+            totalAutoFixed += af;
+            if (v > 0 || af > 0) perItem.push({ nodeId: createdIds[i], violations: v, autoFixed: af });
+          }
+          if (totalViolations > 0 || totalAutoFixed > 0) {
+            batchLintSummary = { violations: totalViolations, autoFixed: totalAutoFixed, perItem };
+          }
+        } catch {
+          /* lint failure should not block batch */
+        }
+      }
+      const batchResult: Record<string, unknown> = {
+        created: results.filter((r) => r.ok).length,
+        total: items.length,
+        items: results,
+      };
+      if (batchLintSummary) batchResult._lintSummary = batchLintSummary;
+      // Aggregate hints: suppress confirmations, dedup suggest/warn, batch hardcoded colors
+      const aggregated = aggregateHints(allHints);
+      if (aggregated.length > 0) batchResult.warnings = aggregated;
+      return batchResult;
     }
-    if (textProgressId) sendBatchProgress(textProgressId, items.length, items.length);
-    const batchResult: Record<string, unknown> = { created: results.filter(r => r.ok).length, total: items.length, items: results };
-    const aggregated = aggregateHints(allHints);
-    if (aggregated.length > 0) batchResult.warnings = aggregated;
-    return batchResult;
-  }
 
-  // ── Single mode (default) ──
-  return createSingleText(params as Record<string, unknown>);
-});
+    // ── Single mode (default) ──
+    return createSingleFrame(params as Record<string, unknown>);
+  });
 
+  registerHandler('create_text', async (params) => {
+    // ── Batch mode: items[] array ──
+    if (Array.isArray(params.items)) {
+      const items = params.items as Array<Record<string, unknown>>;
+      assertHandler(items.length > 0, 'items array must not be empty');
+      assertHandler(items.length <= 50, 'Maximum 50 text nodes per batch');
+
+      // Pre-validate all parentIds before starting batch creation
+      const uniqueParentIds = [
+        ...new Set(items.map((i) => i.parentId as string | undefined).filter(Boolean)),
+      ] as string[];
+      for (const pid of uniqueParentIds) {
+        const node = await findNodeByIdAsync(pid);
+        if (!node) throw new Error(`Batch aborted: parentId "${pid}" not found — no nodes were created`);
+        if (!('appendChild' in node))
+          throw new Error(`Batch aborted: parentId "${pid}" is not a container — no nodes were created`);
+      }
+
+      const results: Array<{ id: string; name: string; ok: boolean; error?: string }> = [];
+      const allHints: Hint[] = [];
+      const textProgressId = items.length > 3 ? (params._commandId as string | undefined) : undefined;
+      if (textProgressId) sendBatchProgress(textProgressId, 0, items.length);
+      for (const [idx, item] of items.entries()) {
+        try {
+          const out = await createSingleText(item);
+          results.push({ id: out.id as string, name: out.name as string, ok: true });
+          // Collect typed hints
+          if (out._typedHints) {
+            allHints.push(...(out._typedHints as Hint[]));
+            delete out._typedHints;
+          }
+        } catch (err) {
+          results.push({
+            id: '',
+            name: (item.content as string) ?? (item.name as string) ?? 'Text',
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+        if (textProgressId && (idx + 1) % 3 === 0) sendBatchProgress(textProgressId, idx + 1, items.length);
+      }
+      if (textProgressId) sendBatchProgress(textProgressId, items.length, items.length);
+      const batchResult: Record<string, unknown> = {
+        created: results.filter((r) => r.ok).length,
+        total: items.length,
+        items: results,
+      };
+      const aggregated = aggregateHints(allHints);
+      if (aggregated.length > 0) batchResult.warnings = aggregated;
+      return batchResult;
+    }
+
+    // ── Single mode (default) ──
+    return createSingleText(params as Record<string, unknown>);
+  });
 } // registerCreateHandlers

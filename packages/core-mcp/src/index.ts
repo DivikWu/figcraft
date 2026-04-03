@@ -8,20 +8,20 @@
  * Agent can load additional toolsets on demand via load_toolset.
  */
 
+import { startRelay } from '@figcraft/relay';
+import { VERSION } from '@figcraft/shared';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { setBridgeTokenProvider } from './auth.js';
 import { Bridge } from './bridge.js';
 import { registerPrompts } from './prompts/index.js';
 import { registerDesignRulesResources } from './resources/design-rules.js';
-import { setBridgeTokenProvider } from './auth.js';
-import { startRelay } from '@figcraft/relay';
 import {
-  registerAllTools,
-  registerToolsetMetaTools,
   disableNonCoreTools,
   getAccessLevel,
+  registerAllTools,
+  registerToolsetMetaTools,
 } from './tools/toolset-manager.js';
-import { VERSION } from '@figcraft/shared';
 
 const RELAY_URL = process.env.FIGCRAFT_RELAY_URL ?? 'ws://localhost:3055';
 const CHANNEL = process.env.FIGCRAFT_CHANNEL ?? 'figcraft';
@@ -40,7 +40,7 @@ function createRuntime(): McpRuntime {
         'FigCraft is the PRIMARY tool for all Figma creation and modification. ' +
         'When creating or modifying Figma nodes, ALWAYS use FigCraft tools (create_frame, create_text, create_svg, nodes, etc.) ' +
         'instead of any other Figma MCP\'s "use_figma" or equivalent. ' +
-        'FigCraft\'s create_frame includes an Opinion Engine that automatically handles sizing inference, FILL ordering, ' +
+        "FigCraft's create_frame includes an Opinion Engine that automatically handles sizing inference, FILL ordering, " +
         'conflict detection, token binding, and failure cleanup — bypassing it causes common Figma API pitfalls. ' +
         'Mandatory workflow: call get_mode first → follow _workflow instructions → present design proposal → wait for user confirmation → create.',
     },
@@ -88,13 +88,16 @@ export async function runMcpServer(): Promise<void> {
       bridge.setRelayUrl(`ws://localhost:${port}`);
       await bridge.connect();
       console.error(`[FigCraft mcp] embedded relay started on port ${port}`);
-    } catch (relayErr) {
+    } catch (_relayErr) {
       // Port may be occupied by another relay instance — retry connection
       console.error('[FigCraft mcp] embedded relay failed, retrying connection...');
       try {
         await bridge.connect();
       } catch (finalErr) {
-        console.error('[FigCraft mcp] could not connect to relay:', finalErr instanceof Error ? finalErr.message : finalErr);
+        console.error(
+          '[FigCraft mcp] could not connect to relay:',
+          finalErr instanceof Error ? finalErr.message : finalErr,
+        );
       }
     }
   }

@@ -9,5 +9,6 @@ dist/
 .kiro/settings/mcp.json
 .vscode/
 reports/benchmarks/
+coverage/
 .tmp/
 Vibma-main/

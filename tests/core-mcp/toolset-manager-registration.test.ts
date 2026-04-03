@@ -1,9 +1,9 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Bridge } from '../../packages/core-mcp/src/bridge.js';
-import { registerAllTools } from '../../packages/core-mcp/src/tools/toolset-manager.js';
 import { registerGeneratedTools } from '../../packages/core-mcp/src/tools/_generated.js';
 import { GENERATED_BRIDGE_TOOLS } from '../../packages/core-mcp/src/tools/_registry.js';
+import { registerAllTools } from '../../packages/core-mcp/src/tools/toolset-manager.js';
 
 interface FakeRegisteredTool {
   enabled: boolean;
@@ -30,8 +30,12 @@ class FakeMcpServer {
     }
     const handle: FakeRegisteredTool = {
       enabled: true,
-      enable: () => { handle.enabled = true; },
-      disable: () => { handle.enabled = false; },
+      enable: () => {
+        handle.enabled = true;
+      },
+      disable: () => {
+        handle.enabled = false;
+      },
     };
     this._registeredTools[name] = handle;
     return handle;
@@ -55,10 +59,7 @@ describe('generated tool registration', () => {
 
     registerGeneratedTools(server as unknown as McpServer, createBridge(), { include });
 
-    expect(Object.keys(server._registeredTools).sort()).toEqual([
-      'rename_page',
-      'set_selection',
-    ]);
+    expect(Object.keys(server._registeredTools).sort()).toEqual(['rename_page', 'set_selection']);
   });
 });
 

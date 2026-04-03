@@ -2,11 +2,11 @@
  * Tests for layout lint rules: overflow-parent, unbounded-hug, no-autolayout.
  */
 
-import { describe, it, expect } from 'vitest';
-import type { AbstractNode, LintContext } from '../../packages/quality-engine/src/types.js';
+import { describe, expect, it } from 'vitest';
+import { noAutolayoutRule } from '../../packages/quality-engine/src/rules/layout/no-autolayout.js';
 import { overflowParentRule } from '../../packages/quality-engine/src/rules/layout/overflow-parent.js';
 import { unboundedHugRule } from '../../packages/quality-engine/src/rules/layout/unbounded-hug.js';
-import { noAutolayoutRule } from '../../packages/quality-engine/src/rules/layout/no-autolayout.js';
+import type { AbstractNode, LintContext } from '../../packages/quality-engine/src/types.js';
 
 const emptyCtx: LintContext = {
   colorTokens: new Map(),
@@ -29,9 +29,7 @@ describe('overflow-parent', () => {
       width: 350,
       paddingLeft: 20,
       paddingRight: 20,
-      children: [
-        makeNode({ id: '2:1', name: 'Wide Child', width: 400, height: 50 }),
-      ],
+      children: [makeNode({ id: '2:1', name: 'Wide Child', width: 400, height: 50 })],
     });
     const v = overflowParentRule.check(node, emptyCtx);
     expect(v).toHaveLength(1);
@@ -46,9 +44,7 @@ describe('overflow-parent', () => {
       height: 100,
       paddingTop: 10,
       paddingBottom: 10,
-      children: [
-        makeNode({ id: '2:1', name: 'Tall Child', width: 50, height: 120 }),
-      ],
+      children: [makeNode({ id: '2:1', name: 'Tall Child', width: 50, height: 120 })],
     });
     const v = overflowParentRule.check(node, emptyCtx);
     expect(v).toHaveLength(1);
@@ -61,9 +57,7 @@ describe('overflow-parent', () => {
       width: 350,
       paddingLeft: 20,
       paddingRight: 20,
-      children: [
-        makeNode({ id: '2:1', name: 'Good Child', width: 300, height: 50 }),
-      ],
+      children: [makeNode({ id: '2:1', name: 'Good Child', width: 300, height: 50 })],
     });
     const v = overflowParentRule.check(node, emptyCtx);
     expect(v).toHaveLength(0);
@@ -72,9 +66,7 @@ describe('overflow-parent', () => {
   it('ignores non-auto-layout frames', () => {
     const node = makeNode({
       width: 350,
-      children: [
-        makeNode({ id: '2:1', name: 'Wide Child', width: 500, height: 50 }),
-      ],
+      children: [makeNode({ id: '2:1', name: 'Wide Child', width: 500, height: 50 })],
     });
     const v = overflowParentRule.check(node, emptyCtx);
     expect(v).toHaveLength(0);
@@ -84,9 +76,7 @@ describe('overflow-parent', () => {
     const node = makeNode({
       layoutMode: 'VERTICAL',
       width: 350,
-      children: [
-        makeNode({ id: '2:1', name: 'Absolute', width: 500, height: 50, layoutPositioning: 'ABSOLUTE' }),
-      ],
+      children: [makeNode({ id: '2:1', name: 'Absolute', width: 500, height: 50, layoutPositioning: 'ABSOLUTE' })],
     });
     const v = overflowParentRule.check(node, emptyCtx);
     expect(v).toHaveLength(0);
@@ -96,9 +86,7 @@ describe('overflow-parent', () => {
     const node = makeNode({
       layoutMode: 'VERTICAL',
       width: 350,
-      children: [
-        makeNode({ id: '2:1', name: 'Edge', width: 351, height: 50 }),
-      ],
+      children: [makeNode({ id: '2:1', name: 'Edge', width: 351, height: 50 })],
     });
     const v = overflowParentRule.check(node, emptyCtx);
     expect(v).toHaveLength(0);
@@ -110,9 +98,7 @@ describe('overflow-parent', () => {
       width: 400,
       paddingLeft: 40,
       paddingRight: 40,
-      children: [
-        makeNode({ id: '2:1', name: 'Child', width: 330, height: 50 }),
-      ],
+      children: [makeNode({ id: '2:1', name: 'Child', width: 330, height: 50 })],
     });
     const v = overflowParentRule.check(node, emptyCtx);
     // Inner width = 400 - 40 - 40 = 320, child is 330 > 321
@@ -128,13 +114,11 @@ describe('unbounded-hug', () => {
       layoutMode: 'VERTICAL',
       // No explicit width → HUG on horizontal (cross-axis)
       height: 500,
-      children: [
-        makeNode({ id: '2:1', name: 'Stretch Child', layoutAlign: 'STRETCH' } as any),
-      ],
+      children: [makeNode({ id: '2:1', name: 'Stretch Child', layoutAlign: 'STRETCH' } as any)],
     });
     const v = unboundedHugRule.check(node, emptyCtx);
-    expect(v.some(vi => vi.currentValue?.toString().includes('STRETCH'))).toBe(true);
-    expect(v.some(vi => vi.autoFixable)).toBe(true);
+    expect(v.some((vi) => vi.currentValue?.toString().includes('STRETCH'))).toBe(true);
+    expect(v.some((vi) => vi.autoFixable)).toBe(true);
   });
 
   it('passes when cross-axis has explicit dimension', () => {
@@ -142,12 +126,10 @@ describe('unbounded-hug', () => {
       layoutMode: 'VERTICAL',
       width: 350,
       height: 500,
-      children: [
-        makeNode({ id: '2:1', name: 'Stretch Child', layoutAlign: 'STRETCH' } as any),
-      ],
+      children: [makeNode({ id: '2:1', name: 'Stretch Child', layoutAlign: 'STRETCH' } as any)],
     });
     const v = unboundedHugRule.check(node, emptyCtx);
-    const stretchViolations = v.filter(vi => vi.currentValue?.toString().includes('STRETCH'));
+    const stretchViolations = v.filter((vi) => vi.currentValue?.toString().includes('STRETCH'));
     expect(stretchViolations).toHaveLength(0);
   });
 
@@ -156,12 +138,10 @@ describe('unbounded-hug', () => {
       name: 'Card',
       layoutMode: 'VERTICAL',
       // No width, no height → HUG/HUG
-      children: [
-        makeNode({ id: '2:1', name: 'Text', type: 'TEXT' }),
-      ],
+      children: [makeNode({ id: '2:1', name: 'Text', type: 'TEXT' })],
     });
     const v = unboundedHugRule.check(node, emptyCtx);
-    const hugHug = v.filter(vi => vi.severity === 'style');
+    const hugHug = v.filter((vi) => vi.severity === 'style');
     expect(hugHug).toHaveLength(1);
     expect(hugHug[0].currentValue).toContain('both axes');
   });
@@ -170,20 +150,16 @@ describe('unbounded-hug', () => {
     const node = makeNode({
       name: 'Screen Login',
       layoutMode: 'VERTICAL',
-      children: [
-        makeNode({ id: '2:1', name: 'Content', type: 'FRAME' }),
-      ],
+      children: [makeNode({ id: '2:1', name: 'Content', type: 'FRAME' })],
     });
     const v = unboundedHugRule.check(node, emptyCtx);
-    const hugHug = v.filter(vi => vi.severity === 'style');
+    const hugHug = v.filter((vi) => vi.severity === 'style');
     expect(hugHug).toHaveLength(0);
   });
 
   it('ignores non-auto-layout frames', () => {
     const node = makeNode({
-      children: [
-        makeNode({ id: '2:1', name: 'Child' }),
-      ],
+      children: [makeNode({ id: '2:1', name: 'Child' })],
     });
     const v = unboundedHugRule.check(node, emptyCtx);
     expect(v).toHaveLength(0);
@@ -237,10 +213,7 @@ describe('no-autolayout', () => {
   it('passes frame with auto-layout', () => {
     const node = makeNode({
       layoutMode: 'VERTICAL',
-      children: [
-        makeNode({ id: '2:1', name: 'A' }),
-        makeNode({ id: '2:2', name: 'B' }),
-      ],
+      children: [makeNode({ id: '2:1', name: 'A' }), makeNode({ id: '2:2', name: 'B' })],
     });
     const v = noAutolayoutRule.check(node, emptyCtx);
     expect(v).toHaveLength(0);
@@ -248,9 +221,7 @@ describe('no-autolayout', () => {
 
   it('passes frame with single child', () => {
     const node = makeNode({
-      children: [
-        makeNode({ id: '2:1', name: 'Only' }),
-      ],
+      children: [makeNode({ id: '2:1', name: 'Only' })],
     });
     const v = noAutolayoutRule.check(node, emptyCtx);
     expect(v).toHaveLength(0);
@@ -265,10 +236,7 @@ describe('no-autolayout', () => {
   it('ignores non-FRAME types', () => {
     const node = makeNode({
       type: 'COMPONENT',
-      children: [
-        makeNode({ id: '2:1', name: 'A' }),
-        makeNode({ id: '2:2', name: 'B' }),
-      ],
+      children: [makeNode({ id: '2:1', name: 'A' }), makeNode({ id: '2:2', name: 'B' })],
     });
     const v = noAutolayoutRule.check(node, emptyCtx);
     expect(v).toHaveLength(0);

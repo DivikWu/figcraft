@@ -26,8 +26,11 @@ vi.mock('../packages/adapter-figma/src/utils/node-helpers.js', () => ({
   applyTokenFields: vi.fn(),
 }));
 
+import {
+  invalidateModeCache,
+  registerWriteNodeHandlers,
+} from '../../packages/adapter-figma/src/handlers/write-nodes.js';
 import { handlers } from '../../packages/adapter-figma/src/registry.js';
-import { invalidateModeCache, registerWriteNodeHandlers } from '../../packages/adapter-figma/src/handlers/write-nodes.js';
 
 type MockSceneNode = {
   id: string;

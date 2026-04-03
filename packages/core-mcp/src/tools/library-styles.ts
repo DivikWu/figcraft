@@ -5,14 +5,11 @@
  * import_library_style: bridge → Plugin API (figma.importStyleByKeyAsync).
  */
 
-import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { Bridge } from '../bridge.js';
-import {
-  fetchLibraryStyles,
-  fetchStyleNodeDetails,
-} from '../figma-api.js';
+import { z } from 'zod';
 import { getToken } from '../auth.js';
+import type { Bridge } from '../bridge.js';
+import { fetchLibraryStyles, fetchStyleNodeDetails } from '../figma-api.js';
 import { jsonResponse } from './response-helpers.js';
 
 export function registerLibraryStyleTools(server: McpServer, bridge: Bridge): void {
@@ -23,9 +20,7 @@ export function registerLibraryStyleTools(server: McpServer, bridge: Bridge): vo
       'Use get_library_style_details to fetch full properties. ' +
       'Requires Figma OAuth authentication (run figma_login first).',
     {
-      fileKey: z
-        .string()
-        .describe('Figma file key of the library file (from URL: figma.com/design/<fileKey>/...)'),
+      fileKey: z.string().describe('Figma file key of the library file (from URL: figma.com/design/<fileKey>/...)'),
       styleType: z
         .enum(['TEXT', 'FILL', 'EFFECT', 'GRID'])
         .optional()
@@ -39,9 +34,7 @@ export function registerLibraryStyleTools(server: McpServer, bridge: Bridge): vo
       } catch (err) {
         return {
           isError: true,
-          content: [
-            { type: 'text' as const, text: err instanceof Error ? err.message : String(err) },
-          ],
+          content: [{ type: 'text' as const, text: err instanceof Error ? err.message : String(err) }],
         };
       }
     },
@@ -75,9 +68,7 @@ export function registerLibraryStyleTools(server: McpServer, bridge: Bridge): vo
       } catch (err) {
         return {
           isError: true,
-          content: [
-            { type: 'text' as const, text: err instanceof Error ? err.message : String(err) },
-          ],
+          content: [{ type: 'text' as const, text: err instanceof Error ? err.message : String(err) }],
         };
       }
     },
@@ -91,12 +82,8 @@ export function registerLibraryStyleTools(server: McpServer, bridge: Bridge): vo
       'and register them for auto-application. Combines list_library_styles + get_library_style_details + ' +
       'register_library_styles into a single call. Requires Figma OAuth authentication (run figma_login first).',
     {
-      fileKey: z
-        .string()
-        .describe('Figma file key of the library file (from URL: figma.com/design/<fileKey>/...)'),
-      library: z
-        .string()
-        .describe('Library name for registration (e.g. "YAMI-UI-UX-Guidelines")'),
+      fileKey: z.string().describe('Figma file key of the library file (from URL: figma.com/design/<fileKey>/...)'),
+      library: z.string().describe('Library name for registration (e.g. "YAMI-UI-UX-Guidelines")'),
     },
     async ({ fileKey, library }) => {
       try {
@@ -112,7 +99,13 @@ export function registerLibraryStyleTools(server: McpServer, bridge: Bridge): vo
         const details = await fetchStyleNodeDetails(fileKey, token, relevantStyles);
 
         // Step 3: Convert to registration format
-        const textStyles: Array<{ key: string; name: string; fontSize: number; fontFamily: string; fontWeight: string }> = [];
+        const textStyles: Array<{
+          key: string;
+          name: string;
+          fontSize: number;
+          fontFamily: string;
+          fontWeight: string;
+        }> = [];
         const paintStyles: Array<{ key: string; name: string; hex: string }> = [];
         const effectStyles: Array<{ key: string; name: string; effectType: string }> = [];
 
@@ -127,7 +120,9 @@ export function registerLibraryStyleTools(server: McpServer, bridge: Bridge): vo
               fontWeight: fontWeightToString(props.fontWeight),
             });
           } else if (d.style_type === 'FILL') {
-            const props = d.properties as { fills: Array<{ type: string; color?: { r: number; g: number; b: number; a: number }; opacity?: number }> };
+            const props = d.properties as {
+              fills: Array<{ type: string; color?: { r: number; g: number; b: number; a: number }; opacity?: number }>;
+            };
             const solidFill = props.fills.find((f) => f.type === 'SOLID' && f.color);
             if (solidFill?.color) {
               paintStyles.push({
@@ -158,7 +153,9 @@ export function registerLibraryStyleTools(server: McpServer, bridge: Bridge): vo
           if (storedRaw && typeof storedRaw === 'object') {
             stored = storedRaw as RegisteredStyles;
           }
-        } catch { /* first sync, no stored data */ }
+        } catch {
+          /* first sync, no stored data */
+        }
 
         const diff = diffStyles(freshStyles, stored);
         const hasChanges = diff.added.length > 0 || diff.removed.length > 0 || diff.modified.length > 0;
@@ -167,10 +164,7 @@ export function registerLibraryStyleTools(server: McpServer, bridge: Bridge): vo
         let result: unknown;
         if (hasChanges || stored.textStyles.length === 0) {
           // Build changed-only subset (added + modified keys)
-          const changedKeys = new Set([
-            ...diff.added.map((e) => e.key),
-            ...diff.modified.map((e) => e.key),
-          ]);
+          const changedKeys = new Set([...diff.added.map((e) => e.key), ...diff.modified.map((e) => e.key)]);
           const changedStyles: RegisteredStyles = {
             textStyles: textStyles.filter((s) => changedKeys.has(s.key)),
             paintStyles: paintStyles.filter((s) => changedKeys.has(s.key)),
@@ -178,19 +172,28 @@ export function registerLibraryStyleTools(server: McpServer, bridge: Bridge): vo
           };
           const removedKeys = diff.removed.map((e) => e.key);
 
-          result = await bridge.request('register_library_styles_incremental', {
-            library,
-            fullStyles: freshStyles,
-            changedStyles,
-            removedKeys,
-          }, 120_000);
+          result = await bridge.request(
+            'register_library_styles_incremental',
+            {
+              library,
+              fullStyles: freshStyles,
+              changedStyles,
+              removedKeys,
+            },
+            120_000,
+          );
         } else {
           result = { ok: true, registered: { textStyles: 0, paintStyles: 0, effectStyles: 0 }, skipped: 'no changes' };
         }
 
         return jsonResponse({
           ok: true,
-          discovered: { total: allStyles.length, text: textStyles.length, fill: paintStyles.length, effect: effectStyles.length },
+          discovered: {
+            total: allStyles.length,
+            text: textStyles.length,
+            fill: paintStyles.length,
+            effect: effectStyles.length,
+          },
           diff: {
             added: diff.added,
             removed: diff.removed,
@@ -202,9 +205,7 @@ export function registerLibraryStyleTools(server: McpServer, bridge: Bridge): vo
       } catch (err) {
         return {
           isError: true,
-          content: [
-            { type: 'text' as const, text: err instanceof Error ? err.message : String(err) },
-          ],
+          content: [{ type: 'text' as const, text: err instanceof Error ? err.message : String(err) }],
         };
       }
     },
@@ -225,9 +226,7 @@ export function registerLibraryStyleTools(server: McpServer, bridge: Bridge): vo
       } catch (err) {
         return {
           isError: true,
-          content: [
-            { type: 'text' as const, text: err instanceof Error ? err.message : String(err) },
-          ],
+          content: [{ type: 'text' as const, text: err instanceof Error ? err.message : String(err) }],
         };
       }
     },
@@ -316,7 +315,12 @@ function diffStyles(fresh: RegisteredStyles, stored: RegisteredStyles): StyleDif
     } else {
       storedEffectMap.delete(f.key);
       if (f.effectType !== s.effectType) {
-        modified.push({ type: 'effect', key: f.key, name: f.name, changes: { effectType: { old: s.effectType, new: f.effectType } } });
+        modified.push({
+          type: 'effect',
+          key: f.key,
+          name: f.name,
+          changes: { effectType: { old: s.effectType, new: f.effectType } },
+        });
       } else {
         unchanged++;
       }
@@ -347,8 +351,14 @@ function fontWeightToString(weight: number): string {
 }
 
 function rgbaToHex(color: { r: number; g: number; b: number; a?: number }): string {
-  const r = Math.round(color.r * 255).toString(16).padStart(2, '0');
-  const g = Math.round(color.g * 255).toString(16).padStart(2, '0');
-  const b = Math.round(color.b * 255).toString(16).padStart(2, '0');
+  const r = Math.round(color.r * 255)
+    .toString(16)
+    .padStart(2, '0');
+  const g = Math.round(color.g * 255)
+    .toString(16)
+    .padStart(2, '0');
+  const b = Math.round(color.b * 255)
+    .toString(16)
+    .padStart(2, '0');
   return `#${r}${g}${b}`;
 }

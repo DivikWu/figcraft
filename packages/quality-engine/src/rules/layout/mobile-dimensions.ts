@@ -8,8 +8,8 @@
  * Flags screen-like root frames that use legacy or non-standard mobile dimensions.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
 import { DESIGN_CONSTANTS, SCREEN_NAME_RE } from '../../constants.js';
+import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
 
 /** Known standard mobile dimensions [width, height]. */
 const STANDARD_DIMS: Array<{ platform: string; width: number; height: number }> = [
@@ -29,9 +29,7 @@ const LEGACY_DIMS: Array<{ width: number; height: number; suggestion: string }> 
 function isScreenLike(node: AbstractNode): boolean {
   if (node.type !== 'FRAME' && node.type !== 'COMPONENT') return false;
   if (node.role === 'screen' || node.role === 'page') return true;
-  return SCREEN_NAME_RE.test(node.name) &&
-    (node.width ?? 0) >= 300 &&
-    (node.height ?? 0) >= 500;
+  return SCREEN_NAME_RE.test(node.name) && (node.width ?? 0) >= 300 && (node.height ?? 0) >= 500;
 }
 
 function isMobileSized(node: AbstractNode): boolean {
@@ -70,17 +68,19 @@ export const mobileDimensionsRule: LintRule = {
         // Determine the best standard to suggest
         const isIosLike = w <= 400;
         const target = isIosLike ? STANDARD_DIMS[0] : STANDARD_DIMS[1];
-        return [{
-          nodeId: node.id,
-          nodeName: node.name,
-          rule: 'mobile-dimensions',
-          severity: 'style',
-          currentValue: `${w}×${h}`,
-          expectedValue: `${target.width}×${target.height}`,
-          suggestion: `"${node.name}" uses ${legacy.suggestion}`,
-          autoFixable: true,
-          fixData: { fix: 'resize', width: target.width, height: target.height },
-        }];
+        return [
+          {
+            nodeId: node.id,
+            nodeName: node.name,
+            rule: 'mobile-dimensions',
+            severity: 'style',
+            currentValue: `${w}×${h}`,
+            expectedValue: `${target.width}×${target.height}`,
+            suggestion: `"${node.name}" uses ${legacy.suggestion}`,
+            autoFixable: true,
+            fixData: { fix: 'resize', width: target.width, height: target.height },
+          },
+        ];
       }
     }
 
@@ -88,16 +88,18 @@ export const mobileDimensionsRule: LintRule = {
     // (auto-resizing could break existing content layout)
     const isIosLike = w <= 406;
     const target = isIosLike ? STANDARD_DIMS[0] : STANDARD_DIMS[1];
-    return [{
-      nodeId: node.id,
-      nodeName: node.name,
-      rule: 'mobile-dimensions',
-      severity: 'style',
-      currentValue: `${w}×${h}`,
-      expectedValue: `${target.width}×${target.height}`,
-      suggestion: `"${node.name}" uses non-standard mobile dimensions ${w}×${h}. Consider ${target.platform} standard: ${target.width}×${target.height}.`,
-      autoFixable: false,
-    }];
+    return [
+      {
+        nodeId: node.id,
+        nodeName: node.name,
+        rule: 'mobile-dimensions',
+        severity: 'style',
+        currentValue: `${w}×${h}`,
+        expectedValue: `${target.width}×${target.height}`,
+        suggestion: `"${node.name}" uses non-standard mobile dimensions ${w}×${h}. Consider ${target.platform} standard: ${target.width}×${target.height}.`,
+        autoFixable: false,
+      },
+    ];
   },
 
   describeFix(v): FixDescriptor | null {

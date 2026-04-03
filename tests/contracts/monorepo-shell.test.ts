@@ -1,19 +1,19 @@
-import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
 
 describe('monorepo compatibility shell', () => {
   it('keeps root build shell pointed at package-owned server and relay sources', () => {
     const tsupConfig = readFileSync('tsup.config.ts', 'utf-8');
 
-    expect(tsupConfig).toContain("packages/figcraft-design/src/index.ts");
-    expect(tsupConfig).toContain("packages/relay/src/index.ts");
-    expect(tsupConfig).toContain("skills/");
-    expect(tsupConfig).toContain("SKILL.md");
+    expect(tsupConfig).toContain('packages/figcraft-design/src/index.ts');
+    expect(tsupConfig).toContain('packages/relay/src/index.ts');
+    expect(tsupConfig).toContain('skills/');
+    expect(tsupConfig).toContain('SKILL.md');
   });
 
   it('keeps the root plugin build script delegated to adapter-figma', () => {
     const pkg = JSON.parse(readFileSync('package.json', 'utf-8'));
-    expect(pkg.scripts['build:plugin']).toContain("packages/adapter-figma/build.plugin.mjs");
+    expect(pkg.scripts['build:plugin']).toContain('packages/adapter-figma/build.plugin.mjs');
   });
 
   it('removes legacy src compatibility trees now that packages own the runtime sources', () => {

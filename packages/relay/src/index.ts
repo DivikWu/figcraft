@@ -7,10 +7,10 @@
  * Port: 3055 (default), auto-switches to 3056-3060 if occupied.
  */
 
-import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from 'node:http';
-import { WebSocketServer, WebSocket } from 'ws';
-import type { WireMessage, ChannelId } from '@figcraft/shared';
-import { isJoinMessage, isPingMessage, HEARTBEAT_INTERVAL_MS } from '@figcraft/shared';
+import { createServer, type Server as HttpServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import type { ChannelId, WireMessage } from '@figcraft/shared';
+import { HEARTBEAT_INTERVAL_MS, isJoinMessage, isPingMessage } from '@figcraft/shared';
+import { WebSocket, WebSocketServer } from 'ws';
 
 const PORT_RANGE = [3055, 3056, 3057, 3058, 3059, 3060];
 const RELAY_HOST = process.env.FIGCRAFT_RELAY_HOST ?? '127.0.0.1';
@@ -120,12 +120,7 @@ function writeJson(res: ServerResponse, statusCode: number, payload: unknown): v
   res.end(JSON.stringify(payload, null, 2));
 }
 
-function handleObservabilityRequest(
-  req: IncomingMessage,
-  res: ServerResponse,
-  state: RelayState,
-  port: number,
-): void {
+function handleObservabilityRequest(req: IncomingMessage, res: ServerResponse, state: RelayState, port: number): void {
   if (!req.url) {
     writeJson(res, 400, { ok: false, error: 'Missing request URL' });
     return;
@@ -197,7 +192,9 @@ function setupRelay(wss: WebSocketServer, state: RelayState): void {
     const memberRefs: Array<{ channel: ChannelId; member: ChannelMember }> = [];
 
     let alive = true;
-    ws.on('pong', () => { alive = true; });
+    ws.on('pong', () => {
+      alive = true;
+    });
 
     const heartbeat = setInterval(() => {
       if (!alive) {
@@ -245,7 +242,8 @@ function setupRelay(wss: WebSocketServer, state: RelayState): void {
               });
               if (state.stats.sameRoleEvictions > 3) {
                 relayLog('same_role_eviction_warning', {
-                  message: 'Frequent evictions detected — likely multiple MCP server instances connecting to the same channel. Check for duplicate figcraft entries in .mcp.json, .kiro/settings/mcp.json, and .vscode/mcp.json.',
+                  message:
+                    'Frequent evictions detected — likely multiple MCP server instances connecting to the same channel. Check for duplicate figcraft entries in .mcp.json, .kiro/settings/mcp.json, and .vscode/mcp.json.',
                   totalEvictions: state.stats.sameRoleEvictions,
                 });
               }
@@ -301,7 +299,10 @@ function setupRelay(wss: WebSocketServer, state: RelayState): void {
               id: msgAny.id,
               type: 'error',
               channel: msg.channel,
-              error: { code: 'NO_PEER', message: `No peer connected on channel "${msg.channel}" to handle ${msgAny.method}` },
+              error: {
+                code: 'NO_PEER',
+                message: `No peer connected on channel "${msg.channel}" to handle ${msgAny.method}`,
+              },
             });
             ws.send(errPayload);
           } catch {
@@ -407,11 +408,11 @@ function tryListen(port: number): Promise<{ wss: WebSocketServer; server: HttpSe
   });
 }
 
-export async function startRelay(preferredPort?: number): Promise<{ wss: WebSocketServer; server: HttpServer; port: number }> {
+export async function startRelay(
+  preferredPort?: number,
+): Promise<{ wss: WebSocketServer; server: HttpServer; port: number }> {
   const preferred = preferredPort ?? parseInt(process.env.FIGCRAFT_RELAY_PORT ?? '3055', 10);
-  const ports = preferred === 0
-    ? [0]
-    : [preferred, ...PORT_RANGE.filter((p) => p !== preferred)];
+  const ports = preferred === 0 ? [0] : [preferred, ...PORT_RANGE.filter((p) => p !== preferred)];
 
   for (const port of ports) {
     try {
@@ -434,23 +435,24 @@ export async function startRelay(preferredPort?: number): Promise<{ wss: WebSock
   throw new Error(`[FigCraft relay] all ports (${PORT_RANGE.join(', ')}) are in use`);
 }
 
-import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
-const isDirectRun = process.env.FIGCRAFT_RELAY_DIRECT === '1'
-  || !process.argv[1]
-  || resolve(process.argv[1]) === __filename;
+const isDirectRun =
+  process.env.FIGCRAFT_RELAY_DIRECT === '1' || !process.argv[1] || resolve(process.argv[1]) === __filename;
 if (isDirectRun) {
-  startRelay().then(({ wss, server }) => {
-    process.on('SIGINT', () => {
-      relayLog('shutdown');
-      server.close();
-      wss.close();
-      process.exit(0);
+  startRelay()
+    .then(({ wss, server }) => {
+      process.on('SIGINT', () => {
+        relayLog('shutdown');
+        server.close();
+        wss.close();
+        process.exit(0);
+      });
+    })
+    .catch((err) => {
+      relayLog('fatal', { error: err instanceof Error ? err.message : String(err) });
+      process.exit(1);
     });
-  }).catch((err) => {
-    relayLog('fatal', { error: err instanceof Error ? err.message : String(err) });
-    process.exit(1);
-  });
 }

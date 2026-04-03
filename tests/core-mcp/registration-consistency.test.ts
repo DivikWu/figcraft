@@ -6,25 +6,26 @@
  * Feature: endpoint-mode-refactor, Property 12: 注册文件与 Toolset 归属一致性
  * Validates: Requirements 9.2
  */
-import { describe, it, expect } from 'vitest';
-import fc from 'fast-check';
+
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import fc from 'fast-check';
+import { describe, expect, it } from 'vitest';
 import {
   GENERATED_BRIDGE_TOOLS,
   GENERATED_CORE_TOOLS,
   GENERATED_CUSTOM_TOOLS,
-  GENERATED_TOOLSETS,
-  GENERATED_ENDPOINT_TOOLS,
   GENERATED_ENDPOINT_REPLACES,
+  GENERATED_ENDPOINT_TOOLS,
   GENERATED_REMOVED_TOOLS,
+  GENERATED_TOOLSETS,
 } from '../../packages/core-mcp/src/tools/_registry.js';
 
 // ─── 1. get_reactions belongs to prototype toolset (not core / nodes) ───
 
 describe('get_reactions toolset assignment', () => {
   it('get_reactions is in the prototype toolset', () => {
-    const prototypeTools = GENERATED_TOOLSETS['prototype']?.tools ?? [];
+    const prototypeTools = GENERATED_TOOLSETS.prototype?.tools ?? [];
     expect(prototypeTools).toContain('get_reactions');
   });
 
@@ -88,10 +89,7 @@ describe('endpoint tools are core tools', () => {
       );
       if (isToolsetEndpoint) continue;
 
-      expect(
-        GENERATED_CORE_TOOLS.has(ep),
-        `Endpoint tool "${ep}" should be in GENERATED_CORE_TOOLS`,
-      ).toBe(true);
+      expect(GENERATED_CORE_TOOLS.has(ep), `Endpoint tool "${ep}" should be in GENERATED_CORE_TOOLS`).toBe(true);
     }
   });
 });
@@ -167,17 +165,14 @@ describe('Feature: endpoint-mode-refactor, Property 12: 注册文件与 Toolset 
      * We use fast-check to sample from the actual toolset names.
      */
     fc.assert(
-      fc.property(
-        fc.constantFrom(...toolsetNames),
-        (toolsetName) => {
-          const tools = GENERATED_TOOLSETS[toolsetName].tools;
-          const uniqueTools = new Set(tools);
-          expect(
-            uniqueTools.size,
-            `Toolset "${toolsetName}" has duplicate tools: ${tools.filter((t, i) => tools.indexOf(t) !== i).join(', ')}`,
-          ).toBe(tools.length);
-        },
-      ),
+      fc.property(fc.constantFrom(...toolsetNames), (toolsetName) => {
+        const tools = GENERATED_TOOLSETS[toolsetName].tools;
+        const uniqueTools = new Set(tools);
+        expect(
+          uniqueTools.size,
+          `Toolset "${toolsetName}" has duplicate tools: ${tools.filter((t, i) => tools.indexOf(t) !== i).join(', ')}`,
+        ).toBe(tools.length);
+      }),
       { numRuns: Math.max(100, toolsetNames.length * 10) },
     );
   });

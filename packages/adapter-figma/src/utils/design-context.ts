@@ -7,7 +7,7 @@
  * - Typography mapping built on first text creation (imports font-size vars to read values)
  */
 
-import { STORAGE_KEYS, LOCAL_LIBRARY } from '../constants.js';
+import { LOCAL_LIBRARY, STORAGE_KEYS } from '../constants.js';
 import { registerCache } from './cache-manager.js';
 
 // ─── Types ───
@@ -149,7 +149,9 @@ async function getEffectiveMappings(libraryName: string): Promise<Record<string,
     return customMappingsCache.mappings ?? DEFAULT_MAPPINGS;
   }
   try {
-    const stored = await figma.clientStorage.getAsync(`${STORAGE_KEYS.ROLE_MAPPINGS_PREFIX}${libraryName}`) as string | undefined;
+    const stored = (await figma.clientStorage.getAsync(`${STORAGE_KEYS.ROLE_MAPPINGS_PREFIX}${libraryName}`)) as
+      | string
+      | undefined;
     if (stored) {
       const custom = JSON.parse(stored) as Record<string, string[]>;
       // Merge: custom entries take precedence, default entries fill gaps
@@ -161,7 +163,9 @@ async function getEffectiveMappings(libraryName: string): Promise<Record<string,
       customMappingsCache = { library: libraryName, mappings: merged };
       return merged;
     }
-  } catch (err) { console.warn('[figcraft] storage parse error:', err instanceof Error ? err.message : String(err)); }
+  } catch (err) {
+    console.warn('[figcraft] storage parse error:', err instanceof Error ? err.message : String(err));
+  }
   customMappingsCache = { library: libraryName, mappings: null };
   return DEFAULT_MAPPINGS;
 }
@@ -177,8 +181,10 @@ async function getEffectiveMappings(libraryName: string): Promise<Record<string,
 async function resolveVariableLibraryName(displayName: string): Promise<string> {
   if (displayName === LOCAL_LIBRARY) return displayName;
   try {
-    const entriesRaw = await figma.clientStorage.getAsync(STORAGE_KEYS.LIBRARY_URLS) as
-      Record<string, { name: string; variableLibraryName?: string }> | null;
+    const entriesRaw = (await figma.clientStorage.getAsync(STORAGE_KEYS.LIBRARY_URLS)) as Record<
+      string,
+      { name: string; variableLibraryName?: string }
+    > | null;
     if (entriesRaw && typeof entriesRaw === 'object') {
       for (const entry of Object.values(entriesRaw)) {
         if (entry && entry.name === displayName && entry.variableLibraryName) {
@@ -186,7 +192,9 @@ async function resolveVariableLibraryName(displayName: string): Promise<string> 
         }
       }
     }
-  } catch (err) { console.warn('[figcraft] storage write error:', err instanceof Error ? err.message : String(err)); }
+  } catch (err) {
+    console.warn('[figcraft] storage write error:', err instanceof Error ? err.message : String(err));
+  }
   return displayName;
 }
 
@@ -288,9 +296,7 @@ async function getTypographyMapping(libraryName: string): Promise<Map<number, Ty
   }
 
   const collections = await getCollectionIndex(libraryName);
-  const typoCol = collections.find(
-    (c) => c.name.includes('typography') && !c.name.includes('primitives'),
-  );
+  const typoCol = collections.find((c) => c.name.includes('typography') && !c.name.includes('primitives'));
   if (!typoCol) {
     const emptyMap = new Map<number, TypographyBinding>();
     typoMapCache = { library: libraryName, map: emptyMap };
@@ -326,14 +332,14 @@ async function getTypographyMapping(libraryName: string): Promise<Map<number, Ty
   for (const r of importResults) {
     if (r.status === 'fulfilled') {
       try {
-        const collection = await figma.variables.getVariableCollectionByIdAsync(
-          r.value.imported.variableCollectionId,
-        );
+        const collection = await figma.variables.getVariableCollectionByIdAsync(r.value.imported.variableCollectionId);
         if (collection) {
           resolvedModeId = collection.modes[0].modeId;
           break;
         }
-      } catch { /* try next */ }
+      } catch {
+        /* try next */
+      }
     }
   }
 
@@ -364,20 +370,18 @@ async function getTypographyMapping(libraryName: string): Promise<Map<number, Ty
  * Get lightweight design context for get_mode response.
  * Only loads collection index (1 API call), then resolves defaults and typography in parallel.
  */
-export async function getLibraryDesignContext(
-  libraryName: string,
-): Promise<DesignContextResult> {
+export async function getLibraryDesignContext(libraryName: string): Promise<DesignContextResult> {
   const collections = await getCollectionIndex(libraryName);
 
   // Run defaults and typography loading in parallel to avoid sequential 8s+8s+8s
-  const typoCol = collections.find(
-    (c) => c.name.includes('typography') && !c.name.includes('primitives'),
-  );
+  const typoCol = collections.find((c) => c.name.includes('typography') && !c.name.includes('primitives'));
 
   const [defaults, typographyScales] = await Promise.all([
     resolveDefaults(libraryName),
     typoCol
-      ? getCollectionVariables(typoCol.key).then(extractTypographyScales).catch(() => [] as string[])
+      ? getCollectionVariables(typoCol.key)
+          .then(extractTypographyScales)
+          .catch(() => [] as string[])
       : Promise.resolve([] as string[]),
     // Preheat typography mapping in parallel — avoids cold-start latency on first text creation
     typoCol ? getTypographyMapping(libraryName).catch(() => {}) : Promise.resolve(),
@@ -407,9 +411,7 @@ export async function getLocalDesignContext(): Promise<DesignContextResult> {
 
   // Resolve defaults from local color variables (parallel load)
   const allVarIds = localCollections.flatMap((col) => col.variableIds);
-  const varResults = await Promise.allSettled(
-    allVarIds.map((varId) => figma.variables.getVariableByIdAsync(varId)),
-  );
+  const varResults = await Promise.allSettled(allVarIds.map((varId) => figma.variables.getVariableByIdAsync(varId)));
   const allVars: DesignVariable[] = [];
   for (const r of varResults) {
     if (r.status === 'fulfilled' && r.value) {
@@ -422,7 +424,10 @@ export async function getLocalDesignContext(): Promise<DesignContextResult> {
   for (const [role, candidates] of Object.entries(mappings)) {
     defaults[role] = null;
     for (const name of candidates) {
-      if (nameMap.has(name)) { defaults[role] = nameMap.get(name)!; break; }
+      if (nameMap.has(name)) {
+        defaults[role] = nameMap.get(name)!;
+        break;
+      }
     }
   }
 
@@ -497,24 +502,22 @@ async function _autoBindDefaultImpl(
   libraryName: string,
 ): Promise<string | null> {
   try {
-    const defaults = libraryName === LOCAL_LIBRARY
-      ? (await getLocalDesignContext()).defaults
-      : await resolveDefaults(libraryName);
+    const defaults =
+      libraryName === LOCAL_LIBRARY ? (await getLocalDesignContext()).defaults : await resolveDefaults(libraryName);
 
     const defaultVar = defaults[role];
     if (!defaultVar) return null;
 
-    const variable = libraryName === LOCAL_LIBRARY
-      ? await figma.variables.getVariableByIdAsync(defaultVar.key)
-      : await cachedImportVariable(defaultVar.key, `importVariable(${defaultVar.name})`);
+    const variable =
+      libraryName === LOCAL_LIBRARY
+        ? await figma.variables.getVariableByIdAsync(defaultVar.key)
+        : await cachedImportVariable(defaultVar.key, `importVariable(${defaultVar.name})`);
 
     if (!variable) return null;
 
-    const fills = [...node.fills as Paint[]];
+    const fills = [...(node.fills as Paint[])];
     if (fills[0]) {
-      fills[0] = figma.variables.setBoundVariableForPaint(
-        fills[0] as SolidPaint, 'color', variable,
-      );
+      fills[0] = figma.variables.setBoundVariableForPaint(fills[0] as SolidPaint, 'color', variable);
       node.fills = fills;
       return defaultVar.name;
     }
@@ -531,24 +534,22 @@ async function _autoBindStrokeDefaultImpl(
   libraryName: string,
 ): Promise<string | null> {
   try {
-    const defaults = libraryName === LOCAL_LIBRARY
-      ? (await getLocalDesignContext()).defaults
-      : await resolveDefaults(libraryName);
+    const defaults =
+      libraryName === LOCAL_LIBRARY ? (await getLocalDesignContext()).defaults : await resolveDefaults(libraryName);
 
     const defaultVar = defaults[role];
     if (!defaultVar) return null;
 
-    const variable = libraryName === LOCAL_LIBRARY
-      ? await figma.variables.getVariableByIdAsync(defaultVar.key)
-      : await cachedImportVariable(defaultVar.key, `importVariable(${defaultVar.name})`);
+    const variable =
+      libraryName === LOCAL_LIBRARY
+        ? await figma.variables.getVariableByIdAsync(defaultVar.key)
+        : await cachedImportVariable(defaultVar.key, `importVariable(${defaultVar.name})`);
 
     if (!variable) return null;
 
-    const strokes = [...node.strokes as Paint[]];
+    const strokes = [...(node.strokes as Paint[])];
     if (strokes.length > 0 && strokes[0]) {
-      strokes[0] = figma.variables.setBoundVariableForPaint(
-        strokes[0] as SolidPaint, 'color', variable,
-      );
+      strokes[0] = figma.variables.setBoundVariableForPaint(strokes[0] as SolidPaint, 'color', variable);
       node.strokes = strokes;
       return defaultVar.name;
     }
@@ -596,9 +597,15 @@ async function getLocalColorVarsResolved(): Promise<Array<{ variable: Variable; 
     const val = v.valuesByMode[modeId];
     if (!val || typeof val !== 'object' || !('r' in val)) continue;
     const rgb = val as { r: number; g: number; b: number; a?: number };
-    const r = Math.round(rgb.r * 255).toString(16).padStart(2, '0');
-    const g = Math.round(rgb.g * 255).toString(16).padStart(2, '0');
-    const b = Math.round(rgb.b * 255).toString(16).padStart(2, '0');
+    const r = Math.round(rgb.r * 255)
+      .toString(16)
+      .padStart(2, '0');
+    const g = Math.round(rgb.g * 255)
+      .toString(16)
+      .padStart(2, '0');
+    const b = Math.round(rgb.b * 255)
+      .toString(16)
+      .padStart(2, '0');
     const hex = `#${r}${g}${b}`.toUpperCase();
     const scopes: string[] = (v as any).scopes || [];
     result.push({ variable: v, hex, scopes });
@@ -619,10 +626,7 @@ async function getLocalColorVarsResolved(): Promise<Array<{ variable: Variable; 
  * @param role - Binding context: 'background', 'textColor', or 'border'
  * @returns The matched variable or null
  */
-export async function suggestColorVariable(
-  hex: string,
-  role: string,
-): Promise<Variable | null> {
+export async function suggestColorVariable(hex: string, role: string): Promise<Variable | null> {
   const normalizedHex = hex.replace('#', '').toUpperCase();
   const targetHex = `#${normalizedHex.slice(0, 6)}`;
   const acceptableScopes = ROLE_TO_SCOPES[role];
@@ -633,14 +637,14 @@ export async function suggestColorVariable(
   for (const entry of colorVars) {
     if (entry.hex !== targetHex) continue;
     // Check scope: variable must have at least one acceptable scope, or ALL_SCOPES
-    const hasScope = entry.scopes.length === 0 // no scopes = unrestricted
-      || entry.scopes.includes('ALL_SCOPES')
-      || entry.scopes.some((s) => acceptableScopes.includes(s));
+    const hasScope =
+      entry.scopes.length === 0 || // no scopes = unrestricted
+      entry.scopes.includes('ALL_SCOPES') ||
+      entry.scopes.some((s) => acceptableScopes.includes(s));
     if (hasScope) return entry.variable;
   }
   return null;
 }
-
 
 /**
  * 3-level variable resolution strategy:
@@ -680,17 +684,21 @@ function resolveVariableByName(
         // Level 3: scope disambiguation among candidates
         const scopeMatch = candidates.find((e) => {
           const scopes: string[] = e.scopes ?? (e.variable as any).scopes ?? [];
-          return scopes.length === 0 || scopes.includes('ALL_SCOPES')
-            || scopes.some((s) => preferredScopes.includes(s));
+          return (
+            scopes.length === 0 || scopes.includes('ALL_SCOPES') || scopes.some((s) => preferredScopes.includes(s))
+          );
         });
         if (scopeMatch) return scopeMatch.variable;
       }
       if (candidates.length > 1) {
         // Ambiguity: throw error listing candidates so the agent can self-correct
-        const names = candidates.slice(0, 5).map((e) => `"${e.variable.name}"`).join(', ');
+        const names = candidates
+          .slice(0, 5)
+          .map((e) => `"${e.variable.name}"`)
+          .join(', ');
         throw new Error(
           `Ambiguous variable "${name}": ${candidates.length} matches found [${names}]. ` +
-          `Specify the full path (e.g. "collection/group/name") or use a variable ID.`,
+            `Specify the full path (e.g. "collection/group/name") or use a variable ID.`,
         );
       }
     }
@@ -708,17 +716,19 @@ function resolveVariableByName(
       // Level 3: scope disambiguation
       const scopeMatch = candidates.find((e) => {
         const scopes: string[] = e.scopes ?? (e.variable as any).scopes ?? [];
-        return scopes.length === 0 || scopes.includes('ALL_SCOPES')
-          || scopes.some((s) => preferredScopes.includes(s));
+        return scopes.length === 0 || scopes.includes('ALL_SCOPES') || scopes.some((s) => preferredScopes.includes(s));
       });
       if (scopeMatch) return scopeMatch.variable;
     }
     if (candidates.length > 1) {
       // Ambiguity: throw error listing candidates so the agent can self-correct
-      const names = candidates.slice(0, 5).map((e) => `"${e.variable.name}"`).join(', ');
+      const names = candidates
+        .slice(0, 5)
+        .map((e) => `"${e.variable.name}"`)
+        .join(', ');
       throw new Error(
         `Ambiguous variable "${name}": ${candidates.length} matches found [${names}]. ` +
-        `Specify the full path (e.g. "collection/group/name") or use a variable ID.`,
+          `Specify the full path (e.g. "collection/group/name") or use a variable ID.`,
       );
     }
   }
@@ -827,13 +837,15 @@ async function _autoBindTypographyImpl(
       let minDiff = Infinity;
       for (const [size, b] of map) {
         const diff = Math.abs(size - fontSize);
-        if (diff < minDiff) { minDiff = diff; binding = b; matchedSize = size; }
+        if (diff < minDiff) {
+          minDiff = diff;
+          binding = b;
+          matchedSize = size;
+        }
       }
       // If closest match is more than 2px away, don't auto-bind — just return hint
       if (binding && minDiff > 2) {
-        const availableSizes = [...map.entries()]
-          .sort(([a], [b]) => b - a)
-          .map(([size, b]) => `${b.scale}(${size}px)`);
+        const availableSizes = [...map.entries()].sort(([a], [b]) => b - a).map(([size, b]) => `${b.scale}(${size}px)`);
         return {
           scale: binding.scale,
           exact: false,
@@ -865,8 +877,10 @@ async function _autoBindTypographyImpl(
 
     const importResults = await Promise.allSettled(
       importTasks.map((t) =>
-        cachedImportVariable(t.key, `importVariable(${t.field}:${t.label})`)
-          .then((imported) => ({ field: t.field, imported })),
+        cachedImportVariable(t.key, `importVariable(${t.field}:${t.label})`).then((imported) => ({
+          field: t.field,
+          imported,
+        })),
       ),
     );
 
@@ -880,7 +894,7 @@ async function _autoBindTypographyImpl(
     // Bind remaining fields (best-effort)
     const fieldToBindable: Record<string, string> = {
       fontFamily: 'fontFamily',
-      fontWeight: 'fontStyle',  // Figma maps fontWeight to fontStyle bindable field
+      fontWeight: 'fontStyle', // Figma maps fontWeight to fontStyle bindable field
       lineHeight: 'lineHeight',
     };
     for (let i = 1; i < importResults.length; i++) {
@@ -890,16 +904,17 @@ async function _autoBindTypographyImpl(
         if (bindField) {
           try {
             (node as SceneNode).setBoundVariable(bindField as VariableBindableNodeField, r.value.imported);
-          } catch { /* skip — binding may not be supported for this field */ }
+          } catch {
+            /* skip — binding may not be supported for this field */
+          }
         }
       }
     }
 
     // Build hint for non-exact matches
-    const availableSizes = [...map.entries()]
-      .sort(([a], [b]) => b - a)
-      .map(([size, b]) => `${b.scale}(${size}px)`);
-    const hint = exact ? undefined
+    const availableSizes = [...map.entries()].sort(([a], [b]) => b - a).map(([size, b]) => `${b.scale}(${size}px)`);
+    const hint = exact
+      ? undefined
       : `fontSize ${fontSize}px not in typography scale, matched closest: ${binding.scale}(${matchedSize}px). Available: ${availableSizes.join(', ')}`;
 
     return { scale: binding.scale, exact, requestedSize: fontSize, matchedSize, hint };

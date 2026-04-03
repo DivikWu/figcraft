@@ -2,8 +2,8 @@
  * Tests for lint engine — rule execution, filtering, pagination.
  */
 
-import { describe, it, expect } from 'vitest';
-import { runLint, getAvailableRules } from '../../packages/quality-engine/src/engine.js';
+import { describe, expect, it } from 'vitest';
+import { getAvailableRules, runLint } from '../../packages/quality-engine/src/engine.js';
 import type { AbstractNode, LintContext } from '../../packages/quality-engine/src/types.js';
 import { downgradeSeverity } from '../../packages/quality-engine/src/types.js';
 
@@ -21,9 +21,13 @@ function makeNode(overrides: Partial<AbstractNode>): AbstractNode {
 
 describe('runLint', () => {
   it('returns zero violations for clean node', () => {
-    const node = makeNode({ name: 'Header', type: 'FRAME', children: [
-      makeNode({ id: '2:1', name: 'Title', type: 'TEXT', fontSize: 16, textStyleId: 'S:abc', characters: 'Title' }),
-    ]});
+    const node = makeNode({
+      name: 'Header',
+      type: 'FRAME',
+      children: [
+        makeNode({ id: '2:1', name: 'Title', type: 'TEXT', fontSize: 16, textStyleId: 'S:abc', characters: 'Title' }),
+      ],
+    });
     const report = runLint([node], emptyCtx);
     // May have some violations from layout rules, but naming should pass
     const namingViolations = report.categories.filter((c) => c.rule === 'default-name');
@@ -85,7 +89,10 @@ describe('runLint', () => {
   it('includes bySeverity counts in summary', () => {
     // Use a non-leaf node (with children) and large enough (width >= 48) to avoid context-aware downgrade
     const node = makeNode({
-      name: 'Frame 1', type: 'FRAME', width: 200, height: 200,
+      name: 'Frame 1',
+      type: 'FRAME',
+      width: 200,
+      height: 200,
       children: [makeNode({ id: '2:1', name: 'Child', type: 'FRAME' })],
     });
     const report = runLint([node], emptyCtx, { rules: ['default-name'] });
@@ -102,20 +109,50 @@ describe('runLint', () => {
   it('filters by minSeverity', () => {
     // max-nesting-depth produces style-level violations
     const deep = makeNode({
-      name: 'Root', type: 'FRAME', children: [
-        makeNode({ id: '2:1', name: 'L1', type: 'FRAME', children: [
-          makeNode({ id: '3:1', name: 'L2', type: 'FRAME', children: [
-            makeNode({ id: '4:1', name: 'L3', type: 'FRAME', children: [
-              makeNode({ id: '5:1', name: 'L4', type: 'FRAME', children: [
-                makeNode({ id: '6:1', name: 'L5', type: 'FRAME', children: [
-                  makeNode({ id: '7:1', name: 'L6', type: 'FRAME', children: [
-                    makeNode({ id: '8:1', name: 'L7', type: 'FRAME', children: [] }),
-                  ]}),
-                ]}),
-              ]}),
-            ]}),
-          ]}),
-        ]}),
+      name: 'Root',
+      type: 'FRAME',
+      children: [
+        makeNode({
+          id: '2:1',
+          name: 'L1',
+          type: 'FRAME',
+          children: [
+            makeNode({
+              id: '3:1',
+              name: 'L2',
+              type: 'FRAME',
+              children: [
+                makeNode({
+                  id: '4:1',
+                  name: 'L3',
+                  type: 'FRAME',
+                  children: [
+                    makeNode({
+                      id: '5:1',
+                      name: 'L4',
+                      type: 'FRAME',
+                      children: [
+                        makeNode({
+                          id: '6:1',
+                          name: 'L5',
+                          type: 'FRAME',
+                          children: [
+                            makeNode({
+                              id: '7:1',
+                              name: 'L6',
+                              type: 'FRAME',
+                              children: [makeNode({ id: '8:1', name: 'L7', type: 'FRAME', children: [] })],
+                            }),
+                          ],
+                        }),
+                      ],
+                    }),
+                  ],
+                }),
+              ],
+            }),
+          ],
+        }),
       ],
     });
     const allReport = runLint([deep], emptyCtx, { rules: ['max-nesting-depth'] });
@@ -129,7 +166,9 @@ describe('runLint', () => {
     // no-text-style is a heuristic-level token rule that fires regardless of token context
     // (it checks for missing textStyleId on TEXT nodes)
     const node = makeNode({
-      type: 'TEXT', name: 'Label', fontSize: 16,
+      type: 'TEXT',
+      name: 'Label',
+      fontSize: 16,
       // no textStyleId → triggers no-text-style
     });
     const ctxWithLibrary: LintContext = {

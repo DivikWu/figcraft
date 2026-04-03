@@ -6,11 +6,11 @@
  * fileKey is available.
  */
 
-import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { Bridge } from '../bridge.js';
-import { fetchLibraryComponents, fetchLibraryComponentSets, groupComponentsBySet } from '../figma-api.js';
+import { z } from 'zod';
 import { getToken } from '../auth.js';
+import type { Bridge } from '../bridge.js';
+import { fetchLibraryComponentSets, fetchLibraryComponents, groupComponentsBySet } from '../figma-api.js';
 import { compactResponse, errorResponse } from './response-helpers.js';
 
 // ─── Simple token-based scoring (mirrors plugin-side logic) ───
@@ -48,7 +48,10 @@ export function registerSearchDesignSystemTool(server: McpServer, bridge: Bridge
       'styles before creating UI elements.',
     {
       query: z.string().describe('Search keyword (e.g. "primary", "button", "heading")'),
-      types: z.array(z.string()).optional().describe('Asset types to include: "components", "variables", "styles". Default: all three.'),
+      types: z
+        .array(z.string())
+        .optional()
+        .describe('Asset types to include: "components", "variables", "styles". Default: all three.'),
       limit: z.number().optional().describe('Max results per type (default: 20)'),
     },
     async ({ query, types: typesParam, limit: limitParam }) => {
@@ -78,12 +81,12 @@ export function registerSearchDesignSystemTool(server: McpServer, bridge: Bridge
       // Bridge to plugin for the main search (variables, styles, local components, instance discovery)
       let pluginResult: Record<string, unknown> | null = null;
       try {
-        pluginResult = await bridge.request('search_design_system', {
+        pluginResult = (await bridge.request('search_design_system', {
           query: queryTrimmed,
           types: [...types],
           limit,
           selectedLibrary: bridge.selectedLibrary,
-        }) as Record<string, unknown>;
+        })) as Record<string, unknown>;
       } catch (err) {
         console.warn('[FigCraft] search_design_system plugin bridge failed:', err);
       }
@@ -124,24 +127,40 @@ export function registerSearchDesignSystemTool(server: McpServer, bridge: Bridge
               // Score REST-sourced components
               const restComponents: Array<Record<string, unknown> & { _score: number }> = [];
 
-              for (const cs of (grouped.componentSets || []) as Array<{ name: string; key: string; description?: string }>) {
+              for (const cs of (grouped.componentSets || []) as Array<{
+                name: string;
+                key: string;
+                description?: string;
+              }>) {
                 if (pluginComponentKeys.has(cs.key)) continue;
                 const score = scoreMatch(cs.name, queryTokens);
                 if (score > 0) {
                   restComponents.push({
-                    key: cs.key, name: cs.name, description: cs.description || '',
-                    isSet: true, libraryName: '(library)', _score: score,
+                    key: cs.key,
+                    name: cs.name,
+                    description: cs.description || '',
+                    isSet: true,
+                    libraryName: '(library)',
+                    _score: score,
                   });
                 }
               }
 
-              for (const c of (grouped.standalone || []) as Array<{ name: string; key: string; description?: string }>) {
+              for (const c of (grouped.standalone || []) as Array<{
+                name: string;
+                key: string;
+                description?: string;
+              }>) {
                 if (pluginComponentKeys.has(c.key)) continue;
                 const score = scoreMatch(c.name, queryTokens);
                 if (score > 0) {
                   restComponents.push({
-                    key: c.key, name: c.name, description: c.description || '',
-                    isSet: false, libraryName: '(library)', _score: score,
+                    key: c.key,
+                    name: c.name,
+                    description: c.description || '',
+                    isSet: false,
+                    libraryName: '(library)',
+                    _score: score,
                   });
                 }
               }
@@ -159,8 +178,9 @@ export function registerSearchDesignSystemTool(server: McpServer, bridge: Bridge
                   const existing = (pluginResult.components as unknown[]) || [];
                   pluginResult.components = [...existing, ...cleaned].slice(0, limit);
                   if (pluginResult.summary && typeof pluginResult.summary === 'object') {
-                    (pluginResult.summary as Record<string, number>).components =
-                      (pluginResult.components as unknown[]).length;
+                    (pluginResult.summary as Record<string, number>).components = (
+                      pluginResult.components as unknown[]
+                    ).length;
                   }
                 } else {
                   // Plugin bridge failed — return REST-only results

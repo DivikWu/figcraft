@@ -1,5 +1,5 @@
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
 import { SCREEN_NAME_RE } from '../../constants.js';
+import type { AbstractNode, LintContext, LintRule, LintViolation } from '../../types.js';
 
 function isScreenLike(node: AbstractNode): boolean {
   return node.role === 'screen' || SCREEN_NAME_RE.test(node.name);

@@ -7,14 +7,15 @@
  *
  * **Validates: Requirements 12.5**
  */
-import { describe, it, expect } from 'vitest';
+
 import fc from 'fast-check';
+import { describe, expect, it } from 'vitest';
 import {
   GENERATED_CORE_TOOLS,
-  GENERATED_TOOLSETS,
-  GENERATED_ENDPOINT_TOOLS,
   GENERATED_ENDPOINT_REPLACES,
+  GENERATED_ENDPOINT_TOOLS,
   GENERATED_REMOVED_TOOLS,
+  GENERATED_TOOLSETS,
 } from '../../packages/core-mcp/src/tools/_registry.js';
 
 // ─── Helpers: simulate what toolset-manager does ───
@@ -54,9 +55,7 @@ function simulateEndpointModeDisabled(): Set<string> {
 /**
  * Simulate load_toolset — returns which tools would be enabled vs skipped.
  */
-function simulateLoadToolset(
-  toolsetName: string,
-): { enabled: string[]; skipped: string[] } {
+function simulateLoadToolset(toolsetName: string): { enabled: string[]; skipped: string[] } {
   const def = GENERATED_TOOLSETS[toolsetName];
   if (!def) return { enabled: [], skipped: [] };
 
@@ -113,10 +112,21 @@ describe('endpoint mode tool enable/disable', () => {
 describe('standalone tools are never disabled', () => {
   const standalone = getStandaloneTools();
   const expectedStandalone = [
-    'ping', 'get_mode', 'set_mode', 'get_design_guidelines', 'audit_node',
-    'join_channel', 'get_channel', 'export_image', 'lint_fix_all',
-    'set_current_page', 'save_version_history', 'set_selection',
-    'get_selection', 'get_current_page', 'get_document_info',
+    'ping',
+    'get_mode',
+    'set_mode',
+    'get_design_guidelines',
+    'audit_node',
+    'join_channel',
+    'get_channel',
+    'export_image',
+    'lint_fix_all',
+    'set_current_page',
+    'save_version_history',
+    'set_selection',
+    'get_selection',
+    'get_current_page',
+    'get_document_info',
     'list_fonts',
   ];
 
@@ -159,10 +169,8 @@ describe('load_toolset endpoint awareness', () => {
 
   it('non-replaced flat tools in a toolset are still enabled', () => {
     const { enabled } = simulateLoadToolset('variables');
-    const variablesReplaces = new Set(GENERATED_ENDPOINT_REPLACES['variables_ep'] ?? []);
-    const nonReplacedEnabled = enabled.filter(
-      t => !GENERATED_ENDPOINT_TOOLS.has(t) && !variablesReplaces.has(t),
-    );
+    const variablesReplaces = new Set(GENERATED_ENDPOINT_REPLACES.variables_ep ?? []);
+    const nonReplacedEnabled = enabled.filter((t) => !GENERATED_ENDPOINT_TOOLS.has(t) && !variablesReplaces.has(t));
     expect(nonReplacedEnabled.length).toBeGreaterThan(0);
   });
 
@@ -202,7 +210,7 @@ describe('API mode registry consistency', () => {
   });
 
   it('each removed tool has correct endpoint and method', () => {
-    for (const [toolName, info] of Object.entries(GENERATED_REMOVED_TOOLS)) {
+    for (const [_toolName, info] of Object.entries(GENERATED_REMOVED_TOOLS)) {
       expect(info.endpoint).toBeTruthy();
       expect(info.method).toBeTruthy();
       expect(GENERATED_ENDPOINT_TOOLS.has(info.endpoint)).toBe(true);
@@ -217,8 +225,8 @@ describe('API mode registry consistency', () => {
   });
 
   it('toolset endpoint tools are in their respective toolset', () => {
-    expect(GENERATED_TOOLSETS['variables'].tools).toContain('variables_ep');
-    expect(GENERATED_TOOLSETS['styles'].tools).toContain('styles_ep');
+    expect(GENERATED_TOOLSETS.variables.tools).toContain('variables_ep');
+    expect(GENERATED_TOOLSETS.styles.tools).toContain('styles_ep');
   });
 });
 

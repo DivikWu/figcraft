@@ -76,9 +76,7 @@ export function aggregateHints(allHints: Hint[]): string[] {
 
   if (hardcodedColors.size > 0) {
     const colors = [...hardcodedColors].join(', ');
-    warnings.push(
-      `Hardcoded colors: [${colors}]. Bind with fillVariableName/strokeVariableName.`,
-    );
+    warnings.push(`Hardcoded colors: [${colors}]. Bind with fillVariableName/strokeVariableName.`);
   }
 
   return warnings;
@@ -89,8 +87,8 @@ export function aggregateHints(allHints: Hint[]): string[] {
  * deterministic → confirm (informational), ambiguous → warn (agent may want to override).
  */
 export function structuredHintsToTyped(hints: StructuredHint[]): Hint[] {
-  return hints.map(h => ({
-    type: h.confidence === 'deterministic' ? 'confirm' as const : 'warn' as const,
+  return hints.map((h) => ({
+    type: h.confidence === 'deterministic' ? ('confirm' as const) : ('warn' as const),
     message: `${h.field} → ${JSON.stringify(h.value)} (${h.reason})`,
   }));
 }
@@ -101,8 +99,9 @@ export function structuredHintsToTyped(hints: StructuredHint[]): Hint[] {
  * @deprecated Use structuredHintsToTyped with StructuredHint[] instead.
  */
 export function legacyHintsToTyped(hints: string[]): Hint[] {
-  return hints.map(h => {
-    if (h.startsWith('[deterministic]')) return { type: 'confirm' as const, message: h.replace(/^\[deterministic\]\s*/, '') };
+  return hints.map((h) => {
+    if (h.startsWith('[deterministic]'))
+      return { type: 'confirm' as const, message: h.replace(/^\[deterministic\]\s*/, '') };
     if (h.startsWith('[ambiguous]')) return { type: 'warn' as const, message: h.replace(/^\[ambiguous\]\s*/, '') };
     return { type: 'suggest' as const, message: h };
   });

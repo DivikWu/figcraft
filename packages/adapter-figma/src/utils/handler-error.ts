@@ -20,11 +20,7 @@ export class HandlerError extends Error {
  * Assert a condition, throwing HandlerError if false.
  * Replaces the `if (!x) return { error: ... }` pattern.
  */
-export function assertHandler(
-  condition: unknown,
-  message: string,
-  code = 'HANDLER_ERROR',
-): asserts condition {
+export function assertHandler(condition: unknown, message: string, code = 'HANDLER_ERROR'): asserts condition {
   if (!condition) {
     throw new HandlerError(message, code);
   }

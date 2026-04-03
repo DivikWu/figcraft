@@ -2,9 +2,9 @@
  * Tests for naming lint rules — placeholder-text detection.
  */
 
-import { describe, it, expect } from 'vitest';
-import type { AbstractNode, LintContext } from '../../packages/quality-engine/src/types.js';
+import { describe, expect, it } from 'vitest';
 import { placeholderTextRule } from '../../packages/quality-engine/src/rules/naming/placeholder-text.js';
+import type { AbstractNode, LintContext } from '../../packages/quality-engine/src/types.js';
 
 const emptyCtx: LintContext = {
   colorTokens: new Map(),

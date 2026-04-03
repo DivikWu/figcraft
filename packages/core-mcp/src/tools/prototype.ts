@@ -6,8 +6,8 @@
  * a directed graph of screens/nodes and their navigation relationships.
  */
 
-import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 import type { Bridge } from '../bridge.js';
 import { jsonResponse } from './response-helpers.js';
 
@@ -81,10 +81,7 @@ function normalizeActions(reaction: Reaction): Array<{
   return [];
 }
 
-function buildFlowGraph(
-  reactionNodes: ReactionNode[],
-  nodeNameMap: Map<string, string>,
-): FlowGraph {
+function buildFlowGraph(reactionNodes: ReactionNode[], nodeNameMap: Map<string, string>): FlowGraph {
   const edges: FlowEdge[] = [];
   const triggerCounts: Record<string, number> = {};
   const actionCounts: Record<string, number> = {};
@@ -111,9 +108,7 @@ function buildFlowGraph(
             to: { nodeId: act.destinationId, nodeName: destName },
             trigger,
             action: actionType,
-            transition: act.transition
-              ? `${act.transition.type} ${act.transition.duration}ms`
-              : undefined,
+            transition: act.transition ? `${act.transition.type} ${act.transition.duration}ms` : undefined,
             delay: reaction.trigger?.delay,
           });
 
@@ -148,7 +143,11 @@ function buildFlowGraph(
   const deadEnds = nodes.filter((n) => n.role === 'exit').map((n) => n.nodeId);
 
   return {
-    nodes, edges, entryPoints, deadEnds, loops,
+    nodes,
+    edges,
+    entryPoints,
+    deadEnds,
+    loops,
     stats: {
       totalScreens: nodes.length,
       totalInteractions: edges.length,
@@ -218,9 +217,7 @@ function generateMermaid(graph: FlowGraph, nameMap: Map<string, string>): string
 
   for (const edge of graph.edges) {
     const label = edge.trigger === 'ON_CLICK' ? edge.action : `${edge.trigger} → ${edge.action}`;
-    lines.push(
-      `  ${safeId(edge.from.nodeId)} -->|"${escapeMermaid(label)}"| ${safeId(edge.to.nodeId)}`,
-    );
+    lines.push(`  ${safeId(edge.from.nodeId)} -->|"${escapeMermaid(label)}"| ${safeId(edge.to.nodeId)}`);
   }
 
   return lines.join('\n');
@@ -296,7 +293,7 @@ async function fetchAndBuildGraph(
   bridge: Bridge,
   nodeId?: string,
 ): Promise<{ graph: FlowGraph; nameMap: Map<string, string>; count: number }> {
-  const raw = await bridge.request('get_reactions', nodeId ? { nodeId } : {}) as {
+  const raw = (await bridge.request('get_reactions', nodeId ? { nodeId } : {})) as {
     nodes: ReactionNode[];
     count: number;
   };
@@ -304,7 +301,11 @@ async function fetchAndBuildGraph(
   if (raw.count === 0) {
     return {
       graph: {
-        nodes: [], edges: [], entryPoints: [], deadEnds: [], loops: [],
+        nodes: [],
+        edges: [],
+        entryPoints: [],
+        deadEnds: [],
+        loops: [],
         stats: { totalScreens: 0, totalInteractions: 0, triggerBreakdown: {}, actionBreakdown: {} },
       },
       nameMap: new Map(),
@@ -325,11 +326,11 @@ async function fetchAndBuildGraph(
   }
 
   // Resolve unknown destination names in parallel
-  const unknownIds = [...destIds].filter(id => !nameMap.has(id));
+  const unknownIds = [...destIds].filter((id) => !nameMap.has(id));
   const resolvedNames = await Promise.all(
     unknownIds.map(async (id) => {
       try {
-        const info = await bridge.request('get_node_info', { nodeId: id }) as { name?: string };
+        const info = (await bridge.request('get_node_info', { nodeId: id })) as { name?: string };
         return { id, name: info.name ?? id };
       } catch {
         return { id, name: id };
@@ -355,8 +356,12 @@ export function registerPrototypeTools(server: McpServer, bridge: Bridge): void 
       'Use this after get_reactions for higher-level prototype analysis.',
     {
       nodeId: z.string().optional().describe('Root node ID to analyze; omit to scan the entire current page'),
-      format: z.enum(['graph', 'mermaid', 'markdown', 'all']).optional()
-        .describe('Output format: "graph" (structured JSON), "mermaid" (diagram code), "markdown" (full doc), "all" (default)'),
+      format: z
+        .enum(['graph', 'mermaid', 'markdown', 'all'])
+        .optional()
+        .describe(
+          'Output format: "graph" (structured JSON), "mermaid" (diagram code), "markdown" (full doc), "all" (default)',
+        ),
     },
     async ({ nodeId, format = 'all' }) => {
       const { graph, nameMap, count } = await fetchAndBuildGraph(bridge, nodeId);
@@ -364,7 +369,7 @@ export function registerPrototypeTools(server: McpServer, bridge: Bridge): void 
       if (count === 0) {
         return jsonResponse({
           message: 'No prototype interactions found on this page/node.',
-          hint: 'Add interactions in Figma\'s Prototype tab first.',
+          hint: "Add interactions in Figma's Prototype tab first.",
         });
       }
 
@@ -386,25 +391,44 @@ export function registerPrototypeTools(server: McpServer, bridge: Bridge): void 
       'to validate the resulting flow graph and report dead ends or missing connections. ' +
       'Use this to quickly set up multi-screen navigation flows.',
     {
-      connections: z.array(z.object({
-        sourceNodeId: z.string().describe('Node ID of the trigger element (e.g. a button)'),
-        destinationNodeId: z.string().describe('Node ID of the destination screen/frame'),
-        trigger: z.enum([
-          'ON_CLICK', 'ON_HOVER', 'ON_PRESS', 'ON_DRAG',
-          'AFTER_TIMEOUT', 'MOUSE_ENTER', 'MOUSE_LEAVE',
-        ]).default('ON_CLICK').describe('Trigger type (default: ON_CLICK)'),
-        navigation: z.enum([
-          'NAVIGATE', 'SWAP', 'OVERLAY', 'SCROLL_TO', 'CHANGE_TO',
-        ]).default('NAVIGATE').describe('Navigation type (default: NAVIGATE)'),
-        transition: z.object({
-          type: z.enum([
-            'DISSOLVE', 'SMART_ANIMATE', 'MOVE_IN', 'MOVE_OUT',
-            'PUSH', 'SLIDE_IN', 'SLIDE_OUT', 'INSTANT',
-          ]).default('DISSOLVE'),
-          duration: z.number().default(300).describe('Duration in ms'),
-          direction: z.string().optional().describe('Direction for directional transitions (LEFT, RIGHT, TOP, BOTTOM)'),
-        }).optional().describe('Transition animation (default: DISSOLVE 300ms)'),
-      })).describe('Array of screen connections to wire up'),
+      connections: z
+        .array(
+          z.object({
+            sourceNodeId: z.string().describe('Node ID of the trigger element (e.g. a button)'),
+            destinationNodeId: z.string().describe('Node ID of the destination screen/frame'),
+            trigger: z
+              .enum(['ON_CLICK', 'ON_HOVER', 'ON_PRESS', 'ON_DRAG', 'AFTER_TIMEOUT', 'MOUSE_ENTER', 'MOUSE_LEAVE'])
+              .default('ON_CLICK')
+              .describe('Trigger type (default: ON_CLICK)'),
+            navigation: z
+              .enum(['NAVIGATE', 'SWAP', 'OVERLAY', 'SCROLL_TO', 'CHANGE_TO'])
+              .default('NAVIGATE')
+              .describe('Navigation type (default: NAVIGATE)'),
+            transition: z
+              .object({
+                type: z
+                  .enum([
+                    'DISSOLVE',
+                    'SMART_ANIMATE',
+                    'MOVE_IN',
+                    'MOVE_OUT',
+                    'PUSH',
+                    'SLIDE_IN',
+                    'SLIDE_OUT',
+                    'INSTANT',
+                  ])
+                  .default('DISSOLVE'),
+                duration: z.number().default(300).describe('Duration in ms'),
+                direction: z
+                  .string()
+                  .optional()
+                  .describe('Direction for directional transitions (LEFT, RIGHT, TOP, BOTTOM)'),
+              })
+              .optional()
+              .describe('Transition animation (default: DISSOLVE 300ms)'),
+          }),
+        )
+        .describe('Array of screen connections to wire up'),
       analyze: z.boolean().optional().describe('Run flow analysis after connecting (default: true)'),
     },
     async ({ connections, analyze = true }) => {
@@ -412,22 +436,24 @@ export function registerPrototypeTools(server: McpServer, bridge: Bridge): void 
       const items = connections.map((conn) => ({
         nodeId: conn.sourceNodeId,
         trigger: { type: conn.trigger },
-        actions: [{
-          type: 'NODE' as const,
-          destinationId: conn.destinationNodeId,
-          navigation: conn.navigation,
-          transition: conn.transition
-            ? {
-                type: conn.transition.type,
-                duration: conn.transition.duration,
-                ...(conn.transition.direction ? { direction: conn.transition.direction } : {}),
-              }
-            : { type: 'DISSOLVE', duration: 300 },
-        }],
+        actions: [
+          {
+            type: 'NODE' as const,
+            destinationId: conn.destinationNodeId,
+            navigation: conn.navigation,
+            transition: conn.transition
+              ? {
+                  type: conn.transition.type,
+                  duration: conn.transition.duration,
+                  ...(conn.transition.direction ? { direction: conn.transition.direction } : {}),
+                }
+              : { type: 'DISSOLVE', duration: 300 },
+          },
+        ],
       }));
 
       // Wire all connections via bridge
-      const wireResult = await bridge.request('add_reaction', { items }) as {
+      const wireResult = (await bridge.request('add_reaction', { items })) as {
         results: Array<{ nodeId: string; ok: boolean; reactionCount?: number; error?: string }>;
       };
 

@@ -2,8 +2,8 @@
  * WCAG text size rule — minimum readable text size.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
 import { DESIGN_CONSTANTS } from '../../constants.js';
+import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
 
 const MIN_TEXT_SIZE = DESIGN_CONSTANTS.text.minSize;
 
@@ -22,17 +22,19 @@ export const wcagTextSizeRule: LintRule = {
     if (node.type !== 'TEXT') return [];
     if (!node.fontSize || node.fontSize >= MIN_TEXT_SIZE) return [];
 
-    return [{
-      nodeId: node.id,
-      nodeName: node.name,
-      rule: 'wcag-text-size',
-      severity: 'heuristic',
-      currentValue: `${node.fontSize}px`,
-      expectedValue: `>= ${MIN_TEXT_SIZE}px`,
-      suggestion: `"${node.name}" is only ${node.fontSize}px — bump it to at least ${MIN_TEXT_SIZE}px for comfortable reading`,
-      autoFixable: true,
-      fixData: { fontSize: MIN_TEXT_SIZE },
-    }];
+    return [
+      {
+        nodeId: node.id,
+        nodeName: node.name,
+        rule: 'wcag-text-size',
+        severity: 'heuristic',
+        currentValue: `${node.fontSize}px`,
+        expectedValue: `>= ${MIN_TEXT_SIZE}px`,
+        suggestion: `"${node.name}" is only ${node.fontSize}px — bump it to at least ${MIN_TEXT_SIZE}px for comfortable reading`,
+        autoFixable: true,
+        fixData: { fontSize: MIN_TEXT_SIZE },
+      },
+    ];
   },
 
   describeFix(v): FixDescriptor | null {

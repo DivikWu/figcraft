@@ -25,61 +25,53 @@
  * @returns {Promise<{ mutatedNodeIds: string[] }>}
  *   List of node IDs that were mutated (for audit/validation purposes).
  */
-async function bindVariablesToComponent(component, bindings) {
-  const mutatedNodeIds = []
+async function _bindVariablesToComponent(component, bindings) {
+  const mutatedNodeIds = [];
 
   if (!component) {
-    return { mutatedNodeIds }
+    return { mutatedNodeIds };
   }
 
   // --- Fills ---
   if (bindings.fills) {
-    const fillVar = await figma.variables.getVariableByIdAsync(bindings.fills)
+    const fillVar = await figma.variables.getVariableByIdAsync(bindings.fills);
     if (fillVar) {
-      const existingFills = component.fills
+      const existingFills = component.fills;
       if (Array.isArray(existingFills) && existingFills.length > 0) {
         // Bind the color of the first fill to the variable
-        const boundFill = figma.variables.setBoundVariableForPaint(
-          existingFills[0],
-          'color',
-          fillVar,
-        )
-        component.fills = [boundFill, ...existingFills.slice(1)]
+        const boundFill = figma.variables.setBoundVariableForPaint(existingFills[0], 'color', fillVar);
+        component.fills = [boundFill, ...existingFills.slice(1)];
       } else {
         // No existing fill — create a solid fill bound to the variable
         const boundFill = figma.variables.setBoundVariableForPaint(
           { type: 'SOLID', color: { r: 0.5, g: 0.5, b: 0.5 } },
           'color',
           fillVar,
-        )
-        component.fills = [boundFill]
+        );
+        component.fills = [boundFill];
       }
-      mutatedNodeIds.push(component.id)
+      mutatedNodeIds.push(component.id);
     }
   }
 
   // --- Strokes ---
   if (bindings.strokes) {
-    const strokeVar = await figma.variables.getVariableByIdAsync(bindings.strokes)
+    const strokeVar = await figma.variables.getVariableByIdAsync(bindings.strokes);
     if (strokeVar) {
-      const existingStrokes = component.strokes
+      const existingStrokes = component.strokes;
       if (Array.isArray(existingStrokes) && existingStrokes.length > 0) {
-        const boundStroke = figma.variables.setBoundVariableForPaint(
-          existingStrokes[0],
-          'color',
-          strokeVar,
-        )
-        component.strokes = [boundStroke, ...existingStrokes.slice(1)]
+        const boundStroke = figma.variables.setBoundVariableForPaint(existingStrokes[0], 'color', strokeVar);
+        component.strokes = [boundStroke, ...existingStrokes.slice(1)];
       } else {
         const boundStroke = figma.variables.setBoundVariableForPaint(
           { type: 'SOLID', color: { r: 0.5, g: 0.5, b: 0.5 } },
           'color',
           strokeVar,
-        )
-        component.strokes = [boundStroke]
+        );
+        component.strokes = [boundStroke];
       }
       if (!mutatedNodeIds.includes(component.id)) {
-        mutatedNodeIds.push(component.id)
+        mutatedNodeIds.push(component.id);
       }
     }
   }
@@ -92,19 +84,19 @@ async function bindVariablesToComponent(component, bindings) {
     ['paddingRight', 'paddingRight'],
     ['itemSpacing', 'itemSpacing'],
     ['cornerRadius', 'cornerRadius'],
-  ]
+  ];
 
   for (const [bindingKey, figmaProp] of floatBindings) {
     if (bindings[bindingKey]) {
-      const variable = await figma.variables.getVariableByIdAsync(bindings[bindingKey])
+      const variable = await figma.variables.getVariableByIdAsync(bindings[bindingKey]);
       if (variable) {
-        component.setBoundVariable(figmaProp, variable)
+        component.setBoundVariable(figmaProp, variable);
         if (!mutatedNodeIds.includes(component.id)) {
-          mutatedNodeIds.push(component.id)
+          mutatedNodeIds.push(component.id);
         }
       }
     }
   }
 
-  return { mutatedNodeIds }
+  return { mutatedNodeIds };
 }

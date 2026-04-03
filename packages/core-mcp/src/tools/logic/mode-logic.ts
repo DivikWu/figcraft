@@ -3,16 +3,14 @@
  * Used by get_mode / set_mode standalone tools.
  */
 
-import type { Bridge } from '../../bridge.js';
-import { fetchLibraryComponents, fetchLibraryComponentSets, groupComponentsBySet } from '../../figma-api.js';
-import { getToken } from '../../auth.js';
-import { setFileContext } from '../../rest-fallback.js';
 import { VERSION as SERVER_VERSION } from '@figcraft/shared';
+import { getToken } from '../../auth.js';
+import type { Bridge } from '../../bridge.js';
+import { fetchLibraryComponentSets, fetchLibraryComponents, groupComponentsBySet } from '../../figma-api.js';
+import { setFileContext } from '../../rest-fallback.js';
 import type { McpResponse } from './node-logic.js';
 
-export async function getModeLogic(
-  bridge: Bridge,
-): Promise<McpResponse> {
+export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
   // Built-in connectivity check (replaces separate ping call in Create workflow)
   if (!bridge.isConnected) {
     // Try reconnecting — the bridge may have been evicted or disconnected
@@ -26,13 +24,15 @@ export async function getModeLogic(
 
   if (!bridge.isConnected) {
     return {
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify({
-          connected: false,
-          error: 'Not connected to Figma. Open the FigCraft plugin in Figma and try again.',
-        }),
-      }],
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({
+            connected: false,
+            error: 'Not connected to Figma. Open the FigCraft plugin in Figma and try again.',
+          }),
+        },
+      ],
     };
   }
 
@@ -41,7 +41,7 @@ export async function getModeLogic(
   let versionWarning: string | undefined;
   try {
     const pingStart = Date.now();
-    const pingResult = await bridge.request('ping', {}) as Record<string, unknown>;
+    const pingResult = (await bridge.request('ping', {})) as Record<string, unknown>;
     pingLatency = `${Date.now() - pingStart}ms`;
 
     const pluginVersion = pingResult.pluginVersion as string | undefined;
@@ -59,7 +59,7 @@ export async function getModeLogic(
     try {
       await bridge.discoverPluginChannel();
       const retryStart = Date.now();
-      const retryResult = await bridge.request('ping', {}) as Record<string, unknown>;
+      const retryResult = (await bridge.request('ping', {})) as Record<string, unknown>;
       pingLatency = `${Date.now() - retryStart}ms`;
 
       const pluginVersion = retryResult.pluginVersion as string | undefined;
@@ -74,18 +74,20 @@ export async function getModeLogic(
       }
     } catch {
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            connected: false,
-            error: 'Plugin not responding. Make sure the FigCraft plugin is open in Figma.',
-          }),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({
+              connected: false,
+              error: 'Plugin not responding. Make sure the FigCraft plugin is open in Figma.',
+            }),
+          },
+        ],
       };
     }
   }
 
-  const result = await bridge.request('get_mode', {}) as {
+  const result = (await bridge.request('get_mode', {})) as {
     mode: string;
     selectedLibrary?: string;
     designContext?: unknown;
@@ -103,7 +105,8 @@ export async function getModeLogic(
   }
 
   // Enrich with library components if fileKey is available
-  const fileKey = result.libraryFileKey ?? (result.selectedLibrary ? bridge.getLibraryFileKey(result.selectedLibrary) : null);
+  const fileKey =
+    result.libraryFileKey ?? (result.selectedLibrary ? bridge.getLibraryFileKey(result.selectedLibrary) : null);
   if (fileKey) {
     try {
       const token = await getToken();
@@ -116,18 +119,17 @@ export async function getModeLogic(
       bridge.setRestComponentCache(fileKey, grouped);
       // Compress for get_mode: summary only (full variants via search_design_system)
       const summary = {
-        componentSets: grouped.componentSets.map(cs => ({
+        componentSets: grouped.componentSets.map((cs) => ({
           key: cs.key,
           name: cs.name,
           description: cs.description,
           variantCount: cs.variants.length,
           // Keep only first variant's property keys as schema hint
-          propertyNames: cs.variants.length > 0
-            ? Object.keys(cs.variants[0].properties)
-            : [],
+          propertyNames: cs.variants.length > 0 ? Object.keys(cs.variants[0].properties) : [],
         })),
         standalone: grouped.standalone,
-        _note: 'Variant details omitted. Use search_design_system(query) or components(method:"list_properties") for full variant info.',
+        _note:
+          'Variant details omitted. Use search_design_system(query) or components(method:"list_properties") for full variant info.',
       };
       (result as Record<string, unknown>).libraryComponents = summary;
     } catch (err) {
@@ -142,7 +144,11 @@ export async function getModeLogic(
   delete (result as Record<string, unknown>).libraryFileKey;
 
   // Signal when library is selected but components couldn't be loaded
-  if (result.selectedLibrary && !(result as Record<string, unknown>).libraryComponents && !(result as Record<string, unknown>).libraryComponentsError) {
+  if (
+    result.selectedLibrary &&
+    !(result as Record<string, unknown>).libraryComponents &&
+    !(result as Record<string, unknown>).libraryComponentsError
+  ) {
     (result as Record<string, unknown>).libraryComponentsUnavailable = true;
   }
 
@@ -158,7 +164,8 @@ export async function getModeLogic(
     // ⛔ BLOCKING: must complete before ANY write tool call
     designPreflight: {
       required: true,
-      instruction: 'Complete the design checklist below, then present a design proposal to the user and WAIT for explicit confirmation. Do NOT call create_frame/create_text/create_svg until user approves.',
+      instruction:
+        'Complete the design checklist below, then present a design proposal to the user and WAIT for explicit confirmation. Do NOT call create_frame/create_text/create_svg until user approves.',
       checklist: {
         purpose: 'What problem does this solve? Who is the audience?',
         platform: 'iOS (402×874) / Android (412×915) / Web? Determines touch targets and conventions.',
@@ -172,7 +179,8 @@ export async function getModeLogic(
       typographyRules: hasLibrary
         ? 'Use library text styles. Clear heading/body distinction via existing style tiers.'
         : 'Clear heading/body distinction (different weight or size). ≤ 3 font weights. NEVER use only Inter without justification.',
-      contentRules: 'Realistic, contextually appropriate text. NEVER use "Lorem ipsum", "Text goes here", "Button", "Title".',
+      contentRules:
+        'Realistic, contextually appropriate text. NEVER use "Lorem ipsum", "Text goes here", "Button", "Title".',
       iconRules: hasLibrary
         ? 'Use library icon components first (search_design_system query:"icon"). Fall back to icon_search + icon_create only when library has no match. NEVER use text characters as icon placeholders.'
         : 'Single icon style per design (outline/filled/duotone). Use icon_search + icon_create for ALL icons. NEVER use text characters as icon placeholders (">" for chevron, "..." for more).',
@@ -229,11 +237,11 @@ export async function getModeLogic(
   // Detect sparse local tokens for __local__ mode
   if (result.selectedLibrary === '__local__') {
     const ctx = result.designContext as Record<string, unknown> | null;
-    const hasTokens = ctx && (
-      (Array.isArray(ctx.colorVariables) && (ctx.colorVariables as unknown[]).length > 0) ||
-      (Array.isArray(ctx.textStyles) && (ctx.textStyles as unknown[]).length > 0) ||
-      (ctx.registeredStyles && typeof ctx.registeredStyles === 'object')
-    );
+    const hasTokens =
+      ctx &&
+      ((Array.isArray(ctx.colorVariables) && (ctx.colorVariables as unknown[]).length > 0) ||
+        (Array.isArray(ctx.textStyles) && (ctx.textStyles as unknown[]).length > 0) ||
+        (ctx.registeredStyles && typeof ctx.registeredStyles === 'object'));
     if (!hasTokens) {
       const workflow = (result as Record<string, unknown>)._workflow as Record<string, unknown>;
       workflow.localTokensEmpty = true;
@@ -244,8 +252,7 @@ export async function getModeLogic(
         'No local color tokens available. Choose colors intentionally: ' +
         '1 dominant + 1 accent, total ≤ 5. Do not hardcode random hex values.';
       (workflow.designPreflight as Record<string, unknown>).typographyRules =
-        'No local text styles available. Choose fonts intentionally: ' +
-        'clear heading/body distinction, ≤ 3 weights.';
+        'No local text styles available. Choose fonts intentionally: ' + 'clear heading/body distinction, ≤ 3 weights.';
     }
   }
 
@@ -254,7 +261,7 @@ export async function getModeLogic(
     connected: true,
     latency: pingLatency,
     ...(versionWarning ? { versionWarning } : {}),
-    ...result as Record<string, unknown>,
+    ...(result as Record<string, unknown>),
   };
 
   // ── _workflow diff-aware caching ──
@@ -284,9 +291,11 @@ export async function getModeLogic(
   }
 
   return {
-    content: [{
-      type: 'text' as const,
-      text: JSON.stringify(response, null, 2),
-    }],
+    content: [
+      {
+        type: 'text' as const,
+        text: JSON.stringify(response, null, 2),
+      },
+    ],
   };
 }

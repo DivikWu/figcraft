@@ -2,14 +2,14 @@
  * Tests for token-related lint rules: spec-color, spec-typography, spec-spacing, spec-border-radius.
  */
 
-import { describe, it, expect } from 'vitest';
-import type { AbstractNode, LintContext } from '../../packages/quality-engine/src/types.js';
-import { specColorRule } from '../../packages/quality-engine/src/rules/spec/spec-color.js';
-import { specTypographyRule } from '../../packages/quality-engine/src/rules/spec/spec-typography.js';
-import { specSpacingRule } from '../../packages/quality-engine/src/rules/spec/spec-spacing.js';
-import { specBorderRadiusRule } from '../../packages/quality-engine/src/rules/spec/spec-border-radius.js';
+import { describe, expect, it } from 'vitest';
 import { hardcodedTokenRule } from '../../packages/quality-engine/src/rules/spec/hardcoded-token.js';
 import { noTextStyleRule } from '../../packages/quality-engine/src/rules/spec/no-text-style.js';
+import { specBorderRadiusRule } from '../../packages/quality-engine/src/rules/spec/spec-border-radius.js';
+import { specColorRule } from '../../packages/quality-engine/src/rules/spec/spec-color.js';
+import { specSpacingRule } from '../../packages/quality-engine/src/rules/spec/spec-spacing.js';
+import { specTypographyRule } from '../../packages/quality-engine/src/rules/spec/spec-typography.js';
+import type { AbstractNode, LintContext } from '../../packages/quality-engine/src/types.js';
 
 function makeNode(overrides: Partial<AbstractNode>): AbstractNode {
   return { id: '1:1', name: 'Test', type: 'FRAME', ...overrides };
@@ -144,7 +144,9 @@ describe('spec-typography', () => {
 
   it('flags text matching a typography token', () => {
     const node = makeNode({
-      type: 'TEXT', fontSize: 16, fontName: { family: 'Inter', style: 'Regular' },
+      type: 'TEXT',
+      fontSize: 16,
+      fontName: { family: 'Inter', style: 'Regular' },
     });
     const v = specTypographyRule.check(node, typoCtx);
     expect(v).toHaveLength(1);
@@ -154,7 +156,9 @@ describe('spec-typography', () => {
 
   it('matches token without fontFamily constraint', () => {
     const node = makeNode({
-      type: 'TEXT', fontSize: 12, fontName: { family: 'Roboto', style: 'Regular' },
+      type: 'TEXT',
+      fontSize: 12,
+      fontName: { family: 'Roboto', style: 'Regular' },
     });
     const v = specTypographyRule.check(node, typoCtx);
     expect(v).toHaveLength(1);
@@ -163,7 +167,9 @@ describe('spec-typography', () => {
 
   it('skips text with textStyleId', () => {
     const node = makeNode({
-      type: 'TEXT', fontSize: 16, textStyleId: 'S:abc',
+      type: 'TEXT',
+      fontSize: 16,
+      textStyleId: 'S:abc',
     });
     const v = specTypographyRule.check(node, typoCtx);
     expect(v).toHaveLength(0);
@@ -182,7 +188,9 @@ describe('spec-typography', () => {
 
   it('skips text with non-matching fontSize', () => {
     const node = makeNode({
-      type: 'TEXT', fontSize: 18, fontName: { family: 'Inter', style: 'Regular' },
+      type: 'TEXT',
+      fontSize: 18,
+      fontName: { family: 'Inter', style: 'Regular' },
     });
     const v = specTypographyRule.check(node, typoCtx);
     expect(v).toHaveLength(0);
@@ -203,7 +211,9 @@ describe('spec-spacing', () => {
 
   it('flags non-token itemSpacing', () => {
     const node = makeNode({
-      type: 'FRAME', layoutMode: 'VERTICAL', itemSpacing: 15,
+      type: 'FRAME',
+      layoutMode: 'VERTICAL',
+      itemSpacing: 15,
     });
     const v = specSpacingRule.check(node, spacingCtx);
     expect(v).toHaveLength(1);
@@ -213,7 +223,9 @@ describe('spec-spacing', () => {
 
   it('flags non-token padding', () => {
     const node = makeNode({
-      type: 'FRAME', paddingLeft: 15, paddingTop: 15,
+      type: 'FRAME',
+      paddingLeft: 15,
+      paddingTop: 15,
     });
     const v = specSpacingRule.check(node, spacingCtx);
     expect(v.length).toBeGreaterThanOrEqual(1);
@@ -221,7 +233,9 @@ describe('spec-spacing', () => {
 
   it('passes exact token match', () => {
     const node = makeNode({
-      type: 'FRAME', layoutMode: 'VERTICAL', itemSpacing: 16,
+      type: 'FRAME',
+      layoutMode: 'VERTICAL',
+      itemSpacing: 16,
     });
     const v = specSpacingRule.check(node, spacingCtx);
     // Exact match should not flag
@@ -231,7 +245,9 @@ describe('spec-spacing', () => {
 
   it('skips zero spacing', () => {
     const node = makeNode({
-      type: 'FRAME', layoutMode: 'VERTICAL', itemSpacing: 0,
+      type: 'FRAME',
+      layoutMode: 'VERTICAL',
+      itemSpacing: 0,
     });
     const v = specSpacingRule.check(node, spacingCtx);
     expect(v).toHaveLength(0);
@@ -239,7 +255,8 @@ describe('spec-spacing', () => {
 
   it('skips bound variables', () => {
     const node = makeNode({
-      type: 'FRAME', itemSpacing: 15,
+      type: 'FRAME',
+      itemSpacing: 15,
       boundVariables: { itemSpacing: { id: 'var:1' } },
     });
     const v = specSpacingRule.check(node, spacingCtx);
@@ -268,7 +285,8 @@ describe('spec-border-radius', () => {
 
   it('flags non-token corner radius', () => {
     const node = makeNode({
-      type: 'RECTANGLE', cornerRadius: 6,
+      type: 'RECTANGLE',
+      cornerRadius: 6,
     });
     const v = specBorderRadiusRule.check(node, radiusCtx);
     expect(v).toHaveLength(1);
@@ -277,7 +295,8 @@ describe('spec-border-radius', () => {
 
   it('passes exact token match', () => {
     const node = makeNode({
-      type: 'RECTANGLE', cornerRadius: 8,
+      type: 'RECTANGLE',
+      cornerRadius: 8,
     });
     const v = specBorderRadiusRule.check(node, radiusCtx);
     expect(v).toHaveLength(0);
@@ -285,7 +304,8 @@ describe('spec-border-radius', () => {
 
   it('flags array corner radius', () => {
     const node = makeNode({
-      type: 'RECTANGLE', cornerRadius: [6, 6, 6, 6],
+      type: 'RECTANGLE',
+      cornerRadius: [6, 6, 6, 6],
     });
     const v = specBorderRadiusRule.check(node, radiusCtx);
     expect(v.length).toBeGreaterThanOrEqual(1);
@@ -293,7 +313,8 @@ describe('spec-border-radius', () => {
 
   it('skips zero radius', () => {
     const node = makeNode({
-      type: 'RECTANGLE', cornerRadius: 0,
+      type: 'RECTANGLE',
+      cornerRadius: 0,
     });
     const v = specBorderRadiusRule.check(node, radiusCtx);
     expect(v).toHaveLength(0);
@@ -301,7 +322,8 @@ describe('spec-border-radius', () => {
 
   it('skips bound variables', () => {
     const node = makeNode({
-      type: 'RECTANGLE', cornerRadius: 6,
+      type: 'RECTANGLE',
+      cornerRadius: 6,
       boundVariables: { cornerRadius: { id: 'var:1' } },
     });
     const v = specBorderRadiusRule.check(node, radiusCtx);

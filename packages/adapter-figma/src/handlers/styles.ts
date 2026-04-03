@@ -6,94 +6,92 @@ import { registerHandler } from '../registry.js';
 import { figmaRgbaToHex } from '../utils/color.js';
 import { assertHandler } from '../utils/handler-error.js';
 import {
-  registerStyles,
-  registerStylesIncremental,
   getRegisteredStylesSummary,
   type RegisteredStyles,
+  registerStyles,
+  registerStylesIncremental,
 } from '../utils/style-registry.js';
 
 export function registerStyleHandlers(): void {
+  registerHandler('list_styles', async (params) => {
+    const styleType = params.type as string | undefined;
 
-registerHandler('list_styles', async (params) => {
-  const styleType = params.type as string | undefined;
+    const results: unknown[] = [];
 
-  const results: unknown[] = [];
-
-  if (!styleType || styleType === 'PAINT') {
-    const paintStyles = await figma.getLocalPaintStylesAsync();
-    for (const s of paintStyles) {
-      results.push(simplifyPaintStyle(s));
+    if (!styleType || styleType === 'PAINT') {
+      const paintStyles = await figma.getLocalPaintStylesAsync();
+      for (const s of paintStyles) {
+        results.push(simplifyPaintStyle(s));
+      }
     }
-  }
 
-  if (!styleType || styleType === 'TEXT') {
-    const textStyles = await figma.getLocalTextStylesAsync();
-    for (const s of textStyles) {
-      results.push(simplifyTextStyle(s));
+    if (!styleType || styleType === 'TEXT') {
+      const textStyles = await figma.getLocalTextStylesAsync();
+      for (const s of textStyles) {
+        results.push(simplifyTextStyle(s));
+      }
     }
-  }
 
-  if (!styleType || styleType === 'EFFECT') {
-    const effectStyles = await figma.getLocalEffectStylesAsync();
-    for (const s of effectStyles) {
-      results.push(simplifyEffectStyle(s));
+    if (!styleType || styleType === 'EFFECT') {
+      const effectStyles = await figma.getLocalEffectStylesAsync();
+      for (const s of effectStyles) {
+        results.push(simplifyEffectStyle(s));
+      }
     }
-  }
 
-  if (!styleType || styleType === 'GRID') {
-    const gridStyles = await figma.getLocalGridStylesAsync();
-    for (const s of gridStyles) {
-      results.push({
-        id: s.id,
-        name: s.name,
-        type: 'GRID',
-        description: s.description,
-      });
+    if (!styleType || styleType === 'GRID') {
+      const gridStyles = await figma.getLocalGridStylesAsync();
+      for (const s of gridStyles) {
+        results.push({
+          id: s.id,
+          name: s.name,
+          type: 'GRID',
+          description: s.description,
+        });
+      }
     }
-  }
 
-  return { count: results.length, styles: results };
-});
+    return { count: results.length, styles: results };
+  });
 
-registerHandler('get_style', async (params) => {
-  const styleId = params.styleId as string;
-  const style = figma.getStyleById(styleId);
-  assertHandler(style, `Style not found: ${styleId}`, 'NOT_FOUND');
+  registerHandler('get_style', async (params) => {
+    const styleId = params.styleId as string;
+    const style = figma.getStyleById(styleId);
+    assertHandler(style, `Style not found: ${styleId}`, 'NOT_FOUND');
 
-  switch (style.type) {
-    case 'PAINT':
-      return simplifyPaintStyle(style as PaintStyle);
-    case 'TEXT':
-      return simplifyTextStyle(style as TextStyle);
-    case 'EFFECT':
-      return simplifyEffectStyle(style as EffectStyle);
-    default:
-      return { id: style.id, name: style.name, type: style.type };
-  }
-});
+    switch (style.type) {
+      case 'PAINT':
+        return simplifyPaintStyle(style as PaintStyle);
+      case 'TEXT':
+        return simplifyTextStyle(style as TextStyle);
+      case 'EFFECT':
+        return simplifyEffectStyle(style as EffectStyle);
+      default:
+        return { id: style.id, name: style.name, type: style.type };
+    }
+  });
 
-registerHandler('register_library_styles', async (params) => {
-  const library = params.library as string;
-  const styles = params.styles as RegisteredStyles;
-  const counts = await registerStyles(library, styles);
-  return { ok: true, registered: counts };
-});
+  registerHandler('register_library_styles', async (params) => {
+    const library = params.library as string;
+    const styles = params.styles as RegisteredStyles;
+    const counts = await registerStyles(library, styles);
+    return { ok: true, registered: counts };
+  });
 
-registerHandler('get_registered_styles', async (params) => {
-  const library = params.library as string;
-  const styles = await getRegisteredStylesSummary(library);
-  return styles ?? { textStyles: [], paintStyles: [], effectStyles: [] };
-});
+  registerHandler('get_registered_styles', async (params) => {
+    const library = params.library as string;
+    const styles = await getRegisteredStylesSummary(library);
+    return styles ?? { textStyles: [], paintStyles: [], effectStyles: [] };
+  });
 
-registerHandler('register_library_styles_incremental', async (params) => {
-  const library = params.library as string;
-  const fullStyles = params.fullStyles as RegisteredStyles;
-  const changedStyles = params.changedStyles as RegisteredStyles;
-  const removedKeys = (params.removedKeys as string[]) ?? [];
-  const counts = await registerStylesIncremental(library, fullStyles, changedStyles, removedKeys);
-  return { ok: true, registered: counts };
-});
-
+  registerHandler('register_library_styles_incremental', async (params) => {
+    const library = params.library as string;
+    const fullStyles = params.fullStyles as RegisteredStyles;
+    const changedStyles = params.changedStyles as RegisteredStyles;
+    const removedKeys = (params.removedKeys as string[]) ?? [];
+    const counts = await registerStylesIncremental(library, fullStyles, changedStyles, removedKeys);
+    return { ok: true, registered: counts };
+  });
 } // registerStyleHandlers
 
 // ─── Helpers ───

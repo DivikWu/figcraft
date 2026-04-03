@@ -12,8 +12,8 @@
  */
 
 import type { CompressedNode } from '@figcraft/shared';
-import { figmaRgbaToHex } from '../utils/color.js';
 import { PLUGIN_DATA_KEYS } from '../constants.js';
+import { figmaRgbaToHex } from '../utils/color.js';
 
 /** Detail level for node simplification. */
 export type SimplifyDetail = 'summary' | 'standard' | 'full';
@@ -40,7 +40,12 @@ export interface SimplifyContext {
   degradeDepth?: number;
 }
 
-export function createContext(maxDepth?: number, timeBudgetMs?: number, detail?: SimplifyDetail, degradeDepth?: number): SimplifyContext {
+export function createContext(
+  maxDepth?: number,
+  timeBudgetMs?: number,
+  detail?: SimplifyDetail,
+  degradeDepth?: number,
+): SimplifyContext {
   return {
     count: 0,
     maxDepth: maxDepth ?? DEFAULT_MAX_DEPTH,
@@ -63,17 +68,31 @@ function isOverBudget(ctx: SimplifyContext): boolean {
 }
 
 /** Simplify a Figma node tree into compressed JSON. */
-export function simplifyNode(node: SceneNode, depth = 0, counter?: { count: number }, ctx?: SimplifyContext): CompressedNode {
+export function simplifyNode(
+  node: SceneNode,
+  depth = 0,
+  counter?: { count: number },
+  ctx?: SimplifyContext,
+): CompressedNode {
   // Legacy counter support for backward compatibility
-  const context = ctx ?? (counter ? { count: counter.count, maxDepth: DEFAULT_MAX_DEPTH, startTime: Date.now(), timeBudgetMs: DEFAULT_TIME_BUDGET_MS, timedOut: false, detail: 'standard' as SimplifyDetail } : createContext());
+  const context =
+    ctx ??
+    (counter
+      ? {
+          count: counter.count,
+          maxDepth: DEFAULT_MAX_DEPTH,
+          startTime: Date.now(),
+          timeBudgetMs: DEFAULT_TIME_BUDGET_MS,
+          timedOut: false,
+          detail: 'standard' as SimplifyDetail,
+        }
+      : createContext());
   context.count++;
   // Sync legacy counter if provided
   if (counter) counter.count = context.count;
 
   // Determine effective detail level: auto-degrade deep children to summary
-  const effectiveDetail = (context.degradeDepth != null && depth >= context.degradeDepth)
-    ? 'summary'
-    : context.detail;
+  const effectiveDetail = context.degradeDepth != null && depth >= context.degradeDepth ? 'summary' : context.detail;
 
   // ── Summary level: minimal fields for tree browsing ──
   const base: CompressedNode = {
@@ -108,8 +127,8 @@ export function simplifyNode(node: SceneNode, depth = 0, counter?: { count: numb
   }
 
   // ── Standard + Full: add role and lintIgnore ──
-  base.role = 'getPluginData' in node ? (node.getPluginData(PLUGIN_DATA_KEYS.ROLE) || undefined) : undefined;
-  base.lintIgnore = 'getPluginData' in node ? (node.getPluginData(PLUGIN_DATA_KEYS.LINT_IGNORE) || undefined) : undefined;
+  base.role = 'getPluginData' in node ? node.getPluginData(PLUGIN_DATA_KEYS.ROLE) || undefined : undefined;
+  base.lintIgnore = 'getPluginData' in node ? node.getPluginData(PLUGIN_DATA_KEYS.LINT_IGNORE) || undefined : undefined;
 
   // Fills & strokes
   if ('fills' in node && node.fills !== figma.mixed) {
@@ -136,12 +155,7 @@ export function simplifyNode(node: SceneNode, depth = 0, counter?: { count: numb
     if (rn.cornerRadius !== figma.mixed) {
       base.cornerRadius = rn.cornerRadius;
     } else {
-      base.cornerRadius = [
-        rn.topLeftRadius,
-        rn.topRightRadius,
-        rn.bottomRightRadius,
-        rn.bottomLeftRadius,
-      ];
+      base.cornerRadius = [rn.topLeftRadius, rn.topRightRadius, rn.bottomRightRadius, rn.bottomLeftRadius];
     }
   }
 
@@ -251,7 +265,9 @@ export function simplifyNode(node: SceneNode, depth = 0, counter?: { count: numb
           const entry: { type: string; defaultValue?: unknown; variantOptions?: string[] } = { type: def.type };
           if (def.defaultValue !== undefined) entry.defaultValue = def.defaultValue;
           if (def.type === 'VARIANT' && 'variantOptions' in def) {
-            entry.variantOptions = (def as ComponentPropertyDefinitions[string] & { variantOptions?: string[] }).variantOptions;
+            entry.variantOptions = (
+              def as ComponentPropertyDefinitions[string] & { variantOptions?: string[] }
+            ).variantOptions;
           }
           defs[key] = entry;
         }
@@ -261,7 +277,8 @@ export function simplifyNode(node: SceneNode, depth = 0, counter?: { count: numb
 
     // Component property references (instances and children that reference component props)
     if ('componentPropertyReferences' in node) {
-      const refs = (node as SceneNode & { componentPropertyReferences: Record<string, string> | null }).componentPropertyReferences;
+      const refs = (node as SceneNode & { componentPropertyReferences: Record<string, string> | null })
+        .componentPropertyReferences;
       if (refs && Object.keys(refs).length > 0) {
         base.componentPropertyReferences = { ...refs };
       }

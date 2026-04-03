@@ -4,13 +4,13 @@
  * Validates that the generated registry correctly classifies tools
  * and that the access control logic blocks the right tools at each level.
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
-  GENERATED_WRITE_TOOLS,
+  GENERATED_CORE_TOOLS,
   GENERATED_CREATE_TOOLS,
   GENERATED_EDIT_TOOLS,
-  GENERATED_CORE_TOOLS,
   GENERATED_TOOLSETS,
+  GENERATED_WRITE_TOOLS,
 } from '../../packages/core-mcp/src/tools/_registry.js';
 
 // ─── Registry invariant tests (static, no env mocking needed) ───
@@ -40,10 +40,7 @@ describe('access control registry', () => {
   });
 
   it('non-write tools are not in CREATE or EDIT sets', () => {
-    const allTools = new Set([
-      ...GENERATED_CORE_TOOLS,
-      ...Object.values(GENERATED_TOOLSETS).flatMap(ts => ts.tools),
-    ]);
+    const allTools = new Set([...GENERATED_CORE_TOOLS, ...Object.values(GENERATED_TOOLSETS).flatMap((ts) => ts.tools)]);
     for (const tool of allTools) {
       if (!GENERATED_WRITE_TOOLS.has(tool)) {
         expect(GENERATED_CREATE_TOOLS.has(tool)).toBe(false);
@@ -53,19 +50,14 @@ describe('access control registry', () => {
   });
 
   it('create tools include expected creation operations', () => {
-    const expectedCreate = [
-      'create_component', 'create_page',
-    ];
+    const expectedCreate = ['create_component', 'create_page'];
     for (const tool of expectedCreate) {
       expect(GENERATED_CREATE_TOOLS.has(tool)).toBe(true);
     }
   });
 
   it('edit tools include expected modification/deletion operations', () => {
-    const expectedEdit = [
-      'delete_node',
-      'rename_page', 'delete_component', 'lint_fix_all',
-    ];
+    const expectedEdit = ['delete_node', 'rename_page', 'delete_component', 'lint_fix_all'];
     for (const tool of expectedEdit) {
       expect(GENERATED_EDIT_TOOLS.has(tool)).toBe(true);
     }
@@ -177,8 +169,8 @@ describe('access level blocking logic (pure)', () => {
 
 import {
   GENERATED_ENDPOINT_METHOD_ACCESS,
-  GENERATED_ENDPOINT_TOOLS,
   GENERATED_ENDPOINT_REPLACES,
+  GENERATED_ENDPOINT_TOOLS,
 } from '../../packages/core-mcp/src/tools/_registry.js';
 
 describe('endpoint access control registry', () => {
@@ -203,21 +195,21 @@ describe('endpoint access control registry', () => {
   });
 
   it('nodes endpoint has correct method access', () => {
-    const nodes = GENERATED_ENDPOINT_METHOD_ACCESS['nodes'];
+    const nodes = GENERATED_ENDPOINT_METHOD_ACCESS.nodes;
     expect(nodes).toBeDefined();
-    expect(nodes['get']).toEqual({ write: false });
-    expect(nodes['list']).toEqual({ write: false });
-    expect(nodes['update']).toEqual({ write: true, access: 'edit' });
-    expect(nodes['delete']).toEqual({ write: true, access: 'edit' });
+    expect(nodes.get).toEqual({ write: false });
+    expect(nodes.list).toEqual({ write: false });
+    expect(nodes.update).toEqual({ write: true, access: 'edit' });
+    expect(nodes.delete).toEqual({ write: true, access: 'edit' });
   });
 
   it('text endpoint has correct method access', () => {
-    const text = GENERATED_ENDPOINT_METHOD_ACCESS['text'];
-    expect(text['set_content']).toEqual({ write: true, access: 'edit' });
+    const text = GENERATED_ENDPOINT_METHOD_ACCESS.text;
+    expect(text.set_content).toEqual({ write: true, access: 'edit' });
   });
 
   it('components endpoint read methods are all non-write', () => {
-    const comp = GENERATED_ENDPOINT_METHOD_ACCESS['components'];
+    const comp = GENERATED_ENDPOINT_METHOD_ACCESS.components;
     for (const [, v] of Object.entries(comp)) {
       expect(v.write).toBe(false);
     }
@@ -225,11 +217,7 @@ describe('endpoint access control registry', () => {
 });
 
 describe('endpoint method-level blocking logic (pure)', () => {
-  function simulateMethodBlocked(
-    level: 'read' | 'create' | 'edit',
-    endpoint: string,
-    method: string,
-  ): string | null {
+  function simulateMethodBlocked(level: 'read' | 'create' | 'edit', endpoint: string, method: string): string | null {
     if (level === 'edit') return null;
     const methodAccess = GENERATED_ENDPOINT_METHOD_ACCESS[endpoint]?.[method];
     if (!methodAccess?.write) return null; // read methods always allowed

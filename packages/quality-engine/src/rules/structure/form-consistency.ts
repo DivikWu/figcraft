@@ -8,7 +8,7 @@
  * Auto-fix: set layoutAlign=STRETCH on non-stretching interactive children.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
+import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
 
 const FORM_NAME_RE = /form|content|body|fields|inputs|登录|注册|表单|内容/i;
 const INTERACTIVE_RE = /button|btn|input|field|divider|separator|social|action|submit|login|register|按钮|输入|分割/i;
@@ -17,8 +17,8 @@ function isInteractiveChild(node: AbstractNode): boolean {
   if (INTERACTIVE_RE.test(node.name)) return true;
   // Frames with stroke (input-like) or fill (button-like) that are direct children
   if (node.type === 'FRAME' || node.type === 'INSTANCE' || node.type === 'COMPONENT') {
-    const hasFill = node.fills?.some(f => f.visible !== false && f.type === 'SOLID');
-    const hasStroke = node.strokes?.some(f => f.visible !== false);
+    const hasFill = node.fills?.some((f) => f.visible !== false && f.type === 'SOLID');
+    const hasStroke = node.strokes?.some((f) => f.visible !== false);
     if (hasFill || hasStroke) return true;
   }
   return false;
@@ -26,7 +26,8 @@ function isInteractiveChild(node: AbstractNode): boolean {
 
 export const formConsistencyRule: LintRule = {
   name: 'form-consistency',
-  description: 'Form containers should have consistent child widths — all interactive children should use layoutAlign: STRETCH.',
+  description:
+    'Form containers should have consistent child widths — all interactive children should use layoutAlign: STRETCH.',
   category: 'layout',
   severity: 'heuristic',
   ai: {
@@ -48,14 +49,15 @@ export const formConsistencyRule: LintRule = {
     const interactiveKids = node.children.filter(isInteractiveChild);
     if (interactiveKids.length < 2) return [];
 
-    const stretchKids = interactiveKids.filter(c =>
-      c.layoutMode !== undefined || // has layout properties
-      c.width === node.width || // fills parent width
-      (c as any).layoutAlign === 'STRETCH',
+    const _stretchKids = interactiveKids.filter(
+      (c) =>
+        c.layoutMode !== undefined || // has layout properties
+        c.width === node.width || // fills parent width
+        (c as any).layoutAlign === 'STRETCH',
     );
 
     // Check for mixed widths among interactive children
-    const widths = new Set(interactiveKids.map(c => c.width).filter(w => w != null));
+    const widths = new Set(interactiveKids.map((c) => c.width).filter((w) => w != null));
     if (widths.size > 1) {
       // Some children have different widths — flag the ones that don't match the parent
       for (const child of interactiveKids) {

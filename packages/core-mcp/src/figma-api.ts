@@ -142,10 +142,7 @@ export async function fetchStyleNodeDetails(
 
   for (const batch of batches) {
     const ids = batch.map((s) => s.node_id).join(',');
-    const data = (await figmaFetch(
-      `/v1/files/${fileKey}/nodes?ids=${encodeURIComponent(ids)}`,
-      token,
-    )) as {
+    const data = (await figmaFetch(`/v1/files/${fileKey}/nodes?ids=${encodeURIComponent(ids)}`, token)) as {
       nodes: Record<string, { document: Record<string, unknown> } | null>;
     };
 
@@ -177,10 +174,7 @@ export interface FigmaComponentMeta {
   containing_frame: { name: string; containingComponentSet?: string } | null;
 }
 
-export async function fetchLibraryComponents(
-  fileKey: string,
-  token: string,
-): Promise<FigmaComponentMeta[]> {
+export async function fetchLibraryComponents(fileKey: string, token: string): Promise<FigmaComponentMeta[]> {
   const data = (await figmaFetch(`/v1/files/${fileKey}/components`, token)) as {
     meta: { components: FigmaComponentMeta[] };
   };
@@ -199,10 +193,7 @@ export interface FigmaComponentSetMeta {
   containing_frame: { name: string } | null;
 }
 
-export async function fetchLibraryComponentSets(
-  fileKey: string,
-  token: string,
-): Promise<FigmaComponentSetMeta[]> {
+export async function fetchLibraryComponentSets(fileKey: string, token: string): Promise<FigmaComponentSetMeta[]> {
   const data = (await figmaFetch(`/v1/files/${fileKey}/component_sets`, token)) as {
     meta: { component_sets: FigmaComponentSetMeta[] };
   };
@@ -253,19 +244,21 @@ export function groupComponentsBySet(
   }
 
   // Build grouped result
-  const groupedSets = componentSets.map((set) => {
-    const variants = (setComponents.get(set.node_id) || []).map((comp) => ({
-      key: comp.key,
-      name: comp.name,
-      properties: parseVariantName(comp.name),
-    }));
-    return {
-      key: set.key,
-      name: set.name,
-      description: set.description,
-      variants,
-    };
-  }).filter((s) => s.variants.length > 0);
+  const groupedSets = componentSets
+    .map((set) => {
+      const variants = (setComponents.get(set.node_id) || []).map((comp) => ({
+        key: comp.key,
+        name: comp.name,
+        properties: parseVariantName(comp.name),
+      }));
+      return {
+        key: set.key,
+        name: set.name,
+        description: set.description,
+        variants,
+      };
+    })
+    .filter((s) => s.variants.length > 0);
 
   return {
     componentSets: groupedSets,
@@ -313,10 +306,9 @@ export async function fetchFileNodes(
   nodeIds: string[],
 ): Promise<Record<string, unknown>> {
   const ids = nodeIds.join(',');
-  const data = (await figmaFetch(
-    `/v1/files/${fileKey}/nodes?ids=${encodeURIComponent(ids)}`,
-    token,
-  )) as { nodes: Record<string, { document: Record<string, unknown> } | null> };
+  const data = (await figmaFetch(`/v1/files/${fileKey}/nodes?ids=${encodeURIComponent(ids)}`, token)) as {
+    nodes: Record<string, { document: Record<string, unknown> } | null>;
+  };
   return data.nodes;
 }
 
@@ -373,10 +365,7 @@ export function extractNodeIdFromUrl(url: string): string | null {
 
 // ─── Property extraction ───
 
-function extractStyleProperties(
-  styleType: string,
-  doc: Record<string, unknown>,
-): FigmaStyleProps | null {
+function extractStyleProperties(styleType: string, doc: Record<string, unknown>): FigmaStyleProps | null {
   switch (styleType) {
     case 'TEXT':
       return extractTextStyleProps(doc);
@@ -397,8 +386,7 @@ function extractTextStyleProps(doc: Record<string, unknown>): FigmaTextStyleProp
     fontWeight: (style.fontWeight as number) ?? 400,
     letterSpacing: (style.letterSpacing as { value: number; unit: string }) ?? { value: 0, unit: 'PIXELS' },
     lineHeight: (style.lineHeightPercentFontSize as { value?: number; unit: string }) ??
-      (style.lineHeight as { value?: number; unit: string }) ??
-      { unit: 'AUTO' },
+      (style.lineHeight as { value?: number; unit: string }) ?? { unit: 'AUTO' },
     textCase: (style.textCase as string) ?? 'ORIGINAL',
     textDecoration: (style.textDecoration as string) ?? 'NONE',
   };

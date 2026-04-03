@@ -2,13 +2,13 @@
  * Tests for WCAG lint rules: contrast, target-size, text-size, line-height.
  */
 
-import { describe, it, expect } from 'vitest';
-import type { AbstractNode, LintContext } from '../../packages/quality-engine/src/types.js';
+import { describe, expect, it } from 'vitest';
 import { wcagContrastRule } from '../../packages/quality-engine/src/rules/wcag/wcag-contrast.js';
-import { wcagTargetSizeRule } from '../../packages/quality-engine/src/rules/wcag/wcag-target-size.js';
-import { wcagTextSizeRule } from '../../packages/quality-engine/src/rules/wcag/wcag-text-size.js';
 import { wcagLineHeightRule } from '../../packages/quality-engine/src/rules/wcag/wcag-line-height.js';
 import { wcagNonTextContrastRule } from '../../packages/quality-engine/src/rules/wcag/wcag-non-text-contrast.js';
+import { wcagTargetSizeRule } from '../../packages/quality-engine/src/rules/wcag/wcag-target-size.js';
+import { wcagTextSizeRule } from '../../packages/quality-engine/src/rules/wcag/wcag-text-size.js';
+import type { AbstractNode, LintContext } from '../../packages/quality-engine/src/types.js';
 
 const emptyCtx: LintContext = {
   colorTokens: new Map(),
@@ -103,7 +103,8 @@ describe('wcag-target-size describeFix', () => {
 describe('wcag-contrast', () => {
   it('passes high contrast text (black)', () => {
     const node = makeNode({
-      type: 'TEXT', fontSize: 14,
+      type: 'TEXT',
+      fontSize: 14,
       fills: [{ type: 'SOLID', color: '#000000', visible: true }],
     });
     const v = wcagContrastRule.check(node, emptyCtx);
@@ -112,7 +113,8 @@ describe('wcag-contrast', () => {
 
   it('passes white text (good contrast on black)', () => {
     const node = makeNode({
-      type: 'TEXT', fontSize: 14,
+      type: 'TEXT',
+      fontSize: 14,
       fills: [{ type: 'SOLID', color: '#ffffff', visible: true }],
     });
     const v = wcagContrastRule.check(node, emptyCtx);
@@ -121,7 +123,8 @@ describe('wcag-contrast', () => {
 
   it('uses 3:1 threshold for large text', () => {
     const node = makeNode({
-      type: 'TEXT', fontSize: 24,
+      type: 'TEXT',
+      fontSize: 24,
       fills: [{ type: 'SOLID', color: '#767676', visible: true }],
     });
     const v = wcagContrastRule.check(node, emptyCtx);
@@ -141,7 +144,8 @@ describe('wcag-contrast', () => {
 
   it('skips invisible fills', () => {
     const node = makeNode({
-      type: 'TEXT', fontSize: 14,
+      type: 'TEXT',
+      fontSize: 14,
       fills: [{ type: 'SOLID', color: '#cccccc', visible: false }],
     });
     const v = wcagContrastRule.check(node, emptyCtx);
@@ -154,7 +158,9 @@ describe('wcag-contrast', () => {
 describe('wcag-non-text-contrast', () => {
   it('flags low-contrast stroke on rectangle', () => {
     const node = makeNode({
-      type: 'RECTANGLE', width: 100, height: 40,
+      type: 'RECTANGLE',
+      width: 100,
+      height: 40,
       strokes: [{ type: 'SOLID', color: '#e0e0e0', visible: true }],
       strokeWeight: 1,
       parentBgColor: '#ffffff',
@@ -167,7 +173,9 @@ describe('wcag-non-text-contrast', () => {
 
   it('passes adequate stroke contrast', () => {
     const node = makeNode({
-      type: 'RECTANGLE', width: 100, height: 40,
+      type: 'RECTANGLE',
+      width: 100,
+      height: 40,
       strokes: [{ type: 'SOLID', color: '#333333', visible: true }],
       strokeWeight: 1,
       parentBgColor: '#ffffff',
@@ -178,7 +186,9 @@ describe('wcag-non-text-contrast', () => {
 
   it('flags low-contrast fill on small element (icon-sized)', () => {
     const node = makeNode({
-      type: 'ELLIPSE', width: 24, height: 24,
+      type: 'ELLIPSE',
+      width: 24,
+      height: 24,
       fills: [{ type: 'SOLID', color: '#cccccc', visible: true }],
       parentBgColor: '#ffffff',
     });
@@ -189,7 +199,9 @@ describe('wcag-non-text-contrast', () => {
 
   it('skips fill check on large containers (> 200px)', () => {
     const node = makeNode({
-      type: 'FRAME', width: 400, height: 300,
+      type: 'FRAME',
+      width: 400,
+      height: 300,
       fills: [{ type: 'SOLID', color: '#f5f5f5', visible: true }],
       parentBgColor: '#ffffff',
     });
@@ -199,7 +211,8 @@ describe('wcag-non-text-contrast', () => {
 
   it('skips TEXT nodes (handled by wcag-contrast)', () => {
     const node = makeNode({
-      type: 'TEXT', fontSize: 14,
+      type: 'TEXT',
+      fontSize: 14,
       fills: [{ type: 'SOLID', color: '#cccccc', visible: true }],
       parentBgColor: '#ffffff',
     });
@@ -209,7 +222,9 @@ describe('wcag-non-text-contrast', () => {
 
   it('returns empty when no parentBgColor', () => {
     const node = makeNode({
-      type: 'RECTANGLE', width: 50, height: 50,
+      type: 'RECTANGLE',
+      width: 50,
+      height: 50,
       strokes: [{ type: 'SOLID', color: '#e0e0e0', visible: true }],
       strokeWeight: 1,
     });
@@ -219,7 +234,9 @@ describe('wcag-non-text-contrast', () => {
 
   it('checks both stroke and fill on small nodes', () => {
     const node = makeNode({
-      type: 'RECTANGLE', width: 100, height: 40,
+      type: 'RECTANGLE',
+      width: 100,
+      height: 40,
       strokes: [{ type: 'SOLID', color: '#e0e0e0', visible: true }],
       strokeWeight: 1,
       fills: [{ type: 'SOLID', color: '#eeeeee', visible: true }],

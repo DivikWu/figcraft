@@ -7,7 +7,7 @@
  *
  * Validates: Requirements 12.1
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ─── Mock setup ───
 
@@ -51,9 +51,9 @@ vi.mock('../../packages/core-mcp/src/figma-api.js', () => ({
   extractNodeIdFromUrl: vi.fn(),
 }));
 
-import { registerEndpointTools, bridgeRequestLogic } from '../../packages/core-mcp/src/tools/endpoints.js';
-import { getNodeInfoLogic, searchNodesLogic } from '../../packages/core-mcp/src/tools/logic/node-logic.js';
+import { bridgeRequestLogic, registerEndpointTools } from '../../packages/core-mcp/src/tools/endpoints.js';
 import { listLibraryComponentsLogic } from '../../packages/core-mcp/src/tools/logic/component-logic.js';
+import { getNodeInfoLogic, searchNodesLogic } from '../../packages/core-mcp/src/tools/logic/node-logic.js';
 
 const mockGetNodeInfoLogic = vi.mocked(getNodeInfoLogic);
 const mockSearchNodesLogic = vi.mocked(searchNodesLogic);
@@ -97,49 +97,47 @@ describe('Method_Dispatcher routing', () => {
   });
 
   it('registers all 5 endpoint tools', () => {
-    expect(registeredTools['nodes']).toBeDefined();
-    expect(registeredTools['text']).toBeDefined();
-    expect(registeredTools['components']).toBeDefined();
-    expect(registeredTools['variables_ep']).toBeDefined();
-    expect(registeredTools['styles_ep']).toBeDefined();
+    expect(registeredTools.nodes).toBeDefined();
+    expect(registeredTools.text).toBeDefined();
+    expect(registeredTools.components).toBeDefined();
+    expect(registeredTools.variables_ep).toBeDefined();
+    expect(registeredTools.styles_ep).toBeDefined();
   });
 
   // ── nodes endpoint routing ──
 
   describe('nodes endpoint', () => {
     it('routes method "get" to getNodeInfoLogic with correct params', async () => {
-      await registeredTools['nodes']({ method: 'get', nodeId: '1:23' });
+      await registeredTools.nodes({ method: 'get', nodeId: '1:23' });
 
-      expect(mockGetNodeInfoLogic).toHaveBeenCalledWith(
-        mockBridge,
-        { nodeId: '1:23' },
-      );
+      expect(mockGetNodeInfoLogic).toHaveBeenCalledWith(mockBridge, { nodeId: '1:23' });
     });
 
     it('routes method "list" to searchNodesLogic with correct params', async () => {
-      await registeredTools['nodes']({
+      await registeredTools.nodes({
         method: 'list',
         query: 'Button',
         types: ['FRAME', 'TEXT'],
         limit: 10,
       });
 
-      expect(mockSearchNodesLogic).toHaveBeenCalledWith(
-        mockBridge,
-        { query: 'Button', types: ['FRAME', 'TEXT'], limit: 10 },
-      );
+      expect(mockSearchNodesLogic).toHaveBeenCalledWith(mockBridge, {
+        query: 'Button',
+        types: ['FRAME', 'TEXT'],
+        limit: 10,
+      });
     });
 
     it('routes method "update" to bridge.request with patch_nodes', async () => {
       const patches = [{ nodeId: '1:1', props: { name: 'New' } }];
-      await registeredTools['nodes']({ method: 'update', patches });
+      await registeredTools.nodes({ method: 'update', patches });
 
       expect(mockBridge.request).toHaveBeenCalledWith('patch_nodes', { patches });
     });
 
     it('routes method "delete" to bridge.request with delete_nodes', async () => {
       const nodeIds = ['1:1', '2:2'];
-      await registeredTools['nodes']({ method: 'delete', nodeIds });
+      await registeredTools.nodes({ method: 'delete', nodeIds });
 
       expect(mockBridge.request).toHaveBeenCalledWith('delete_nodes', { nodeIds });
     });
@@ -149,7 +147,7 @@ describe('Method_Dispatcher routing', () => {
 
   describe('text endpoint', () => {
     it('routes method "set_content" to bridge.request with set_text_content', async () => {
-      await registeredTools['text']({
+      await registeredTools.text({
         method: 'set_content',
         nodeId: '5:5',
         content: 'Updated text',
@@ -166,25 +164,22 @@ describe('Method_Dispatcher routing', () => {
 
   describe('components endpoint', () => {
     it('routes method "list" to bridge.request with list_components', async () => {
-      await registeredTools['components']({ method: 'list' });
+      await registeredTools.components({ method: 'list' });
 
       expect(mockBridge.request).toHaveBeenCalledWith('list_components', {});
     });
 
     it('routes method "list_library" to listLibraryComponentsLogic with correct params', async () => {
-      await registeredTools['components']({
+      await registeredTools.components({
         method: 'list_library',
         fileKey: 'abc123',
       });
 
-      expect(mockListLibraryComponentsLogic).toHaveBeenCalledWith(
-        mockBridge,
-        { fileKey: 'abc123' },
-      );
+      expect(mockListLibraryComponentsLogic).toHaveBeenCalledWith(mockBridge, { fileKey: 'abc123' });
     });
 
     it('routes method "get" to bridge.request with get_component', async () => {
-      await registeredTools['components']({
+      await registeredTools.components({
         method: 'get',
         nodeId: '10:20',
       });
@@ -195,7 +190,7 @@ describe('Method_Dispatcher routing', () => {
     });
 
     it('routes method "list_properties" to bridge.request', async () => {
-      await registeredTools['components']({
+      await registeredTools.components({
         method: 'list_properties',
         nodeId: '15:30',
       });
@@ -222,7 +217,7 @@ describe('Method_Dispatcher invalid method rejection', () => {
   });
 
   it('nodes endpoint rejects invalid method with available methods list', async () => {
-    const result = await registeredTools['nodes']({ method: 'create' }) as any;
+    const result = (await registeredTools.nodes({ method: 'create' })) as any;
 
     expect(result.isError).toBe(true);
     const parsed = JSON.parse(result.content[0].text);
@@ -236,7 +231,7 @@ describe('Method_Dispatcher invalid method rejection', () => {
   });
 
   it('text endpoint rejects invalid method with available methods list', async () => {
-    const result = await registeredTools['text']({ method: 'delete' }) as any;
+    const result = (await registeredTools.text({ method: 'delete' })) as any;
 
     expect(result.isError).toBe(true);
     const parsed = JSON.parse(result.content[0].text);
@@ -246,7 +241,7 @@ describe('Method_Dispatcher invalid method rejection', () => {
   });
 
   it('components endpoint rejects invalid method', async () => {
-    const result = await registeredTools['components']({ method: 'rename' }) as any;
+    const result = (await registeredTools.components({ method: 'rename' })) as any;
 
     expect(result.isError).toBe(true);
     const parsed = JSON.parse(result.content[0].text);
@@ -256,7 +251,7 @@ describe('Method_Dispatcher invalid method rejection', () => {
   });
 
   it('variables_ep endpoint rejects invalid method', async () => {
-    const result = await registeredTools['variables_ep']({ method: 'rename' }) as any;
+    const result = (await registeredTools.variables_ep({ method: 'rename' })) as any;
 
     expect(result.isError).toBe(true);
     const parsed = JSON.parse(result.content[0].text);
@@ -265,7 +260,7 @@ describe('Method_Dispatcher invalid method rejection', () => {
   });
 
   it('styles_ep endpoint rejects invalid method', async () => {
-    const result = await registeredTools['styles_ep']({ method: 'rename' }) as any;
+    const result = (await registeredTools.styles_ep({ method: 'rename' })) as any;
 
     expect(result.isError).toBe(true);
     const parsed = JSON.parse(result.content[0].text);
@@ -274,7 +269,7 @@ describe('Method_Dispatcher invalid method rejection', () => {
   });
 
   it('rejects empty string as method', async () => {
-    const result = await registeredTools['nodes']({ method: '' }) as any;
+    const result = (await registeredTools.nodes({ method: '' })) as any;
 
     expect(result.isError).toBe(true);
     const parsed = JSON.parse(result.content[0].text);
@@ -297,20 +292,17 @@ describe('Method_Dispatcher parameter conversion', () => {
   });
 
   it('nodes "get" extracts only nodeId from params', async () => {
-    await registeredTools['nodes']({
+    await registeredTools.nodes({
       method: 'get',
       nodeId: '1:23',
       query: 'should-be-ignored',
     });
 
-    expect(mockGetNodeInfoLogic).toHaveBeenCalledWith(
-      mockBridge,
-      { nodeId: '1:23' },
-    );
+    expect(mockGetNodeInfoLogic).toHaveBeenCalledWith(mockBridge, { nodeId: '1:23' });
   });
 
   it('nodes "list" extracts query, types, and limit', async () => {
-    await registeredTools['nodes']({
+    await registeredTools.nodes({
       method: 'list',
       query: 'Frame',
       types: ['FRAME'],
@@ -318,26 +310,24 @@ describe('Method_Dispatcher parameter conversion', () => {
       nodeId: 'should-be-ignored',
     });
 
-    expect(mockSearchNodesLogic).toHaveBeenCalledWith(
-      mockBridge,
-      { query: 'Frame', types: ['FRAME'], limit: 5 },
-    );
+    expect(mockSearchNodesLogic).toHaveBeenCalledWith(mockBridge, { query: 'Frame', types: ['FRAME'], limit: 5 });
   });
 
   it('nodes "list" passes undefined for optional params when not provided', async () => {
-    await registeredTools['nodes']({
+    await registeredTools.nodes({
       method: 'list',
       query: 'Button',
     });
 
-    expect(mockSearchNodesLogic).toHaveBeenCalledWith(
-      mockBridge,
-      { query: 'Button', types: undefined, limit: undefined },
-    );
+    expect(mockSearchNodesLogic).toHaveBeenCalledWith(mockBridge, {
+      query: 'Button',
+      types: undefined,
+      limit: undefined,
+    });
   });
 
   it('text "set_content" passes params to bridge', async () => {
-    await registeredTools['text']({
+    await registeredTools.text({
       method: 'set_content',
       nodeId: '5:5',
       content: 'Updated text',
@@ -376,7 +366,6 @@ describe('bridgeRequestLogic', () => {
   });
 });
 
-
 // ── Property-Based Tests: Method_Dispatcher routing & rejection ──
 
 import fc from 'fast-check';
@@ -388,7 +377,10 @@ import { buildMinimalParams } from '../helpers/endpoint-test-utils.js';
  * For logic-function methods: handler is 'logic' (calls getNodeInfoLogic or searchNodesLogic).
  * For bridge methods: handler is the bridge method name string.
  */
-const ENDPOINT_METHOD_BRIDGE_MAP: Record<string, Record<string, { type: 'logic'; fn: string } | { type: 'bridge'; method: string }>> = {
+const ENDPOINT_METHOD_BRIDGE_MAP: Record<
+  string,
+  Record<string, { type: 'logic'; fn: string } | { type: 'bridge'; method: string }>
+> = {
   nodes: {
     get: { type: 'logic', fn: 'getNodeInfoLogic' },
     list: { type: 'logic', fn: 'searchNodesLogic' },
@@ -458,43 +450,37 @@ describe('Feature: endpoint-mode-refactor, Property 7: Method_Dispatcher routing
 
   it('routes every valid (endpoint, method) pair to the correct handler', async () => {
     await fc.assert(
-      fc.asyncProperty(
-        fc.constantFrom(...ALL_VALID_PAIRS),
-        async ({ endpoint, method }) => {
-          // Reset mocks for each iteration
-          mockBridge.request.mockClear();
-          mockGetNodeInfoLogic.mockClear();
-          mockSearchNodesLogic.mockClear();
-          mockListLibraryComponentsLogic.mockClear();
+      fc.asyncProperty(fc.constantFrom(...ALL_VALID_PAIRS), async ({ endpoint, method }) => {
+        // Reset mocks for each iteration
+        mockBridge.request.mockClear();
+        mockGetNodeInfoLogic.mockClear();
+        mockSearchNodesLogic.mockClear();
+        mockListLibraryComponentsLogic.mockClear();
 
-          // Build minimal valid params using shared utility
-          const params = buildMinimalParams(endpoint, method);
+        // Build minimal valid params using shared utility
+        const params = buildMinimalParams(endpoint, method);
 
-          const result = await registeredTools[endpoint](params) as any;
+        const result = (await registeredTools[endpoint](params)) as any;
 
-          // The call should NOT be an error (valid method)
-          expect(result.isError).not.toBe(true);
+        // The call should NOT be an error (valid method)
+        expect(result.isError).not.toBe(true);
 
-          const mapping = ENDPOINT_METHOD_BRIDGE_MAP[endpoint][method];
-          if (mapping.type === 'logic') {
-            // Verify the correct logic function was called
-            if (mapping.fn === 'getNodeInfoLogic') {
-              expect(mockGetNodeInfoLogic).toHaveBeenCalledTimes(1);
-            } else if (mapping.fn === 'searchNodesLogic') {
-              expect(mockSearchNodesLogic).toHaveBeenCalledTimes(1);
-            } else if (mapping.fn === 'listLibraryComponentsLogic') {
-              expect(mockListLibraryComponentsLogic).toHaveBeenCalledTimes(1);
-            }
-          } else {
-            // Verify bridge.request was called with the correct mapped method name
-            expect(mockBridge.request).toHaveBeenCalledTimes(1);
-            expect(mockBridge.request).toHaveBeenCalledWith(
-              mapping.method,
-              expect.any(Object),
-            );
+        const mapping = ENDPOINT_METHOD_BRIDGE_MAP[endpoint][method];
+        if (mapping.type === 'logic') {
+          // Verify the correct logic function was called
+          if (mapping.fn === 'getNodeInfoLogic') {
+            expect(mockGetNodeInfoLogic).toHaveBeenCalledTimes(1);
+          } else if (mapping.fn === 'searchNodesLogic') {
+            expect(mockSearchNodesLogic).toHaveBeenCalledTimes(1);
+          } else if (mapping.fn === 'listLibraryComponentsLogic') {
+            expect(mockListLibraryComponentsLogic).toHaveBeenCalledTimes(1);
           }
-        },
-      ),
+        } else {
+          // Verify bridge.request was called with the correct mapped method name
+          expect(mockBridge.request).toHaveBeenCalledTimes(1);
+          expect(mockBridge.request).toHaveBeenCalledWith(mapping.method, expect.any(Object));
+        }
+      }),
       { numRuns: 100 },
     );
   });
@@ -532,7 +518,7 @@ describe('Feature: endpoint-mode-refactor, Property 8: Method_Dispatcher rejects
           // Skip if the random string happens to be a valid method
           fc.pre(!validMethods.includes(randomMethod));
 
-          const result = await registeredTools[endpoint]({ method: randomMethod }) as any;
+          const result = (await registeredTools[endpoint]({ method: randomMethod })) as any;
 
           // Must be an error
           expect(result.isError).toBe(true);

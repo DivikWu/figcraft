@@ -1,6 +1,6 @@
-import { defineConfig } from 'tsup';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { builtinModules } from 'node:module';
+import { defineConfig } from 'tsup';
 
 /** Design rule skills → strip frontmatter → write as plain .md to dist */
 const DESIGN_RULE_SKILLS = [
@@ -9,11 +9,7 @@ const DESIGN_RULE_SKILLS = [
 ] as const;
 
 // Node built-in modules and CJS deps must stay external in ESM bundles.
-const nodeExternals = [
-  ...builtinModules,
-  ...builtinModules.map((m) => `node:${m}`),
-  'ws',
-];
+const nodeExternals = [...builtinModules, ...builtinModules.map((m) => `node:${m}`), 'ws'];
 
 export default defineConfig({
   entry: ['src/index.ts'],

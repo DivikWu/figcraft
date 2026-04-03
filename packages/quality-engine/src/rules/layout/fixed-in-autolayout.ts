@@ -5,7 +5,7 @@
  * it's often unintentional and breaks the layout flow.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import type { AbstractNode, LintContext, LintRule, LintViolation } from '../../types.js';
 
 export const fixedInAutolayoutRule: LintRule = {
   name: 'fixed-in-autolayout',
@@ -13,7 +13,8 @@ export const fixedInAutolayoutRule: LintRule = {
   category: 'layout',
   severity: 'unsafe',
   ai: {
-    preventionHint: 'Do not use layoutPositioning: ABSOLUTE inside auto-layout frames — it breaks flow; use a wrapper frame instead',
+    preventionHint:
+      'Do not use layoutPositioning: ABSOLUTE inside auto-layout frames — it breaks flow; use a wrapper frame instead',
     phase: ['layout'],
     tags: ['frame'],
   },

@@ -14,8 +14,8 @@
  * internal padding, and a text child for placeholder.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
 import { DESIGN_CONSTANTS, SCREEN_NAME_RE } from '../../constants.js';
+import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
 
 const INPUT_NAME_RE = /input|field|text.?field|search.?bar|email.?field|password.?field|输入|搜索框/i;
 
@@ -25,9 +25,8 @@ function looksLikeScreenContainer(node: AbstractNode): boolean {
   if (SCREEN_NAME_RE.test(node.name) && (node.children?.length ?? 0) >= 2) return true;
   // Containers with 3+ children or 2+ frame-like children are not inputs
   if ((node.children?.length ?? 0) >= 3) return true;
-  const frameLikeChildren = node.children?.filter(
-    c => c.type === 'FRAME' || c.type === 'INSTANCE' || c.type === 'COMPONENT',
-  ).length ?? 0;
+  const frameLikeChildren =
+    node.children?.filter((c) => c.type === 'FRAME' || c.type === 'INSTANCE' || c.type === 'COMPONENT').length ?? 0;
   if (frameLikeChildren >= 2) return true;
   return false;
 }
@@ -40,9 +39,9 @@ function looksLikeScreenContainer(node: AbstractNode): boolean {
 function looksLikeFieldGroup(node: AbstractNode): boolean {
   if (node.type !== 'FRAME' && node.type !== 'COMPONENT') return false;
   if (!node.children || node.children.length < 2 || node.children.length > 3) return false;
-  const hasTextLabel = node.children.some(c => c.type === 'TEXT');
+  const hasTextLabel = node.children.some((c) => c.type === 'TEXT');
   const hasFrameChild = node.children.some(
-    c => c.type === 'FRAME' || c.type === 'INSTANCE' || c.type === 'COMPONENT',
+    (c) => c.type === 'FRAME' || c.type === 'INSTANCE' || c.type === 'COMPONENT',
   );
   return hasTextLabel && hasFrameChild;
 }
@@ -52,9 +51,12 @@ function looksLikeInput(node: AbstractNode): boolean {
   if (looksLikeFieldGroup(node)) return false;
   if (INPUT_NAME_RE.test(node.name)) return true;
   // A frame with stroke + single text child is likely an input
-  if (node.type === 'FRAME' && node.children?.length === 1 &&
-      node.children[0].type === 'TEXT' &&
-      node.strokes && node.strokes.some(s => s.visible !== false)) {
+  if (
+    node.type === 'FRAME' &&
+    node.children?.length === 1 &&
+    node.children[0].type === 'TEXT' &&
+    node.strokes?.some((s) => s.visible !== false)
+  ) {
     return true;
   }
   return false;
@@ -68,7 +70,8 @@ export const inputFieldStructureRule: LintRule = {
   category: 'layout',
   severity: 'heuristic',
   ai: {
-    preventionHint: 'All input fields must be auto-layout frames with stroke (border), corner radius, internal padding, and placeholder text child — set layoutAlign: STRETCH',
+    preventionHint:
+      'All input fields must be auto-layout frames with stroke (border), corner radius, internal padding, and placeholder text child — set layoutAlign: STRETCH',
     phase: ['structure'],
     tags: ['input'],
   },
@@ -113,7 +116,7 @@ export const inputFieldStructureRule: LintRule = {
     }
 
     // Check 3: No stroke (border)
-    const hasVisibleStroke = node.strokes && node.strokes.some(s => s.visible !== false);
+    const hasVisibleStroke = node.strokes?.some((s) => s.visible !== false);
     if (!hasVisibleStroke) {
       violations.push({
         nodeId: node.id,
@@ -127,8 +130,9 @@ export const inputFieldStructureRule: LintRule = {
     }
 
     // Check 4: No corner radius
-    const hasRadius = node.cornerRadius != null &&
-      (typeof node.cornerRadius === 'number' ? node.cornerRadius > 0 : node.cornerRadius.some(r => r > 0));
+    const hasRadius =
+      node.cornerRadius != null &&
+      (typeof node.cornerRadius === 'number' ? node.cornerRadius > 0 : node.cornerRadius.some((r) => r > 0));
     if (!hasRadius) {
       violations.push({
         nodeId: node.id,
@@ -164,7 +168,7 @@ export const inputFieldStructureRule: LintRule = {
     }
 
     // Check 6: No text child
-    const hasTextChild = node.children && node.children.some(c => c.type === 'TEXT');
+    const hasTextChild = node.children?.some((c) => c.type === 'TEXT');
     if (!hasTextChild) {
       violations.push({
         nodeId: node.id,

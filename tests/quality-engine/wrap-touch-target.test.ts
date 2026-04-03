@@ -8,9 +8,9 @@
  * - Fix descriptor data contains correct minWidth/minHeight
  */
 
-import { describe, it, expect } from 'vitest';
-import type { AbstractNode, LintContext } from '../../packages/quality-engine/src/types.js';
+import { describe, expect, it } from 'vitest';
 import { wcagTargetSizeRule } from '../../packages/quality-engine/src/rules/wcag/wcag-target-size.js';
+import type { AbstractNode, LintContext } from '../../packages/quality-engine/src/types.js';
 
 const emptyCtx: LintContext = {
   colorTokens: new Map(),
@@ -70,9 +70,16 @@ describe('wrap-touch-target strategy (TEXT node path)', () => {
 
 describe('wcag-target-size interactive patterns', () => {
   const interactiveNames = [
-    'Button', 'Submit Btn', 'Nav Link', 'Tab Item',
-    'Toggle Switch', 'Checkbox', 'Radio Option',
-    'Search Input', 'Icon Button', 'Clickable Area',
+    'Button',
+    'Submit Btn',
+    'Nav Link',
+    'Tab Item',
+    'Toggle Switch',
+    'Checkbox',
+    'Radio Option',
+    'Search Input',
+    'Icon Button',
+    'Clickable Area',
     'Touchable Row',
   ];
 

@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
 import {
-  GENERATED_TOOL_RESPONSE_EXAMPLES,
   GENERATED_ENDPOINT_METHOD_RESPONSE_EXAMPLES,
+  GENERATED_TOOL_RESPONSE_EXAMPLES,
 } from '../../packages/core-mcp/src/tools/_contracts.js';
 
 const rootPkg = JSON.parse(readFileSync('package.json', 'utf-8')) as {
@@ -25,8 +25,10 @@ const manifest = JSON.parse(readFileSync('manifest.json', 'utf-8')) as {
   ui?: string;
 };
 const toolResponseCount = Object.keys(GENERATED_TOOL_RESPONSE_EXAMPLES).length;
-const endpointMethodCount = Object.values(GENERATED_ENDPOINT_METHOD_RESPONSE_EXAMPLES)
-  .reduce((total, methods) => total + Object.keys(methods).length, 0);
+const endpointMethodCount = Object.values(GENERATED_ENDPOINT_METHOD_RESPONSE_EXAMPLES).reduce(
+  (total, methods) => total + Object.keys(methods).length,
+  0,
+);
 
 describe('public contract baseline', () => {
   it('keeps the workspace root private and publishes figcraft-design from its dedicated package', () => {

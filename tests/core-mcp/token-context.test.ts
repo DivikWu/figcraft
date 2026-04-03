@@ -2,7 +2,7 @@
  * Tests for buildTokenContext helper in lint tools.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { buildTokenContext } from '../../packages/core-mcp/src/tools/lint.js';
 
 describe('buildTokenContext', () => {
@@ -37,23 +37,23 @@ describe('buildTokenContext', () => {
 
   it('categorizes typography tokens', () => {
     const typoValue = { fontSize: 16, fontFamily: 'Inter', fontWeight: '400' };
-    const ctx = buildTokenContext([
-      { path: 'typography.body', type: 'typography', value: typoValue },
-    ]) as { typographyTokens: Record<string, unknown> };
+    const ctx = buildTokenContext([{ path: 'typography.body', type: 'typography', value: typoValue }]) as {
+      typographyTokens: Record<string, unknown>;
+    };
     expect(ctx.typographyTokens['typography/body']).toEqual(typoValue);
   });
 
   it('converts dot paths to slash paths', () => {
-    const ctx = buildTokenContext([
-      { path: 'color.brand.primary', type: 'color', value: '#ff0000' },
-    ]) as { colorTokens: Record<string, string> };
+    const ctx = buildTokenContext([{ path: 'color.brand.primary', type: 'color', value: '#ff0000' }]) as {
+      colorTokens: Record<string, string>;
+    };
     expect('color/brand/primary' in ctx.colorTokens).toBe(true);
   });
 
   it('parses string dimension values', () => {
-    const ctx = buildTokenContext([
-      { path: 'spacing.base', type: 'dimension', value: '16' },
-    ]) as { spacingTokens: Record<string, number> };
+    const ctx = buildTokenContext([{ path: 'spacing.base', type: 'dimension', value: '16' }]) as {
+      spacingTokens: Record<string, number>;
+    };
     expect(ctx.spacingTokens['spacing/base']).toBe(16);
   });
 
@@ -63,16 +63,17 @@ describe('buildTokenContext', () => {
   });
 
   it('ignores non-string color values', () => {
-    const ctx = buildTokenContext([
-      { path: 'color.weird', type: 'color', value: 123 },
-    ]) as { colorTokens: Record<string, string> };
+    const ctx = buildTokenContext([{ path: 'color.weird', type: 'color', value: 123 }]) as {
+      colorTokens: Record<string, string>;
+    };
     expect(Object.keys(ctx.colorTokens)).toHaveLength(0);
   });
 
   it('dimension without spacing/radius keywords is ignored', () => {
-    const ctx = buildTokenContext([
-      { path: 'size.icon', type: 'dimension', value: 24 },
-    ]) as { spacingTokens: Record<string, number>; radiusTokens: Record<string, number> };
+    const ctx = buildTokenContext([{ path: 'size.icon', type: 'dimension', value: 24 }]) as {
+      spacingTokens: Record<string, number>;
+      radiusTokens: Record<string, number>;
+    };
     expect(Object.keys(ctx.spacingTokens)).toHaveLength(0);
     expect(Object.keys(ctx.radiusTokens)).toHaveLength(0);
   });

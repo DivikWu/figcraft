@@ -2,8 +2,8 @@
  * Audit tool — deep single-node quality audit combining lint + design guidelines.
  */
 
-import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 import type { Bridge } from '../bridge.js';
 
 export function registerAuditTools(server: McpServer, bridge: Bridge): void {
@@ -14,7 +14,10 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
       'Use this for detailed inspection of a specific element before finalizing a design.',
     {
       nodeId: z.string().describe('The Figma node ID to audit'),
-      categories: z.array(z.string()).optional().describe('Lint categories to check: token, layout, naming, wcag, component (default: all)'),
+      categories: z
+        .array(z.string())
+        .optional()
+        .describe('Lint categories to check: token, layout, naming, wcag, component (default: all)'),
       includeChildren: z.boolean().optional().describe('Also audit child nodes recursively (default: true)'),
     },
     async ({ nodeId, categories, includeChildren = true }) => {
@@ -27,7 +30,7 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
       // Load token context if in library mode
       let tokenContext: Record<string, unknown> | undefined;
       try {
-        const modeResult = await bridge.request('get_mode', {}) as {
+        const modeResult = (await bridge.request('get_mode', {})) as {
           mode: string;
           selectedLibrary: string | null;
           designContext?: { tokens?: Record<string, unknown> };
@@ -35,13 +38,15 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
         if (modeResult.mode === 'library' && modeResult.selectedLibrary) {
           lintParams.tokenContext = {};
         }
-      } catch { /* proceed without tokens */ }
+      } catch {
+        /* proceed without tokens */
+      }
 
-      const lintResult = await bridge.request('lint_check', {
+      const lintResult = (await bridge.request('lint_check', {
         ...lintParams,
         tokenContext,
         maxViolations: 100,
-      }) as {
+      })) as {
         summary: { total: number; violations: number; bySeverity: Record<string, number> };
         categories: Array<{
           rule: string;
@@ -61,7 +66,7 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
       };
 
       // Step 2: Get node info for structural analysis
-      const nodeInfo = await bridge.request('get_node_info', { nodeId }) as {
+      const nodeInfo = (await bridge.request('get_node_info', { nodeId })) as {
         id: string;
         name: string;
         type: string;
@@ -72,11 +77,11 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
       };
 
       // Step 3: Build structured audit report
-      const violations = lintResult.categories.flatMap(c => c.nodes);
-      const errors = violations.filter(v => v.severity === 'error');
-      const warnings = violations.filter(v => v.severity === 'warning');
-      const infos = violations.filter(v => v.severity === 'info' || v.severity === 'hint');
-      const fixable = violations.filter(v => v.autoFixable);
+      const violations = lintResult.categories.flatMap((c) => c.nodes);
+      const errors = violations.filter((v) => v.severity === 'error');
+      const warnings = violations.filter((v) => v.severity === 'warning');
+      const infos = violations.filter((v) => v.severity === 'info' || v.severity === 'hint');
+      const fixable = violations.filter((v) => v.autoFixable);
 
       // Step 4: Structural checks beyond lint
       const structuralNotes: string[] = [];
@@ -84,10 +89,12 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
         structuralNotes.push('Frame has no auto-layout — children may overlap.');
       }
       if (nodeInfo.children && nodeInfo.children.length > 10) {
-        structuralNotes.push(`Frame has ${nodeInfo.children.length} direct children — consider grouping into semantic sections.`);
+        structuralNotes.push(
+          `Frame has ${nodeInfo.children.length} direct children — consider grouping into semantic sections.`,
+        );
       }
 
-      const score = Math.max(0, 100 - (errors.length * 15) - (warnings.length * 5) - (infos.length * 1));
+      const score = Math.max(0, 100 - errors.length * 15 - warnings.length * 5 - infos.length * 1);
 
       const report = {
         nodeId: nodeInfo.id,
@@ -103,7 +110,7 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
           infos: infos.length,
           autoFixable: fixable.length,
         },
-        violations: violations.map(v => ({
+        violations: violations.map((v) => ({
           rule: v.rule,
           severity: v.severity,
           node: v.nodeName,
@@ -112,18 +119,21 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
           autoFixable: v.autoFixable,
         })),
         structuralNotes,
-        recommendation: errors.length > 0
-          ? 'Critical issues found. Run lint_fix_all to auto-fix what\'s possible, then address remaining errors manually.'
-          : warnings.length > 0
-            ? 'Some quality issues detected. Consider running lint_fix_all to improve.'
-            : 'Node passes quality checks.',
+        recommendation:
+          errors.length > 0
+            ? "Critical issues found. Run lint_fix_all to auto-fix what's possible, then address remaining errors manually."
+            : warnings.length > 0
+              ? 'Some quality issues detected. Consider running lint_fix_all to improve.'
+              : 'Node passes quality checks.',
       };
 
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify(report, null, 2),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(report, null, 2),
+          },
+        ],
       };
     },
   );

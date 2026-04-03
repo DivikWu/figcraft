@@ -22,7 +22,10 @@ export async function exportImageLogic(
   // Return image content block so IDE displays inline (plugin path only)
   if (source !== 'rest-api' && r.base64) {
     const MIME: Record<string, string> = {
-      PNG: 'image/png', JPG: 'image/jpeg', SVG: 'image/svg+xml', PDF: 'application/pdf',
+      PNG: 'image/png',
+      JPG: 'image/jpeg',
+      SVG: 'image/svg+xml',
+      PDF: 'application/pdf',
     };
     const mimeType = MIME[(r.format ?? 'PNG').toUpperCase()] ?? 'image/png';
     return {
@@ -34,8 +37,9 @@ export async function exportImageLogic(
   }
 
   // REST fallback or missing base64: text only
-  const text = source === 'rest-api'
-    ? JSON.stringify(result, null, 2) + '\n\n⚠️ Exported via REST API (plugin offline).'
-    : JSON.stringify(result, null, 2);
+  const text =
+    source === 'rest-api'
+      ? `${JSON.stringify(result, null, 2)}\n\n⚠️ Exported via REST API (plugin offline).`
+      : JSON.stringify(result, null, 2);
   return { content: [{ type: 'text' as const, text }] };
 }

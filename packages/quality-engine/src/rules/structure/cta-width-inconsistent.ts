@@ -1,4 +1,4 @@
-import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
+import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
 
 function isFormLike(node: AbstractNode): boolean {
   return node.role === 'form' || node.role === 'actions' || /form|actions|footer|content|body/i.test(node.name);
@@ -6,19 +6,24 @@ function isFormLike(node: AbstractNode): boolean {
 
 function isButtonLike(node: AbstractNode): boolean {
   if (node.role === 'button') return true;
-  return /button|btn|submit|continue|next|sign.?in|sign.?up|login|register|cta/i.test(node.name) ||
-    !!node.fills?.some((fill) => fill.visible !== false && fill.type === 'SOLID');
+  return (
+    /button|btn|submit|continue|next|sign.?in|sign.?up|login|register|cta/i.test(node.name) ||
+    !!node.fills?.some((fill) => fill.visible !== false && fill.type === 'SOLID')
+  );
 }
 
 function isInputLike(node: AbstractNode): boolean {
   if (node.role === 'input' || node.role === 'field') return true;
-  return /input|field|email|password|username|search/i.test(node.name) ||
-    !!node.strokes?.some((stroke) => stroke.visible !== false);
+  return (
+    /input|field|email|password|username|search/i.test(node.name) ||
+    !!node.strokes?.some((stroke) => stroke.visible !== false)
+  );
 }
 
 export const ctaWidthInconsistentRule: LintRule = {
   name: 'cta-width-inconsistent',
-  description: 'Primary CTA buttons inside forms should match the dominant field width instead of appearing noticeably narrower.',
+  description:
+    'Primary CTA buttons inside forms should match the dominant field width instead of appearing noticeably narrower.',
   category: 'layout',
   severity: 'heuristic',
 

@@ -4,13 +4,10 @@
  * when the plugin is offline but an API token is available.
  */
 
-import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { Bridge } from '../bridge.js';
-import {
-  requestWithFallback,
-  restGetDocumentInfo,
-} from '../rest-fallback.js';
+import { z } from 'zod';
+import type { Bridge } from '../bridge.js';
+import { requestWithFallback, restGetDocumentInfo } from '../rest-fallback.js';
 import { getCurrentPageLogic } from './logic/node-logic.js';
 
 export function registerNodeTools(server: McpServer, bridge: Bridge): void {
@@ -21,10 +18,7 @@ export function registerNodeTools(server: McpServer, bridge: Bridge): void {
       'Use maxDepth to control tree traversal depth (default: 10). ' +
       'For large pages, use maxDepth=1 or 2 for a fast overview, then nodes(method: "get") for details.',
     {
-      maxNodes: z
-        .number()
-        .optional()
-        .describe('Maximum number of top-level nodes to return (default: 200)'),
+      maxNodes: z.number().optional().describe('Maximum number of top-level nodes to return (default: 200)'),
       maxDepth: z
         .number()
         .optional()
@@ -42,15 +36,15 @@ export function registerNodeTools(server: McpServer, bridge: Bridge): void {
       'Use get_document_info only when you need to list all pages or switch pages.',
     {},
     async () => {
-      const { result, source } = await requestWithFallback(
-        bridge,
-        'get_document_info',
-        {},
-        () => restGetDocumentInfo(),
+      const { result, source } = await requestWithFallback(bridge, 'get_document_info', {}, () =>
+        restGetDocumentInfo(),
       );
-      const text = source === 'rest-api'
-        ? JSON.stringify(result, null, 2) + '\n\n⚠️ Data from REST API (plugin offline). Variable bindings and some properties may be missing.'
-        : JSON.stringify(result, null, 2) + '\n\n_hint: Document info loaded. Continue with your task — do NOT stop here.';
+      const text =
+        source === 'rest-api'
+          ? JSON.stringify(result, null, 2) +
+            '\n\n⚠️ Data from REST API (plugin offline). Variable bindings and some properties may be missing.'
+          : JSON.stringify(result, null, 2) +
+            '\n\n_hint: Document info loaded. Continue with your task — do NOT stop here.';
       return { content: [{ type: 'text' as const, text }] };
     },
   );

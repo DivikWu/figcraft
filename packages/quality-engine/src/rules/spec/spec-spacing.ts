@@ -2,11 +2,11 @@
  * Spec spacing rule — detect non-token spacing values.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
+import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
 
 export const specSpacingRule: LintRule = {
   name: 'spec-spacing',
-  description: 'Detect padding or gap values that don\'t match any spacing token.',
+  description: "Detect padding or gap values that don't match any spacing token.",
   category: 'token',
   severity: 'error',
   ai: {
@@ -62,7 +62,11 @@ export const specSpacingRule: LintRule = {
     if (!v.fixData || v.fixData.value == null || !v.fixData.property) return null;
     // Prefer deferred strategy for token binding when variableId is available
     if (v.fixData.variableId) {
-      return { kind: 'deferred', strategy: 'library-spacing-bind', data: { property: v.fixData.property, value: v.fixData.value, variableId: v.fixData.variableId } };
+      return {
+        kind: 'deferred',
+        strategy: 'library-spacing-bind',
+        data: { property: v.fixData.property, value: v.fixData.value, variableId: v.fixData.variableId },
+      };
     }
     return { kind: 'set-properties', props: { [v.fixData.property as string]: v.fixData.value } };
   },

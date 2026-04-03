@@ -5,8 +5,8 @@
  * it returns _correctedPayload + _diff so the AI learns the correct usage.
  */
 
-import type { StructuredHint } from '../utils/hint-aggregator.js';
 import { SPACER_RE } from '@figcraft/quality-engine';
+import type { StructuredHint } from '../utils/hint-aggregator.js';
 
 /** A single layout inference made during node creation. */
 export interface Inference {
@@ -37,7 +37,7 @@ export interface ValidationResult {
  * Only includes ambiguous inferences (deterministic are silent).
  */
 export function formatDiff(inferences: Inference[]): string {
-  const ambiguous = inferences.filter(i => i.confidence === 'ambiguous');
+  const ambiguous = inferences.filter((i) => i.confidence === 'ambiguous');
   if (ambiguous.length === 0) return '';
 
   // Group by path
@@ -75,50 +75,113 @@ export function inferDirection(p: Record<string, unknown>): 'HORIZONTAL' | 'VERT
 // ─── Known params per child type (for unknown-param detection) ───
 
 const COMMON_PARAMS = new Set([
-  'type', 'name', 'x', 'y', 'width', 'height', 'index',
-  'layoutSizingHorizontal', 'layoutSizingVertical', 'layoutPositioning',
-  'opacity', 'visible', 'rotation',
+  'type',
+  'name',
+  'x',
+  'y',
+  'width',
+  'height',
+  'index',
+  'layoutSizingHorizontal',
+  'layoutSizingVertical',
+  'layoutPositioning',
+  'opacity',
+  'visible',
+  'rotation',
 ]);
 
 const FRAME_PARAMS = new Set([
   ...COMMON_PARAMS,
-  'fill', 'fillVariableName', 'fillStyleName', 'fontColorVariableName', 'fontColorStyleName',
-  'gradient', 'imageUrl', 'imageScaleMode',
-  'strokeColor', 'strokeVariableName', 'strokeWeight', 'strokeAlign', 'strokeDashes', 'strokeCap', 'strokeJoin',
-  'layoutMode', 'itemSpacing', 'padding', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
-  'counterAxisSpacing', 'primaryAxisAlignItems', 'counterAxisAlignItems', 'layoutWrap',
-  'cornerRadius', 'topLeftRadius', 'topRightRadius', 'bottomRightRadius', 'bottomLeftRadius',
-  'blendMode', 'effectStyleName', 'shadow', 'innerShadow', 'blur', 'clipsContent',
-  'minWidth', 'maxWidth', 'minHeight', 'maxHeight',
-  'children', 'dryRun', 'noPreview', 'parentId', 'items',
+  'fill',
+  'fillVariableName',
+  'fillStyleName',
+  'fontColorVariableName',
+  'fontColorStyleName',
+  'gradient',
+  'imageUrl',
+  'imageScaleMode',
+  'strokeColor',
+  'strokeVariableName',
+  'strokeWeight',
+  'strokeAlign',
+  'strokeDashes',
+  'strokeCap',
+  'strokeJoin',
+  'layoutMode',
+  'itemSpacing',
+  'padding',
+  'paddingTop',
+  'paddingRight',
+  'paddingBottom',
+  'paddingLeft',
+  'counterAxisSpacing',
+  'primaryAxisAlignItems',
+  'counterAxisAlignItems',
+  'layoutWrap',
+  'cornerRadius',
+  'topLeftRadius',
+  'topRightRadius',
+  'bottomRightRadius',
+  'bottomLeftRadius',
+  'blendMode',
+  'effectStyleName',
+  'shadow',
+  'innerShadow',
+  'blur',
+  'clipsContent',
+  'minWidth',
+  'maxWidth',
+  'minHeight',
+  'maxHeight',
+  'children',
+  'dryRun',
+  'noPreview',
+  'parentId',
+  'items',
 ]);
 
 const TEXT_PARAMS = new Set([
   ...COMMON_PARAMS,
-  'content', 'characters', 'fontSize', 'fontFamily', 'fontStyle', 'fontWeight',
-  'fill', 'fillVariableName', 'fillStyleName', 'fontColorVariableName', 'fontColorStyleName',
-  'textStyleName', 'textAlignHorizontal', 'textAlignVertical', 'textAutoResize',
-  'textCase', 'textDecoration', 'letterSpacing', 'lineHeight', 'paragraphSpacing',
-  'strokeColor', 'strokeVariableName', 'strokeWeight',
+  'content',
+  'characters',
+  'fontSize',
+  'fontFamily',
+  'fontStyle',
+  'fontWeight',
+  'fill',
+  'fillVariableName',
+  'fillStyleName',
+  'fontColorVariableName',
+  'fontColorStyleName',
+  'textStyleName',
+  'textAlignHorizontal',
+  'textAlignVertical',
+  'textAutoResize',
+  'textCase',
+  'textDecoration',
+  'letterSpacing',
+  'lineHeight',
+  'paragraphSpacing',
+  'strokeColor',
+  'strokeVariableName',
+  'strokeWeight',
   'hyperlink',
 ]);
 
 const SHAPE_PARAMS = new Set([
   ...COMMON_PARAMS,
-  'fill', 'fillVariableName', 'fillStyleName',
-  'strokeColor', 'strokeVariableName', 'strokeWeight',
+  'fill',
+  'fillVariableName',
+  'fillStyleName',
+  'strokeColor',
+  'strokeVariableName',
+  'strokeWeight',
   'cornerRadius',
 ]);
 
-const INSTANCE_PARAMS = new Set([
-  ...COMMON_PARAMS,
-  'componentId', 'variantProperties', 'properties',
-]);
+const INSTANCE_PARAMS = new Set([...COMMON_PARAMS, 'componentId', 'variantProperties', 'properties']);
 
-const SVG_PARAMS = new Set([
-  ...COMMON_PARAMS,
-  'svg',
-]);
+const SVG_PARAMS = new Set([...COMMON_PARAMS, 'svg']);
 
 const STAR_PARAMS = new Set([...SHAPE_PARAMS, 'pointCount', 'innerRadius']);
 const POLYGON_PARAMS = new Set([...SHAPE_PARAMS, 'pointCount']);
@@ -200,9 +263,7 @@ export function warnUnknownChildParams(
 }
 
 /** Fields that may be inferred during creation. */
-const INFERRED_FIELDS = new Set([
-  'layoutMode', 'layoutSizingHorizontal', 'layoutSizingVertical',
-]);
+const INFERRED_FIELDS = new Set(['layoutMode', 'layoutSizingHorizontal', 'layoutSizingVertical']);
 
 /**
  * Build a corrected payload from the mutated params.
@@ -226,7 +287,7 @@ export function buildCorrectedPayload(
   if (Array.isArray(corrected.children)) {
     corrected.children = (corrected.children as Record<string, unknown>[]).map((child, idx) => {
       const childName = (child.name as string) ?? `child[${idx}]`;
-      const childInferences = inferences.filter(inf => {
+      const childInferences = inferences.filter((inf) => {
         // Match inferences whose path starts with this child's name
         const parts = inf.path.split(' > ');
         return parts.length >= 2 && parts[0] === ((corrected.name as string) ?? '') && parts[1] === childName;
@@ -256,23 +317,30 @@ export function buildCorrectedPayload(
 function normalizeCorrectedAliases(p: Record<string, unknown>): void {
   // Fill aliases → fill: { _variable / _style }
   if (!p.fill && p.fillVariableName) {
-    p.fill = { _variable: p.fillVariableName }; delete p.fillVariableName;
+    p.fill = { _variable: p.fillVariableName };
+    delete p.fillVariableName;
   } else if (!p.fill && p.fillStyleName) {
-    p.fill = { _style: p.fillStyleName }; delete p.fillStyleName;
+    p.fill = { _style: p.fillStyleName };
+    delete p.fillStyleName;
   }
   if (!p.fill && p.fontColorVariableName) {
-    p.fill = { _variable: p.fontColorVariableName }; delete p.fontColorVariableName;
+    p.fill = { _variable: p.fontColorVariableName };
+    delete p.fontColorVariableName;
   } else if (!p.fill && p.fontColorStyleName) {
-    p.fill = { _style: p.fontColorStyleName }; delete p.fontColorStyleName;
+    p.fill = { _style: p.fontColorStyleName };
+    delete p.fontColorStyleName;
   }
   // Stroke alias
   if (!p.strokeColor && p.strokeVariableName) {
-    p.strokeColor = { _variable: p.strokeVariableName }; delete p.strokeVariableName;
+    p.strokeColor = { _variable: p.strokeVariableName };
+    delete p.strokeVariableName;
   }
   // Padding shorthand
   if (p.padding != null && p.paddingTop == null) {
-    p.paddingTop = p.padding; p.paddingRight = p.padding;
-    p.paddingBottom = p.padding; p.paddingLeft = p.padding;
+    p.paddingTop = p.padding;
+    p.paddingRight = p.padding;
+    p.paddingBottom = p.padding;
+    p.paddingLeft = p.padding;
     delete p.padding;
   }
 }
@@ -292,10 +360,7 @@ export interface PreValidationResult {
  * Detects conflicts and infers layout properties BEFORE creating any nodes.
  * Returns inferences and conflicts without side effects.
  */
-export function validateParams(
-  params: Record<string, unknown>,
-  nodePath: string,
-): PreValidationResult {
+export function validateParams(params: Record<string, unknown>, nodePath: string): PreValidationResult {
   const inferences: Inference[] = [];
 
   // Only validate frame-type nodes (not text, rectangle, ellipse)
@@ -306,13 +371,17 @@ export function validateParams(
 
   // Shared checks used by multiple validation steps
   const hasALParams =
-    params.itemSpacing != null || params.paddingTop != null || params.paddingRight != null ||
-    params.paddingBottom != null || params.paddingLeft != null || params.padding != null ||
-    params.primaryAxisAlignItems != null || params.counterAxisAlignItems != null ||
+    params.itemSpacing != null ||
+    params.paddingTop != null ||
+    params.paddingRight != null ||
+    params.paddingBottom != null ||
+    params.paddingLeft != null ||
+    params.padding != null ||
+    params.primaryAxisAlignItems != null ||
+    params.counterAxisAlignItems != null ||
     (params.layoutWrap != null && params.layoutWrap !== 'NO_WRAP');
   const hasChildren = Array.isArray(params.children) && params.children.length > 0;
-  const hasHUGSizing =
-    params.layoutSizingHorizontal === 'HUG' || params.layoutSizingVertical === 'HUG';
+  const hasHUGSizing = params.layoutSizingHorizontal === 'HUG' || params.layoutSizingVertical === 'HUG';
 
   // ── 0. Auto-downgrade: empty frame with fixed size but no layout → rectangle ──
   const hasFixedSize = params.width != null || params.height != null;
@@ -323,7 +392,8 @@ export function validateParams(
       from: 'frame',
       to: 'rectangle',
       confidence: 'deterministic',
-      reason: 'empty frame with fixed size and no layout — auto-downgraded to rectangle (avoids HUG error in auto-layout parents)',
+      reason:
+        'empty frame with fixed size and no layout — auto-downgraded to rectangle (avoids HUG error in auto-layout parents)',
     });
     params.type = 'rectangle';
     return { inferences, hasConflict: false };
@@ -332,10 +402,9 @@ export function validateParams(
   // ── 1. layoutMode conflict detection ──
 
   if (params.layoutMode === 'NONE' && (hasALParams || hasHUGSizing)) {
-    const conflicting = [
-      hasALParams && 'padding/spacing/alignment',
-      hasHUGSizing && 'HUG sizing',
-    ].filter(Boolean).join(' and ');
+    const conflicting = [hasALParams && 'padding/spacing/alignment', hasHUGSizing && 'HUG sizing']
+      .filter(Boolean)
+      .join(' and ');
     return {
       inferences,
       hasConflict: true,
@@ -352,7 +421,7 @@ export function validateParams(
     if (hasALParams) {
       reason = 'inferred from padding/spacing/alignment params';
     } else if (hasChildren) {
-      const childrenNeedAL = (params.children as Record<string, unknown>[]).some(c => {
+      const childrenNeedAL = (params.children as Record<string, unknown>[]).some((c) => {
         const sh = c.layoutSizingHorizontal as string | undefined;
         const sv = c.layoutSizingVertical as string | undefined;
         return sh === 'FILL' || sh === 'HUG' || sv === 'FILL' || sv === 'HUG';
@@ -398,16 +467,18 @@ export function validateParams(
   }
 
   // ── 3.5. Min/max constraint validation ──
-  if (params.minWidth != null && params.maxWidth != null &&
-      (params.minWidth as number) > (params.maxWidth as number)) {
+  if (params.minWidth != null && params.maxWidth != null && (params.minWidth as number) > (params.maxWidth as number)) {
     return {
       inferences,
       hasConflict: true,
       conflictMessage: `[${nodePath}] minWidth (${params.minWidth}) > maxWidth (${params.maxWidth}). Swap values or remove one.`,
     };
   }
-  if (params.minHeight != null && params.maxHeight != null &&
-      (params.minHeight as number) > (params.maxHeight as number)) {
+  if (
+    params.minHeight != null &&
+    params.maxHeight != null &&
+    (params.minHeight as number) > (params.maxHeight as number)
+  ) {
     return {
       inferences,
       hasConflict: true,
@@ -416,8 +487,8 @@ export function validateParams(
   }
 
   // ── 3.6. FILL sizing in non-auto-layout parent → downgrade to FIXED ──
-  const effectiveLayoutMode = (params.layoutMode as string) ??
-    (inferences.find(i => i.field === 'layoutMode')?.to as string | undefined);
+  const effectiveLayoutMode =
+    (params.layoutMode as string) ?? (inferences.find((i) => i.field === 'layoutMode')?.to as string | undefined);
   if (hasChildren && !effectiveLayoutMode) {
     for (const [idx, childDef] of (params.children as Record<string, unknown>[]).entries()) {
       const child = childDef as Record<string, unknown>;
@@ -446,9 +517,7 @@ export function validateParams(
     const parentHSizing = params.layoutSizingHorizontal as string | undefined;
     const parentVSizing = params.layoutSizingVertical as string | undefined;
     // Parent HUGs on cross-axis?
-    const parentHugCross = isVertical
-      ? parentHSizing === 'HUG'
-      : parentVSizing === 'HUG';
+    const parentHugCross = isVertical ? parentHSizing === 'HUG' : parentVSizing === 'HUG';
 
     if (parentDir && parentHugCross) {
       for (const [idx, childDef] of (params.children as Record<string, unknown>[]).entries()) {
@@ -593,11 +662,11 @@ export function validateParams(
       if (ct === 'frame' && child.clipsContent === true) {
         const cw = child.width as number | undefined;
         const ch = child.height as number | undefined;
-        const pt = ((child.paddingTop ?? child.padding ?? 0) as number);
-        const pb = ((child.paddingBottom ?? child.padding ?? 0) as number);
-        const pl = ((child.paddingLeft ?? child.padding ?? 0) as number);
-        const pr = ((child.paddingRight ?? child.padding ?? 0) as number);
-        if (cw != null && (pl + pr) >= cw * 0.8) {
+        const pt = (child.paddingTop ?? child.padding ?? 0) as number;
+        const pb = (child.paddingBottom ?? child.padding ?? 0) as number;
+        const pl = (child.paddingLeft ?? child.padding ?? 0) as number;
+        const pr = (child.paddingRight ?? child.padding ?? 0) as number;
+        if (cw != null && pl + pr >= cw * 0.8) {
           inferences.push({
             path: childPath,
             field: '_structure',
@@ -607,7 +676,7 @@ export function validateParams(
             reason: `clipsContent:true with horizontal padding consuming ≥80% of width (${pl + pr}/${cw}px) — children may be invisible`,
           });
         }
-        if (ch != null && (pt + pb) >= ch * 0.8) {
+        if (ch != null && pt + pb >= ch * 0.8) {
           inferences.push({
             path: childPath,
             field: '_structure',
@@ -641,8 +710,8 @@ export function validateParams(
  */
 export function structuredHintsToInferences(hints: StructuredHint[], nodePath: string): Inference[] {
   return hints
-    .filter(h => INFERRED_FIELDS.has(h.field))
-    .map(h => ({
+    .filter((h) => INFERRED_FIELDS.has(h.field))
+    .map((h) => ({
       path: h.path ?? nodePath,
       field: h.field,
       from: undefined,

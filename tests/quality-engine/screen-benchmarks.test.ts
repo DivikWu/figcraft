@@ -5,9 +5,13 @@
  * track whole-screen quality instead of only unit-testing isolated rule helpers.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { runLint } from '../../packages/quality-engine/src/engine.js';
-import { screenBenchmarkCases, screenBenchmarkContext, screenBenchmarkRules } from '../helpers/screen-benchmark-fixtures.js';
+import {
+  screenBenchmarkCases,
+  screenBenchmarkContext,
+  screenBenchmarkRules,
+} from '../helpers/screen-benchmark-fixtures.js';
 
 describe('screen benchmarks', () => {
   for (const benchmark of screenBenchmarkCases) {

@@ -6,6 +6,12 @@
     "outDir": "dist",
     "rootDir": "."
   },
-  "include": ["packages/shared/src/**/*.ts", "packages/relay/src/**/*.ts", "packages/core-mcp/src/**/*.ts", "packages/quality-engine/src/**/*.ts", "packages/figcraft-design/src/**/*.ts"],
+  "include": [
+    "packages/shared/src/**/*.ts",
+    "packages/relay/src/**/*.ts",
+    "packages/core-mcp/src/**/*.ts",
+    "packages/quality-engine/src/**/*.ts",
+    "packages/figcraft-design/src/**/*.ts"
+  ],
   "exclude": ["node_modules", "dist"]
 }

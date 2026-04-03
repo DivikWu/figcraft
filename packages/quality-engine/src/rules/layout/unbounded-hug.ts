@@ -11,10 +11,10 @@
  * Auto-fix: change cross-axis sizing to FILL (layoutAlign: STRETCH).
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
+import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
 
 /** Check if a node effectively uses HUG sizing on a given axis. */
-function isHugOnAxis(node: AbstractNode, axis: 'horizontal' | 'vertical'): boolean {
+function _isHugOnAxis(node: AbstractNode, axis: 'horizontal' | 'vertical'): boolean {
   // No layoutMode means no auto-layout — sizing concepts don't apply
   if (!node.layoutMode || node.layoutMode === 'NONE') return false;
 
@@ -46,7 +46,7 @@ function isHugOnAxis(node: AbstractNode, axis: 'horizontal' | 'vertical'): boole
 /** Check if any child uses FILL/STRETCH sizing. */
 function hasStretchChild(node: AbstractNode): boolean {
   if (!node.children) return false;
-  return node.children.some(child => {
+  return node.children.some((child) => {
     const la = (child as any).layoutAlign;
     return la === 'STRETCH';
   });
@@ -58,7 +58,8 @@ export const unboundedHugRule: LintRule = {
   category: 'layout',
   severity: 'unsafe',
   ai: {
-    preventionHint: 'HUG containers must not contain STRETCH children — use FILL parent or set child to fixed/HUG sizing',
+    preventionHint:
+      'HUG containers must not contain STRETCH children — use FILL parent or set child to fixed/HUG sizing',
     phase: ['layout'],
   },
 

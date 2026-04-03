@@ -2,9 +2,9 @@
  * Tests for spacer-frame lint rule.
  */
 
-import { describe, it, expect } from 'vitest';
-import type { AbstractNode, LintContext } from '../../packages/quality-engine/src/types.js';
+import { describe, expect, it } from 'vitest';
 import { spacerFrameRule } from '../../packages/quality-engine/src/rules/layout/spacer-frame.js';
+import type { AbstractNode, LintContext } from '../../packages/quality-engine/src/types.js';
 
 const emptyCtx: LintContext = {
   colorTokens: new Map(),
@@ -41,24 +41,30 @@ describe('spacer-frame', () => {
   });
 
   it('flags thin invisible frame (width ≤ 4px, no fill)', () => {
-    const v = spacerFrameRule.check(makeNode({
-      name: 'Gap',
-      width: 2,
-      height: 24,
-      children: [],
-      fills: [],
-    }), emptyCtx);
+    const v = spacerFrameRule.check(
+      makeNode({
+        name: 'Gap',
+        width: 2,
+        height: 24,
+        children: [],
+        fills: [],
+      }),
+      emptyCtx,
+    );
     expect(v).toHaveLength(1);
   });
 
   it('flags thin invisible frame (height ≤ 4px, no fill)', () => {
-    const v = spacerFrameRule.check(makeNode({
-      name: 'Divider Gap',
-      width: 300,
-      height: 1,
-      children: [],
-      fills: [{ visible: false, opacity: 0, color: '#000000' }],
-    }), emptyCtx);
+    const v = spacerFrameRule.check(
+      makeNode({
+        name: 'Divider Gap',
+        width: 300,
+        height: 1,
+        children: [],
+        fills: [{ visible: false, opacity: 0, color: '#000000' }],
+      }),
+      emptyCtx,
+    );
     expect(v).toHaveLength(1);
   });
 
@@ -69,13 +75,16 @@ describe('spacer-frame', () => {
   });
 
   it('passes normal empty frame (not named spacer, not thin)', () => {
-    const v = spacerFrameRule.check(makeNode({
-      name: 'Container',
-      width: 100,
-      height: 100,
-      children: [],
-      fills: [],
-    }), emptyCtx);
+    const v = spacerFrameRule.check(
+      makeNode({
+        name: 'Container',
+        width: 100,
+        height: 100,
+        children: [],
+        fills: [],
+      }),
+      emptyCtx,
+    );
     expect(v).toHaveLength(0);
   });
 
@@ -85,23 +94,29 @@ describe('spacer-frame', () => {
   });
 
   it('passes frame with visible fill even if thin', () => {
-    const v = spacerFrameRule.check(makeNode({
-      name: 'Divider',
-      width: 300,
-      height: 1,
-      children: [],
-      fills: [{ visible: true, opacity: 1, color: '#CCCCCC' }],
-    }), emptyCtx);
+    const v = spacerFrameRule.check(
+      makeNode({
+        name: 'Divider',
+        width: 300,
+        height: 1,
+        children: [],
+        fills: [{ visible: true, opacity: 1, color: '#CCCCCC' }],
+      }),
+      emptyCtx,
+    );
     expect(v).toHaveLength(0);
   });
 
   it('reports autoFixable: true with fixData', () => {
-    const v = spacerFrameRule.check(makeNode({
-      name: 'Spacer 1',
-      width: 100,
-      height: 20,
-      children: [],
-    }), emptyCtx);
+    const v = spacerFrameRule.check(
+      makeNode({
+        name: 'Spacer 1',
+        width: 100,
+        height: 20,
+        children: [],
+      }),
+      emptyCtx,
+    );
     expect(v).toHaveLength(1);
     expect(v[0].autoFixable).toBe(true);
     expect(v[0].fixData).toEqual({

@@ -2,17 +2,20 @@
  * Lint tools — MCP wrappers for check, fix, and rules.
  */
 
-import { z } from 'zod';
+import { auditPreflightCompliance, getStats, recordLintRun } from '@figcraft/quality-engine';
+import { HEAVY_REQUEST_TIMEOUT_MS } from '@figcraft/shared';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 import type { Bridge } from '../bridge.js';
 import { compactResponse } from './response-helpers.js';
-import { HEAVY_REQUEST_TIMEOUT_MS } from '@figcraft/shared';
-import { getStats, recordLintRun, auditPreflightCompliance } from '@figcraft/quality-engine';
 
 /** Load cached tokens and build a token context for lint rules. */
-async function loadTokenContext(bridge: Bridge, useStoredTokens?: string): Promise<Record<string, unknown> | undefined> {
+async function loadTokenContext(
+  bridge: Bridge,
+  useStoredTokens?: string,
+): Promise<Record<string, unknown> | undefined> {
   if (!useStoredTokens) return undefined;
-  const cached = await bridge.request('load_spec_tokens', { name: useStoredTokens }) as {
+  const cached = (await bridge.request('load_spec_tokens', { name: useStoredTokens })) as {
     tokens?: Array<{ path: string; type: string; value: unknown }>;
     error?: string;
   };
@@ -30,13 +33,22 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
     {
       nodeIds: z.array(z.string()).optional().describe('Node IDs to lint (default: selection or page)'),
       rules: z.array(z.string()).optional().describe('Rule names to run (default: all)'),
-      categories: z.array(z.string()).optional().describe('Rule categories to run: token, layout, naming, wcag, component'),
+      categories: z
+        .array(z.string())
+        .optional()
+        .describe('Rule categories to run: token, layout, naming, wcag, component'),
       offset: z.number().optional().describe('Pagination offset'),
       limit: z.number().optional().describe('Pagination limit'),
-      maxViolations: z.number().optional().describe('Stop after collecting this many violations (performance optimization for large pages)'),
+      maxViolations: z
+        .number()
+        .optional()
+        .describe('Stop after collecting this many violations (performance optimization for large pages)'),
       annotate: z.boolean().optional().describe('Add annotations to violated nodes in Figma'),
       useStoredTokens: z.string().optional().describe('Name of cached token set to use'),
-      minSeverity: z.enum(['error', 'unsafe', 'heuristic', 'style', 'verbose']).optional().describe('Minimum severity to include (default: all). Use "warning" to hide hints/info.'),
+      minSeverity: z
+        .enum(['error', 'unsafe', 'heuristic', 'style', 'verbose'])
+        .optional()
+        .describe('Minimum severity to include (default: all). Use "warning" to hide hints/info.'),
     },
     async ({ nodeIds, rules, categories, offset, limit, maxViolations, annotate, useStoredTokens, minSeverity }) => {
       const tokenContext = await loadTokenContext(bridge, useStoredTokens);
@@ -55,13 +67,22 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
 
       // Record stats for frequency tracking
       try {
-        const r = result as { categories?: Array<{ rule: string; nodes: Array<{ rule: string; autoFixable?: boolean }> }> };
+        const r = result as {
+          categories?: Array<{ rule: string; nodes: Array<{ rule: string; autoFixable?: boolean }> }>;
+        };
         if (r.categories) {
-          const violations = r.categories.flatMap(c => c.nodes.map(n => ({ rule: c.rule ?? (n as Record<string, unknown>).rule as string, autoFixable: n.autoFixable })));
-          const rulesChecked = r.categories.map(c => c.rule);
+          const violations = r.categories.flatMap((c) =>
+            c.nodes.map((n) => ({
+              rule: c.rule ?? ((n as Record<string, unknown>).rule as string),
+              autoFixable: n.autoFixable,
+            })),
+          );
+          const rulesChecked = r.categories.map((c) => c.rule);
           recordLintRun(violations, rulesChecked);
         }
-      } catch { /* stats are best-effort */ }
+      } catch {
+        /* stats are best-effort */
+      }
 
       return compactResponse(result);
     },
@@ -69,21 +90,24 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
 
   server.tool(
     'lint_fix',
-    'Auto-fix lint violations that are marked as autoFixable. ' +
-      'Pass the violations array from a lint_check result.',
+    'Auto-fix lint violations that are marked as autoFixable. ' + 'Pass the violations array from a lint_check result.',
     {
-      violations: z.array(z.object({
-        nodeId: z.string(),
-        nodeName: z.string(),
-        rule: z.string(),
-        severity: z.enum(['error', 'unsafe', 'heuristic', 'style', 'verbose']).optional(),
-        baseSeverity: z.enum(['error', 'unsafe', 'heuristic', 'style', 'verbose']).optional(),
-        currentValue: z.unknown(),
-        expectedValue: z.unknown().optional(),
-        suggestion: z.string(),
-        autoFixable: z.boolean(),
-        fixData: z.record(z.unknown()).optional(),
-      })).describe('Violations to fix (from lint_check result)'),
+      violations: z
+        .array(
+          z.object({
+            nodeId: z.string(),
+            nodeName: z.string(),
+            rule: z.string(),
+            severity: z.enum(['error', 'unsafe', 'heuristic', 'style', 'verbose']).optional(),
+            baseSeverity: z.enum(['error', 'unsafe', 'heuristic', 'style', 'verbose']).optional(),
+            currentValue: z.unknown(),
+            expectedValue: z.unknown().optional(),
+            suggestion: z.string(),
+            autoFixable: z.boolean(),
+            fixData: z.record(z.unknown()).optional(),
+          }),
+        )
+        .describe('Violations to fix (from lint_check result)'),
     },
     async ({ violations }) => {
       const fixable = violations.filter((v) => v.autoFixable);
@@ -103,16 +127,27 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
       categories: z.array(z.string()).optional().describe('Rule categories: token, layout, naming, wcag, component'),
       useStoredTokens: z.string().optional().describe('Name of cached token set to use'),
       annotate: z.boolean().optional().describe('Add annotations to remaining (unfixable) violations'),
-      maxViolations: z.number().optional().describe('Stop collecting after this many violations (performance optimization for large pages)'),
+      maxViolations: z
+        .number()
+        .optional()
+        .describe('Stop collecting after this many violations (performance optimization for large pages)'),
       dryRun: z.boolean().optional().describe('Preview mode: return fixable violations without applying fixes'),
     },
     async ({ nodeIds, rules, categories, useStoredTokens, annotate, maxViolations, dryRun }) => {
       const tokenContext = await loadTokenContext(bridge, useStoredTokens);
 
       // Step 1: lint_check
-      const report = await bridge.request('lint_check', {
-        nodeIds, rules, categories, tokenContext, maxViolations,
-      }, HEAVY_REQUEST_TIMEOUT_MS) as {
+      const report = (await bridge.request(
+        'lint_check',
+        {
+          nodeIds,
+          rules,
+          categories,
+          tokenContext,
+          maxViolations,
+        },
+        HEAVY_REQUEST_TIMEOUT_MS,
+      )) as {
         summary: { total: number; pass: number; violations: number; bySeverity?: Record<string, number> };
         categories: Array<{ rule: string; nodes: Array<Record<string, unknown>> }>;
       };
@@ -129,8 +164,10 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
       // dryRun: return preview without applying fixes
       if (dryRun) {
         const preview = fixable.map((v) => ({
-          nodeId: v.nodeId, nodeName: v.nodeName,
-          rule: v.rule, severity: v.severity,
+          nodeId: v.nodeId,
+          nodeName: v.nodeName,
+          rule: v.rule,
+          severity: v.severity,
           suggestion: v.suggestion,
           fixData: v.fixData,
         }));
@@ -144,7 +181,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
 
       let fixResult = { fixed: 0, failed: 0, errors: [] as unknown[] };
       if (fixable.length > 0) {
-        fixResult = await bridge.request('lint_fix', { violations: fixable }) as typeof fixResult;
+        fixResult = (await bridge.request('lint_fix', { violations: fixable })) as typeof fixResult;
       }
 
       // Step 3: optionally annotate remaining
@@ -152,7 +189,11 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         // Clear previous lint annotations before adding new ones
         await bridge.request('clear_annotations', { nodeIds });
         await bridge.request('lint_check', {
-          nodeIds, rules, categories, tokenContext, annotate: true,
+          nodeIds,
+          rules,
+          categories,
+          tokenContext,
+          annotate: true,
         });
       }
 
@@ -164,8 +205,10 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
           for (const v of cat.nodes) {
             if (v.fixCall && !v.autoFixable) {
               remainingWithFixCall.push({
-                nodeId: v.nodeId, nodeName: v.nodeName,
-                rule: v.rule, severity: v.severity,
+                nodeId: v.nodeId,
+                nodeName: v.nodeName,
+                rule: v.rule,
+                severity: v.severity,
                 suggestion: v.suggestion,
                 fixCall: v.fixCall,
               });
@@ -176,10 +219,15 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
 
       // Record stats for frequency tracking
       try {
-        const violations = allViolations.map(v => ({ rule: v.rule as string, autoFixable: v.autoFixable as boolean | undefined }));
-        const rulesChecked = report.categories.map(c => c.rule);
+        const violations = allViolations.map((v) => ({
+          rule: v.rule as string,
+          autoFixable: v.autoFixable as boolean | undefined,
+        }));
+        const rulesChecked = report.categories.map((c) => c.rule);
         recordLintRun(violations, rulesChecked);
-      } catch { /* stats are best-effort */ }
+      } catch {
+        /* stats are best-effort */
+      }
 
       // Build preflight audit from violation data
       const violationsByRule = new Map<string, number>();
@@ -210,7 +258,11 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
       'Pass rules as comma-separated names or "*" to exclude all rules. Pass empty string to clear.',
     {
       nodeId: z.string().describe('Node ID to set lint exclusion on'),
-      rules: z.string().describe('Comma-separated rule names to ignore (e.g. "button-structure,wcag-target-size") or "*" for all. Empty string to clear.'),
+      rules: z
+        .string()
+        .describe(
+          'Comma-separated rule names to ignore (e.g. "button-structure,wcag-target-size") or "*" for all. Empty string to clear.',
+        ),
     },
     async ({ nodeId, rules }) => {
       const result = await bridge.request('set_lint_ignore', { nodeId, rules });
@@ -230,9 +282,10 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
     async ({ nodeIds, useStoredTokens }) => {
       const tokenContext = await loadTokenContext(bridge, useStoredTokens);
 
-      const lintReport = await bridge.request('lint_check', {
-        nodeIds, tokenContext,
-      }) as {
+      const lintReport = (await bridge.request('lint_check', {
+        nodeIds,
+        tokenContext,
+      })) as {
         summary: { total: number; pass: number; violations: number; bySeverity?: Record<string, number> };
         categories: Array<{ rule: string; description: string; count: number; nodes: Array<{ severity?: string }> }>;
       };
@@ -240,29 +293,33 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
       // Group lint by category
       const lintByCategory: Record<string, { count: number; rules: string[] }> = {};
       for (const cat of lintReport.categories) {
-        const ruleCategory = cat.rule.startsWith('wcag') ? 'wcag'
-          : cat.rule.startsWith('spec-') || cat.rule === 'hardcoded-token' || cat.rule === 'no-text-style' ? 'token'
-          : cat.rule.startsWith('component') || cat.rule === 'no-text-property' ? 'component'
-          : cat.rule === 'default-name' || cat.rule === 'stale-text-name' ? 'naming'
-          : 'layout';
+        const ruleCategory = cat.rule.startsWith('wcag')
+          ? 'wcag'
+          : cat.rule.startsWith('spec-') || cat.rule === 'hardcoded-token' || cat.rule === 'no-text-style'
+            ? 'token'
+            : cat.rule.startsWith('component') || cat.rule === 'no-text-property'
+              ? 'component'
+              : cat.rule === 'default-name' || cat.rule === 'stale-text-name'
+                ? 'naming'
+                : 'layout';
         if (!lintByCategory[ruleCategory]) lintByCategory[ruleCategory] = { count: 0, rules: [] };
         lintByCategory[ruleCategory].count += cat.count;
         lintByCategory[ruleCategory].rules.push(`${cat.rule} (${cat.count})`);
       }
 
       // 2. Component audit
-      const audit = await bridge.request('audit_components', { nodeIds }) as {
+      const audit = (await bridge.request('audit_components', { nodeIds })) as {
         summary: { totalComponents: number; totalIssues: number };
         issues: Array<{ nodeId: string; name: string; issue: string }>;
       };
 
       // 3. Compute scores
-      const lintScore = lintReport.summary.total > 0
-        ? Math.round((lintReport.summary.pass / lintReport.summary.total) * 100)
-        : 100;
-      const componentScore = audit.summary.totalComponents > 0
-        ? Math.max(0, Math.round(100 - (audit.summary.totalIssues / audit.summary.totalComponents) * 25))
-        : 100;
+      const lintScore =
+        lintReport.summary.total > 0 ? Math.round((lintReport.summary.pass / lintReport.summary.total) * 100) : 100;
+      const componentScore =
+        audit.summary.totalComponents > 0
+          ? Math.max(0, Math.round(100 - (audit.summary.totalIssues / audit.summary.totalComponents) * 25))
+          : 100;
       const overallScore = Math.round((lintScore + componentScore) / 2);
 
       const report = {
@@ -303,9 +360,13 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
       const nodeIds = nodeId ? [nodeId] : undefined;
 
       // Step 1: lint (with optional fix)
-      const report = await bridge.request('lint_check', {
-        nodeIds,
-      }, HEAVY_REQUEST_TIMEOUT_MS) as {
+      const report = (await bridge.request(
+        'lint_check',
+        {
+          nodeIds,
+        },
+        HEAVY_REQUEST_TIMEOUT_MS,
+      )) as {
         summary: { total: number; pass: number; violations: number; bySeverity?: Record<string, number> };
         categories: Array<{ rule: string; nodes: Array<Record<string, unknown>> }>;
       };
@@ -318,7 +379,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         }
         const fixable = allViolations.filter((v) => v.autoFixable);
         if (fixable.length > 0) {
-          fixResult = await bridge.request('lint_fix', { violations: fixable }) as typeof fixResult;
+          fixResult = (await bridge.request('lint_fix', { violations: fixable })) as typeof fixResult;
         }
       }
 
@@ -341,11 +402,11 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
 
       if (exportImage) {
         try {
-          const exportResult = await bridge.request('export_image', {
+          const exportResult = (await bridge.request('export_image', {
             nodeId: nodeId ?? undefined,
             format: 'PNG',
             scale: exportScale,
-          }) as { base64?: string; images?: Array<{ base64: string }> };
+          })) as { base64?: string; images?: Array<{ base64: string }> };
 
           const base64 = exportResult.base64 ?? exportResult.images?.[0]?.base64;
           if (base64) {
@@ -369,7 +430,9 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
       'Tracks how often each rule triggers, helping identify which design patterns ' +
       'cause the most issues. Use sortBy:"frequency" to see the most violated rules first.',
     {
-      sortBy: z.enum(['frequency', 'name']).optional()
+      sortBy: z
+        .enum(['frequency', 'name'])
+        .optional()
         .describe('Sort order: frequency (most violations first, default) or name (alphabetical)'),
     },
     async ({ sortBy = 'frequency' }) => {
@@ -377,10 +440,12 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
       const entries = Object.entries(stats);
       if (entries.length === 0) {
         return {
-          content: [{
-            type: 'text' as const,
-            text: 'No lint stats yet. Run lint_check or lint_fix_all first to start collecting statistics.',
-          }],
+          content: [
+            {
+              type: 'text' as const,
+              text: 'No lint stats yet. Run lint_check or lint_fix_all first to start collecting statistics.',
+            },
+          ],
         };
       }
       return compactResponse({
@@ -400,7 +465,9 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
   );
 }
 
-export function buildTokenContext(tokens: Array<{ path: string; type: string; value: unknown }>): Record<string, unknown> {
+export function buildTokenContext(
+  tokens: Array<{ path: string; type: string; value: unknown }>,
+): Record<string, unknown> {
   const colorTokens: Record<string, string> = {};
   const spacingTokens: Record<string, number> = {};
   const radiusTokens: Record<string, number> = {};

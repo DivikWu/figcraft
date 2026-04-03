@@ -6,9 +6,7 @@ type RgbTuple = [number, number, number];
 
 /** Relative luminance per WCAG 2.1 (input: 0–1 normalized RGB). */
 export function relativeLuminanceTuple(rgb: RgbTuple): number {
-  const [r, g, b] = rgb.map((c) =>
-    c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4),
-  );
+  const [r, g, b] = rgb.map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 

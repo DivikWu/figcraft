@@ -2,8 +2,8 @@
  * Style write tools — MCP wrappers for syncing/creating/deleting styles.
  */
 
-import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 import type { Bridge } from '../bridge.js';
 import { jsonResponse } from './response-helpers.js';
 
@@ -17,23 +17,35 @@ export function registerWriteStyleTools(server: McpServer, bridge: Bridge): void
     {
       library: z.string().describe('Library name (must match the selected library name)'),
       styles: z.object({
-        textStyles: z.array(z.object({
-          key: z.string().describe('Style key (from Figma MCP)'),
-          name: z.string().describe('Style name (e.g. "Heading XL")'),
-          fontSize: z.number().describe('Font size in px'),
-          fontFamily: z.string().describe('Font family name'),
-          fontWeight: z.string().describe('Font weight (e.g. "Bold", "Regular")'),
-        })).describe('Text styles'),
-        paintStyles: z.array(z.object({
-          key: z.string().describe('Style key'),
-          name: z.string().describe('Style name (e.g. "Brand/Primary")'),
-          hex: z.string().describe('Hex color (e.g. "#FF0000")'),
-        })).describe('Paint styles'),
-        effectStyles: z.array(z.object({
-          key: z.string().describe('Style key'),
-          name: z.string().describe('Style name (e.g. "Shadow/Default")'),
-          effectType: z.string().describe('Effect type (DROP_SHADOW, INNER_SHADOW, LAYER_BLUR, BACKGROUND_BLUR)'),
-        })).describe('Effect styles'),
+        textStyles: z
+          .array(
+            z.object({
+              key: z.string().describe('Style key (from Figma MCP)'),
+              name: z.string().describe('Style name (e.g. "Heading XL")'),
+              fontSize: z.number().describe('Font size in px'),
+              fontFamily: z.string().describe('Font family name'),
+              fontWeight: z.string().describe('Font weight (e.g. "Bold", "Regular")'),
+            }),
+          )
+          .describe('Text styles'),
+        paintStyles: z
+          .array(
+            z.object({
+              key: z.string().describe('Style key'),
+              name: z.string().describe('Style name (e.g. "Brand/Primary")'),
+              hex: z.string().describe('Hex color (e.g. "#FF0000")'),
+            }),
+          )
+          .describe('Paint styles'),
+        effectStyles: z
+          .array(
+            z.object({
+              key: z.string().describe('Style key'),
+              name: z.string().describe('Style name (e.g. "Shadow/Default")'),
+              effectType: z.string().describe('Effect type (DROP_SHADOW, INNER_SHADOW, LAYER_BLUR, BACKGROUND_BLUR)'),
+            }),
+          )
+          .describe('Effect styles'),
       }),
     },
     async ({ library, styles }) => {

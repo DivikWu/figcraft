@@ -23,10 +23,7 @@ export function registerExecuteJsHandler(): void {
     // Note: the serial task queue also has a timeout (via _timeoutMs from bridge).
     // The bridge sets _timeoutMs slightly higher than this value, so this handler
     // timeout fires first and returns a structured error instead of a raw queue timeout.
-    const timeoutMs = Math.min(
-      Math.max(Number(params.timeoutMs) || 30_000, 1_000),
-      120_000,
-    );
+    const timeoutMs = Math.min(Math.max(Number(params.timeoutMs) || 30_000, 1_000), 120_000);
 
     // Wrap user code in an async function so top-level await works.
     // The function receives `figma` implicitly (it's a global in the plugin sandbox).
@@ -48,10 +45,7 @@ export function registerExecuteJsHandler(): void {
         result = await Promise.race([
           fn(),
           new Promise((_, reject) => {
-            timer = setTimeout(
-              () => reject(new Error(`Script timed out after ${timeoutMs}ms`)),
-              timeoutMs,
-            );
+            timer = setTimeout(() => reject(new Error(`Script timed out after ${timeoutMs}ms`)), timeoutMs);
           }),
         ]);
       } finally {

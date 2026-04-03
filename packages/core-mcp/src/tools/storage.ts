@@ -2,8 +2,8 @@
  * Token cache storage tools — save/load/list/delete cached tokens.
  */
 
-import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 import type { Bridge } from '../bridge.js';
 import { parseDtcgFile } from '../dtcg.js';
 
@@ -21,10 +21,12 @@ export function registerStorageTools(server: McpServer, bridge: Bridge): void {
       const cacheName = name ?? filePath.split('/').pop()?.replace('.json', '') ?? 'tokens';
       await bridge.request('save_spec_tokens', { name: cacheName, tokens });
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({ cached: tokens.length, name: cacheName }, null, 2),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({ cached: tokens.length, name: cacheName }, null, 2),
+          },
+        ],
       };
     },
   );

@@ -2,7 +2,7 @@
  * Tests for variable-mapper — type conversion, scope inference, path conversion.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   dtcgTypeToFigmaType,
   inferScopes,

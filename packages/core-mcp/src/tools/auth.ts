@@ -2,9 +2,8 @@
  * Auth tools — OAuth 2.0 login / logout for Figma REST API.
  */
 
-import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { startOAuthFlow, clearCredentials, getAuthStatus } from '../auth.js';
+import { clearCredentials, getAuthStatus, startOAuthFlow } from '../auth.js';
 
 export function registerAuthTools(server: McpServer): void {
   server.tool(
@@ -27,40 +26,35 @@ export function registerAuthTools(server: McpServer): void {
           content: [
             {
               type: 'text' as const,
-              text: JSON.stringify({
-                ok: true,
-                url,
-                message:
-                  'Please open this URL in your browser to authorize figcraft with Figma. ' +
-                  'After authorizing, use figma_auth_status to verify.',
-              }, null, 2),
+              text: JSON.stringify(
+                {
+                  ok: true,
+                  url,
+                  message:
+                    'Please open this URL in your browser to authorize figcraft with Figma. ' +
+                    'After authorizing, use figma_auth_status to verify.',
+                },
+                null,
+                2,
+              ),
             },
           ],
         };
       } catch (err) {
         return {
           isError: true,
-          content: [
-            { type: 'text' as const, text: err instanceof Error ? err.message : String(err) },
-          ],
+          content: [{ type: 'text' as const, text: err instanceof Error ? err.message : String(err) }],
         };
       }
     },
   );
 
-  server.tool(
-    'figma_logout',
-    'Clear stored Figma OAuth credentials.',
-    {},
-    async () => {
-      clearCredentials();
-      return {
-        content: [
-          { type: 'text' as const, text: JSON.stringify({ ok: true, message: 'Figma credentials cleared.' }) },
-        ],
-      };
-    },
-  );
+  server.tool('figma_logout', 'Clear stored Figma OAuth credentials.', {}, async () => {
+    clearCredentials();
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify({ ok: true, message: 'Figma credentials cleared.' }) }],
+    };
+  });
 
   server.tool(
     'figma_auth_status',
@@ -71,9 +65,7 @@ export function registerAuthTools(server: McpServer): void {
     async () => {
       const status = getAuthStatus();
       return {
-        content: [
-          { type: 'text' as const, text: JSON.stringify(status, null, 2) },
-        ],
+        content: [{ type: 'text' as const, text: JSON.stringify(status, null, 2) }],
       };
     },
   );

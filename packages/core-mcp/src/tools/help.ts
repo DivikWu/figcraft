@@ -24,18 +24,23 @@ export function registerHelpTool(server: McpServer): void {
     'Look up tool documentation. Without topic: list all tools grouped by toolset. ' +
       'With topic: get details for a specific tool or endpoint method (e.g. "nodes", "nodes.get").',
     {
-      topic: z.string().optional().describe(
-        'Tool name, endpoint name, or "endpoint.method" for method details. ' +
-          'Omit to get the full tool directory.',
-      ),
+      topic: z
+        .string()
+        .optional()
+        .describe(
+          'Tool name, endpoint name, or "endpoint.method" for method details. ' +
+            'Omit to get the full tool directory.',
+        ),
     },
     async ({ topic }) => {
       if (!resolveHelp) {
         return {
-          content: [{
-            type: 'text' as const,
-            text: 'Help database not available. Run "npm run schema" to generate it.',
-          }],
+          content: [
+            {
+              type: 'text' as const,
+              text: 'Help database not available. Run "npm run schema" to generate it.',
+            },
+          ],
         };
       }
 

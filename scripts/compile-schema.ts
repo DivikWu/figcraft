@@ -12,10 +12,9 @@
  * Usage: npx tsx scripts/compile-schema.ts
  */
 
-import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
-import { mkdirSync } from 'node:fs';
 
 // ─── Types ───
 
@@ -24,10 +23,10 @@ interface ParamDef {
   required?: boolean;
   description?: string;
   ref?: string;
-  values?: string[];       // for enum
+  values?: string[]; // for enum
   items?: string | ParamDef; // for array
   fields?: Record<string, ParamDef>; // for object
-  valueType?: string;      // for record
+  valueType?: string; // for record
   additionalProperties?: boolean; // for object: generate .passthrough()
 }
 
@@ -37,7 +36,7 @@ interface ToolDef {
   write: boolean;
   access?: 'create' | 'edit';
   handler: 'bridge' | 'custom';
-  bridgeMethod?: string;   // override bridge method name
+  bridgeMethod?: string; // override bridge method name
   params: Record<string, ParamDef> | {};
   response?: ParamDef;
   examples?: unknown[];
@@ -95,7 +94,9 @@ const schema = parseYaml(raw, { merge: true }) as Schema;
 // This enables modular schema organization without splitting the main file.
 const TOOLS_DIR = resolve(ROOT, 'schema/tools');
 if (existsSync(TOOLS_DIR)) {
-  const yamlFiles = readdirSync(TOOLS_DIR).filter(f => f.endsWith('.yaml') || f.endsWith('.yml')).sort();
+  const yamlFiles = readdirSync(TOOLS_DIR)
+    .filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'))
+    .sort();
   for (const file of yamlFiles) {
     const filePath = resolve(TOOLS_DIR, file);
     const fileRaw = readFileSync(filePath, 'utf-8');
@@ -120,8 +121,6 @@ const paramDefinitions: Record<string, ParamDef> = {};
 
 for (const [key, value] of Object.entries(schema)) {
   if (key === '_mixins') {
-    // YAML anchors — already resolved by merge: true, skip
-    continue;
   } else if (key === '_toolset_descriptions') {
     Object.assign(toolsetDescriptions, value);
   } else if (key === '_param_definitions') {
@@ -157,11 +156,24 @@ for (const [key, value] of Object.entries(schema)) {
 
 // ─── Deep param validation ───
 
-const VALID_PARAM_TYPES = new Set(['string', 'number', 'boolean', 'enum', 'array', 'object', 'record', 'unknown', 'tuple', 'ref']);
+const VALID_PARAM_TYPES = new Set([
+  'string',
+  'number',
+  'boolean',
+  'enum',
+  'array',
+  'object',
+  'record',
+  'unknown',
+  'tuple',
+  'ref',
+]);
 
 function validateParamDef(toolName: string, paramName: string, def: ParamDef, path: string): void {
   if (!VALID_PARAM_TYPES.has(def.type)) {
-    console.error(`ERROR: ${path} in tool "${toolName}" has invalid type "${def.type}". Valid types: ${[...VALID_PARAM_TYPES].join(', ')}`);
+    console.error(
+      `ERROR: ${path} in tool "${toolName}" has invalid type "${def.type}". Valid types: ${[...VALID_PARAM_TYPES].join(', ')}`,
+    );
     process.exit(1);
   }
   if (def.type === 'ref') {
@@ -246,7 +258,7 @@ function buildZodExpr(name: string, def: ParamDef, indent: string, applyOptional
       break;
     case 'enum':
       if (!def.values?.length) throw new Error(`Enum param "${name}" has no values`);
-      zodExpr = `z.enum([${def.values.map(v => `'${v}'`).join(', ')}])`;
+      zodExpr = `z.enum([${def.values.map((v) => `'${v}'`).join(', ')}])`;
       break;
     case 'ref':
       if (!def.ref) throw new Error(`Ref param "${name}" has no target`);
@@ -260,7 +272,7 @@ function buildZodExpr(name: string, def: ParamDef, indent: string, applyOptional
     case 'object': {
       if (def.fields) {
         const fieldLines = Object.entries(def.fields).map(([fn, fd]) => {
-          return `${indent}    ${fn}: ${paramToZod(fn, fd, indent + '  ')}`;
+          return `${indent}    ${fn}: ${paramToZod(fn, fd, `${indent}  `)}`;
         });
         const suffix = def.additionalProperties ? '.passthrough()' : '';
         zodExpr = `z.object({\n${fieldLines.join(',\n')},\n${indent}  })${suffix}`;
@@ -296,16 +308,21 @@ function resolveArrayItems(name: string, def: ParamDef): string {
   if (!def.items) return 'z.unknown()';
   if (typeof def.items === 'string') {
     switch (def.items) {
-      case 'string': return 'z.string()';
-      case 'number': return 'z.number()';
-      case 'boolean': return 'z.boolean()';
-      case 'object': return 'z.record(z.unknown())';
-      default: return 'z.unknown()';
+      case 'string':
+        return 'z.string()';
+      case 'number':
+        return 'z.number()';
+      case 'boolean':
+        return 'z.boolean()';
+      case 'object':
+        return 'z.record(z.unknown())';
+      default:
+        return 'z.unknown()';
     }
   }
   // Nested object definition — force required: true (array items are never optional)
   const itemDef = { ...def.items, required: true };
-  return paramToZod(name + '_item', itemDef, '      ');
+  return paramToZod(`${name}_item`, itemDef, '      ');
 }
 
 function generateSharedSchemaDecls(): string {
@@ -396,14 +413,15 @@ for (const [toolName, def] of bridgeTools) {
   }
 
   // Build handler
-  const paramNames = paramEntries.filter(([, p]) => p.required).map(([n]) => n);
+  const _paramNames = paramEntries.filter(([, p]) => p.required).map(([n]) => n);
   const allParamNames = paramEntries.map(([n]) => n);
 
   // Deprecation warning injection
   const escapedReplacedBy = def.replaced_by ? def.replaced_by.replace(/"/g, '\\"') : '';
-  const deprecationSuffix = def.deprecated && def.replaced_by
-    ? `\n      // Inject deprecation warning\n      if (typeof result === 'object' && result !== null) { (result as Record<string, unknown>)._deprecation = { warning: "This tool is deprecated. Use ${escapedReplacedBy} instead.", replacement: "${escapedReplacedBy}" }; }`
-    : '';
+  const deprecationSuffix =
+    def.deprecated && def.replaced_by
+      ? `\n      // Inject deprecation warning\n      if (typeof result === 'object' && result !== null) { (result as Record<string, unknown>)._deprecation = { warning: "This tool is deprecated. Use ${escapedReplacedBy} instead.", replacement: "${escapedReplacedBy}" }; }`
+      : '';
 
   let handlerBody: string;
   if (paramEntries.length === 0) {
@@ -457,7 +475,7 @@ genCode += `}
  * - All other params are the union of all method params, all optional
  * - Same-name params with different types get z.union()
  */
-function generateEndpointZodSchema(epName: string, ep: EndpointToolDef): string {
+function generateEndpointZodSchema(_epName: string, ep: EndpointToolDef): string {
   const methodNames = Object.keys(ep.methods);
 
   // Collect all params across methods, tracking types for conflict detection
@@ -477,13 +495,21 @@ function generateEndpointZodSchema(epName: string, ep: EndpointToolDef): string 
 
   // Build schema lines
   const lines: string[] = [];
-  lines.push(`      method: z.enum([${methodNames.map(m => `'${m}'`).join(', ')}]).describe('Method to invoke on this endpoint')`);
+  lines.push(
+    `      method: z.enum([${methodNames.map((m) => `'${m}'`).join(', ')}]).describe('Method to invoke on this endpoint')`,
+  );
 
   for (const [pName, { defs }] of paramMap) {
     // Deduplicate by type signature
     const uniqueTypes = new Map<string, ParamDef>();
     for (const d of defs) {
-      const key = JSON.stringify({ type: d.type, values: d.values, items: d.items, fields: d.fields, valueType: d.valueType });
+      const key = JSON.stringify({
+        type: d.type,
+        values: d.values,
+        items: d.items,
+        fields: d.fields,
+        valueType: d.valueType,
+      });
       if (!uniqueTypes.has(key)) uniqueTypes.set(key, d);
     }
 
@@ -496,7 +522,7 @@ function generateEndpointZodSchema(epName: string, ep: EndpointToolDef): string 
       zodExpr = paramToZod(pName, forcedOptional, '      ');
     } else {
       // Type conflict — use z.union()
-      const variants = [...uniqueTypes.values()].map(def => {
+      const variants = [...uniqueTypes.values()].map((def) => {
         const forced = { ...def, required: true, description: undefined };
         return paramToZod(pName, forced, '        ');
       });
@@ -507,7 +533,7 @@ function generateEndpointZodSchema(epName: string, ep: EndpointToolDef): string 
     zodExpr += '.optional()';
 
     // Merge descriptions
-    const descriptions = defs.filter(d => d.description).map(d => d.description!);
+    const descriptions = defs.filter((d) => d.description).map((d) => d.description!);
     const uniqueDescs = [...new Set(descriptions)];
     if (uniqueDescs.length > 0) {
       zodExpr += `.describe(${JSON.stringify(uniqueDescs[0])})`;
@@ -533,8 +559,7 @@ if (Object.keys(endpointDefs).length > 0) {
 
 // ─── Generate _contracts.ts ───
 
-const toolResponseDefs = Object.entries(toolDefs)
-  .filter(([, def]) => def.response);
+const toolResponseDefs = Object.entries(toolDefs).filter(([, def]) => def.response);
 const endpointResponseDefs = Object.entries(endpointDefs)
   .map(([epName, ep]) => {
     const methods = Object.entries(ep.methods).filter(([, mDef]) => mDef.response);
@@ -635,7 +660,10 @@ for (const [name, def] of Object.entries(toolDefs)) {
 const endpointTools: string[] = [];
 const endpointReplaces: Record<string, string[]> = {};
 const endpointMethodAccess: Record<string, Record<string, { write: boolean; access?: string }>> = {};
-const flatToolMigrations: Record<string, { endpoint: string; method: string; toolset: string; write: boolean; access?: string }> = {};
+const flatToolMigrations: Record<
+  string,
+  { endpoint: string; method: string; toolset: string; write: boolean; access?: string }
+> = {};
 
 for (const [name, ep] of Object.entries(endpointDefs)) {
   endpointTools.push(name);
@@ -660,7 +688,7 @@ for (const [name, ep] of Object.entries(endpointDefs)) {
       if (flatToolMigrations[mDef.maps_to]) {
         console.error(
           `ERROR: flat tool "${mDef.maps_to}" is mapped more than once: ` +
-          `${flatToolMigrations[mDef.maps_to].endpoint}.${flatToolMigrations[mDef.maps_to].method} and ${name}.${mName}`,
+            `${flatToolMigrations[mDef.maps_to].endpoint}.${flatToolMigrations[mDef.maps_to].method} and ${name}.${mName}`,
         );
         process.exit(1);
       }
@@ -697,22 +725,22 @@ let regCode = `/**
 
 /** Core tools: always enabled (~${coreTools.length}) */
 export const GENERATED_CORE_TOOLS = new Set([
-${coreTools.map(t => `  '${t}',`).join('\n')}
+${coreTools.map((t) => `  '${t}',`).join('\n')}
 ]);
 
 /** Bridge-backed flat tools compiled into _generated.ts registrations. */
 export const GENERATED_BRIDGE_TOOLS = new Set([
-${bridgeToolNames.map(t => `  '${t}',`).join('\n')}
+${bridgeToolNames.map((t) => `  '${t}',`).join('\n')}
 ]);
 
 /** Hand-written custom flat tools that keep bespoke MCP logic. */
 export const GENERATED_CUSTOM_TOOLS = new Set([
-${customToolNames.map(t => `  '${t}',`).join('\n')}
+${customToolNames.map((t) => `  '${t}',`).join('\n')}
 ]);
 
 /** All tools that modify the Figma document (union of create + edit). */
 export const GENERATED_WRITE_TOOLS = new Set([
-${writeTools.map(t => `  '${t}',`).join('\n')}
+${writeTools.map((t) => `  '${t}',`).join('\n')}
 ]);
 
 /**
@@ -720,7 +748,7 @@ ${writeTools.map(t => `  '${t}',`).join('\n')}
  * Allowed when FIGCRAFT_ACCESS=create or edit.
  */
 export const GENERATED_CREATE_TOOLS = new Set([
-${createTools.map(t => `  '${t}',`).join('\n')}
+${createTools.map((t) => `  '${t}',`).join('\n')}
 ]);
 
 /**
@@ -728,7 +756,7 @@ ${createTools.map(t => `  '${t}',`).join('\n')}
  * Allowed only when FIGCRAFT_ACCESS=edit (default).
  */
 export const GENERATED_EDIT_TOOLS = new Set([
-${editTools.map(t => `  '${t}',`).join('\n')}
+${editTools.map((t) => `  '${t}',`).join('\n')}
 ]);
 
 /** Toolset definitions with tool lists */
@@ -740,7 +768,7 @@ for (const [tsName, tools] of Object.entries(toolsets)) {
   regCode += `  '${tsName}': {
     description: ${JSON.stringify(desc)},
     tools: [
-${tools.map(t => `      '${t}',`).join('\n')}
+${tools.map((t) => `      '${t}',`).join('\n')}
     ],
   },
 `;
@@ -750,7 +778,9 @@ regCode += `};
 
 /** Toolset descriptions for display */
 export const GENERATED_TOOLSET_DESCRIPTIONS: Record<string, string> = {
-${Object.entries(toolsetDescriptions).map(([k, v]) => `  '${k}': ${JSON.stringify(v)},`).join('\n')}
+${Object.entries(toolsetDescriptions)
+  .map(([k, v]) => `  '${k}': ${JSON.stringify(v)},`)
+  .join('\n')}
 };
 
 /** Endpoint method-level access control mapping */
@@ -773,7 +803,7 @@ regCode += `};
 
 /** Endpoint tool names (for API mode switching) */
 export const GENERATED_ENDPOINT_TOOLS = new Set<string>([
-${endpointTools.map(t => `  '${t}',`).join('\n')}
+${endpointTools.map((t) => `  '${t}',`).join('\n')}
 ]);
 
 /** Endpoint → flat tools it replaces (for API mode switching) */
@@ -781,7 +811,7 @@ export const GENERATED_ENDPOINT_REPLACES: Record<string, string[]> = {
 `;
 
 for (const [epName, replaces] of Object.entries(endpointReplaces)) {
-  regCode += `  '${epName}': [${replaces.map(t => `'${t}'`).join(', ')}],\n`;
+  regCode += `  '${epName}': [${replaces.map((t) => `'${t}'`).join(', ')}],\n`;
 }
 
 regCode += `};
@@ -870,7 +900,7 @@ function generateHelpCode(): string {
 
   for (const [toolset, tools] of byToolset) {
     const desc = toolsetDescriptions[toolset] ?? '';
-    dirLines.push(`[${toolset}]${desc ? ' — ' + desc : ''}`);
+    dirLines.push(`[${toolset}]${desc ? ` — ${desc}` : ''}`);
     dirLines.push(...tools);
     dirLines.push('');
   }
@@ -892,7 +922,7 @@ function generateHelpCode(): string {
       for (const [pName, pDef] of Object.entries(def.params)) {
         const req = pDef.required ? 'required' : 'optional';
         const type = pDef.values ? pDef.values.join(' | ') : (pDef.type ?? 'string');
-        detail.push(`  ${pName} (${type}, ${req})${pDef.description ? ' — ' + pDef.description : ''}`);
+        detail.push(`  ${pName} (${type}, ${req})${pDef.description ? ` — ${pDef.description}` : ''}`);
       }
     }
     toolDetails[name] = detail.join('\n');
@@ -925,7 +955,7 @@ function generateHelpCode(): string {
           if (typeof pDef !== 'object') continue;
           const req = pDef.required ? 'required' : 'optional';
           const type = pDef.values ? pDef.values.join(' | ') : (pDef.type ?? 'string');
-          mDetail.push(`  ${pName} (${type}, ${req})${pDef.description ? ' — ' + pDef.description : ''}`);
+          mDetail.push(`  ${pName} (${type}, ${req})${pDef.description ? ` — ${pDef.description}` : ''}`);
         }
       }
       methods[mName] = mDetail.join('\n');
@@ -938,7 +968,9 @@ function generateHelpCode(): string {
   lines.push('');
   lines.push(`export const helpTools: Record<string, string> = ${JSON.stringify(toolDetails, null, 2)};`);
   lines.push('');
-  lines.push(`export const helpEndpoints: Record<string, { summary: string; methods: Record<string, string> }> = ${JSON.stringify(endpointDetails, null, 2)};`);
+  lines.push(
+    `export const helpEndpoints: Record<string, { summary: string; methods: Record<string, string> }> = ${JSON.stringify(endpointDetails, null, 2)};`,
+  );
   lines.push('');
   lines.push(`/** Resolve a help query. Returns help text. */`);
   lines.push(`export function resolveHelp(topic?: string): string {`);
@@ -957,7 +989,9 @@ function generateHelpCode(): string {
   lines.push(`  if (!ep) return 'Unknown endpoint: ' + epName;`);
   lines.push(`  const method = ep.methods[methodName];`);
   lines.push(`  if (method) return method;`);
-  lines.push(`  return 'Unknown method: ' + methodName + ' on ' + epName + '. Available: ' + Object.keys(ep.methods).join(', ');`);
+  lines.push(
+    `  return 'Unknown method: ' + methodName + ' on ' + epName + '. Available: ' + Object.keys(ep.methods).join(', ');`,
+  );
   lines.push(`}`);
   lines.push('');
 
@@ -985,13 +1019,17 @@ if (currentMatch && currentMatch[1] !== pkgJson.version) {
 // ─── Summary ───
 
 const bridgeCount = bridgeTools.length;
-const customCount = Object.values(toolDefs).filter(d => d.handler === 'custom').length;
+const customCount = Object.values(toolDefs).filter((d) => d.handler === 'custom').length;
 const endpointCount = Object.keys(endpointDefs).length;
 const totalTools = Object.keys(toolDefs).length + endpointCount;
 
 console.log(`✅ Schema compiled successfully`);
-console.log(`   ${totalTools} tools total (${bridgeCount} bridge → generated, ${customCount} custom → registry only, ${endpointCount} endpoint)`);
-console.log(`   ${coreTools.length} core tools, ${Object.keys(toolsets).length} toolsets, ${writeTools.length} write tools (${createTools.length} create + ${editTools.length} edit)`);
+console.log(
+  `   ${totalTools} tools total (${bridgeCount} bridge → generated, ${customCount} custom → registry only, ${endpointCount} endpoint)`,
+);
+console.log(
+  `   ${coreTools.length} core tools, ${Object.keys(toolsets).length} toolsets, ${writeTools.length} write tools (${createTools.length} create + ${editTools.length} edit)`,
+);
 if (endpointCount > 0) {
   const totalMethods = Object.values(endpointDefs).reduce((sum, ep) => sum + Object.keys(ep.methods).length, 0);
   console.log(`   ${endpointCount} endpoints with ${totalMethods} total methods`);

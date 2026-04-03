@@ -7,14 +7,15 @@
  * Feature: figma-skills-integration
  * Validates: Requirements 1.1, 1.3, 5.1, 6.1, 6.2, 6.5
  */
-import { describe, it, expect } from 'vitest';
-import fc from 'fast-check';
+
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import fc from 'fast-check';
+import { describe, expect, it } from 'vitest';
 import {
   GENERATED_CORE_TOOLS,
-  GENERATED_TOOLSETS,
   GENERATED_TOOLSET_DESCRIPTIONS,
+  GENERATED_TOOLSETS,
 } from '../../packages/core-mcp/src/tools/_registry.js';
 
 // ─── Removed figma-remote tools (17 total) ───
@@ -61,32 +62,25 @@ const EXPECTED_TOOLSETS = [
 describe('Feature: figma-skills-integration, Property 1: Removed tools do not exist in registry', () => {
   it('no removed tool appears in GENERATED_CORE_TOOLS', () => {
     fc.assert(
-      fc.property(
-        fc.constantFrom(...REMOVED_TOOLS),
-        (toolName) => {
-          expect(
-            GENERATED_CORE_TOOLS.has(toolName),
-            `Removed tool "${toolName}" should not be in GENERATED_CORE_TOOLS`,
-          ).toBe(false);
-        },
-      ),
+      fc.property(fc.constantFrom(...REMOVED_TOOLS), (toolName) => {
+        expect(
+          GENERATED_CORE_TOOLS.has(toolName),
+          `Removed tool "${toolName}" should not be in GENERATED_CORE_TOOLS`,
+        ).toBe(false);
+      }),
       { numRuns: Math.max(100, REMOVED_TOOLS.length * 10) },
     );
   });
 
   it('no removed tool appears in any GENERATED_TOOLSETS', () => {
     fc.assert(
-      fc.property(
-        fc.constantFrom(...REMOVED_TOOLS),
-        (toolName) => {
-          for (const [tsName, ts] of Object.entries(GENERATED_TOOLSETS)) {
-            expect(
-              ts.tools.includes(toolName),
-              `Removed tool "${toolName}" should not be in toolset "${tsName}"`,
-            ).toBe(false);
-          }
-        },
-      ),
+      fc.property(fc.constantFrom(...REMOVED_TOOLS), (toolName) => {
+        for (const [tsName, ts] of Object.entries(GENERATED_TOOLSETS)) {
+          expect(ts.tools.includes(toolName), `Removed tool "${toolName}" should not be in toolset "${tsName}"`).toBe(
+            false,
+          );
+        }
+      }),
       { numRuns: Math.max(100, REMOVED_TOOLS.length * 10) },
     );
   });
@@ -94,17 +88,11 @@ describe('Feature: figma-skills-integration, Property 1: Removed tools do not ex
   it('no removed tool appears in schema/tools.yaml', () => {
     const yaml = readFileSync(join(process.cwd(), 'schema/tools.yaml'), 'utf8');
     fc.assert(
-      fc.property(
-        fc.constantFrom(...REMOVED_TOOLS),
-        (toolName) => {
-          // Check for tool definition (tool name at start of line followed by colon)
-          const pattern = new RegExp(`^${toolName}:`, 'm');
-          expect(
-            pattern.test(yaml),
-            `Removed tool "${toolName}" should not be defined in schema/tools.yaml`,
-          ).toBe(false);
-        },
-      ),
+      fc.property(fc.constantFrom(...REMOVED_TOOLS), (toolName) => {
+        // Check for tool definition (tool name at start of line followed by colon)
+        const pattern = new RegExp(`^${toolName}:`, 'm');
+        expect(pattern.test(yaml), `Removed tool "${toolName}" should not be defined in schema/tools.yaml`).toBe(false);
+      }),
       { numRuns: Math.max(100, REMOVED_TOOLS.length * 10) },
     );
   });
@@ -120,47 +108,35 @@ describe('Feature: figma-skills-integration, Property 1: Removed tools do not ex
 describe('Feature: figma-skills-integration, Property 5: Plugin Channel toolsets fully preserved', () => {
   it('all expected toolsets exist in GENERATED_TOOLSETS', () => {
     fc.assert(
-      fc.property(
-        fc.constantFrom(...EXPECTED_TOOLSETS),
-        (toolsetName) => {
-          expect(
-            GENERATED_TOOLSETS,
-            `Expected toolset "${toolsetName}" should exist in GENERATED_TOOLSETS`,
-          ).toHaveProperty(toolsetName);
-        },
-      ),
+      fc.property(fc.constantFrom(...EXPECTED_TOOLSETS), (toolsetName) => {
+        expect(
+          GENERATED_TOOLSETS,
+          `Expected toolset "${toolsetName}" should exist in GENERATED_TOOLSETS`,
+        ).toHaveProperty(toolsetName);
+      }),
       { numRuns: Math.max(100, EXPECTED_TOOLSETS.length * 10) },
     );
   });
 
   it('all expected toolsets have descriptions', () => {
     fc.assert(
-      fc.property(
-        fc.constantFrom(...EXPECTED_TOOLSETS),
-        (toolsetName) => {
-          expect(
-            GENERATED_TOOLSET_DESCRIPTIONS,
-            `Expected toolset "${toolsetName}" should have a description`,
-          ).toHaveProperty(toolsetName);
-          expect(GENERATED_TOOLSET_DESCRIPTIONS[toolsetName].length).toBeGreaterThan(0);
-        },
-      ),
+      fc.property(fc.constantFrom(...EXPECTED_TOOLSETS), (toolsetName) => {
+        expect(
+          GENERATED_TOOLSET_DESCRIPTIONS,
+          `Expected toolset "${toolsetName}" should have a description`,
+        ).toHaveProperty(toolsetName);
+        expect(GENERATED_TOOLSET_DESCRIPTIONS[toolsetName].length).toBeGreaterThan(0);
+      }),
       { numRuns: Math.max(100, EXPECTED_TOOLSETS.length * 10) },
     );
   });
 
   it('all expected toolsets have at least one tool', () => {
     fc.assert(
-      fc.property(
-        fc.constantFrom(...EXPECTED_TOOLSETS),
-        (toolsetName) => {
-          const tools = GENERATED_TOOLSETS[toolsetName]?.tools ?? [];
-          expect(
-            tools.length,
-            `Toolset "${toolsetName}" should have at least one tool`,
-          ).toBeGreaterThan(0);
-        },
-      ),
+      fc.property(fc.constantFrom(...EXPECTED_TOOLSETS), (toolsetName) => {
+        const tools = GENERATED_TOOLSETS[toolsetName]?.tools ?? [];
+        expect(tools.length, `Toolset "${toolsetName}" should have at least one tool`).toBeGreaterThan(0);
+      }),
       { numRuns: Math.max(100, EXPECTED_TOOLSETS.length * 10) },
     );
   });

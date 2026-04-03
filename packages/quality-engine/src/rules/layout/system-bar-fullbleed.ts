@@ -7,25 +7,22 @@
  * and primaryAxisAlignItems: MIN so the system bar sits flush at the top edge.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule, FixDescriptor } from '../../types.js';
 import { SCREEN_NAME_RE } from '../../constants.js';
+import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
+
 const SYSTEM_BAR_RE = /status.?bar|system.?bar|notification.?bar|时间栏|状态栏/i;
 
 function isScreenLike(node: AbstractNode): boolean {
   if (node.type !== 'FRAME' && node.type !== 'COMPONENT') return false;
   if (node.role === 'screen' || node.role === 'page') return true;
-  return SCREEN_NAME_RE.test(node.name) &&
-    (node.width ?? 0) >= 300 &&
-    (node.height ?? 0) >= 500;
+  return SCREEN_NAME_RE.test(node.name) && (node.width ?? 0) >= 300 && (node.height ?? 0) >= 500;
 }
 
 function hasSystemBarChild(node: AbstractNode): boolean {
   if (!node.children) return false;
   // Check first 3 children (system bar is typically at the top)
   const topChildren = node.children.slice(0, 3);
-  return topChildren.some(child =>
-    SYSTEM_BAR_RE.test(child.name) || child.role === 'system_bar',
-  );
+  return topChildren.some((child) => SYSTEM_BAR_RE.test(child.name) || child.role === 'system_bar');
 }
 
 export const systemBarFullbleedRule: LintRule = {
@@ -34,7 +31,8 @@ export const systemBarFullbleedRule: LintRule = {
   category: 'layout',
   severity: 'unsafe',
   ai: {
-    preventionHint: 'System bars (iOS/Android status bar) must be full-bleed: page-level paddingLeft/Right/Top = 0, primaryAxisAlignItems = MIN',
+    preventionHint:
+      'System bars (iOS/Android status bar) must be full-bleed: page-level paddingLeft/Right/Top = 0, primaryAxisAlignItems = MIN',
     phase: ['layout'],
     tags: ['screen'],
   },

@@ -6,7 +6,7 @@
  * background. Falls back to white/black worst-case when no parent bg is known.
  */
 
-import type { AbstractNode, LintContext, LintViolation, LintRule } from '../../types.js';
+import type { AbstractNode, LintContext, LintRule, LintViolation } from '../../types.js';
 import { hexToRgbTuple } from '../../utils/color.js';
 import { contrastRatioTuple, isLargeText } from './wcag-helpers.js';
 
@@ -25,7 +25,8 @@ export const wcagContrastRule: LintRule = {
   category: 'wcag',
   severity: 'unsafe',
   ai: {
-    preventionHint: 'Ensure text has at least 4.5:1 contrast ratio against its background (3:1 for large text ≥18px or ≥14px bold)',
+    preventionHint:
+      'Ensure text has at least 4.5:1 contrast ratio against its background (3:1 for large text ≥18px or ≥14px bold)',
     phase: ['accessibility'],
     tags: ['text'],
   },
@@ -48,16 +49,18 @@ export const wcagContrastRule: LintRule = {
     if (parentBg) {
       const ratio = contrastRatioTuple(fgRgb, parentBg);
       if (ratio >= threshold) return [];
-      return [{
-        nodeId: node.id,
-        nodeName: node.name,
-        rule: 'wcag-contrast',
-        severity: 'unsafe',
-        currentValue: `${ratio.toFixed(2)}:1`,
-        expectedValue: `>= ${threshold}:1`,
-        suggestion: `"${node.name}" text color may be hard to read — contrast is only ${ratio.toFixed(2)}:1 against its background (needs at least ${threshold}:1)`,
-        autoFixable: false,
-      }];
+      return [
+        {
+          nodeId: node.id,
+          nodeName: node.name,
+          rule: 'wcag-contrast',
+          severity: 'unsafe',
+          currentValue: `${ratio.toFixed(2)}:1`,
+          expectedValue: `>= ${threshold}:1`,
+          suggestion: `"${node.name}" text color may be hard to read — contrast is only ${ratio.toFixed(2)}:1 against its background (needs at least ${threshold}:1)`,
+          autoFixable: false,
+        },
+      ];
     }
 
     // Fallback: check against both white and black (conservative)
@@ -69,15 +72,17 @@ export const wcagContrastRule: LintRule = {
     }
 
     const worstRatio = Math.max(ratioOnWhite, ratioOnBlack);
-    return [{
-      nodeId: node.id,
-      nodeName: node.name,
-      rule: 'wcag-contrast',
-      severity: 'unsafe',
-      currentValue: `${worstRatio.toFixed(2)}:1`,
-      expectedValue: `>= ${threshold}:1`,
-      suggestion: `"${node.name}" text color may be hard to read — contrast is only ${worstRatio.toFixed(2)}:1 (needs at least ${threshold}:1)`,
-      autoFixable: false,
-    }];
+    return [
+      {
+        nodeId: node.id,
+        nodeName: node.name,
+        rule: 'wcag-contrast',
+        severity: 'unsafe',
+        currentValue: `${worstRatio.toFixed(2)}:1`,
+        expectedValue: `>= ${threshold}:1`,
+        suggestion: `"${node.name}" text color may be hard to read — contrast is only ${worstRatio.toFixed(2)}:1 (needs at least ${threshold}:1)`,
+        autoFixable: false,
+      },
+    ];
   },
 };
