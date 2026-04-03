@@ -25,7 +25,7 @@ Figma Plugin (UI iframe ↔ code.js sandbox)
 
 **核心特性：**
 - 136 个 MCP 工具覆盖设计全流程
-- 43 条 Lint 规则 + 自动修复
+- 38 条 Lint 规则 + 自动修复
 - 双模式：Figma 共享库 / DTCG 规范文档
 - Opinion Engine 自动推断布局、尺寸、Token 绑定
 - 9 种 UI 模板（login、dashboard、checkout 等）
@@ -213,14 +213,13 @@ cwd = "/your/absolute/path/to/figcraft"
 
 ### 3.4 质量引擎
 
-43 条 Lint 规则，覆盖 6 个类别：
+38 条 Lint 规则，覆盖 5 个类别：
 
 | 类别 | 规则数 | 检查内容 |
 |---|---|---|
 | Token | 6 | 硬编码颜色/字号、未绑定 Library Token |
-| Layout | 12 | 空容器、文本溢出、缺少 auto-layout、嵌套深度 |
-| Structure | 13 | 按钮/输入框结构、表单一致性、Header 碎片化 |
 | WCAG | 5 | 对比度 ≥4.5:1、触摸目标 ≥44px、文字 ≥12px |
+| Layout | 24 | 按钮/输入框结构、表单一致性、空容器、文本溢出、缺少 auto-layout、嵌套深度、Header 碎片化 |
 | Naming | 2 | 默认名称 "Frame"、占位文本 "Lorem ipsum" |
 | Component | 1 | 组件实例引用有效性 |
 

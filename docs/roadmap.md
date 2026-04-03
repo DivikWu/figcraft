@@ -6,7 +6,7 @@
 - [x] 双模式操作（Library / Spec）
 - [x] 136 个 MCP 工具（31 核心 + 13 工具集）
 - [x] Opinion Engine（10 条推断规则）
-- [x] 质量引擎（43 条 lint 规则 + 自动修复）
+- [x] 质量引擎（38 条 lint 规则 + 自动修复）
 - [x] DTCG Token 同步（幂等、全类型映射）
 - [x] 9 种 UI 类型模板 + 8 个创建指南 topic
 - [x] 三层设计规则（fundamentals + guardian + creator）

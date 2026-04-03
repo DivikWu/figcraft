@@ -32,6 +32,7 @@
     "build:server": "tsup --config tsup.config.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.plugin.json",
     "docs:contracts": "node scripts/generate-api-contract-doc.mjs",
+    "docs:rules": "node --import tsx scripts/generate-lint-rules-doc.ts",
     "test": "vitest --run --config vitest.workspace.ts",
     "test:watch": "vitest --config vitest.workspace.ts",
     "test:coverage": "vitest --run --config vitest.workspace.ts --coverage",
