@@ -1,0 +1,49 @@
+name: review-design
+description: "Guide: Review existing Figma designs against design quality rules. Outputs structured violation report with fixes."
+steps: |
+  Help me review the design quality of existing Figma elements. Execute ALL steps in sequence without stopping:
+
+  1. Call ping to verify plugin connection
+  2. Call get_mode to determine the current mode and selected library
+  3. Use get_selection to get selected nodes, or fall back to get_current_page (maxDepth=2) children
+  4. Use nodes(method: "get") on each target node to read properties (fills, fontSize, fontName, spacing, dimensions, cornerRadius, etc.)
+
+  5. Apply the appropriate design rules based on mode:
+
+  --- IF selectedLibrary is set (Design Guardian rules) ---
+  Use get_design_guidelines() for Design Guardian rules, or call get_design_guidelines(category) for specific areas.
+
+  Review focus:
+  - Are colors/fonts bound to library tokens? Flag hardcoded values when tokens exist.
+  - Are gradients/shadows refined or cheap-looking?
+  - Is there a clear visual hierarchy and focal point?
+  - Is composition intentional (asymmetry where appropriate, no uniform grids)?
+  - Is spacing consistent and using library tokens (or 8dp multiples)?
+  - Are text contents realistic and contextually appropriate (not placeholder)?
+  - Are icons consistent in style (outline/filled/duotone not mixed)?
+  - Are shadow levels consistent and within ≤ 3 tiers?
+  - Does the node structure complexity match the design tone?
+  - Are accessibility standards met?
+
+  --- IF no selectedLibrary (Design Creator rules) ---
+  Use get_design_guidelines() for Design Creator rules, or call get_design_guidelines(category) for specific areas.
+
+  Review focus:
+  - Is there a clear design intent (not just AI defaults)?
+  - Do color choices serve a purpose?
+  - Are fonts chosen with intention (not just Inter)?
+  - Is spacing rhythmic, consistent, and based on a clear base unit?
+  - Is there a clear visual focal point? Is composition intentional (not just centered symmetry)?
+  - Are text contents realistic and contextually appropriate (not placeholder)?
+  - Are icons consistent in style (outline/filled/duotone not mixed)?
+  - Are shadow levels consistent and within ≤ 3 tiers?
+  - Does the node structure complexity match the design tone?
+  - Are accessibility standards met?
+
+  6. Output a structured report for each violation:
+     - violation: quote the specific node, property, and value
+     - why: one sentence explaining why this is a problem
+     - fix: concrete fix suggestion with MCP tool call example
+
+  7. Summarize: X passed / Y violations / Z auto-fixable
+  8. Run lint_fix_all to auto-fix what's possible, then report remaining violations

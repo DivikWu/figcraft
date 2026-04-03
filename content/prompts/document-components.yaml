@@ -1,0 +1,24 @@
+name: document-components
+description: "Guide: Generate documentation for all components on the current page."
+steps: |
+  Help me generate documentation for the components in this Figma file. Follow these steps:
+
+  1. Call load_toolset({ names: "components-advanced" }) to enable component audit tools
+  2. Use audit_components to scan all components on the current page
+  3. For each component, use components(method: "get") and components(method: "list_properties") to get full details
+  4. Generate a structured documentation entry for each component:
+
+     ## ComponentName
+     **Description:** (from component description, or "No description")
+     **Dimensions:** W × H
+     **Properties:**
+     | Name | Type | Default | Options |
+     |------|------|---------|---------|
+     | ... | BOOLEAN/TEXT/VARIANT/INSTANCE_SWAP | ... | (variant options if applicable) |
+
+     **Usage:** Brief guidance on when/how to use this component
+     **Variants:** List variant combinations if it's a component set
+
+  5. Flag any issues found during audit (missing descriptions, unexposed text, etc.)
+  6. Output the complete documentation in Markdown format
+  7. Suggest improvements to component structure based on audit findings

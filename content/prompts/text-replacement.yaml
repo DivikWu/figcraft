@@ -1,0 +1,31 @@
+name: text-replacement
+description: "Guide: Bulk replace text content in a Figma design (localization, data filling, content updates)."
+steps: |
+  Help me replace text content across a Figma design. Follow this workflow:
+
+  ## 1. Scan
+  - Use `text_scan` on the target frame/page to discover all text nodes
+  - Categorize by role: headings, body, labels, placeholders, CTAs
+
+  ## 2. Chunk
+  - Group text nodes by proximity (same parent frame = one chunk)
+  - For large designs (>30 text nodes), process in chunks of 10-15 nodes
+  - Prioritize: headings first, then body text, then labels/CTAs
+
+  ## 3. Replace (per chunk)
+  - Use `text(method:"set_content")` to update each node
+  - For content that may not fit: check if the text node has a fixed width — keep replacement text similar in length or shorter
+  - After replacing each chunk, use `export_image(scale:2)` on the parent frame to verify visually
+
+  ## 4. Verify
+  - After each chunk: confirm text fits containers, no truncation, no overflow
+  - If issues found: adjust text or container width before proceeding
+
+  ## 5. Final QA
+  - Run `lint_fix_all` to catch any text overflow or layout issues introduced
+  - `export_image(scale:1)` on the full design for final review
+
+  Export scale guidelines:
+  - Overview (full page): scale 1
+  - Section check: scale 2
+  - Detail check (individual text): scale 3

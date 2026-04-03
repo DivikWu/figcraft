@@ -1,0 +1,78 @@
+name: generate-element
+description: "Guide: Generate a design element with high design quality. Applies Design Guardian rules (with library) or Design Creator rules (without library)."
+# NOTE: {{PREVENTION_CHECKLIST_COUNT}} is replaced at compile time by scripts/compile-content.ts
+steps: |
+  Help me create a design element with high design quality. Follow the Think → Gather → Propose → Confirm → Query → Create → Check workflow:
+
+  ## Think
+  1. Call get_mode to verify plugin connection and get designContext (includes libraryComponents if available)
+  2. Based on the result, determine which mode you are in:
+     - If selectedLibrary is set → Design Guardian mode. Key rules are in _workflow.designPreflight. For detailed rules on a specific area, call get_design_guidelines(category).
+     - If no selectedLibrary → Design Creator mode. Key rules are in _workflow.designPreflight. For detailed rules on a specific area, call get_design_guidelines(category).
+
+  ## Gather
+  3. Collect key preferences from the user in ONE message. Check what the user already provided, and ask ONLY for what's missing.
+     Also check _workflow.searchBehavior to know whether search_design_system is available.
+     Match the user's language. Present as a short checklist, not a wall of text.
+
+     --- IF selectedLibrary is set (Design Guardian mode) ---
+     Ask for (skip any already answered):
+     a. **UI type** — if not clear from the request (e.g. "design a page" is vague; "login page" is clear). Provide 3–4 examples.
+     b. **Platform** — Web, iOS, or Android? (affects touch targets, safe areas, conventions)
+     Language/region can be inferred from the user's message language — no need to ask unless ambiguous.
+
+     --- IF no selectedLibrary (Design Creator mode) ---
+     Ask for (skip any already answered):
+     a. **UI type** — if not clear from the request. Provide 3–4 examples.
+     b. **Platform** — Web, iOS, or Android?
+     c. **Style tone** — provide 4–5 options: Minimal / Elegant / Warm / Bold / Rich (or let user describe freely)
+     Language/region can be inferred from the user's message language — no need to ask unless ambiguous.
+
+     MERGE SHORTCUT: If ALL items are already clear from the user's request, skip Gather entirely and go directly to Propose.
+     Language/region can be inferred from the user's message language if not explicitly stated — no need to ask.
+     **STOP and wait for answers.** Then proceed to Propose.
+
+  ## Propose
+  4. Based on the gathered preferences, output a concrete design plan draft.
+
+  Start the draft by stating your understanding of the context:
+  > "I understand you need [what], for [audience/platform], with a [tone] feel."
+  This gives the user a chance to correct any wrong assumptions before you detail the plan.
+
+  Apply the mode-specific design rules from _workflow.designPreflight (already loaded via get_mode).
+  For detailed guidance on specific areas, call get_design_guidelines with a category (color, typography, spacing, composition, content, accessibility).
+  Do NOT load the full rule set upfront — use targeted category queries only when needed.
+
+  5. End the proposal with: "Want me to adjust anything, or should I go ahead?"
+  6. **STOP HERE.** Wait for the user to approve or request changes.
+
+  ## Confirm
+  7. If the user requests changes, revise the plan and present again. If approved, proceed.
+
+  ## Query (library mode with components)
+  8. For local components, call components(method: "list_properties") to discover available variants.
+     For library components, get_mode's libraryComponents shows component sets with variantCount and propertyNames (summary only).
+     For full variant details, call search_design_system(query) or components(method: "list_properties").
+     Skip this step entirely in Design Creator mode (no library selected).
+
+  ## Create
+  9. Use create_frame + children (declarative) to build the design.
+     create_frame has an Opinion Engine that auto-infers layoutMode, sizing, and FILL ordering.
+     Token auto-binding happens automatically in library mode (colors, spacing, typography).
+     For complex parameters, use dryRun:true first to preview inferences.
+     For multi-screen flows, call get_creation_guide(topic:"multi-screen") for architecture rules.
+     For complex layouts, call get_creation_guide(topic:"layout") for structural rules.
+     For icons: use icon_search(query) to find icons, then icon_create to place them.
+     For images: use image_search(query) to find stock photos, then set_image_fill to apply.
+     After creation, verify with export_image and run lint_fix_all.
+
+  ## Check
+  10. Quick self-review before lint — verify:
+      - Every container has layoutMode (HORIZONTAL or VERTICAL) and at least one child
+      - Buttons are auto-layout frames with centered text, height ≥ 48px, padding ≥ 12px
+      - Input fields have stroke, corner radius, padding, and placeholder text
+      - No text overflow or truncation — text fits within parent
+      - Mobile screens use correct dimensions (iOS 402×874, Android 412×915)
+      - Every frame has a descriptive name (no "Frame 1")
+      Fix violations immediately with nodes(method: "update").
+  11. Run lint_fix_all to auto-check all {{PREVENTION_CHECKLIST_COUNT}} quality rules and fix remaining issues.

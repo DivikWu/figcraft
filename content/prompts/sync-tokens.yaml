@@ -1,0 +1,12 @@
+name: sync-tokens
+description: "Guide: Sync DTCG design tokens to Figma variables and styles."
+steps: |
+  Help me sync design tokens to Figma. Follow these steps:
+  1. Ask for the DTCG JSON file path
+  2. Call load_toolset({ names: "tokens" }) to enable token tools
+  3. Use list_tokens to preview what will be synced
+  4. Use diff_tokens to check current state vs DTCG
+  5. Use sync_tokens to push changes
+  6. Report the sync result (created/updated/skipped/failed)
+
+  If there are composite tokens (typography, shadow), explain that they become Figma Styles (not Variables).

@@ -1,0 +1,10 @@
+name: compare-spec
+description: "Guide: Compare Figma Library variables with DTCG spec tokens."
+steps: |
+  Help me compare my Figma variables against the DTCG spec. Follow these steps:
+  1. Ask for the DTCG JSON file path
+  2. Call load_toolset({ names: "tokens" }) to enable token tools
+  3. Use diff_tokens to compare
+  4. Categorize differences: in-sync, dtcg-ahead, figma-ahead, missing
+  5. Recommend actions for each category
+  6. Ask if I want to sync to resolve differences

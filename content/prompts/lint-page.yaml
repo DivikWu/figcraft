@@ -1,0 +1,8 @@
+name: lint-page
+description: "Guide: Lint the current Figma page for design compliance."
+steps: |
+  Help me check the current page for design compliance. Follow these steps in sequence without stopping:
+  1. Use ping to verify plugin connection
+  2. Use lint_fix_all to check and auto-fix violations in one step
+  3. Summarize: total checked / violations found / auto-fixed / remaining
+  4. For remaining violations, explain what needs manual attention

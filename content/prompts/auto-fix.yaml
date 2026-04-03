@@ -1,0 +1,12 @@
+name: auto-fix
+description: "Guide: Auto-fix all fixable lint violations on the current page."
+steps: |
+  Help me auto-fix design violations. Follow these steps:
+  1. Call load_toolset({ names: "lint" }) to enable granular lint tools
+  2. Run lint_check on the current page/selection
+  3. Show summary of violations
+  4. Filter to only autoFixable violations
+  5. Confirm with me before applying fixes
+  6. Run lint_fix with the fixable violations
+  7. Re-run lint_check to verify fixes were applied
+  8. Report any remaining violations that need manual attention

@@ -1,0 +1,15 @@
+name: prototype-flow
+description: "Guide: Analyze prototype interactions and generate flow documentation."
+steps: |
+  Help me analyze the prototype flow in this Figma file. Follow these steps:
+  1. Call load_toolset({ names: "prototype" }) to enable prototype interaction tools
+  2. Use analyze_prototype_flow to scan the current page (format: "all")
+  3. Present the summary: total screens, interactions, entry points, dead ends, loops
+  4. Show the Mermaid flow diagram
+  5. Highlight any issues:
+     - Dead ends (screens with no way out)
+     - Missing back navigation
+     - Loops that might trap users
+     - Screens with only one trigger type (consider adding hover/keyboard alternatives)
+  6. If requested, output the full Markdown documentation
+  7. Suggest improvements to the prototype flow
