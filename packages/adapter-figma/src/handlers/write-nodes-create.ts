@@ -10,7 +10,7 @@ import { autoBindTypography } from '../utils/design-context.js';
 import { ensureLoaded, getTextStyleId } from '../utils/style-registry.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
 import { applyFill, applyStroke, applyCornerRadius, applyTokenField, applyTokenFields, setComponentProperties } from '../utils/node-helpers.js';
-import { hexToFigmaRgb } from '../utils/color.js';
+import { hexToFigmaRgb, hexToFigmaRgba } from '../utils/color.js';
 import { structuredHintsToInferences, formatDiff, buildCorrectedPayload, validateParams, inferDirection } from './inline-tree.js';
 import type { Inference } from './inline-tree.js';
 import { aggregateHints, structuredHintsToTyped } from '../utils/hint-aggregator.js';
@@ -690,6 +690,20 @@ async function setupFrame(
         ctx.warnings.push(`effectStyle "${name}" not found`);
       }
     } catch (err) { ctx.warnings.push(`effectStyle failed: ${err instanceof Error ? err.message : String(err)}`); }
+  } else if (p.shadow) {
+    // Drop shadow shorthand — only when no effectStyleName (library style takes priority)
+    const s = p.shadow as Record<string, unknown>;
+    const colorHex = (s.color as string) ?? '#00000040';
+    const rgba = hexToFigmaRgba(colorHex);
+    frame.effects = [{
+      type: 'DROP_SHADOW',
+      visible: true,
+      color: rgba,
+      offset: { x: (s.x as number) ?? 0, y: (s.y as number) ?? 4 },
+      radius: (s.blur as number) ?? 12,
+      spread: (s.spread as number) ?? 0,
+      blendMode: 'NORMAL',
+    }];
   }
 
   // ── Responsive constraints ──

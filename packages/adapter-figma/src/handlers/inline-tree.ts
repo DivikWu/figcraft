@@ -88,7 +88,7 @@ const FRAME_PARAMS = new Set([
   'layoutMode', 'itemSpacing', 'padding', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
   'counterAxisSpacing', 'primaryAxisAlignItems', 'counterAxisAlignItems', 'layoutWrap',
   'cornerRadius', 'topLeftRadius', 'topRightRadius', 'bottomRightRadius', 'bottomLeftRadius',
-  'blendMode', 'effectStyleName', 'clipsContent',
+  'blendMode', 'effectStyleName', 'shadow', 'clipsContent',
   'minWidth', 'maxWidth', 'minHeight', 'maxHeight',
   'children', 'dryRun', 'noPreview', 'parentId', 'items',
 ]);
@@ -157,8 +157,7 @@ const PARAM_CORRECTIONS: Record<string, string> = {
   size: 'width + height',
   src: 'imageUrl',
   url: 'imageUrl',
-  shadow: 'effectStyleName',
-  dropShadow: 'effectStyleName',
+  dropShadow: 'shadow',
   align: 'primaryAxisAlignItems or counterAxisAlignItems',
   overflow: 'clipsContent',
   wrap: 'layoutWrap',

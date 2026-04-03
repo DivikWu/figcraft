@@ -839,6 +839,9 @@ create_frame:
     effectStyleName:
       type: string
       description: "Effect style name for shadows/blurs"
+    shadow:
+      type: object
+      description: "Drop shadow shorthand. {color?: hex (default '#00000040'), x?: offsetX (default 0), y?: offsetY (default 4), blur?: radius (default 12), spread?: (default 0)}. Ignored when effectStyleName is set."
     clipsContent:
       type: boolean
       description: "Clip children to frame bounds (default: true)"

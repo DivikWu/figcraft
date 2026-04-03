@@ -98,6 +98,7 @@ export function registerGeneratedTools(
       rotation: z.number().optional().describe("Rotation in degrees"),
       blendMode: z.enum(['PASS_THROUGH', 'NORMAL', 'DARKEN', 'MULTIPLY', 'SCREEN', 'OVERLAY', 'SOFT_LIGHT', 'HARD_LIGHT']).optional().describe("Layer blend mode"),
       effectStyleName: z.string().optional().describe("Effect style name for shadows/blurs"),
+      shadow: z.record(z.unknown()).optional().describe("Drop shadow shorthand. {color?: hex (default '#00000040'), x?: offsetX (default 0), y?: offsetY (default 4), blur?: radius (default 12), spread?: (default 0)}. Ignored when effectStyleName is set."),
       clipsContent: z.boolean().optional().describe("Clip children to frame bounds (default: true)"),
       minWidth: z.number().optional().describe("Min width for responsive auto-layout"),
       maxWidth: z.number().optional().describe("Max width for responsive auto-layout"),

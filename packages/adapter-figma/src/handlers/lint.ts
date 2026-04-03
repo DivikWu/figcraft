@@ -509,7 +509,9 @@ registerHandler('lint_fix', async (params) => {
 
   for (const v of violations) {
     if (!v.autoFixable) continue;
-    if (v.severity === 'heuristic' || v.severity === 'style') { skippedHeuristic++; continue; }
+    // Note: previously skipped heuristic/style severity, but autoFixable + fixDescriptor
+    // already indicates the rule author considers the fix safe. Only skip verbose.
+    if (v.severity === 'verbose') { skippedHeuristic++; continue; }
 
     const descriptor = v.fixDescriptor;
     if (!descriptor) { failed++; errors.push({ nodeId: v.nodeId, error: `No fix descriptor for rule ${v.rule}` }); continue; }
