@@ -74,7 +74,7 @@ Project assets and their locations:
 
 On-demand docs via MCP tools:
 - `get_creation_guide(topic)` — layout, multi-screen, batching, tool-behavior, opinion-engine, responsive, content-states, ui-patterns
-- `get_design_guidelines(category)` — color, typography, spacing, composition, content, accessibility
+- `get_design_guidelines(category)` — all, color, typography, spacing, layout, composition, content, accessibility, buttons, inputs
 - `list_toolsets` — available toolsets and loading status
 
 Maintenance guide: `docs/asset-maintenance.md`
