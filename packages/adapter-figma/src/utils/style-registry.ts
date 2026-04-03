@@ -474,6 +474,20 @@ export function suggestTextStyle(
   return null;
 }
 
+// ─── Effect style name-based lookup ───
+
+/**
+ * Get an effect style matching the given name (case-insensitive).
+ * Used by create_frame's effectStyleName param to find library effect styles.
+ */
+export function getEffectStyleByName(name: string): { id: string; name: string } | null {
+  const lowerName = name.toLowerCase();
+  for (const entry of effectStyleMap.values()) {
+    if (entry.name.toLowerCase() === lowerName) return entry;
+  }
+  return null;
+}
+
 // ─── Clear (on library switch) ───
 
 export function clearStyleRegistry(): void {

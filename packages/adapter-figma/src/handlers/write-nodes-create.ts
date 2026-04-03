@@ -7,7 +7,7 @@
 import { registerHandler } from '../registry.js';
 import { simplifyNode } from '../adapters/node-simplifier.js';
 import { autoBindTypography } from '../utils/design-context.js';
-import { ensureLoaded, getTextStyleId } from '../utils/style-registry.js';
+import { ensureLoaded, getTextStyleId, getEffectStyleByName } from '../utils/style-registry.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
 import { applyFill, applyStroke, applyCornerRadius, applyTokenField, applyTokenFields, setComponentProperties } from '../utils/node-helpers.js';
 import { hexToFigmaRgb, hexToFigmaRgba } from '../utils/color.js';
@@ -680,12 +680,22 @@ async function setupFrame(
   // ── Effect style (shadows/blurs) ──
   if (p.effectStyleName) {
     try {
-      const effectStyles = await figma.getLocalEffectStylesAsync();
       const name = p.effectStyleName as string;
-      const match = effectStyles.find(s => s.name === name)
+      // 1. Search local styles first
+      const effectStyles = await figma.getLocalEffectStylesAsync();
+      const localMatch = effectStyles.find(s => s.name === name)
         ?? effectStyles.find(s => s.name.toLowerCase() === name.toLowerCase());
-      if (match) {
-        await setEffectStyleIdAsync(frame, match.id);
+      if (localMatch) {
+        await setEffectStyleIdAsync(frame, localMatch.id);
+      } else if (ctx.useLib && ctx.library) {
+        // 2. Search style registry (library effect styles)
+        await ensureLoaded(ctx.library);
+        const registryMatch = getEffectStyleByName(name);
+        if (registryMatch) {
+          await setEffectStyleIdAsync(frame, registryMatch.id);
+        } else {
+          ctx.warnings.push(`effectStyle "${name}" not found in local styles or library "${ctx.library}"`);
+        }
       } else {
         ctx.warnings.push(`effectStyle "${name}" not found`);
       }
