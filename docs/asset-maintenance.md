@@ -1,0 +1,204 @@
+# FigCraft 资产维护手册
+
+项目有六类增长资产。本文档说明每类资产在哪里、怎么加新的、怎么改现有的。
+
+## 资产总览
+
+| 资产 | 位置 | 格式 | 数量 | 构建命令 |
+|------|------|------|------|---------|
+| **Skills** | `skills/*/SKILL.md` | Markdown | 11 | `npm run build`（自动拷贝到 dist） |
+| **UI 模板** | `content/templates/*.yaml` | YAML | 9 | `npm run content` |
+| **创建指南** | `content/guides/*.md` | Markdown | 6 | `npm run content` |
+| **MCP Prompts** | `content/prompts/*.yaml` | YAML | 9 | `npm run content` |
+| **MCP 工具** | `schema/tools.yaml` | YAML | 97 | `npm run schema` |
+| **Lint 规则** | `packages/quality-engine/src/rules/` | TypeScript | 38 | `npm run build` |
+
+## 构建流水线
+
+```
+npm run build = schema → content → build:server → build:plugin → build:figcraft-design
+```
+
+- `npm run schema` — tools.yaml → 生成 `_generated.ts` + `_registry.ts`
+- `npm run content` — content/ → 生成 `_guides.ts` + `_prompts.ts` + `_templates.ts`
+- 合约测试（`npm test`）验证生成文件与源文件一致
+
+---
+
+## 1. Skills
+
+**位置**: `skills/*/SKILL.md`（项目根目录，扁平结构）
+
+**IDE 发现**: Claude Code 和 Kiro 通过 symlink（`.claude/skills` / `.kiro/skills` → `../skills`）自动发现。**只扫描直接子目录**，不递归——不能嵌套分组。
+
+**分类**: 通过 `skills/README.md` 文档分组（设计规则 / 声明式创建 / Plugin API / 辅助）。
+
+### 设计规则 Skill（特殊）
+
+`ui-ux-fundamentals`、`design-creator`、`design-guardian` 三个 skill 同时是 MCP Server `get_design_guidelines()` 的 source of truth。构建时去掉 frontmatter 拷贝到 `dist/mcp-server/`。
+
+### 新增 Skill
+
+1. 创建 `skills/<skill-name>/SKILL.md`（含 `---` frontmatter）
+2. 可选：添加 `references/` 子目录放支撑文档
+3. 更新 `skills/README.md` 添加到对应分组
+4. IDE 自动发现，无需改代码
+
+### 修改 Skill
+
+直接编辑 `skills/<name>/SKILL.md`。如果是设计规则 skill，需 `npm run build` 更新 dist/。
+
+---
+
+## 2. UI 模板
+
+**位置**: `content/templates/*.yaml`
+
+**生成**: `npm run content` → `packages/core-mcp/src/tools/_templates.ts`
+
+**消费者**: `get_creation_guide(topic:"ui-patterns", uiType:"xxx")` MCP 工具
+
+### 必填字段
+
+```yaml
+structure: |          # 节点层级结构
+keyDecisions:         # Record<string, string>
+pitfalls:             # string[]（对应 lint 规则名）
+toneVariants:         # Record<string, Record<string, string>>
+exampleParams:        # Record<string, unknown>（create_frame 参数骨架）
+```
+
+### 新增模板
+
+1. 创建 `content/templates/<name>.yaml`（参考现有模板格式）
+2. `npm run content` — 验证必填字段 + 生成 TypeScript
+3. 模板自动出现在 `get_creation_guide(topic:"ui-patterns")` 可用列表
+
+### 修改模板
+
+编辑 YAML → `npm run content` → `npm test`（合约测试验证一致性）
+
+---
+
+## 3. 创建指南
+
+**位置**: `content/guides/*.md`
+
+**生成**: `npm run content` → `packages/core-mcp/src/tools/_guides.ts`
+
+**消费者**: `get_creation_guide(topic:"multi-screen")` 等 MCP 工具
+
+### 文件名 → 常量名
+
+`multi-screen.md` → `GUIDES.MULTI_SCREEN`，`content-states.md` → `GUIDES.CONTENT_STATES`
+
+### 新增指南
+
+1. 创建 `content/guides/<name>.md`
+2. `npm run content`
+3. 在 `creation-guide.ts` 的 switch 中添加新 topic 分支，引用 `GUIDES.NEW_NAME`
+
+### 修改指南
+
+编辑 Markdown → `npm run content` → `npm test`
+
+---
+
+## 4. MCP Prompts
+
+**位置**: `content/prompts/*.yaml`
+
+**生成**: `npm run content` → `packages/core-mcp/src/prompts/_prompts.ts`
+
+**消费者**: MCP Server 启动时自动注册所有 prompt
+
+### 必填字段
+
+```yaml
+name: prompt-name       # MCP prompt 注册名
+description: "描述"      # MCP prompt 描述
+steps: |                 # 工作流步骤文本
+```
+
+### 动态占位符
+
+`{{PREVENTION_CHECKLIST_COUNT}}` → 运行时替换为 lint 规则数量
+
+### 新增 Prompt
+
+1. 创建 `content/prompts/<name>.yaml`
+2. `npm run content`
+3. Prompt **自动注册**到 MCP Server，无需改代码
+
+### 修改 Prompt
+
+编辑 YAML → `npm run content` → `npm test`
+
+---
+
+## 5. MCP 工具
+
+**位置**: `schema/tools.yaml`（6,377 行，单一文件）
+
+**生成**: `npm run schema` → `packages/core-mcp/src/tools/_generated.ts` + `_registry.ts`
+
+**三种 handler 类型**:
+
+| 类型 | 定义方式 | 代码 |
+|------|---------|------|
+| `bridge` | YAML 定义即可 | 自动生成 |
+| `endpoint` | YAML 定义 methods map | dispatch 在 `endpoints.ts` |
+| `custom` | YAML + 手写 TypeScript | 在 `packages/core-mcp/src/tools/` |
+
+### 新增工具
+
+1. 在 `schema/tools.yaml` 添加工具定义
+2. `npm run schema` 重新生成 registry
+3. 如果是 `bridge` 类型，到此完成
+4. 如果是 `custom` 类型，在 `packages/core-mcp/src/tools/` 手写实现
+
+---
+
+## 6. Lint 规则
+
+**位置**: `packages/quality-engine/src/rules/<category>/<rule-name>.ts`
+
+**分类目录**: `layout/`(19)、`structure/`(13)、`spec/`(6)、`wcag/`(5)、`naming/`(2)
+
+**autoFix 率**: 58%（22/38）
+
+### 新增规则
+
+1. 在 `packages/quality-engine/src/rules/<category>/` 创建文件，实现 `LintRule` 接口
+2. 在 `packages/quality-engine/src/engine.ts` 的 `ALL_RULES` 数组中 import + 注册
+3. `check()` 接收 `AbstractNode`，返回 `LintViolation[]`
+4. 可选：设置 `autoFixable: true` + 返回 `FixDescriptor`
+5. 可选：在 `packages/adapter-figma/src/utils/fix-applicator.ts` 添加修复逻辑（如果是新的 FixDescriptor 类型）
+6. 添加测试到 `tests/quality-engine/`
+
+### 修改规则
+
+编辑规则 TypeScript → `npm test` → `npm run build`
+
+---
+
+## 速查：我要做 X 应该改哪里？
+
+| 我要… | 改哪里 | 命令 |
+|-------|-------|------|
+| 加一种新 UI 模板 | `content/templates/<name>.yaml` | `npm run content` |
+| 修改登录页模板 | `content/templates/login.yaml` | `npm run content` |
+| 加一个创建指南 | `content/guides/<name>.md` + creation-guide.ts switch | `npm run content` |
+| 加一个 MCP Prompt | `content/prompts/<name>.yaml` | `npm run content`（自动注册） |
+| 加一个 MCP 工具 | `schema/tools.yaml` | `npm run schema` |
+| 加一条 Lint 规则 | `quality-engine/src/rules/` + engine.ts | `npm test` |
+| 加一个 Skill | `skills/<name>/SKILL.md` | 无需构建（IDE 自动发现） |
+| 改设计规则 | `skills/ui-ux-fundamentals/SKILL.md` 等 | `npm run build` |
+| 加一项 Opinion Engine 推断 | `adapter-figma/src/handlers/inline-tree.ts` | `npm test` |
+
+## 相关文档
+
+- [架构审查](architecture-review.md) — 架构决策和理想结构
+- [增长资产](growth-assets.md) — 六类资产的扩展路线
+- [Skills 战略](skills-strategy.md) — Skills 拓展路线图
+- [编辑内容资产](contributing-content.md) — 设计师/PM 编辑指南

@@ -11,5 +11,9 @@ FigCraft's create_frame includes an Opinion Engine that auto-handles sizing,
 FILL ordering, token binding, and failure cleanup.
 
 For detailed docs during creation, use MCP tools:
-- get_creation_guide(topic) — layout, multi-screen, batching, tool-behavior, opinion-engine
+- get_creation_guide(topic) — layout, multi-screen, batching, tool-behavior, opinion-engine, responsive, content-states, ui-patterns
 - get_design_guidelines(category) — color, typography, spacing, composition, content, accessibility
+
+Content assets (templates, guides, prompts) live in `content/` as YAML/Markdown.
+Skills and design rules live in `skills/*/SKILL.md`.
+See `docs/asset-maintenance.md` for full asset map.

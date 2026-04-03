@@ -10,8 +10,8 @@ Before ANY Figma write operation (create_frame, create_text, create_svg, nodes u
 STEP 0: ping                                          → verify plugin connection
 STEP 1: get_current_page(maxDepth=1)                  → inspect existing content, find placement position
 STEP 2: get_mode                                      → check library/token status
-        ├─ library selected → readFile design-guardian.md + load design system discovery workflow
-        └─ no library       → readFile design-creator.md (make intentional design choices)
+        ├─ library selected → load skill: design-guardian + design system discovery
+        └─ no library       → load skill: design-creator (intentional design choices)
 STEP 3: CLASSIFY TASK SCALE → pick creation method:
         ├─ single element   → 1 create_frame call
         ├─ single screen    → 1 create_frame call with full children tree
@@ -25,8 +25,10 @@ STEP 4: IF multi-screen flow →
 During execution: verify after every write (`get_current_page(maxDepth=1)` + `export_image` at milestones). Run `lint_fix_all` before replying to user.
 
 Reference docs (read on demand):
-- Kiro: `.kiro/steering/figma-essential-rules.md` (auto-loaded) + `.kiro/steering/multi-screen-flow-guide.md`
-- Claude Code / other IDEs: see Multi-Screen Flow section in CLAUDE.md
+- Skills: `skills/ui-ux-fundamentals/`, `skills/design-guardian/`, `skills/design-creator/` (design rules)
+- Content: `content/guides/*.md` (creation guides), `content/templates/*.yaml` (UI templates)
+- MCP tools: `get_creation_guide(topic)`, `get_design_guidelines(category)`
+- Maintenance: see `docs/asset-maintenance.md` for full asset map
 
 ## API Mode (Endpoint)
 

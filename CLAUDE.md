@@ -88,7 +88,19 @@ figcraft/
 ├── package.json                    # private workspace root
 ├── manifest.json                   # 生成的 root 兼容插件清单
 ├── schema/tools.yaml               # 工具定义单一事实来源
-├── scripts/compile-schema.ts       # 生成 core-mcp tool registry / schemas
+├── scripts/
+│   ├── compile-schema.ts           # tools.yaml → 生成 tool registry
+│   └── compile-content.ts          # content/ → 生成 _guides/_prompts/_templates
+├── skills/                         # Skills（IDE 发现，扁平结构）
+│   ├── ui-ux-fundamentals/         # 设计规则（MCP Server 的 source of truth）
+│   ├── design-creator/
+│   ├── design-guardian/
+│   ├── figma-create-ui/            # 声明式创建流程
+│   └── figma-use/ ...              # (共 11 个 skill)
+├── content/                        # 可编辑内容资产（YAML/Markdown）
+│   ├── templates/*.yaml            # 9 个 UI 模板 → _templates.ts
+│   ├── guides/*.md                 # 6 个创建指南 → _guides.ts
+│   └── prompts/*.yaml              # 9 个 MCP Prompt → _prompts.ts
 ├── packages/
 │   ├── figcraft-design/src/        # 对外发布的 CLI 壳
 │   ├── core-mcp/src/               # MCP Server runtime、bridge、tools、prompts
@@ -122,6 +134,7 @@ figcraft/
 - 运行 `npm run schema` 重新生成 registry
 - AI 调 `list_toolsets` 查看完整列表和加载状态
 - 质量引擎：43 条 lint 规则 + 自动修复（`packages/quality-engine/src/rules/`）
+- 内容资产：`content/` 下 YAML/Markdown → `npm run content` 生成 TypeScript（见 `docs/asset-maintenance.md`）
 
 ## DTCG → Figma 类型映射
 

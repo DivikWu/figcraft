@@ -52,6 +52,14 @@ All of these are returned by MCP tools and enforced at runtime:
 
 Do NOT duplicate these rules in steering files. They update with the MCP Server code.
 
+## Project Assets
+
+- Skills (design rules + workflows): `skills/*/SKILL.md` (11 skills, flat)
+- Content (templates + guides + prompts): `content/` (YAML/Markdown, `npm run content` to compile)
+- MCP tools: `schema/tools.yaml` (`npm run schema` to compile)
+- Lint rules: `packages/quality-engine/src/rules/`
+
 ## Development Guide
 
 For adding tools, handlers, lint rules, or understanding architecture: read `CLAUDE.md` in the project root.
+For asset maintenance and "how to add X": read `docs/asset-maintenance.md`.
