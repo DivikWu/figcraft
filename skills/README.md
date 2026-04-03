@@ -1,16 +1,40 @@
 # FigCraft Skills
 
-## figma/ — Figma Official Skills
+Skills are first-class project assets. All skills are managed flat under `skills/`.
 
-Plugin API reference and workflow guidance from Figma's official MCP server.
-Source: https://github.com/figma/mcp-server-guide
+## Shared Design Rules
 
-These skills teach AI how to use Figma's Plugin API (`use_figma` tool).
-They are unmodified official versions.
+| Skill | Description |
+|-------|-------------|
+| **ui-ux-fundamentals** | Universal design quality rules (typography, spacing, content, accessibility). Always applies. |
+| **design-creator** | No-library mode rules (intentional design thinking, color, iconography). Extends ui-ux-fundamentals. |
+| **design-guardian** | Library mode rules (token priority, dark mode, conflict resolution). Extends ui-ux-fundamentals. |
 
-## design/ — FigCraft Design Skills
+Source of truth for MCP runtime `get_design_guidelines()`. Build copies content (stripped of frontmatter) to `dist/mcp-server/`.
 
-Design rules and creation workflow for FigCraft's declarative tools.
+## Declarative Path (create_frame)
 
-For UI creation, FigCraft's `create_frame` (with Opinion Engine) is preferred over `use_figma`.
-The MCP Server instructions declare this priority automatically.
+| Skill | Description |
+|-------|-------------|
+| **figma-create-ui** | Create UI using FigCraft declarative tools with Opinion Engine. References 3 design rule skills. |
+
+## Plugin API Path (execute_js / use_figma)
+
+| Skill | Description |
+|-------|-------------|
+| **figma-use** | Mandatory prerequisite for all `use_figma`/`execute_js` calls. Plugin API rules. |
+| **figma-generate-design** | Build/update full screens from design system. References design rules + figma-use. |
+| **figma-generate-library** | Build professional design systems (20-100+ calls). References design rules + figma-use. |
+
+## Auxiliary
+
+| Skill | Description |
+|-------|-------------|
+| **figma-implement-design** | Translate Figma designs into production code. |
+| **figma-code-connect-components** | Map Figma components to code via Code Connect. |
+| **figma-create-design-system-rules** | Generate project-specific IDE design rules. |
+| **figma-create-new-file** | Create blank Figma design/FigJam files. |
+
+## Strategy
+
+See [docs/skills-strategy.md](../docs/skills-strategy.md) for long-term roadmap, expansion phases, and maintenance guidelines.

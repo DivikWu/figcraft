@@ -28,6 +28,11 @@ Use this skill to create or update full-page screens in Figma by **reusing the p
   - Or context about which file to target (the agent can discover pages)
 - Source code or description of the screen to build/update
 
+## Design Direction
+1. Always first → load skill: `ui-ux-fundamentals` (shared rules)
+2. Library selected → then load skill: `design-guardian`
+3. No library → then load skill: `design-creator`
+
 ## Parallel Workflow with generate_figma_design (Web Apps Only)
 
 When building a screen from a **web app** that can be rendered in a browser, the best results come from running both approaches in parallel:

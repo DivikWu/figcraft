@@ -14,6 +14,13 @@ Build professional-grade design systems in Figma that match code. This skill orc
 
 ---
 
+## Design Direction
+1. Always first → load skill: `ui-ux-fundamentals` (shared rules)
+2. Library selected → then load skill: `design-guardian`
+3. No library → then load skill: `design-creator`
+
+---
+
 ## 1. The One Rule That Matters Most
 
 **This is NEVER a one-shot task.** Building a design system requires 20–100+ `use_figma` calls across multiple phases, with mandatory user checkpoints between them. Any attempt to create everything in one call WILL produce broken, incomplete, or unrecoverable results. Break every operation to the smallest useful unit, validate, get feedback, proceed.

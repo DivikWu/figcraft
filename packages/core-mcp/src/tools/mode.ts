@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -58,14 +58,25 @@ function buildCategoryCache(rules: string): Map<string, string> {
 }
 
 export function registerModeTools(server: McpServer, bridge: Bridge): void {
-  // Load design rules from markdown files (once at registration time)
-  const promptsDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'prompts');
-  const loadRules = (filename: string): string => {
-    try { return readFileSync(join(promptsDir, filename), 'utf-8'); } catch { return ''; }
+  // Load design rules from skills/ (source of truth) or fallback to co-located .md (built artifact)
+  const selfDir = dirname(fileURLToPath(import.meta.url));
+  const skillsDir = join(selfDir, '..', '..', '..', '..', 'skills');
+  const useSkills = existsSync(join(skillsDir, 'ui-ux-fundamentals', 'SKILL.md'));
+
+  const stripFrontmatter = (content: string): string =>
+    content.replace(/^---[\s\S]*?---\s*/, '');
+
+  const loadRules = (skillName: string, fallbackFilename: string): string => {
+    try {
+      if (useSkills) {
+        return stripFrontmatter(readFileSync(join(skillsDir, skillName, 'SKILL.md'), 'utf-8'));
+      }
+      return readFileSync(join(selfDir, fallbackFilename), 'utf-8');
+    } catch { return ''; }
   };
-  const fundamentalsRules = loadRules('ui-ux-fundamentals.md');
-  const guardianRules = loadRules('design-guardian.md');
-  const creatorRules = loadRules('design-creator.md');
+  const fundamentalsRules = loadRules('ui-ux-fundamentals', 'ui-ux-fundamentals.md');
+  const guardianRules = loadRules('design-guardian', 'design-guardian.md');
+  const creatorRules = loadRules('design-creator', 'design-creator.md');
 
   // Pre-compute category sections for both modes (avoids re-parsing on every call)
   const guardianFull = fundamentalsRules + '\n\n---\n\n' + guardianRules;

@@ -5,8 +5,7 @@
   "type": "module",
   "main": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./prompts/*": "./src/prompts/*"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "build": "tsup --config tsup.config.ts",

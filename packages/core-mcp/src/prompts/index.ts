@@ -5,9 +5,9 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getPreventionChecklist } from '@figcraft/quality-engine';
 
-// Design rules (design-guardian.md, design-creator.md) are loaded on-demand
-// via get_design_guidelines tool (in mode.ts).
-// Sub-prompts contain condensed key rules instead of full markdown files.
+// Design rules live in skills/ as independent SKILL.md files (ui-ux-fundamentals, design-guardian, design-creator).
+// Loaded on-demand via get_design_guidelines tool (in mode.ts).
+// Build copies stripped content to dist/ for published artifact.
 
 // Prompt templates use endpoint syntax (e.g. nodes(method: "get"), nodes(method: "update")).
 // Standalone tools (ping, get_mode, lint_fix_all, etc.) keep their flat names.

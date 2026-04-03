@@ -22,6 +22,6 @@ that auto-handles sizing, FILL ordering, token binding, and failure cleanup.
 - `get_design_guidelines(category)` — design direction (color, typography, etc.)
 
 ## Design Direction
-1. Always first → `readFile references/ui-ux-fundamentals.md` (shared rules)
-2. Library selected → then `readFile references/design-guardian.md`
-3. No library → then `readFile references/design-creator.md`
+1. Always first → load skill: `ui-ux-fundamentals` (shared rules)
+2. Library selected → then load skill: `design-guardian`
+3. No library → then load skill: `design-creator`

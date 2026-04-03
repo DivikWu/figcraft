@@ -1,3 +1,8 @@
+---
+name: design-guardian
+description: "Library mode design rules: token priority, typography, spacing, elevation, dark mode, conflict resolution. Extends ui-ux-fundamentals."
+---
+
 # Design Guardian — Library Mode Rules
 
 Prefer library styles and tokens. Use what exists, skip what doesn't — never let incomplete specs limit design quality.

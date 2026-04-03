@@ -1,10 +1,13 @@
 import { defineConfig } from 'tsup';
-import { copyFileSync, mkdirSync } from 'node:fs';
-import { createRequire } from 'node:module';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { builtinModules } from 'node:module';
 
-const require = createRequire(import.meta.url);
-const PROMPT_FILES = ['ui-ux-fundamentals.md', 'design-guardian.md', 'design-creator.md'] as const;
+/** Design rule skills → strip frontmatter → write as plain .md to dist */
+const DESIGN_RULE_SKILLS = [
+  { skill: 'ui-ux-fundamentals', out: 'ui-ux-fundamentals.md' },
+  { skill: 'design-guardian', out: 'design-guardian.md' },
+  { skill: 'design-creator', out: 'design-creator.md' },
+] as const;
 
 // Node built-in modules must stay external in ESM bundles to avoid
 // "Dynamic require of X is not supported" errors from CJS deps like `ws`.
@@ -29,8 +32,10 @@ export default defineConfig([
     onSuccess: async () => {
       const destDir = 'dist/mcp-server';
       mkdirSync(destDir, { recursive: true });
-      for (const f of PROMPT_FILES) {
-        copyFileSync(require.resolve(`@figcraft/core-mcp/prompts/${f}`), `${destDir}/${f}`);
+      for (const { skill, out } of DESIGN_RULE_SKILLS) {
+        const raw = readFileSync(`skills/${skill}/SKILL.md`, 'utf-8');
+        const content = raw.replace(/^---[\s\S]*?---\s*/, ''); // strip frontmatter
+        writeFileSync(`${destDir}/${out}`, content);
       }
     },
   },

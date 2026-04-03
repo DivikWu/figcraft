@@ -1,3 +1,8 @@
+---
+name: ui-ux-fundamentals
+description: "Universal design quality rules: typography, spacing, content, iconography, elevation, composition, accessibility. Always applies regardless of library mode."
+---
+
 # UI/UX Fundamentals — Shared Design Rules
 
 Universal design quality rules. Apply regardless of library mode.

@@ -1,3 +1,8 @@
+---
+name: design-creator
+description: "No-library mode design rules: intentional design thinking, color, typography, iconography. Extends ui-ux-fundamentals."
+---
+
 # Design Creator — No-Library Mode Rules
 
 Every design choice must be intentional. Never rely on AI defaults.

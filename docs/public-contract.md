@@ -52,9 +52,9 @@ This document captures the externally visible behavior that must remain stable a
 ## Skills Directory
 
 - Skills live at `skills/` (project root), shared across IDEs via symlinks
-- Structure: `skills/figma/` (official Figma skills, unmodified) + `skills/design/` (FigCraft design skills)
+- Structure: flat — all 11 skills as direct children of `skills/` (3 design rules + 1 declarative + 7 plugin API)
 - IDE symlinks: `.claude/skills` → `../skills`, `.kiro/skills` → `../skills`
-- Design rules source: `packages/core-mcp/src/prompts/ui-ux-fundamentals.md` (shared), `design-guardian.md`, `design-creator.md`
+- Design rules source of truth: `skills/ui-ux-fundamentals/SKILL.md`, `skills/design-guardian/SKILL.md`, `skills/design-creator/SKILL.md`
 
 ## Quality Gate
 

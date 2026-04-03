@@ -7,8 +7,8 @@ describe('monorepo compatibility shell', () => {
 
     expect(tsupConfig).toContain("packages/figcraft-design/src/index.ts");
     expect(tsupConfig).toContain("packages/relay/src/index.ts");
-    expect(tsupConfig).toContain("@figcraft/core-mcp/prompts/");
-    expect(tsupConfig).not.toContain("packages/core-mcp/src/prompts");
+    expect(tsupConfig).toContain("skills/");
+    expect(tsupConfig).toContain("SKILL.md");
   });
 
   it('keeps the root plugin build script delegated to adapter-figma', () => {
