@@ -1,0 +1,103 @@
+structure: |-
+  Screen (VERTICAL, FIXED 402×874, padding 0)
+    ├── Header (HORIZONTAL, FILL/HUG, padding 16-24, itemSpacing 12)
+    │     ├── Back arrow icon (24×24)
+    │     ├── Title ("Products")
+    │     └── Filter/Search icon (right-aligned)
+    ├── Search Bar (HORIZONTAL, FILL/HUG, margin-h 16, padding 12, cornerRadius 8, fill gray-100)
+    │     ├── Search icon (16×16, muted)
+    │     └── Placeholder text ("Search...")
+    └── List (VERTICAL, FILL/FILL, padding-h 16, itemSpacing 0)
+          └── List Item × N (HORIZONTAL, FILL/HUG, padding 12-16, itemSpacing 12)
+                ├── Thumbnail (48-64px square, cornerRadius 8, fill gray-100)
+                ├── Content (VERTICAL, FILL/HUG, itemSpacing 4)
+                │     ├── Title (16px, semibold)
+                │     └── Subtitle (14px, muted)
+                └── Trailing (price, chevron, or badge)
+keyDecisions:
+  listScrolling: 'primaryAxisAlignItems: "MIN" (scrollable list, not SPACE_BETWEEN)'
+  itemSeparators: "Use itemSpacing: 0 + bottom stroke on each item, OR itemSpacing: 8 with card-style items"
+  thumbnailAspect: Square (1:1) for products/avatars, 16:9 for articles/media
+  emptyState: "When list is empty: centered illustration + heading + CTA button"
+  pullToRefresh: Not applicable in Figma — design the static loaded state
+pitfalls:
+  - "overflow-parent: list items overflow screen when too many"
+  - "wcag-target-size: list item < 48px total height"
+  - "empty-container: thumbnail placeholder left empty"
+  - "text-overflow: long titles overflow content column"
+  - "no-autolayout: list items manually positioned instead of auto-layout"
+toneVariants:
+  minimal:
+    cornerRadius: 8px
+    colors: white background, gray-100 thumbnails, subtle dividers
+    typography: clean sans-serif, regular/medium weights
+  warm:
+    cornerRadius: 12px
+    colors: warm surface tones, soft card backgrounds
+    typography: friendly geometric font
+  bold:
+    cornerRadius: 16px
+    colors: dark cards or colored backgrounds, vivid accent for badges
+    typography: strong weight for titles, condensed for metadata
+exampleParams:
+  name: Screen / List
+  width: 402
+  height: 874
+  layoutMode: VERTICAL
+  primaryAxisAlignItems: MIN
+  cornerRadius: 28
+  fill: "#FFFFFF"
+  clipsContent: true
+  itemSpacing: 0
+  children:
+    - type: frame
+      name: Header
+      layoutMode: HORIZONTAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      padding: 16
+      counterAxisAlignItems: CENTER
+      itemSpacing: 12
+    - type: frame
+      name: Search Bar
+      layoutMode: HORIZONTAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      padding: 12
+      marginLeft: 16
+      marginRight: 16
+      cornerRadius: 8
+      fill: "#F3F4F6"
+      counterAxisAlignItems: CENTER
+      itemSpacing: 8
+    - type: frame
+      name: List
+      layoutMode: VERTICAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: FILL
+      paddingLeft: 16
+      paddingRight: 16
+      itemSpacing: 0
+      children:
+        - type: frame
+          name: List Item
+          layoutMode: HORIZONTAL
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: HUG
+          padding: 12
+          itemSpacing: 12
+          counterAxisAlignItems: CENTER
+          children:
+            - type: frame
+              name: Thumbnail
+              width: 48
+              height: 48
+              cornerRadius: 8
+              fill: "#F3F4F6"
+            - type: frame
+              name: Content
+              layoutMode: VERTICAL
+              layoutSizingHorizontal: FILL
+              layoutSizingVertical: HUG
+              itemSpacing: 4
+              layoutGrow: 1

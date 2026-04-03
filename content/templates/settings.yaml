@@ -1,0 +1,103 @@
+structure: |-
+  Screen (VERTICAL, FIXED 402×874, padding 0)
+    ├── Header (HORIZONTAL, FILL/HUG, padding 16-24)
+    │     └── Title ("Settings")
+    └── Sections (VERTICAL, FILL/FILL, padding-h 0, itemSpacing 24)
+          └── Section × N (VERTICAL, FILL/HUG, itemSpacing 0)
+                ├── Section Header (padding-h 16, 12px uppercase, muted, letterSpacing 1)
+                └── Row × N (HORIZONTAL, FILL/HUG, padding 16, itemSpacing 12, min-height 48)
+                      ├── Icon (24×24, optional)
+                      ├── Label (FILL/HUG, layoutGrow 1, 16px)
+                      └── Trailing (toggle switch / chevron / value text)
+keyDecisions:
+  sectionGrouping: Group related rows under section headers (Account, Preferences, About)
+  rowTrailing: Toggle for on/off settings, chevron (>) for drill-down, value text for display-only
+  destructiveRow: Red text for "Log out" / "Delete account" — always at bottom
+  padding: Rows full-width (padding-h 16), sections separated by 24px gap or gray divider
+  scrollBehavior: 'primaryAxisAlignItems: "MIN" — settings scroll vertically'
+pitfalls:
+  - 'wcag-target-size: toggle switch or row < 48px height — MUST set layoutSizingVertical:"FIXED" + height:48 on every row'
+  - "form-consistency: rows have inconsistent heights or padding"
+  - 'default-name: rows named "Frame 1" instead of "Settings Row / Notifications"'
+  - "text-overflow: label text too long for single line"
+  - "nav-overcrowded: too many rows without section grouping"
+  - 'chevron-as-text: NEVER use ">" text for drill-down indicator — use icon_create with lucide:chevron-right (size 18)'
+  - "toggle-clipped: toggle switch (44×26) gets clipped if parent row has clipsContent:true and insufficient height — ensure row height ≥48px"
+  - "card-group-radius: grouped settings card (white bg on gray screen) should have cornerRadius 12px and paddingTop/Bottom 4px for visual separation"
+toneVariants:
+  minimal:
+    cornerRadius: 0px (full-width rows)
+    colors: white background, gray section headers, system blue toggles
+    typography: system font, 16px body
+  elegant:
+    cornerRadius: 12px (card sections)
+    colors: grouped card backgrounds, subtle shadows
+    typography: medium weight labels, light descriptions
+  bold:
+    cornerRadius: 16px (card sections)
+    colors: dark background, accent-colored icons
+    typography: larger labels (17-18px), strong weight
+exampleParams:
+  name: Screen / Settings
+  width: 402
+  height: 874
+  layoutMode: VERTICAL
+  primaryAxisAlignItems: MIN
+  cornerRadius: 28
+  fill: "#F9FAFB"
+  clipsContent: true
+  itemSpacing: 0
+  children:
+    - type: frame
+      name: Header
+      layoutMode: HORIZONTAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      padding: 16
+      counterAxisAlignItems: CENTER
+    - type: frame
+      name: Sections
+      layoutMode: VERTICAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: FILL
+      itemSpacing: 24
+      paddingTop: 16
+      children:
+        - type: frame
+          name: Section / Account
+          layoutMode: VERTICAL
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: HUG
+          itemSpacing: 0
+          cornerRadius: 12
+          fill: "#FFFFFF"
+          paddingTop: 4
+          paddingBottom: 4
+          children:
+            - type: frame
+              name: Row / Profile
+              layoutMode: HORIZONTAL
+              layoutSizingHorizontal: FILL
+              layoutSizingVertical: FIXED
+              height: 48
+              padding: 16
+              itemSpacing: 12
+              counterAxisAlignItems: CENTER
+            - type: frame
+              name: Row / Notifications
+              layoutMode: HORIZONTAL
+              layoutSizingHorizontal: FILL
+              layoutSizingVertical: FIXED
+              height: 48
+              padding: 16
+              itemSpacing: 12
+              counterAxisAlignItems: CENTER
+            - type: frame
+              name: Row / Privacy
+              layoutMode: HORIZONTAL
+              layoutSizingHorizontal: FILL
+              layoutSizingVertical: FIXED
+              height: 48
+              padding: 16
+              itemSpacing: 12
+              counterAxisAlignItems: CENTER

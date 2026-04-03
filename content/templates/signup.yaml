@@ -1,0 +1,124 @@
+structure: |-
+  Screen (VERTICAL, FIXED 402×874, SPACE_BETWEEN, padding 24)
+    ├── Top Content (VERTICAL, FILL/HUG, itemSpacing 24)
+    │     ├── Heading ("Create account")
+    │     └── Subheading ("Join 10,000+ users")
+    ├── Form (VERTICAL, FILL/HUG, itemSpacing 12-16)
+    │     ├── Name input (full width or split first/last as HORIZONTAL row)
+    │     ├── Email input
+    │     ├── Password input (with strength indicator below)
+    │     ├── Terms checkbox row (HORIZONTAL, gap 8, "I agree to Terms")
+    │     └── Primary CTA ("Create account")
+    └── Bottom Content (VERTICAL, FILL/HUG)
+          ├── Social signup options (HORIZONTAL or VERTICAL stack)
+          └── Login link ("Already have an account? Log in")
+keyDecisions:
+  layout: SPACE_BETWEEN or MIN depending on field count; 3-4 fields use SPACE_BETWEEN, 5+ use MIN with scroll
+  formDensity: "Keep above fold: if >4 fields, consider multi-step (see onboarding pattern)"
+  passwordStrength: Small bar or dots below password input, color-coded (red→yellow→green)
+  terms: Checkbox + inline text link, not a separate screen
+pitfalls:
+  - "form-consistency: name fields (first/last) different heights in the same row"
+  - "screen-bottom-overflow: many fields push CTA below viewport"
+  - "wcag-target-size: terms checkbox < 44px touch target"
+  - "input-field-structure: password strength indicator not inside input frame"
+  - "text-overflow: terms text wraps awkwardly on small screens"
+toneVariants:
+  minimal:
+    cornerRadius: 8-12px
+    colors: clean white, subtle input borders
+    typography: single font family, 2 weights
+  warm:
+    cornerRadius: 12-16px
+    colors: soft pastels, rounded friendly aesthetic
+    typography: rounded or geometric sans-serif
+  bold:
+    cornerRadius: 16-24px
+    colors: vibrant accent on CTA, dark or colored background
+    typography: strong contrast between heading and body
+exampleParams:
+  name: Screen / Signup
+  width: 402
+  height: 874
+  layoutMode: VERTICAL
+  primaryAxisAlignItems: SPACE_BETWEEN
+  padding: 24
+  paddingTop: 60
+  paddingBottom: 34
+  cornerRadius: 28
+  fill: "#FFFFFF"
+  clipsContent: true
+  children:
+    - type: frame
+      name: Top Content
+      layoutMode: VERTICAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      itemSpacing: 8
+    - type: frame
+      name: Form
+      layoutMode: VERTICAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      itemSpacing: 16
+      children:
+        - type: frame
+          name: Input / Name
+          layoutMode: HORIZONTAL
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: FIXED
+          height: 48
+          padding: 16
+          cornerRadius: 12
+          strokeColor: "#D1D5DB"
+          strokeWeight: 1
+        - type: frame
+          name: Input / Email
+          layoutMode: HORIZONTAL
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: FIXED
+          height: 48
+          padding: 16
+          cornerRadius: 12
+          strokeColor: "#D1D5DB"
+          strokeWeight: 1
+        - type: frame
+          name: Input / Password
+          layoutMode: HORIZONTAL
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: FIXED
+          height: 48
+          padding: 16
+          cornerRadius: 12
+          strokeColor: "#D1D5DB"
+          strokeWeight: 1
+        - type: frame
+          name: Terms Row
+          layoutMode: HORIZONTAL
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: HUG
+          itemSpacing: 8
+          counterAxisAlignItems: CENTER
+        - type: frame
+          name: Button / Primary
+          layoutMode: HORIZONTAL
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: FIXED
+          height: 48
+          cornerRadius: 12
+          fill: "#111827"
+          primaryAxisAlignItems: CENTER
+          counterAxisAlignItems: CENTER
+    - type: frame
+      name: Bottom Content
+      layoutMode: VERTICAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      itemSpacing: 16
+      children:
+        - type: frame
+          name: Social Signup Row
+          layoutMode: HORIZONTAL
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: HUG
+          itemSpacing: 12

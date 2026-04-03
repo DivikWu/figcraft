@@ -1,0 +1,128 @@
+structure: |-
+  Screen (VERTICAL, FIXED 402×874, SPACE_BETWEEN, padding 24)
+    ├── Top Content (VERTICAL, FILL/HUG, itemSpacing 24)
+    │     ├── Logo / Brand mark (48-64px)
+    │     ├── Heading ("Welcome back")
+    │     └── Subheading (optional, muted color)
+    ├── Form (VERTICAL, FILL/HUG, itemSpacing 12-16)
+    │     ├── Email input (HORIZONTAL, FILL/HUG, stroke, cornerRadius 8-12, padding 16, height ≥48)
+    │     ├── Password input (same structure)
+    │     ├── Forgot password link (right-aligned text, small)
+    │     └── Primary CTA (HORIZONTAL, FILL/FIXED height ≥48, centered text, cornerRadius 8-12, fill accent)
+    └── Bottom Content (VERTICAL, FILL/HUG, itemSpacing 16)
+          ├── Divider with "or" label
+          ├── Social login row (HORIZONTAL, gap 12-16)
+          └── Sign up link ("Don't have an account? Sign up")
+keyDecisions:
+  layout: SPACE_BETWEEN distributes top brand + form + bottom links; form group centered vertically
+  buttonHeight: ≥48px, full-width on mobile, centered text
+  inputSpacing: 12-16px between fields, 24px between form sections
+  padding: horizontal 24px, top 60-80px (below status bar), bottom 34px (home indicator)
+  inputStructure: HORIZONTAL auto-layout frame with stroke, no standalone text — always wrapped in frame
+pitfalls:
+  - "button-structure: CTA height < 48px or missing auto-layout"
+  - "input-field-structure: input missing stroke or cornerRadius"
+  - "text-overflow: long email addresses overflow input frame"
+  - "screen-bottom-overflow: form + social login + links overflow viewport"
+  - "wcag-contrast: light gray placeholder text fails 4.5:1 ratio — use #6B7280 minimum for secondary text"
+  - 'sizing-collapse: input/button children default to HUG width — explicitly set layoutSizingHorizontal:"FILL" on all inputs, buttons, and divider rows'
+  - 'icon-placeholder: NEVER use ">" text for chevron or "..." for more — call icon_search + icon_create for lucide:chevron-right, lucide:ellipsis, etc.'
+  - "social-login-icons: Social buttons MUST include brand icons (lucide:apple, iconoir:google) — text-only buttons look unfinished"
+  - 'logo-as-rectangle: Logo placeholder must be type:"frame" with centered icon inside, NOT type:"rectangle" (which cannot have children)'
+  - "clipsContent-text: Pure text wrapper frames should use clipsContent:false to prevent text clipping when frame height is tight"
+toneVariants:
+  minimal:
+    cornerRadius: 8-12px
+    colors: monochrome + 1 accent, white background, light gray inputs
+    typography: 1 font weight for body, 1 for heading
+  elegant:
+    cornerRadius: 12-16px
+    colors: warm neutrals + gold/copper accent
+    typography: serif heading + sans body
+  bold:
+    cornerRadius: 16-24px
+    colors: gradient or saturated hero background + high-contrast CTA
+    typography: heavy weight heading, generous spacing
+exampleParams:
+  name: Screen / Login
+  width: 402
+  height: 874
+  layoutMode: VERTICAL
+  primaryAxisAlignItems: SPACE_BETWEEN
+  padding: 24
+  paddingTop: 60
+  paddingBottom: 34
+  cornerRadius: 28
+  fill: "#FFFFFF"
+  clipsContent: true
+  children:
+    - type: frame
+      name: Top Content
+      layoutMode: VERTICAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      itemSpacing: 24
+      children:
+        - type: frame
+          name: Logo
+          width: 48
+          height: 48
+          cornerRadius: 12
+          fill: "#F3F4F6"
+    - type: frame
+      name: Form
+      layoutMode: VERTICAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      itemSpacing: 16
+      children:
+        - type: frame
+          name: Input / Email
+          layoutMode: HORIZONTAL
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: FIXED
+          height: 48
+          padding: 16
+          cornerRadius: 12
+          strokeColor: "#D1D5DB"
+          strokeWeight: 1
+        - type: frame
+          name: Input / Password
+          layoutMode: HORIZONTAL
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: FIXED
+          height: 48
+          padding: 16
+          cornerRadius: 12
+          strokeColor: "#D1D5DB"
+          strokeWeight: 1
+        - type: frame
+          name: Button / Primary
+          layoutMode: HORIZONTAL
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: FIXED
+          height: 48
+          cornerRadius: 12
+          fill: "#111827"
+          primaryAxisAlignItems: CENTER
+          counterAxisAlignItems: CENTER
+    - type: frame
+      name: Bottom Content
+      layoutMode: VERTICAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      itemSpacing: 16
+      children:
+        - type: frame
+          name: Divider Row
+          layoutMode: HORIZONTAL
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: HUG
+          counterAxisAlignItems: CENTER
+          itemSpacing: 12
+        - type: frame
+          name: Social Login Row
+          layoutMode: HORIZONTAL
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: HUG
+          itemSpacing: 12

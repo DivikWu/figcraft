@@ -1,0 +1,122 @@
+structure: |-
+  Screen (VERTICAL, FIXED 402×874 mobile / 1280×800 web, padding 16-24)
+    ├── Header (HORIZONTAL, FILL/HUG, itemSpacing 12)
+    │     ├── Title ("Dashboard")
+    │     ├── Spacer (layoutGrow 1) or counterAxisAlignItems: MIN
+    │     └── Actions (avatar, notification bell, settings icon)
+    ├── Stats Row (HORIZONTAL, FILL/HUG, itemSpacing 12-16)
+    │     └── Stat Card × 3-4 (VERTICAL, equal width via layoutGrow, padding 16, cornerRadius 12, fill surface)
+    │           ├── Label (12-14px, muted)
+    │           ├── Value (24-32px, bold)
+    │           └── Trend (12px, green/red + arrow)
+    ├── Chart Area (VERTICAL, FILL/HUG, padding 16, cornerRadius 12, fill surface)
+    │     ├── Chart title + period selector
+    │     └── Chart placeholder (FILL/FIXED height 200-240, fill gray-100)
+    └── List / Table (VERTICAL, FILL/HUG)
+          ├── Section header ("Recent activity")
+          └── Row × N (HORIZONTAL, FILL/HUG, padding 12-16, itemSpacing 12)
+keyDecisions:
+  density: "Mobile: stack vertically, 1 column. Web: 2-3 column grid via HORIZONTAL rows"
+  statCards: "Use layoutGrow: 1 on each card for equal width distribution in HORIZONTAL row"
+  chartPlaceholder: Colored rectangle with "Chart" text inside — never empty frame
+  scrollBehavior: "primaryAxisAlignItems: \"MIN\" (not SPACE_BETWEEN) — dashboard scrolls, doesn't stretch"
+  cardStyle: Consistent cornerRadius, fill surface/white, optional subtle shadow or stroke
+pitfalls:
+  - "stats-row-cramped: stat cards too close together (itemSpacing < 12px)"
+  - 'empty-container: chart placeholder frame is empty — use type:"frame" with centered bar-chart icon (lucide:chart-bar-increasing)'
+  - "overflow-parent: stat cards overflow screen width on mobile"
+  - "no-autolayout: stat cards not in auto-layout row (manual positioning breaks on resize)"
+  - "wcag-contrast: muted labels / trend text below 4.5:1"
+  - 'default-name: cards named "Frame 1" instead of "Stats Card / Revenue"'
+  - 'stat-value-wrap: stat values ("$12,480") wrap to 2 lines in narrow cards — use fontSize ≤20px or ensure card content width > text width'
+  - 'avatar-placeholder: header avatar must be type:"frame" with circle-user icon, NOT type:"rectangle" (cannot add icon later)'
+  - "notification-icon: use lucide:bell icon instead of text badge only — combine icon + red dot badge for notification indicator"
+toneVariants:
+  minimal:
+    cornerRadius: 8-12px
+    colors: white cards on gray-50 background, monochrome chart
+    typography: system font, compact spacing
+  elegant:
+    cornerRadius: 12-16px
+    colors: subtle card shadows, accent color for trends and chart highlights
+    typography: medium weight numbers, light labels
+  bold:
+    cornerRadius: 16-24px
+    colors: dark background, colored stat cards, vivid chart colors
+    typography: large stat values (32px+), strong hierarchy
+exampleParams:
+  name: Screen / Dashboard
+  width: 402
+  height: 874
+  layoutMode: VERTICAL
+  primaryAxisAlignItems: MIN
+  padding: 16
+  cornerRadius: 28
+  fill: "#F9FAFB"
+  clipsContent: true
+  itemSpacing: 16
+  children:
+    - type: frame
+      name: Header
+      layoutMode: HORIZONTAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      counterAxisAlignItems: CENTER
+      itemSpacing: 12
+    - type: frame
+      name: Stats Row
+      layoutMode: HORIZONTAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      itemSpacing: 12
+      children:
+        - type: frame
+          name: Stat Card / Revenue
+          layoutMode: VERTICAL
+          layoutSizingVertical: HUG
+          layoutGrow: 1
+          padding: 16
+          cornerRadius: 12
+          fill: "#FFFFFF"
+          itemSpacing: 4
+        - type: frame
+          name: Stat Card / Users
+          layoutMode: VERTICAL
+          layoutSizingVertical: HUG
+          layoutGrow: 1
+          padding: 16
+          cornerRadius: 12
+          fill: "#FFFFFF"
+          itemSpacing: 4
+        - type: frame
+          name: Stat Card / Orders
+          layoutMode: VERTICAL
+          layoutSizingVertical: HUG
+          layoutGrow: 1
+          padding: 16
+          cornerRadius: 12
+          fill: "#FFFFFF"
+          itemSpacing: 4
+    - type: frame
+      name: Chart Area
+      layoutMode: VERTICAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      padding: 16
+      cornerRadius: 12
+      fill: "#FFFFFF"
+      itemSpacing: 12
+      children:
+        - type: frame
+          name: Chart Placeholder
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: FIXED
+          height: 200
+          cornerRadius: 8
+          fill: "#F3F4F6"
+    - type: frame
+      name: Recent Activity
+      layoutMode: VERTICAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      itemSpacing: 0

@@ -1,0 +1,128 @@
+structure: |-
+  Screen (VERTICAL, FIXED 402×874, padding 0)
+    ├── Hero Area (VERTICAL, FILL/HUG, padding 24, counterAxisAlignItems CENTER)
+    │     ├── Avatar (80-120px circle, cornerRadius 9999, fill gray-200 placeholder)
+    │     ├── Name (20-24px, semibold, margin-top 16)
+    │     ├── Handle/bio (14px, muted, max 2 lines)
+    │     └── Action Row (HORIZONTAL, HUG/HUG, itemSpacing 12, margin-top 16)
+    │           ├── Primary CTA ("Edit Profile" / "Follow")
+    │           └── Secondary action (message icon / share)
+    ├── Stats Row (HORIZONTAL, FILL/HUG, padding 16, itemSpacing 0)
+    │     └── Stat × 3 (VERTICAL, layoutGrow 1, counterAxisAlignItems CENTER)
+    │           ├── Value (18-20px, bold)
+    │           └── Label (12px, muted)
+    └── Content Area (VERTICAL, FILL/FILL, padding 0)
+          ├── Tab bar (HORIZONTAL, FILL/HUG, itemSpacing 0) or section headers
+          └── Content list (VERTICAL, FILL/FILL)
+keyDecisions:
+  avatarSize: 80px compact, 120px prominent — always circle (cornerRadius 9999)
+  statsLayout: "layoutGrow: 1 on each stat for equal distribution, centered text"
+  heroBg: Optional cover image behind avatar (200-240px height, clipsContent true)
+  contentTabs: Posts / Media / Likes — underline active tab with accent color
+  scrollBehavior: MIN — profile content scrolls, hero can be sticky or scroll away
+pitfalls:
+  - "stats-row-cramped: stat values too close together"
+  - 'empty-container: avatar placeholder empty — use type:"frame" (circle, gray fill) with lucide:circle-user-round icon centered inside, NOT type:"rectangle"'
+  - "text-overflow: bio text > 2 lines overflows"
+  - "wcag-contrast: muted handle/bio text below 4.5:1 — use #6B7280 minimum"
+  - "button-structure: action buttons missing auto-layout or < 48px height"
+  - 'share-button-icon: share/more button should use lucide:ellipsis or lucide:share icon, NOT "..." text'
+  - "action-row-stroke: wrapper frame around buttons may inherit default strokeWeight:1 — set strokes:[] to clear"
+toneVariants:
+  minimal:
+    cornerRadius: circle avatar, 8px buttons
+    colors: white background, gray avatar placeholder, minimal accent
+    typography: clean hierarchy, 3 size tiers
+  warm:
+    cornerRadius: circle avatar, 16px cards
+    colors: warm gradient header/cover, soft card backgrounds
+    typography: rounded font, generous spacing
+  bold:
+    cornerRadius: circle avatar, 20px cards
+    colors: dark header with cover image, bright accent CTA
+    typography: large name (24px), strong stat values
+exampleParams:
+  name: Screen / Profile
+  width: 402
+  height: 874
+  layoutMode: VERTICAL
+  primaryAxisAlignItems: MIN
+  cornerRadius: 28
+  fill: "#FFFFFF"
+  clipsContent: true
+  itemSpacing: 0
+  children:
+    - type: frame
+      name: Hero Area
+      layoutMode: VERTICAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      padding: 24
+      counterAxisAlignItems: CENTER
+      itemSpacing: 16
+      children:
+        - type: frame
+          name: Avatar
+          width: 80
+          height: 80
+          cornerRadius: 9999
+          fill: "#F3F4F6"
+        - type: frame
+          name: Action Row
+          layoutMode: HORIZONTAL
+          layoutSizingHorizontal: HUG
+          layoutSizingVertical: HUG
+          itemSpacing: 12
+          children:
+            - type: frame
+              name: Button / Edit Profile
+              layoutMode: HORIZONTAL
+              layoutSizingVertical: FIXED
+              height: 48
+              padding: 16
+              cornerRadius: 12
+              fill: "#111827"
+              primaryAxisAlignItems: CENTER
+              counterAxisAlignItems: CENTER
+    - type: frame
+      name: Stats Row
+      layoutMode: HORIZONTAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      padding: 16
+      itemSpacing: 0
+      children:
+        - type: frame
+          name: Stat / Posts
+          layoutMode: VERTICAL
+          layoutSizingVertical: HUG
+          layoutGrow: 1
+          counterAxisAlignItems: CENTER
+          itemSpacing: 2
+        - type: frame
+          name: Stat / Followers
+          layoutMode: VERTICAL
+          layoutSizingVertical: HUG
+          layoutGrow: 1
+          counterAxisAlignItems: CENTER
+          itemSpacing: 2
+        - type: frame
+          name: Stat / Following
+          layoutMode: VERTICAL
+          layoutSizingVertical: HUG
+          layoutGrow: 1
+          counterAxisAlignItems: CENTER
+          itemSpacing: 2
+    - type: frame
+      name: Content Area
+      layoutMode: VERTICAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: FILL
+      itemSpacing: 0
+      children:
+        - type: frame
+          name: Tab Bar
+          layoutMode: HORIZONTAL
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: HUG
+          itemSpacing: 0

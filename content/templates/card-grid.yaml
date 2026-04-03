@@ -1,0 +1,123 @@
+structure: |-
+  Screen (VERTICAL, FIXED 402×874 mobile / 1280×800 web, padding 16-24)
+    ├── Header (HORIZONTAL, FILL/HUG, itemSpacing 12)
+    │     ├── Title ("Explore")
+    │     └── Filter chips (HORIZONTAL, HUG/HUG, itemSpacing 8)
+    └── Grid (VERTICAL, FILL/FILL, itemSpacing 16)
+          └── Row × N (HORIZONTAL, FILL/HUG, itemSpacing 12-16)
+                └── Card × 2-3 (VERTICAL, layoutGrow 1, cornerRadius 12-16, clipsContent true)
+                      ├── Image (FILL/FIXED height 140-180, fill gray-100)
+                      └── Content (VERTICAL, FILL/HUG, padding 12-16, itemSpacing 4-8)
+                            ├── Title (16px, semibold, max 2 lines)
+                            ├── Subtitle (14px, muted)
+                            └── Footer (HORIZONTAL, FILL/HUG) — price, rating, action
+keyDecisions:
+  columns: "Mobile: 2 columns (layoutGrow: 1 each). Web: 3-4 columns"
+  cardImage: Image placeholder with fill color + description — NEVER empty frame
+  cardAspectRatio: 4:3 for products, 16:9 for content/media, 1:1 for square thumbnails
+  equalHeight: Cards in same row should have equal height via matching image + content height
+  interactionHint: "Optional: subtle shadow or scale on card for tap affordance"
+pitfalls:
+  - "overflow-parent: cards overflow screen width (need layoutGrow, not fixed width)"
+  - "empty-container: image placeholder frames empty"
+  - "text-overflow: titles overflow card width at 2 columns"
+  - "no-autolayout: cards manually positioned instead of auto-layout grid rows"
+  - 'default-name: cards named "Frame 1" instead of "Card / Product Name"'
+  - "cta-width-inconsistent: footer action buttons different sizes across cards"
+toneVariants:
+  minimal:
+    cornerRadius: 12px
+    colors: white cards, no shadow, subtle gray-100 images
+    typography: clean sans, 2 weights
+  warm:
+    cornerRadius: 16px
+    colors: warm card shadows, soft rounded aesthetic
+    typography: friendly font, generous line height
+  bold:
+    cornerRadius: 20px
+    colors: dark cards or vivid image overlays, strong CTA colors
+    typography: compact bold titles, high contrast
+exampleParams:
+  name: Screen / Card Grid
+  width: 402
+  height: 874
+  layoutMode: VERTICAL
+  primaryAxisAlignItems: MIN
+  padding: 16
+  cornerRadius: 28
+  fill: "#FFFFFF"
+  clipsContent: true
+  itemSpacing: 16
+  children:
+    - type: frame
+      name: Header
+      layoutMode: HORIZONTAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      counterAxisAlignItems: CENTER
+      itemSpacing: 12
+      children:
+        - type: frame
+          name: Filter Chips
+          layoutMode: HORIZONTAL
+          layoutSizingHorizontal: HUG
+          layoutSizingVertical: HUG
+          itemSpacing: 8
+    - type: frame
+      name: Grid
+      layoutMode: VERTICAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: FILL
+      itemSpacing: 16
+      children:
+        - type: frame
+          name: Row 1
+          layoutMode: HORIZONTAL
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: HUG
+          itemSpacing: 12
+          children:
+            - type: frame
+              name: Card
+              layoutMode: VERTICAL
+              layoutSizingVertical: HUG
+              layoutGrow: 1
+              cornerRadius: 12
+              clipsContent: true
+              fill: "#FFFFFF"
+              children:
+                - type: frame
+                  name: Image
+                  layoutSizingHorizontal: FILL
+                  layoutSizingVertical: FIXED
+                  height: 160
+                  fill: "#F3F4F6"
+                - type: frame
+                  name: Content
+                  layoutMode: VERTICAL
+                  layoutSizingHorizontal: FILL
+                  layoutSizingVertical: HUG
+                  padding: 12
+                  itemSpacing: 4
+            - type: frame
+              name: Card
+              layoutMode: VERTICAL
+              layoutSizingVertical: HUG
+              layoutGrow: 1
+              cornerRadius: 12
+              clipsContent: true
+              fill: "#FFFFFF"
+              children:
+                - type: frame
+                  name: Image
+                  layoutSizingHorizontal: FILL
+                  layoutSizingVertical: FIXED
+                  height: 160
+                  fill: "#F3F4F6"
+                - type: frame
+                  name: Content
+                  layoutMode: VERTICAL
+                  layoutSizingHorizontal: FILL
+                  layoutSizingVertical: HUG
+                  padding: 12
+                  itemSpacing: 4

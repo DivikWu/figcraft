@@ -1,0 +1,115 @@
+structure: |-
+  Use Multi-Screen Flow Architecture (see get_creation_guide topic:"multi-screen").
+
+  Typical 3-4 screens:
+
+  Screen 1 — Cart Review (VERTICAL, FIXED 402×874, SPACE_BETWEEN, padding 24)
+    ├── Cart Items (VERTICAL, FILL/HUG, itemSpacing 16)
+    │     └── Item × N (HORIZONTAL, FILL/HUG, padding 12, itemSpacing 12)
+    │           ├── Thumbnail (64×64, cornerRadius 8)
+    │           ├── Details (VERTICAL, FILL/HUG) — name, variant, qty
+    │           └── Price (right-aligned, bold)
+    └── Summary + CTA (VERTICAL, FILL/HUG, itemSpacing 12)
+          ├── Subtotal / Shipping / Total rows
+          └── "Proceed to Payment" CTA
+
+  Screen 2 — Shipping (form with address fields)
+  Screen 3 — Payment (card fields + billing)
+  Screen 4 — Confirmation (success icon + order summary)
+keyDecisions:
+  progressBar: "Step indicator at top: Cart → Shipping → Payment → Done (HORIZONTAL dots or numbered steps)"
+  priceSummary: Right-aligned prices, bold total, clear subtotal/tax/shipping breakdown
+  formFields: Reuse input structure from login/signup patterns — consistent height, stroke, cornerRadius
+  confirmationScreen: Large check icon (64px) + "Order Confirmed" heading + order number + "Continue Shopping" CTA
+  security: Lock icon near payment fields, "Secure checkout" label — builds trust
+pitfalls:
+  - "screen-bottom-overflow: cart with many items pushes CTA below viewport"
+  - "form-consistency: shipping/payment inputs inconsistent with other forms"
+  - "button-structure: CTA not full-width or < 48px height"
+  - "text-overflow: long product names overflow item row"
+  - "cta-width-inconsistent: different CTA widths across checkout screens"
+  - "mobile-dimensions: screens not matching 402×874"
+toneVariants:
+  minimal:
+    cornerRadius: 8-12px
+    colors: white, clean lines, green for success/confirmation
+    typography: system font, emphasis on prices
+  elegant:
+    cornerRadius: 12-16px
+    colors: warm neutrals, gold accent for premium feel
+    typography: serif for headings, clean numbers for prices
+  bold:
+    cornerRadius: 16-24px
+    colors: branded color CTA, dark summary sections
+    typography: large price emphasis, strong CTA text
+exampleParams:
+  name: Screen / Checkout
+  width: 402
+  height: 874
+  layoutMode: VERTICAL
+  primaryAxisAlignItems: SPACE_BETWEEN
+  padding: 24
+  paddingTop: 60
+  paddingBottom: 34
+  cornerRadius: 28
+  fill: "#FFFFFF"
+  clipsContent: true
+  children:
+    - type: frame
+      name: Cart Items
+      layoutMode: VERTICAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      itemSpacing: 16
+      children:
+        - type: frame
+          name: Cart Item
+          layoutMode: HORIZONTAL
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: HUG
+          padding: 12
+          itemSpacing: 12
+          counterAxisAlignItems: CENTER
+          children:
+            - type: frame
+              name: Thumbnail
+              width: 64
+              height: 64
+              cornerRadius: 8
+              fill: "#F3F4F6"
+            - type: frame
+              name: Details
+              layoutMode: VERTICAL
+              layoutSizingHorizontal: FILL
+              layoutSizingVertical: HUG
+              itemSpacing: 4
+              layoutGrow: 1
+    - type: frame
+      name: Summary
+      layoutMode: VERTICAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      itemSpacing: 12
+      children:
+        - type: frame
+          name: Row / Subtotal
+          layoutMode: HORIZONTAL
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: HUG
+          primaryAxisAlignItems: SPACE_BETWEEN
+        - type: frame
+          name: Row / Total
+          layoutMode: HORIZONTAL
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: HUG
+          primaryAxisAlignItems: SPACE_BETWEEN
+        - type: frame
+          name: Button / Checkout
+          layoutMode: HORIZONTAL
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: FIXED
+          height: 48
+          cornerRadius: 12
+          fill: "#111827"
+          primaryAxisAlignItems: CENTER
+          counterAxisAlignItems: CENTER

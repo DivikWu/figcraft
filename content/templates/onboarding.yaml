@@ -1,0 +1,103 @@
+structure: |-
+  Use Multi-Screen Flow Architecture (see get_creation_guide topic:"multi-screen").
+
+  Per Screen (VERTICAL, FIXED 402×874, padding 24, SPACE_BETWEEN):
+    ├── Top Content (VERTICAL, FILL/HUG, itemSpacing 16-24)
+    │     ├── Illustration / Hero image (FILL/FIXED height 200-300)
+    │     ├── Heading (24-28px, max 2 lines)
+    │     └── Body text (14-16px, max 3 lines, muted)
+    └── Bottom Content (VERTICAL, FILL/HUG, itemSpacing 12)
+          ├── Progress indicator (dots or bar)
+          ├── Primary CTA ("Next" / "Continue" / "Get Started")
+          └── Skip link (optional, "Skip" text button)
+keyDecisions:
+  screenCount: 3-5 screens is ideal; more loses attention
+  illustration: Placeholder rectangle with fill and description text inside — DO NOT leave blank
+  progressIndicator: Dots (HORIZONTAL row, 8px circles, 8px gap) or thin bar (FILL width, 4px height)
+  lastScreen: Final CTA is "Get Started" (not "Next"), no skip link, may add feature summary
+  transitions: Each screen is independent — no carousel/swipe in Figma, just side-by-side stages
+pitfalls:
+  - "empty-container: illustration placeholder left empty (add a colored rectangle + description)"
+  - 'cta-width-inconsistent: "Next" vs "Get Started" buttons different widths across screens'
+  - "text-overflow: heading > 2 lines on some screens"
+  - "mobile-dimensions: screen not exactly 402×874 (iOS) or 412×915 (Android)"
+  - 'default-name: screens named "Frame 1", "Frame 2" instead of "Onboarding Step 1"'
+toneVariants:
+  minimal:
+    cornerRadius: 8-12px
+    colors: white background, one accent for CTA and progress dots
+    typography: lightweight, generous line height
+  warm:
+    cornerRadius: 16-20px
+    colors: soft gradient backgrounds, friendly illustration style
+    typography: rounded sans-serif, warm tones
+  bold:
+    cornerRadius: 20-28px
+    colors: full-bleed colored backgrounds per screen, white text
+    typography: large heading (28-32px), strong hierarchy
+exampleParams:
+  name: Screen / Onboarding
+  width: 402
+  height: 874
+  layoutMode: VERTICAL
+  primaryAxisAlignItems: SPACE_BETWEEN
+  padding: 24
+  paddingTop: 60
+  paddingBottom: 34
+  cornerRadius: 28
+  fill: "#FFFFFF"
+  clipsContent: true
+  children:
+    - type: frame
+      name: Top Content
+      layoutMode: VERTICAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      itemSpacing: 24
+      children:
+        - type: frame
+          name: Illustration
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: FIXED
+          height: 240
+          cornerRadius: 16
+          fill: "#F3F4F6"
+    - type: frame
+      name: Bottom Content
+      layoutMode: VERTICAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      itemSpacing: 12
+      children:
+        - type: frame
+          name: Progress Dots
+          layoutMode: HORIZONTAL
+          layoutSizingHorizontal: HUG
+          layoutSizingVertical: HUG
+          itemSpacing: 8
+          children:
+            - type: ellipse
+              name: Dot Active
+              width: 8
+              height: 8
+              fill: "#111827"
+            - type: ellipse
+              name: Dot
+              width: 8
+              height: 8
+              fill: "#D1D5DB"
+            - type: ellipse
+              name: Dot
+              width: 8
+              height: 8
+              fill: "#D1D5DB"
+        - type: frame
+          name: Button / Primary
+          layoutMode: HORIZONTAL
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: FIXED
+          height: 48
+          cornerRadius: 12
+          fill: "#111827"
+          primaryAxisAlignItems: CENTER
+          counterAxisAlignItems: CENTER
