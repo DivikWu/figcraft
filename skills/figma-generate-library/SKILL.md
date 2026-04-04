@@ -19,6 +19,14 @@ Build professional-grade design systems in Figma that match code. This skill orc
 2. Library selected → then load skill: `design-guardian`
 3. No library → then load skill: `design-creator`
 
+## Skill Boundaries
+
+- Use this skill to **build a full design system** (variables, components, styles) in Figma.
+- If the task is **building screens from an existing design system**, switch to [figma-generate-design](../figma-generate-design/SKILL.md).
+- If the task is **creating simple UI with declarative tools**, switch to [figma-create-ui](../figma-create-ui/SKILL.md).
+- If the task is **auditing an existing design system**, switch to [design-system-audit](../design-system-audit/SKILL.md).
+- If the task is **migrating between design system versions**, switch to [migration-assistant](../migration-assistant/SKILL.md).
+
 ---
 
 ## 1. The One Rule That Matters Most

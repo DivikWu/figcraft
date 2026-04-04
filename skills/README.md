@@ -12,6 +12,38 @@ Skills are first-class project assets. All skills are managed flat under `skills
 
 Source of truth for MCP runtime `get_design_guidelines()`. Build copies content (stripped of frontmatter) to `dist/mcp-server/`.
 
+## Quality Assurance
+
+| Skill | Description |
+|-------|-------------|
+| **design-review** | Review existing designs against quality rules. Outputs structured violation report with fixes. |
+| **design-lint** | Lint designs for compliance and auto-fix violations. 38 rules, 22 auto-fixable. |
+| **component-docs** | Generate component documentation — properties, variants, usage, structural health audit. |
+| **prototype-analysis** | Analyze prototype interactions — flow graph, dead ends, loops, Mermaid diagrams. |
+| **text-replace** | Bulk replace text content — localization, data filling, content updates. |
+| **spec-compare** | Compare DTCG token spec against Figma variables — audit token drift. |
+| **token-sync** | Sync DTCG design tokens to Figma variables and styles. |
+
+Forms the "create → review → fix" quality loop: `figma-create-ui` → `design-review` → `design-lint`.
+
+## Design Patterns
+
+| Skill | Description |
+|-------|-------------|
+| **responsive-design** | Responsive web design — breakpoints, auto-layout strategy, sizing patterns. |
+| **content-states** | Empty, loading, and error state design patterns for data-driven views. |
+| **design-handoff** | Annotate designs with specs for developer handoff. |
+| **platform-ios** | iOS platform rules — screen dimensions, safe areas, SF Pro, HIG navigation. |
+| **platform-android** | Android platform rules — screen dimensions, Material Design 3, Roboto, navigation. |
+
+## Advanced Orchestration
+
+| Skill | Description |
+|-------|-------------|
+| **design-system-audit** | Audit design system health — token coverage, component quality, naming compliance. |
+| **migration-assistant** | Design system version migration — token mapping, component swapping, verification. |
+| **multi-brand** | Multi-brand token management — brand themes, mode switching, cross-brand verification. |
+
 ## Declarative Path (create_frame)
 
 | Skill | Description |

@@ -47,6 +47,13 @@ Use this skill when:
 - Updating or refining existing design system conventions
 - Users explicitly request: "create design system rules", "set up Figma guidelines", "customize rules for my project"
 
+## Skill Boundaries
+
+- Use this skill to **generate IDE rule files** (CLAUDE.md, AGENTS.md, .cursor/rules/) for Figma-to-code workflows.
+- If the task is **implementing code from a Figma design**, switch to [figma-implement-design](../figma-implement-design/SKILL.md).
+- If the task is **connecting components to code**, switch to [figma-code-connect-components](../figma-code-connect-components/SKILL.md).
+- If the task is **creating UI in Figma**, switch to [figma-create-ui](../figma-create-ui/SKILL.md).
+
 ## Required Workflow
 
 **Follow these steps in order. Do not skip steps.**

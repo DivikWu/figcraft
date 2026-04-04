@@ -67,3 +67,9 @@ Use the `file_key` for subsequent tool calls like `use_figma`.
 - The file is created in the user's **drafts folder** for the selected plan.
 - Only `"design"` and `"figjam"` editor types are supported.
 - If `use_figma` is your next step, load the `figma-use` skill before calling it.
+
+## Skill Boundaries
+
+- Use this skill to **create a new blank Figma file**.
+- If the task is **creating UI in an existing file**, switch to [figma-create-ui](../figma-create-ui/SKILL.md).
+- If the task is **building a design system**, switch to [figma-generate-library](../figma-generate-library/SKILL.md).
