@@ -46,10 +46,6 @@ Maintenance guide: `docs/asset-maintenance.md`
 
 ## API Mode (Endpoint)
 
-FigCraft uses resource-oriented endpoints with method dispatch. Legacy flat tool names (e.g. `get_node_info`, `patch_nodes`) are registered as ghost tools that return migration guidance pointing to the equivalent endpoint method.
-
-### Endpoint Mode
-
 <!-- @inject-start: ide-shared/endpoints.md -->
 Resource-oriented endpoints with method dispatch:
 
@@ -90,120 +86,44 @@ Core tools are always enabled. Load additional toolsets as needed via `load_tool
 Use `list_toolsets` to see current status. Load multiple: `load_toolset({ names: "tokens,variables" })`.
 <!-- @inject-end -->
 
-> **Note:** FigCraft provides self-sufficient capabilities: design system search (`search_design_system`), UI creation (`create_frame`, `create_text`, `create_svg`), text range styling (`text(method: "set_range")`), node grouping (`group_nodes`), lint, audit, token sync, and node operations. `execute_js` is available in the `debug` toolset for diagnostics only. Code generation and Code Connect are optionally provided by Figma Power (official Figma MCP) when available.
+> **Note:** FigCraft provides self-sufficient capabilities: design system search (`search_design_system`), UI creation (`create_frame`, `create_text`, `create_svg`), text range styling (`text(method: "set_range")`), node grouping (`group_nodes`), lint, audit, token sync, and node operations. `execute_js` is available in the `debug` toolset for diagnostics only.
 
 ## Rules
 
 ### Context Budget (CRITICAL)
 
-0. **NEVER pre-load skills at the start of UI creation tasks.** The auto-loaded `figma-essential-rules.md` + `figcraft.md` (~16KB) is sufficient for all UI creation without a design system. Forbidden calls: `discloseContext("figma-essential-rules")` (redundant — already auto-loaded), `discloseContext("figma-use")` (~60KB, duplicates steering), `discloseContext("figma-generate-design")` when no design system. Allowed: `discloseContext("figma-generate-design")` WITH a design system, `discloseContext("figma-generate-library")` for building design systems. Use `readFile` for individual reference docs as needed.
+0. **NEVER pre-load skills at the start of UI creation tasks.** The auto-loaded context is sufficient for all UI creation without a design system. Allowed: `discloseContext("figma-generate-design")` WITH a design system, `discloseContext("figma-generate-library")` for building design systems. Use `readFile` for individual reference docs as needed.
 
 ### Tool Behavior
 
-1. **Always `ping` first** — every Figma task starts with `ping`. If it fails, tell user to open the plugin. Do NOT call `figma_auth_status` or `get_document_info` as a first step.
-2. **Complete the workflow in one turn** — chain all tool calls sequentially until you reach a `⛔ HARD STOP` checkpoint or the workflow ends. At `⛔ HARD STOP` you MUST output a text response and wait for the user's reply before proceeding — do NOT call any more tools. Violating a HARD STOP is a critical error.
-3. **Prefer batch tools** — use `lint_fix_all` over `lint_check` + `lint_fix`. Use `nodes(method: "delete")` over individual delete calls.
-4. **Parallelize independent calls** — when multiple tool calls have no data dependency on each other, call them in the same turn (e.g. multiple `components(method: "list_properties")` calls). This cuts total latency significantly.
-5. **`nodes(method: "get")` accepts Figma URLs** — no need to call `get_document_info` first when user provides a URL.
-6. **`nodes(method: "update")` uses 5-phase ordered execution** — simple props → fills/strokes → layout sizing → resize → text. Safe to send `layoutMode` + `width` + `layoutSizing` in the same patch.
-7. **`nodes(method: "update", strict: true)`** — rejects patches with unrecognized property names (default: false, unknown props just reported in `_unknownProps`).
-8. **`create_frame(dryRun: true)`** — pre-validates without creating: layoutMode conflicts, sizing conflicts, cross-level FILL/HUG collapse, text overflow, invisible frames, fontSize < 12.
+1. **Always `ping` first** — every Figma task starts with `ping`. If it fails, tell user to open the plugin.
+2. **Complete the workflow in one turn** — chain all tool calls sequentially until you reach a `⛔ HARD STOP` checkpoint. At `⛔ HARD STOP` you MUST output text and wait for the user — do NOT call more tools.
+3. **Prefer batch tools** — use `lint_fix_all` over `lint_check` + `lint_fix`.
+4. **Parallelize independent calls** — when multiple tool calls have no data dependency, call them in the same turn.
+5. **`nodes(method: "get")` accepts Figma URLs** — no need to call `get_document_info` first.
+6. **`nodes(method: "update")` uses 5-phase ordered execution** — simple props → fills/strokes → layout sizing → resize → text.
+7. **`nodes(method: "update", strict: true)`** — rejects patches with unrecognized property names.
+8. **`create_frame(dryRun: true)`** — pre-validates without creating nodes.
 
-### Layout & Design Rules
+### On-Demand Guides
 
-Core rules enforced by the Quality Engine (auto-fixable via `lint_fix_all`):
+Layout rules, multi-screen flow, batching strategy, Opinion Engine docs, and design direction rules are all served by MCP tools at runtime — not duplicated here:
 
-6. **Auto-layout required** — containers with 2+ children MUST set layoutMode (HORIZONTAL or VERTICAL).
-7. **No spacer frames** — use itemSpacing, padding, SPACE_BETWEEN instead of empty frames.
-8. **Responsive children** — inputs, buttons, dividers → `layoutSizingHorizontal: FILL` inside auto-layout.
-9. **HUG + FILL = collapse** — HUG parent + FILL child collapses to 0. Parent must be FIXED or FILL.
-10. **FILL needs auto-layout parent** — NEVER use FILL sizing on a child whose parent has no auto-layout.
-11. **No overflow** — children must not exceed parent bounds.
-12. **Button structure** — auto-layout HORIZONTAL, centered text, height ≥ 48px, horizontal padding ≥ 12px.
-13. **Input field structure** — auto-layout + stroke + cornerRadius + padding + placeholder text child.
-14. **Mobile dimensions** — iOS 402×874, Android 412×915. No legacy sizes.
-15. **Semantic naming** — every frame needs a descriptive name (no "Frame 1").
-16. **Text fit** — text must fit within parent. Use textAutoResize: HEIGHT for fixed-width containers.
-17. **Shadow visibility** — drop shadow requires `clipsContent: false` on ALL ancestor containers.
-18. **Form consistency** — ALL form children use `layoutAlign: STRETCH`.
-19. **No ABSOLUTE in auto-layout** — layoutPositioning: ABSOLUTE breaks flow; use a wrapper frame.
+- `get_creation_guide(topic:"layout")` — structural rules (auto-layout, sizing, spacing)
+- `get_creation_guide(topic:"multi-screen")` — multi-screen flow architecture
+- `get_creation_guide(topic:"batching")` — context budget strategy
+- `get_creation_guide(topic:"opinion-engine")` — auto-inference details
+- `get_design_guidelines(category)` — design direction (color, typography, spacing, etc.)
 
-Detailed rules: `get_creation_guide(topic:"layout")`
+## Quick Workflows
 
-### Multi-Screen Flow
-
-Hierarchy: Wrapper → Header + Flow Row → Stage → Screen (FIXED, cornerRadius=28, SPACE_BETWEEN).
-Build order: skeleton first (create_frame with all screens empty) → fill each screen via parentId → lint_fix_all.
-Shadow: ALL ancestor containers must have `clipsContent: false`.
-
-Detailed guide: `get_creation_guide(topic:"multi-screen")`
-
-### Batching Strategy
-
-- Single element → 1 create_frame call
-- Single screen → 1 create_frame with full children tree
-- Multi-screen 3-5 → create_frame `items[]` batch (max 20)
-- Large flow 6+ → batch 2-3 screens per turn
-- dryRun:true for complex params → use correctedPayload
-
-Detailed guide: `get_creation_guide(topic:"batching")`
-
-### Opinion Engine
-
-`create_frame` auto-infers: layoutMode, sizing (FILL/HUG), FILL ordering, font normalization, token binding.
-Response fields: `_hints` (inferences), `_warnings` (issues), `_lintSummary` (violations), `_previewHint` (export_image).
-`dryRun:true` previews all inferences without creating nodes.
-
-Detailed docs: `get_creation_guide(topic:"opinion-engine")`
-
-### Design Direction
-
-- **Library mode**: use tokens, ≤ 3 text tiers, match palette, no hardcoded hex.
-- **No library**: 1 dominant + 1 accent color, ≤ 5 total, NEVER default blue/gray/Inter.
-- **Both modes**: realistic content (never Lorem ipsum), single icon style, ≤ 3 shadow levels, 4.5:1 contrast.
-
-Detailed rules: `get_design_guidelines(category)`
-
-## Workflows
-
-### Inspect Design
-`ping` → `get_current_page(maxDepth=2)` → `nodes(method: "get")` for details
-Use when user asks to **inspect/review/analyze** existing elements.
-
-### Design Lint
-`ping` → `lint_fix_all`
-
-### Token Sync
-`ping` → `load_toolset({ names: "tokens" })` → `list_tokens` → `diff_tokens` → `sync_tokens`
-
-### Components
-`ping` → `components(method: "list")` or `components(method: "list_library")`
-
-### Multi-Document
-`join_channel(newId)` → `ping`
-
-## Architecture
-
-FigCraft operates on a single Plugin Channel:
-
-```
-                              ┌─ Plugin Channel ─┐
-IDE → MCP Server (stdio) ──→ │ WS Relay (:3055) → Figma Plugin │  (lint, audit, token sync, node ops)
-                              └──────────────────┘
-```
-
-- Plugin Channel: WebSocket relay to Figma Plugin sandbox. Required for lint/audit (needs full node tree traversal).
-- `ping` checks Plugin Channel connectivity and reports status.
-- Design system search (`search_design_system`) and UI creation are built into FigCraft. Code generation and Code Connect are optionally available via Figma Power.
-
-## Dual Mode
-
-| Mode | Token Source |
-|------|-------------|
-| **library** | Figma shared library |
-| **spec** | DTCG JSON files |
-
-Switch via `set_mode`.
+| Task | Sequence |
+|------|----------|
+| Inspect design | `ping` → `get_current_page(maxDepth=2)` → `nodes(method: "get")` |
+| Design lint | `ping` → `lint_fix_all` |
+| Token sync | `ping` → `load_toolset("tokens")` → `list_tokens` → `diff_tokens` → `sync_tokens` |
+| List components | `ping` → `components(method: "list")` or `components(method: "list_library")` |
+| Multi-document | `join_channel(newId)` → `ping` |
 
 ## Access Control
 
@@ -212,60 +132,28 @@ Switch via `set_mode`.
 | Level | Env Value | Allowed Tools |
 |-------|-----------|---------------|
 | **read** | `FIGCRAFT_ACCESS=read` | Read-only tools (inspect, export, search, `set_mode`, `save_version_history`). All write tools disabled. |
-| **create** | `FIGCRAFT_ACCESS=create` | Read + tools that add NEW content. Edit/delete tools disabled. `lint_fix_all` is edit-level (modifies existing nodes). |
+| **create** | `FIGCRAFT_ACCESS=create` | Read + tools that add NEW content. Edit/delete tools disabled. `lint_fix_all` is edit-level. |
 | **edit** | `FIGCRAFT_ACCESS=edit` (default) | Full access — all tools enabled. |
 
 Legacy: `FIGCRAFT_READ_ONLY=true` is equivalent to `FIGCRAFT_ACCESS=read`.
 
-Each write tool in `schema/tools.yaml` has an `access` field (`create` or `edit`):
-- `access: create` — adds new content without modifying existing nodes
-- `access: edit` — modifies or deletes existing content
-- Non-write tools (`write: false`) — available at all access levels
+Each write tool in `schema/tools.yaml` has an `access` field (`create` or `edit`). In endpoint mode, method-level access control is enforced at runtime.
 
-The schema compiler generates `GENERATED_CREATE_TOOLS` and `GENERATED_EDIT_TOOLS` sets in `_registry.ts`. The toolset manager uses these to disable tools at startup and block them from being loaded via `load_toolset`.
+## Developer Documentation
 
-In endpoint mode, method-level access control is enforced at runtime. Endpoint descriptions dynamically indicate which methods are blocked at the current access level.
-
-## Build & Test
-
-```bash
-npm run build          # Build all (runs schema compiler first)
-npm run build:plugin   # Build Figma plugin only
-npm run schema         # Regenerate tool registry from YAML
-npm run typecheck      # TypeScript type check
-npm run test           # Run unit tests (vitest)
-```
-
-## Tool Schema (Single Source of Truth)
-
-All tool definitions live in `schema/tools.yaml`. The schema compiler (`scripts/compile-schema.ts`) generates:
-- `packages/core-mcp/src/tools/_registry.ts` — package-owned generated registry (authoritative runtime copy)
-- `packages/core-mcp/src/tools/_generated.ts` — package-owned generated bridge/endpoint schemas (authoritative runtime copy)
-
-Endpoint tools use `handler: endpoint` in the YAML with a `methods` map. Each method specifies `maps_to` (the flat tool it replaces), `write`, `access`, and `params`.
-
-Run `npm run schema` after editing `schema/tools.yaml`. The `build` script runs it automatically.
-New tool work should target `packages/core-mcp/src/tools/` and `packages/adapter-figma/src/handlers/`.
-
-## Adding New Tools
-
-1. Handler in `packages/adapter-figma/src/handlers/` → import in `packages/adapter-figma/src/code.ts`
-2. Add tool definition to `schema/tools.yaml` (toolset, write flag, access level, handler type, params)
-3. If `handler: custom` — write MCP wrapper in `packages/core-mcp/src/tools/`, register in `packages/core-mcp/src/tools/toolset-manager.ts`
-4. If `handler: bridge` — tool is auto-generated; just add the YAML entry
-5. If `handler: endpoint` — add method definitions with `maps_to`, implement dispatch in `packages/core-mcp/src/tools/endpoints.ts`
-6. Run `npm run schema` to regenerate registry
-
-## Adding New Lint Rules
-
-1. Rule in `packages/quality-engine/src/rules/` implementing `LintRule`
-2. Register in `packages/quality-engine/src/engine.ts` `ALL_RULES`
-3. Fix logic in `packages/adapter-figma/src/handlers/lint.ts` if `autoFixable`
+For architecture, directory structure, adding tools/lint rules, environment variables, build commands, and running instructions: **read `CLAUDE.md`** in the project root.
 
 ## Constraints
 
-- Plugin UI: pure HTML/CSS in `packages/adapter-figma/src/ui.html` — no frameworks
-- Linter runs in Plugin sandbox, not MCP Server
-- DTCG parsing runs only on MCP Server
-- Composite tokens (typography/shadow) → Figma Styles, not Variables
-- Pure declarative UI creation: `create_frame` + `children`, `create_text`, `text(method: "set_range")`, `group_nodes`, `nodes(method: "update")`. `execute_js` is in `debug` toolset — not available by default
+<!-- @inject-start: ide-shared/constraints.md -->
+Key architectural constraints:
+
+- Plugin UI is pure HTML/CSS inline in ui.html — no frontend frameworks
+- Linter runs in Plugin side (not MCP Server) — avoids transmitting large node data over WebSocket
+- DTCG parsing runs in MCP Server only — Plugin receives parsed `DesignToken[]`
+- Composite types (typography/shadow) map to Figma Styles, not Variables — Figma Variables don't support compound types
+- `figma.teamLibrary` API can enumerate Library Variables but not Library Styles (REST API supplement needed)
+- Plugin API bypasses REST API Enterprise restrictions — Variable writes work on all Figma plans
+- Batch operations use `items[]` + per-item error handling — single-item failure doesn't block batch
+- Token sync is idempotent — second run: created=0
+<!-- @inject-end -->
