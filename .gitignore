@@ -6,6 +6,9 @@ dist/
 .env
 .env.local
 .mcp.json
+.claude/skills
+.claude/settings.local.json
+.kiro/skills
 .kiro/settings/mcp.json
 .vscode/
 reports/benchmarks/
