@@ -24,12 +24,23 @@ import {
 import WebSocket from 'ws';
 import { saveBridgeToken } from './auth.js';
 import { fetchFileName } from './figma-api.js';
+import { detectContentWarnings } from './tools/logic/content-warnings.js';
+import { extractDesignDecisions } from './tools/logic/design-decisions.js';
 import { truncateStructurally } from './tools/response-helpers.js';
 
 interface PendingRequest {
   resolve: (result: unknown) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
+}
+
+/** Accumulated design decisions in creator mode for cross-screen consistency. */
+export interface DesignDecisions {
+  fillsUsed: string[];
+  fontsUsed: string[];
+  radiusValues: number[];
+  spacingValues: number[];
+  elevationStyle?: 'flat' | 'subtle' | 'elevated';
 }
 
 export class Bridge {
@@ -48,6 +59,8 @@ export class Bridge {
   private _modeQueried = false;
   /** Hash of last _workflow returned by get_mode, for diff-aware caching. */
   private _lastWorkflowHash: string | null = null;
+  /** Accumulated design decisions in creator mode (no library) for cross-screen consistency. */
+  private _designDecisions: DesignDecisions | null = null;
   private reconnectAttempts = 0;
   private evicted = false;
   private missedPongs = 0;
@@ -359,6 +372,27 @@ export class Bridge {
         resolve: (result: unknown) => {
           const elapsed = Date.now() - startTime;
           console.error(`[FigCraft bridge] ✓ ${method} — ${elapsed}ms (id=${id.slice(0, 8)})`);
+          // Creator mode: accumulate design decisions from create_frame params
+          if (method === 'create_frame' && !this._selectedLibrary && !params.dryRun) {
+            try {
+              extractDesignDecisions(this, params);
+            } catch {
+              /* best-effort */
+            }
+          }
+          // Content validation: detect placeholder text in create_frame params
+          if (method === 'create_frame' && !params.dryRun) {
+            try {
+              const contentWarnings = detectContentWarnings(params);
+              if (contentWarnings.length > 0 && result && typeof result === 'object') {
+                const r = result as Record<string, unknown>;
+                const existing = Array.isArray(r._warnings) ? (r._warnings as string[]) : [];
+                r._warnings = [...existing, ...contentWarnings.map((w) => w.message)];
+              }
+            } catch {
+              /* best-effort */
+            }
+          }
           resolve(result);
         },
         reject: (error: Error) => {
@@ -506,7 +540,10 @@ export class Bridge {
 
   set modeQueried(value: boolean) {
     this._modeQueried = value;
-    if (!value) this._lastWorkflowHash = null; // Reset on mode change
+    if (!value) {
+      this._lastWorkflowHash = null; // Reset on mode change
+      this._designDecisions = null; // Clear accumulated design decisions
+    }
   }
 
   get lastWorkflowHash(): string | null {
@@ -515,6 +552,37 @@ export class Bridge {
 
   set lastWorkflowHash(value: string | null) {
     this._lastWorkflowHash = value;
+  }
+
+  /** Accumulated design decisions in creator mode (no library). */
+  get designDecisions(): DesignDecisions | null {
+    return this._designDecisions;
+  }
+
+  /** Merge new design decisions into accumulated state. */
+  mergeDesignDecisions(partial: Partial<DesignDecisions>): void {
+    if (!this._designDecisions) {
+      this._designDecisions = { fillsUsed: [], fontsUsed: [], radiusValues: [], spacingValues: [] };
+    }
+    const d = this._designDecisions;
+    if (partial.fillsUsed) {
+      for (const f of partial.fillsUsed) if (!d.fillsUsed.includes(f)) d.fillsUsed.push(f);
+    }
+    if (partial.fontsUsed) {
+      for (const f of partial.fontsUsed) if (!d.fontsUsed.includes(f)) d.fontsUsed.push(f);
+    }
+    if (partial.radiusValues) {
+      for (const v of partial.radiusValues) if (!d.radiusValues.includes(v)) d.radiusValues.push(v);
+    }
+    if (partial.spacingValues) {
+      for (const v of partial.spacingValues) if (!d.spacingValues.includes(v)) d.spacingValues.push(v);
+    }
+    if (partial.elevationStyle) d.elevationStyle = partial.elevationStyle;
+  }
+
+  /** Clear design decisions (called on mode change or disconnect). */
+  clearDesignDecisions(): void {
+    this._designDecisions = null;
   }
 
   /**

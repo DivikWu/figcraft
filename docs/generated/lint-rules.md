@@ -2,7 +2,7 @@
 
 # Quality Engine — Lint Rules
 
-38 rules across 5 categories.
+40 rules across 5 categories.
 
 ## Summary
 

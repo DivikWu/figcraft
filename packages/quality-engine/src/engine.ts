@@ -2,6 +2,8 @@
  * Lint engine — runs rules against abstract nodes, collects violations.
  */
 
+import { elevationConsistencyRule } from './rules/layout/elevation-consistency.js';
+import { elevationHierarchyRule } from './rules/layout/elevation-hierarchy.js';
 import { emptyContainerRule } from './rules/layout/empty-container.js';
 // Layout
 import { fixedInAutolayoutRule } from './rules/layout/fixed-in-autolayout.js';
@@ -96,6 +98,8 @@ const ALL_RULES: LintRule[] = [
   inputFieldStructureRule,
   mobileDimensionsRule,
   systemBarFullbleedRule,
+  elevationConsistencyRule,
+  elevationHierarchyRule,
   // Naming (always active)
   defaultNameRule,
   placeholderTextRule,

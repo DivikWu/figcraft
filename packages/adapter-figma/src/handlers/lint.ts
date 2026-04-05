@@ -718,6 +718,7 @@ function compressedToAbstract(node: CompressedNode): AbstractNode {
     fillStyleId: node.fillStyleId,
     textStyleId: node.textStyleId,
     effectStyleId: node.effectStyleId,
+    effects: node.effects as AbstractNode['effects'],
     componentPropertyDefinitions: node.componentPropertyDefinitions,
     componentPropertyReferences: node.componentPropertyReferences,
     lintIgnore: node.lintIgnore,

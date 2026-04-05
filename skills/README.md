@@ -17,7 +17,7 @@ Source of truth for MCP runtime `get_design_guidelines()`. Build copies content 
 | Skill | Description |
 |-------|-------------|
 | **design-review** | Review existing designs against quality rules. Outputs structured violation report with fixes. |
-| **design-lint** | Lint designs for compliance and auto-fix violations. 38 rules, 22 auto-fixable. |
+| **design-lint** | Lint designs for compliance and auto-fix violations. 40 rules, 22 auto-fixable. |
 | **component-docs** | Generate component documentation — properties, variants, usage, structural health audit. |
 | **prototype-analysis** | Analyze prototype interactions — flow graph, dead ends, loops, Mermaid diagrams. |
 | **text-replace** | Bulk replace text content — localization, data filling, content updates. |

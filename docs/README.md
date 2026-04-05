@@ -4,6 +4,8 @@
 
 - [product-overview.md](product-overview.md) — 产品定位、差异化、核心价值观
 - [user-guide.md](user-guide.md) — 用户指南：安装、配置、使用方式
+- [tool-quick-reference.md](tool-quick-reference.md) — MCP 工具速查表：所有工具分类速查
+- [figma-mcp-comparison.md](figma-mcp-comparison.md) — 与 Figma 官方 MCP 的对比与协同说明
 - [roadmap.md](roadmap.md) — 产品路线图：已完成 / 短期 / 中期 / 长期
 
 ## 维护

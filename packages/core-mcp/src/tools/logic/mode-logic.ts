@@ -175,16 +175,31 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
       },
       colorRules: hasLibrary
         ? 'Use library color tokens. Match existing palette. Do not hardcode hex values when tokens are available.'
-        : '1 dominant + 1 accent, total ≤ 5. Dominant at 60%+. NEVER default to blue/gray without justification.',
+        : bridge.designDecisions?.fillsUsed?.length
+          ? `Established palette: ${bridge.designDecisions.fillsUsed.join(', ')}. Use these colors for consistency. Add new colors only if design requires it.`
+          : '1 dominant + 1 accent, total ≤ 5. Dominant at 60%+. NEVER default to blue/gray without justification.',
       typographyRules: hasLibrary
         ? 'Use library text styles. Clear heading/body distinction via existing style tiers.'
-        : 'Clear heading/body distinction (different weight or size). ≤ 3 font weights. NEVER use only Inter without justification.',
+        : bridge.designDecisions?.fontsUsed?.length
+          ? `Established fonts: ${bridge.designDecisions.fontsUsed.join(', ')}. Continue using these. Add new fonts only if justified.`
+          : 'Clear heading/body distinction (different weight or size). ≤ 3 font weights. NEVER use only Inter without justification.',
       contentRules:
         'Realistic, contextually appropriate text. NEVER use "Lorem ipsum", "Text goes here", "Button", "Title".',
       iconRules: hasLibrary
         ? 'Use library icon components first (search_design_system query:"icon"). Fall back to icon_search + icon_create only when library has no match. NEVER use text characters as icon placeholders.'
         : 'Single icon style per design (outline/filled/duotone). Use icon_search + icon_create for ALL icons. NEVER use text characters as icon placeholders (">" for chevron, "..." for more).',
       antiSlop: 'No cheap gradients/glow effects. Vary corner radius across hierarchy. Prefer asymmetry over symmetry.',
+      // Dynamic: accumulated design decisions from prior create_frame calls (creator mode only)
+      ...(!hasLibrary && bridge.designDecisions
+        ? {
+            establishedPalette: bridge.designDecisions,
+            ...(bridge.designDecisions.radiusValues?.length
+              ? {
+                  spacingRules: `Established radius: ${bridge.designDecisions.radiusValues.join(', ')}px. Spacing: ${bridge.designDecisions.spacingValues?.join(', ') || 'not yet established'}px.`,
+                }
+              : {}),
+          }
+        : {}),
     },
 
     // After user confirms the design proposal:

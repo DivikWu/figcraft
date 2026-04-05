@@ -12,7 +12,7 @@ FILL ordering, token binding, and failure cleanup.
 
 For detailed docs during creation, use MCP tools:
 - get_creation_guide(topic) — layout, multi-screen, batching, tool-behavior, opinion-engine, responsive, content-states, ui-patterns
-- get_design_guidelines(category) — color, typography, spacing, composition, content, accessibility
+- get_design_guidelines(category) — all, color, typography, spacing, layout, composition, content, accessibility, buttons, inputs
 
 <!-- @inject-start: ide-shared/asset-locations.md -->
 Project assets and their locations:

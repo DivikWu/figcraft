@@ -255,12 +255,20 @@ FIGMA_CLIENT_SECRET=xxx                   # OAuth 2.0 Client Secret (optional, f
 # Configure MCP Server in IDE (no need to clone source):
 # {
 #   "mcpServers": {
+#     "figma-desktop": {
+#       "url": "http://127.0.0.1:3845/mcp",
+#       "type": "http"
+#     },
 #     "figcraft": {
 #       "command": "npx",
 #       "args": ["figcraft-design"]
 #     }
 #   }
 # }
+# figma-desktop: Figma official desktop MCP (design-to-code, Code Connect, screenshots)
+#   Requires: Figma desktop app → Shift+D (Dev Mode) → Enable MCP Server
+# figcraft: FigCraft (declarative creation, lint, token sync, audit)
+#   Requires: FigCraft plugin loaded in Figma
 ```
 
 ### Development
@@ -273,6 +281,10 @@ FIGMA_CLIENT_SECRET=xxx                   # OAuth 2.0 Client Secret (optional, f
 # 2. Configure MCP Server in IDE (no need to manually start Relay, MCP Server auto-embeds it):
 # {
 #   "mcpServers": {
+#     "figma-desktop": {
+#       "url": "http://127.0.0.1:3845/mcp",
+#       "type": "http"
+#     },
 #     "figcraft": {
 #       "command": "npx",
 #       "args": ["tsx", "packages/figcraft-design/src/index.ts"],

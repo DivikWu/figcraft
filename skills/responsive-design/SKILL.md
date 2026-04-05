@@ -16,9 +16,7 @@ Rules and patterns for creating responsive web designs in Figma across mobile, t
 
 ## Design Direction
 
-1. Always first → load skill: `ui-ux-fundamentals` (shared rules)
-2. Library selected → then load skill: `design-guardian`
-3. No library → then load skill: `design-creator`
+Design rules are delivered by `_workflow.designPreflight` (from `get_mode`). For detailed rules by category, call `get_design_guidelines(category)`.
 
 ## On-Demand Guide
 

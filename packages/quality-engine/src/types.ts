@@ -37,6 +37,16 @@ export interface AbstractNode {
   fillStyleId?: string;
   textStyleId?: string;
   effectStyleId?: string;
+  // Effects (shadows, blurs) — used for elevation consistency checks
+  effects?: Array<{
+    type: string; // DROP_SHADOW, INNER_SHADOW, LAYER_BLUR, BACKGROUND_BLUR
+    visible?: boolean;
+    radius?: number;
+    spread?: number;
+    offset?: { x: number; y: number };
+    color?: string; // hex
+    opacity?: number;
+  }>;
   // Component
   componentPropertyDefinitions?: Record<string, { type: string; defaultValue?: unknown; variantOptions?: string[] }>;
   componentPropertyReferences?: Record<string, string>;

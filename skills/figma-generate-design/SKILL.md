@@ -29,9 +29,8 @@ Use this skill to create or update full-page screens in Figma by **reusing the p
 - Source code or description of the screen to build/update
 
 ## Design Direction
-1. Always first → load skill: `ui-ux-fundamentals` (shared rules)
-2. Library selected → then load skill: `design-guardian`
-3. No library → then load skill: `design-creator`
+
+Design rules are delivered by `_workflow.designPreflight` (from `get_mode`). For detailed rules by category, call `get_design_guidelines(category)`.
 
 ## Parallel Workflow with generate_figma_design (Web Apps Only)
 

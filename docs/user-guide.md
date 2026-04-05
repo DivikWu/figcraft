@@ -25,7 +25,7 @@ Figma Plugin (UI iframe ↔ code.js sandbox)
 
 **核心特性：**
 - 136 个 MCP 工具覆盖设计全流程
-- 38 条 Lint 规则 + 自动修复
+- 40 条 Lint 规则 + 自动修复
 - 双模式：Figma 共享库 / DTCG 规范文档
 - Opinion Engine 自动推断布局、尺寸、Token 绑定
 - 9 种 UI 模板（login、dashboard、checkout 等）
@@ -61,9 +61,13 @@ npm run build
 
 **Claude Code** — `.mcp.json`：
 
-```json
+```jsonc
 {
   "mcpServers": {
+    "figma-desktop": {
+      "url": "http://127.0.0.1:3845/mcp",
+      "type": "http"
+    },
     "figcraft": {
       "command": "node",
       "args": ["dist/mcp-server/index.js"],
@@ -75,9 +79,12 @@ npm run build
 
 **Cursor** — `.cursor/mcp.json`：
 
-```json
+```jsonc
 {
   "mcpServers": {
+    "figma-desktop": {
+      "url": "http://127.0.0.1:3845/mcp"
+    },
     "figcraft": {
       "command": "node",
       "args": ["dist/mcp-server/index.js"],
@@ -89,9 +96,14 @@ npm run build
 
 **Kiro** — `.kiro/settings/mcp.json`：
 
-```json
+```jsonc
 {
   "mcpServers": {
+    "figma-desktop": {
+      "url": "http://127.0.0.1:3845/mcp",
+      "type": "http",
+      "disabled": false
+    },
     "figcraft": {
       "command": "node",
       "args": ["dist/mcp-server/index.js"],
@@ -102,11 +114,19 @@ npm run build
 }
 ```
 
+> `figma-desktop` 是 Figma 官方桌面版 MCP Server，提供 design-to-code 上下文（`get_design_context`、Code Connect 等）。需要在 Figma 桌面应用中 `Shift+D` 进入 Dev Mode 并启用 MCP Server。详见 [figma-mcp-comparison.md](figma-mcp-comparison.md)。
+>
+> Kiro 内置的 `power-figma` 连接的是远程版（需 OAuth），如果已配置 `figma-desktop` 可在 `~/.kiro/settings/mcp.json` 中将其 `disabled` 设为 `true` 以避免重复认证提示。
+
 **VS Code** — `.vscode/mcp.json`：
 
-```json
+```jsonc
 {
   "servers": {
+    "figma-desktop": {
+      "type": "http",
+      "url": "http://127.0.0.1:3845/mcp"
+    },
     "figcraft": {
       "command": "node",
       "args": ["dist/mcp-server/index.js"],
@@ -213,13 +233,13 @@ cwd = "/your/absolute/path/to/figcraft"
 
 ### 3.4 质量引擎
 
-38 条 Lint 规则，覆盖 5 个类别：
+40 条 Lint 规则，覆盖 5 个类别：
 
 | 类别 | 规则数 | 检查内容 |
 |---|---|---|
 | Token | 6 | 硬编码颜色/字号、未绑定 Library Token |
 | WCAG | 5 | 对比度 ≥4.5:1、触摸目标 ≥44px、文字 ≥12px |
-| Layout | 24 | 按钮/输入框结构、表单一致性、空容器、文本溢出、缺少 auto-layout、嵌套深度、Header 碎片化 |
+| Layout | 26 | 按钮/输入框结构、表单一致性、空容器、文本溢出、缺少 auto-layout、嵌套深度、Header 碎片化、elevation 一致性/层级 |
 | Naming | 2 | 默认名称 "Frame"、占位文本 "Lorem ipsum" |
 | Component | 1 | 组件实例引用有效性 |
 
@@ -370,39 +390,107 @@ nodes(method: "delete", nodeId: "123:456")     // 删除节点
 
 ---
 
-## 6. IDE Skills 优化指南
+## 6. Skills 体系
 
 ### 6.1 什么是 Skills
 
-Skills 是 IDE 中预配置的 prompt 模板，将多步操作封装为一条命令。不同 IDE 的实现方式略有差异：
+Skills 是 MCP 工具之上的**知识层**（纯 Markdown 文档），封装了多步操作的最佳实践流程。工具是"手"（能做什么），Skills 是"脑"（怎么做好）。
 
-- **Claude Code**：`/skill-name` slash command
-- **Cursor**：`.cursorrules` 或自定义 prompt
-- **Kiro**：`.kiro/skills/` 目录下的 skill 文件
+- **不接受参数、无状态** — 配置发生在 MCP tools 层（工具参数），不在 Skills 层
+- **不同 IDE 统一发现**：`skills/<name>/SKILL.md`，扁平目录结构
+- **Claude Code** 通过 `/skill-name` slash command 调用，**Kiro** 从 `.kiro/skills/` 自动发现
 
-### 6.2 推荐 Skill 配置
+### 6.2 Skills 全景（26 个）
 
-**UI 创建 Skill**：
+#### 第 1 层：设计规则（自动加载，不直接调用）
+
+| Skill | 何时生效 |
+|---|---|
+| `ui-ux-fundamentals` | 始终生效，通用规则（排版/间距/无障碍） |
+| `design-guardian` | 有库模式：token 优先、dark mode、冲突解决 |
+| `design-creator` | 无库模式：intentional design、避免 AI 默认值 |
+
+AI 调用 `get_mode` 时根据库状态自动选择 guardian 或 creator，fundamentals 始终叠加。
+
+#### 第 2 层：创建流程
+
+**创建路径**（按任务类型选一个，互斥）：
+
+| Skill | 触发场景 |
+|---|---|
+| `figma-create-ui` | "帮我设计一个登录页" — 用 FigCraft 声明式工具（create_frame） |
+| `figma-generate-design` | "把这个代码页面写到 Figma" — 从设计系统组件组装（use_figma） |
+| `figma-generate-library` | "建一套设计系统" — 变量/组件库/主题（use_figma） |
+
+**辅助**（Figma 官方 Skill，按需使用）：
+
+| Skill | 角色 |
+|---|---|
+| `figma-use` | `use_figma` Plugin API 规则（generate-design/library 自动加载，也可独立使用） |
+| `figma-create-new-file` | 创建新 Figma 文件（按需使用） |
+
+#### 第 3 层：场景增强（叠加到第 2 层之上）
+
+| Skill | 叠加条件 |
+|---|---|
+| `platform-ios` | 提到 iOS/iPhone/iPad |
+| `platform-android` | 提到 Android/Material |
+| `responsive-design` | 提到响应式/断点 |
+| `content-states` | 提到空态/加载/错误状态 |
+
+可多选叠加，如 "响应式 iOS 登录页" = `figma-create-ui` + `platform-ios` + `responsive-design`。
+
+#### 第 4 层：质量保障（创建后使用）
+
+| Skill | 作用 |
+|---|---|
+| `design-lint` | 自动检测 + 修复 40 条规则 |
+| `design-review` | 人工审查式质量报告 |
+| `design-system-audit` | 设计系统健康度审计 |
+| `design-handoff` | 开发交付标注 |
+
+典型顺序：`design-lint`（自动修）-> `design-review`（人工审）-> `design-handoff`（交付）。
+
+#### 第 5 层：运维工具（按需使用）
+
+| Skill | 作用 |
+|---|---|
+| `token-sync` | DTCG Token -> Figma 变量同步 |
+| `spec-compare` | Token spec <-> Figma 变量对比 |
+| `text-replace` | 批量替换文本（本地化等） |
+| `component-docs` | 组件文档生成 |
+| `prototype-analysis` | 原型交互流分析 |
+| `multi-brand` | 多品牌主题管理 |
+| `migration-assistant` | 设计系统版本迁移 |
+| `figma-code-connect-components` | Figma <-> 代码组件映射 |
+| `figma-create-design-system-rules` | 生成项目定制规则 |
+| `figma-implement-design` | Figma -> 代码实现 |
+
+### 6.3 协作模式
+
+**叠加模式**（最常见）— 基础规则 + 创建流程 + 场景增强：
 ```
-流程：get_mode → designPreflight → 提出方案 → 等待确认 → create_frame → export_image → lint_fix_all
+"帮我设计一个 iOS 登录页"
+  -> Layer 1: ui-ux-fundamentals + design-creator
+  -> Layer 2: figma-create-ui
+  -> Layer 3: platform-ios
+  -> Layer 4: design-lint（创建后自动）
 ```
 
-**设计审查 Skill**：
+**链式模式** — 按阶段切换：
 ```
-流程：lint_fix_all(dryRun:true) → 报告违规 → 确认修复 → lint_fix_all → verify_design
-```
-
-**Token 同步 Skill**：
-```
-流程：load_toolset("tokens") → diff_tokens → 确认差异 → sync_tokens → 验证结果
+"建设计系统 -> 审计 -> 交付"
+  -> figma-generate-library -> design-system-audit -> design-handoff
 ```
 
-**组件审计 Skill**：
+**独立模式** — 单任务：
 ```
-流程：load_toolset("components-advanced") → audit_components → 报告问题 → 修复建议
+"把 token 文件同步到 Figma"  -> token-sync
+"这个组件怎么用"             -> component-docs
+"帮我实现这个 Figma 设计"    -> figma-implement-design
 ```
 
-### 6.3 自定义 Skill 编写技巧
+### 6.4 自定义 Skill 编写技巧
 
 **核心原则：规则在 MCP 工具中维护，Skill 只做流程编排。**
 
@@ -413,7 +501,7 @@ Skills 是 IDE 中预配置的 prompt 模板，将多步操作封装为一条命
 
 **反模式：** 不要在 Skill 中写死颜色值、间距规则、布局约束——这些全部由 `get_mode` 和 `get_design_guidelines` 运行时提供。
 
-### 6.4 autoApprove 配置建议
+### 6.5 autoApprove 配置建议
 
 在 IDE 配置中设置 `autoApprove` 可避免每次工具调用的手动确认弹窗：
 
@@ -467,6 +555,8 @@ Skills 是 IDE 中预配置的 prompt 模板，将多步操作封装为一条命
 | Lint 规则报 warning 而非 error | 无 Token/Library | Token 规则在无规范时自动降级严重度 |
 | IDE 报 "Cannot find name 'figma'" | Plugin 全局变量 | 正常现象，Figma 运行时注入的全局变量 |
 | 创建工具报 "call get_mode first" | 未执行 designPreflight | 在创建前先调用 `get_mode` |
+| Kiro 每次启动弹 "Authentication required" | `power-figma` 连接的是远程版 MCP，需 OAuth | 已配置 `figma-desktop` 的情况下，在 `~/.kiro/settings/mcp.json` 中将 `power-figma-power-figma` 设为 `disabled: true` |
+| `figma-desktop` 连接失败 | Figma 桌面应用未启用 MCP Server | 打开 Figma 桌面应用 → `Shift+D` 进入 Dev Mode → Inspect 面板中启用 MCP Server |
 
 ---
 

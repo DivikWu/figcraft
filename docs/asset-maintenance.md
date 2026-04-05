@@ -11,7 +11,7 @@
 | **创建指南** | `content/guides/*.md` | Markdown | 6 | `npm run content` |
 | **MCP Prompts** | `content/prompts/*.yaml` | YAML | 9 | `npm run content` |
 | **MCP 工具** | `schema/tools.yaml` | YAML | 97 | `npm run schema` |
-| **Lint 规则** | `packages/quality-engine/src/rules/` | TypeScript | 38 | `npm run build` |
+| **Lint 规则** | `packages/quality-engine/src/rules/` | TypeScript | 40 | `npm run build` |
 
 ## 构建流水线
 

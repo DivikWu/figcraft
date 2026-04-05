@@ -5,7 +5,7 @@ description: "Lint Figma designs for compliance and auto-fix violations. Use whe
 
 # Design Lint — Automated Compliance & Auto-Fix
 
-Lint Figma designs against 38 quality rules across 5 categories (token compliance, WCAG accessibility, layout & structure, naming & content, component). Auto-fixes 22 of 38 rules. Pairs with `design-review` for the human review step.
+Lint Figma designs against 40 quality rules across 5 categories (token compliance, WCAG accessibility, layout & structure, naming & content, component). Auto-fixes 22 of 40 rules. Pairs with `design-review` for the human review step.
 
 ## Skill Boundaries
 
