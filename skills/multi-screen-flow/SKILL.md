@@ -5,7 +5,7 @@ description: "Multi-screen flow architecture — wrapper hierarchy, stage contai
 
 # Multi-Screen Flow Architecture
 
-Multi-screen flows (login, onboarding, checkout, etc.) MUST use a strict hierarchy. Skipping levels causes layout collapse, missing context, and shadow clipping.
+Multi-screen flows (login, onboarding, checkout, etc.) MUST use a strict hierarchy. Skipping levels causes layout collapse and missing context.
 
 ## Skill Boundaries
 
@@ -28,23 +28,24 @@ Wrapper (VERTICAL, HUG/HUG, counterAxisAlignItems=MIN, clipsContent=false,
               │     ├── Number ("01", accent color, bold, 13px)
               │     └── Label ("登录", white, medium, 13px)
               └── Screen / {label} (VERTICAL, FIXED 402×874, cornerRadius=28,
-                                    clipsContent=true, padding, SPACE_BETWEEN,
-                                    shadow:{y:4, blur:16, color:#00000015})
+                                    clipsContent=true, padding, SPACE_BETWEEN)
                     ├── Top Content (VERTICAL, FILL/HUG)
                     └── Bottom Content (VERTICAL, FILL/HUG)
 ```
 
 ## Build Order
 
-1. **Skeleton first** — `create_frame`: Wrapper + children with full hierarchy (Header + Flow Row + Stages + empty Screens)
+1. **Skeleton first** — `create_frame`: Wrapper + children with full hierarchy (Header + Flow Row + Stages + empty Screens) → check _children in response to confirm structure
 2. **Verify layout** — `export_image(scale:0.3)` to confirm all screens are horizontal in Flow Row. Do NOT proceed until this is confirmed.
-3. **Fill screens** — `create_frame` per screen (parentId=screenId, children=[TopContent, BottomContent])
-4. **Verify each screen** — `export_image` after filling each screen
+3. **Fill screens** — `create_frame` per screen (parentId=screenId, children=[TopContent, BottomContent]) → `export_image` to verify layout
+4. **Fill remaining screens** — one by one → `export_image` as needed
 5. **Lint** — `lint_fix_all` → done
+
+The Opinion Engine automatically handles: sizing inference, FILL ordering, conflict detection, cross-level validation, and failure cleanup. No need to manually handle these Figma API details.
 
 ## Key Rules
 
-- ALL ancestor containers of Screen MUST have `clipsContent: false` — otherwise shadows are clipped
+- ALL ancestor containers of Screen MUST have `clipsContent: false`
 - Screen uses `primaryAxisAlignItems: "SPACE_BETWEEN"` for top/bottom distribution
 - Screen dimensions: iOS 402×874, Android 412×915
 - Wrapper fill: light gray (#F3F4F6 or similar) to contrast with white screens

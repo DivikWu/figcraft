@@ -90,25 +90,40 @@ exampleParams:        # Record<string, unknown>（create_frame 参数骨架）
 
 ## 3. 创建指南
 
-**位置**: `content/guides/*.md`
+创建指南有两种来源：
+
+### Skill-sourced 指南（4 个）
+
+**Source of truth**: `skills/*/SKILL.md`（与设计规则 skill 模式一致）
+
+| Skill | MCP topic | Fallback 文件 |
+|-------|-----------|-------------|
+| `multi-screen-flow` | `multi-screen` | `multi-screen.md` |
+| `responsive-design` | `responsive` | `responsive.md` |
+| `content-states` | `content-states` | `content-states.md` |
+| `iconography` | `iconography` | `iconography.md` |
+
+运行时 `creation-guide.ts` 直接从 `skills/` 读取（stripFrontmatter + stripSkillSections）。打包环境下 `tsup.config.ts` 的 `onSuccess` 生成 fallback `.md` 到 `dist/mcp-server/`。
+
+**修改**：编辑 `skills/<name>/SKILL.md` → `npm run build`（更新 dist fallback）→ `npm test`
+
+### Compiled 指南（3 个）
+
+**位置**: `content/guides/*.md`（batching、tool-behavior、opinion-engine）
 
 **生成**: `npm run content` → `packages/core-mcp/src/tools/_guides.ts`
 
-**消费者**: `get_creation_guide(topic:"multi-screen")` 等 MCP 工具
+**消费者**: `get_creation_guide(topic:"batching")` 等 MCP 工具
 
-### 文件名 → 常量名
+文件名 → 常量名：`batching.md` → `GUIDES.BATCHING`
 
-`multi-screen.md` → `GUIDES.MULTI_SCREEN`，`content-states.md` → `GUIDES.CONTENT_STATES`
+**修改**：编辑 Markdown → `npm run content` → `npm test`
 
 ### 新增指南
 
-1. 创建 `content/guides/<name>.md`
-2. `npm run content`
-3. 在 `creation-guide.ts` 的 switch 中添加新 topic 分支，引用 `GUIDES.NEW_NAME`
+如果新指南有对应 skill：添加到 `tsup.config.ts` 的 `CREATION_GUIDE_SKILLS` 和 `creation-guide.ts` 的 `loadSkillGuide` 调用。
 
-### 修改指南
-
-编辑 Markdown → `npm run content` → `npm test`
+如果是纯 MCP 指南（无 skill）：创建 `content/guides/<name>.md` → `npm run content` → 在 `creation-guide.ts` 的 switch 中引用 `GUIDES.NEW_NAME`。
 
 ---
 

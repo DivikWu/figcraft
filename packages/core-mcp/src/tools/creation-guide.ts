@@ -11,6 +11,9 @@
  * as Claude Code and Kiro.
  */
 
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { getPreventionChecklist } from '@figcraft/quality-engine';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
@@ -18,14 +21,63 @@ import { GUIDES } from './_guides.js';
 import type { UiPattern } from './_templates.js';
 import { UI_PATTERNS } from './_templates.js';
 
-// Guide aliases — keys generated from content/guides/*.md filenames
-const MULTI_SCREEN_GUIDE = GUIDES.MULTI_SCREEN;
+// ─── Skill-sourced guides (source of truth: skills/*/SKILL.md) ───
+// Same pattern as mode.ts design rule loading: read from skills/ at startup,
+// fallback to co-located .md in dist/ for packaged environments.
+
+const SECTIONS_TO_STRIP = ['Skill Boundaries', 'Design Direction', 'On-Demand Guide'];
+
+/** Remove YAML frontmatter (--- ... ---) from skill content */
+const stripFrontmatter = (content: string): string => content.replace(/^---[\s\S]*?---\s*/, '');
+
+/** Remove IDE-only sections (Skill Boundaries, Design Direction, On-Demand Guide) */
+function stripSkillSections(content: string): string {
+  const lines = content.split('\n');
+  const result: string[] = [];
+  let skipping = false;
+
+  for (const line of lines) {
+    if (line.startsWith('## ')) {
+      const heading = line.replace(/^## /, '').trim();
+      skipping = SECTIONS_TO_STRIP.includes(heading);
+      if (skipping) continue;
+    }
+    if (!skipping) result.push(line);
+  }
+  return result
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/** Load a creation guide from skill (source of truth) or fallback .md */
+function loadSkillGuide(skillsDir: string, useSkills: boolean, skillName: string, fallbackFilename: string): string {
+  try {
+    if (useSkills) {
+      const raw = readFileSync(join(skillsDir, skillName, 'SKILL.md'), 'utf-8');
+      return stripSkillSections(stripFrontmatter(raw));
+    }
+    return readFileSync(join(dirname(fileURLToPath(import.meta.url)), fallbackFilename), 'utf-8');
+  } catch {
+    return '';
+  }
+}
+
+// Resolve skills directory (same path logic as mode.ts)
+const selfDir = dirname(fileURLToPath(import.meta.url));
+const skillsDir = join(selfDir, '..', '..', '..', '..', 'skills');
+const useSkills = existsSync(join(skillsDir, 'multi-screen-flow', 'SKILL.md'));
+
+// Skill-sourced guides (loaded once at startup)
+const MULTI_SCREEN_GUIDE = loadSkillGuide(skillsDir, useSkills, 'multi-screen-flow', 'multi-screen.md');
+const RESPONSIVE_GUIDE = loadSkillGuide(skillsDir, useSkills, 'responsive-design', 'responsive.md');
+const CONTENT_STATES_GUIDE = loadSkillGuide(skillsDir, useSkills, 'content-states', 'content-states.md');
+const ICONOGRAPHY_GUIDE = loadSkillGuide(skillsDir, useSkills, 'iconography', 'iconography.md');
+
+// Compiled guides (source of truth: content/guides/*.md → _guides.ts)
 const BATCHING_GUIDE = GUIDES.BATCHING;
 const TOOL_BEHAVIOR_GUIDE = GUIDES.TOOL_BEHAVIOR;
-const RESPONSIVE_GUIDE = GUIDES.RESPONSIVE;
-const CONTENT_STATES_GUIDE = GUIDES.CONTENT_STATES;
 const OPINION_ENGINE_GUIDE = GUIDES.OPINION_ENGINE;
-const ICONOGRAPHY_GUIDE = GUIDES.ICONOGRAPHY;
 
 // ─── UI Type Templates ───
 // (Templates extracted to content/templates/*.yaml — see scripts/compile-content.ts)

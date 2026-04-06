@@ -51,11 +51,27 @@ describe('content-generated freshness', () => {
     }
   });
 
+  it('skill-sourced creation guides exist and are readable', () => {
+    const skillGuides = [
+      'skills/multi-screen-flow/SKILL.md',
+      'skills/responsive-design/SKILL.md',
+      'skills/content-states/SKILL.md',
+      'skills/iconography/SKILL.md',
+    ];
+    for (const path of skillGuides) {
+      expect(existsSync(path)).toBe(true);
+      const content = readFileSync(path, 'utf-8');
+      expect(content.length).toBeGreaterThan(100);
+      // Must have frontmatter
+      expect(content.startsWith('---')).toBe(true);
+    }
+  });
+
   it('content/ directory structure is complete', () => {
     expect(existsSync('content/guides')).toBe(true);
     expect(existsSync('content/prompts')).toBe(true);
     expect(existsSync('content/templates')).toBe(true);
-    expect(readdirSync('content/guides').filter((f) => f.endsWith('.md')).length).toBeGreaterThanOrEqual(6);
+    expect(readdirSync('content/guides').filter((f) => f.endsWith('.md')).length).toBeGreaterThanOrEqual(3);
     expect(readdirSync('content/prompts').filter((f) => f.endsWith('.yaml')).length).toBeGreaterThanOrEqual(9);
     expect(readdirSync('content/templates').filter((f) => f.endsWith('.yaml')).length).toBeGreaterThanOrEqual(9);
   });
