@@ -96,7 +96,7 @@ figcraft/
 │   ├── design-creator/
 │   ├── design-guardian/
 │   ├── figma-create-ui/            # declarative creation flow
-│   └── figma-use/ ...              # (11 skills total)
+│   └── figma-use/ ...              # (see skills/ for full list)
 ├── content/                        # editable content assets (YAML/Markdown)
 │   ├── ide-shared/                 # shared snippets injected into IDE config files
 │   ├── templates/*.yaml            # UI templates → _templates.ts

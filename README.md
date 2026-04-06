@@ -18,7 +18,7 @@ Describe what you want in natural language, and FigCraft + Figma MCP make it hap
 
 - 🎨 **From creation to delivery, fully covered** — Create UI directly in Figma, pair with the [official Figma MCP server](https://developers.figma.com/docs/figma-mcp-server/) for even more power. Check quality right after you create, fix issues on the spot
 - 🔍 **Automated design audit** — token bindings, color contrast, spacing, component health — all checked in one pass
-- 🔧 **Lint + fix in one step** — 36 rules covering token compliance, WCAG, layout structure — one command to batch-fix everything flagged
+- 🔧 **Lint + fix in one step** — 40 rules covering token compliance, WCAG, layout structure — one command to batch-fix everything flagged
 - 🔄 **Two-way token sync** — DTCG JSON ↔ Figma variables, Light/Dark multi-mode in one step. Changed tokens in code? Just sync
 - 🔀 **Dual mode for any team** — Library mode for Figma shared libraries, Spec mode for DTCG JSON — pick what fits your workflow
 - 📐 **Prototype → dev docs** — parse prototype interactions into Mermaid flow diagrams + interaction specs, no more manual handoff docs
@@ -185,15 +185,15 @@ FigCraft can create UI directly in Figma (frames, shapes, text, components). It 
 - Use `audit_node` for deep quality inspection of specific elements
 - Use `get_design_guidelines` to review design rules before creating
 
-## Lint Rules (36)
+## Lint Rules (40)
 
 Current lint coverage spans token compliance, WCAG accessibility, layout structure, screen-level quality, naming, and component health.
 
 - Token compliance (6): color, typography, spacing, radius, hardcoded token usage, missing text style
-- WCAG accessibility (4): contrast, target size, text size, line height
-- Layout structure (16): fixed-in-autolayout, empty container, spacer frames, nesting depth, button structure, text overflow, form consistency, CTA width consistency, overflow parent, HUG/STRETCH paradox, missing auto-layout, section spacing collapse, input field structure, mobile dimensions, system bar fullbleed, no-autolayout enforcement
-- Screen quality (8): header fragmentation, header placement, misclassified interactive root, nested interactive shell, invalid screen shell, bottom overflow, social/nav/stats row crowding
-- Naming (1): default name detection
+- WCAG accessibility (5): contrast, target size, text size, line height, non-text contrast
+- Layout structure (17): fixed-in-autolayout, empty container, spacer frames, nesting depth, button structure, text overflow, form consistency, CTA width consistency, overflow parent, HUG/STRETCH paradox, missing auto-layout, section spacing collapse, input field structure, mobile dimensions, system bar fullbleed, elevation consistency, elevation hierarchy
+- Screen quality (9): header fragmentation, header placement, misclassified interactive root, nested interactive shell, invalid screen shell, bottom overflow, social row crowding, nav overcrowding, stats row crowding
+- Naming (2): default name detection, placeholder text detection
 - Component (1): component binding checks
 
 ## Environment Variables
@@ -201,6 +201,7 @@ Current lint coverage spans token compliance, WCAG accessibility, layout structu
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `FIGCRAFT_RELAY_PORT` | Relay WebSocket port | `3055` |
+| `FIGCRAFT_RELAY_URL` | Full WebSocket relay URL (overrides port) | `ws://localhost:3055` |
 | `FIGCRAFT_CHANNEL` | Channel ID | `figcraft` |
 | `FIGMA_API_TOKEN` | Figma Personal Access Token (for REST API fallback; can also be set in plugin UI or via OAuth) | — |
 | `FIGCRAFT_ACCESS` | Access control level: `read`, `create`, or `edit` | `edit` |
@@ -213,9 +214,15 @@ Requires Node.js >= 20.
 npm install
 npm run build          # Build all (MCP server + relay + plugin)
 npm run build:plugin   # Build Figma plugin only
+npm run dev:relay      # Start WebSocket relay server (for debugging)
+npm run dev:mcp        # Start MCP server (stdio transport)
+npm run schema         # Regenerate tool registry from schema/tools.yaml
+npm run content        # Compile templates, guides, and prompts from content/
 npm run typecheck      # TypeScript type check
 npm run test           # Run unit tests (vitest)
 ```
+
+For details on content assets (templates, guides, prompts) and how to add new ones, see [docs/asset-maintenance.md](docs/asset-maintenance.md).
 
 <details>
 <summary><strong>Run MCP server from source (for development)</strong></summary>
