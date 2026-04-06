@@ -477,6 +477,52 @@ export class Bridge {
     return this.channel;
   }
 
+  /** Whether this instance was evicted by another MCP instance (close code 4001). */
+  get isEvicted(): boolean {
+    return this.evicted;
+  }
+
+  /**
+   * Probe relay health via HTTP `/channels` endpoint.
+   * Returns `{ reachable, pluginConnected }` to help diagnose connection issues.
+   * - reachable: relay HTTP server responds
+   * - pluginConnected: at least one plugin member is on a non-control channel
+   */
+  async probeRelay(): Promise<{ reachable: boolean; pluginConnected: boolean }> {
+    const httpUrl = this.relayUrl.replace(/^ws/, 'http');
+    try {
+      const body = await new Promise<string>((resolve, reject) => {
+        const req = http.get(`${httpUrl}/channels`, { timeout: 3000 }, (res) => {
+          if (res.statusCode && res.statusCode >= 400) {
+            // Non-OK status — relay may be a different service on this port
+            res.resume(); // drain
+            reject(new Error(`HTTP ${res.statusCode}`));
+            return;
+          }
+          let data = '';
+          res.on('data', (chunk: Buffer) => {
+            data += chunk.toString();
+          });
+          res.on('end', () => resolve(data));
+        });
+        req.on('error', reject);
+        req.on('timeout', () => {
+          req.destroy();
+          reject(new Error('timeout'));
+        });
+      });
+      const json = JSON.parse(body) as {
+        ok: boolean;
+        channels: Array<{ channel: string; roles: string[] }>;
+      };
+      if (!json.ok) return { reachable: true, pluginConnected: false };
+      const hasPlugin = (json.channels ?? []).some((ch) => ch.channel !== '__control__' && ch.roles.includes('plugin'));
+      return { reachable: true, pluginConnected: hasPlugin };
+    } catch {
+      return { reachable: false, pluginConnected: false };
+    }
+  }
+
   /** Update the relay URL (must be called before connect). */
   setRelayUrl(url: string): void {
     this.relayUrl = url;

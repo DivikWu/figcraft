@@ -90,13 +90,22 @@ export async function getCurrentPageLogic(
     'Use nodes(method: "get") on specific nodes for full details',
     'Use maxNodes to limit the number of top-level children returned',
   ]);
+  const raw = guarded as Record<string, unknown>;
+  const isEmpty =
+    !raw._error &&
+    (typeof raw.childCount === 'number'
+      ? raw.childCount === 0
+      : Array.isArray(raw.nodes)
+        ? (raw.nodes as unknown[]).length === 0
+        : false);
+  const nextHint = isEmpty
+    ? '\n⚡ NEXT: Page is empty. Continue with get_mode to check library/token status before creating content. Follow the mandatory workflow steps in order.'
+    : '\n⚡ NEXT: Use nodes(method: "get") on specific nodes for detailed inspection. Use lint_fix_all to check design compliance. Use audit_node for deep quality review of a specific element.';
+
   return {
     content: [
       { type: 'text' as const, text: JSON.stringify(guarded) },
-      {
-        type: 'text' as const,
-        text: '\n⚡ NEXT: Use nodes(method: "get") on specific nodes for detailed inspection. Use lint_fix_all to check design compliance. Use audit_node for deep quality review of a specific element.',
-      },
+      { type: 'text' as const, text: nextHint },
     ],
   };
 }

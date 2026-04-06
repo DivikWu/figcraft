@@ -144,7 +144,13 @@ ping:
         ok: true
         channel: "design-1"
     - connected: false
-      error: "Not connected to relay. Start the relay (npm run dev:relay) and open the Figma plugin."
+      error: "Cannot reach the FigCraft relay server."
+      diagnosis:
+        stage: "relay_not_running"
+        steps:
+          - "The relay server is not running or not reachable."
+          - "Ensure FigCraft MCP is running in your IDE."
+          - "If already running, try restarting the IDE or the Figma plugin."
 
 get_mode:
   description: >-
@@ -257,7 +263,13 @@ get_mode:
             description: "Brand logo"
       _hint: "Library mode — tokens and components loaded. NEXT: Reply to user to gather missing preferences (UI type, platform). Do NOT call any more tools. If user provided everything, reply with design proposal instead."
     - connected: false
-      error: "Not connected to Figma. Open the FigCraft plugin in Figma and try again."
+      error: "Relay is running, but no Figma plugin is connected."
+      diagnosis:
+        stage: "plugin_not_open"
+        steps:
+          - "Open your Figma file in the Figma desktop app."
+          - "Run the FigCraft plugin (Plugins → FigCraft)."
+          - "Wait for the plugin UI to show a channel ID, then try again."
 
 set_mode:
   description: >-
@@ -333,13 +345,14 @@ get_creation_guide:
   params:
     topic:
       type: enum
-      values: [layout, multi-screen, batching, tool-behavior, opinion-engine, ui-patterns, responsive, content-states]
+      values: [layout, multi-screen, batching, tool-behavior, opinion-engine, ui-patterns, responsive, content-states, iconography]
       required: true
       description: >-
         Topic: layout (structural rules), multi-screen (flow architecture),
         batching (context budget), tool-behavior (usage patterns),
         opinion-engine (auto-inference docs), ui-patterns (UI type templates),
-        responsive (web breakpoints + auto-layout), content-states (empty/loading/error patterns)
+        responsive (web breakpoints + auto-layout), content-states (empty/loading/error patterns),
+        iconography (icon ordering, sizing, tool chain, design rules)
     uiType:
       type: string
       required: false
@@ -1461,6 +1474,9 @@ icon_create:
     y:
       type: number
       description: "Y position"
+    index:
+      type: number
+      description: "Insertion position in parent's children list (0 = first child, visually leftmost/topmost in auto-layout). Default: append to end."
     colorVariableName:
       type: string
       description: "Color variable for the icon (e.g. 'text/primary')"

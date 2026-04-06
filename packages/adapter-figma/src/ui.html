@@ -646,6 +646,37 @@
 
     .hidden { display: none !important; }
 
+    /* ─── Connection Diagnostic Banner ─── */
+    .conn-banner {
+      display: none;
+      margin: 0 12px 8px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 11px;
+      line-height: 1.5;
+      animation: bannerSlideIn 0.2s ease-out;
+    }
+    @keyframes bannerSlideIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .conn-banner.visible { display: block; }
+    .conn-banner.warn {
+      background: var(--warning-bg);
+      color: var(--text-primary);
+    }
+    .conn-banner.error {
+      background: var(--error-bg);
+      color: var(--text-primary);
+    }
+    .conn-banner-title {
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+    .conn-banner-hint {
+      color: var(--text-secondary);
+    }
+
     .sr-only {
       position: absolute;
       width: 1px;
@@ -954,6 +985,12 @@
     <div id="library-popup" class="library-popup"></div>
   </div>
 
+  <!-- ─── Connection Diagnostic Banner ─── -->
+  <div class="conn-banner" id="conn-banner" role="status">
+    <div class="conn-banner-title" id="conn-banner-title"></div>
+    <div class="conn-banner-hint" id="conn-banner-hint"></div>
+  </div>
+
   <!-- ─── Tab Bar ─── -->
   <div class="tab-bar" role="tablist">
     <button class="tab-btn active" data-tab="activity" data-i18n="tab.activity" role="tab" id="tab-activity" aria-controls="panel-activity" aria-selected="true" type="button">Activity</button>
@@ -1083,6 +1120,7 @@
     let libraryEntries = {};  // { fileKey: { name, url } } — synced from plugin sandbox
     let pendingNameRefresh = {};  // { fileKey: oldName } — tracks in-flight name refresh requests
     let logCount = 0;
+    let lastBannerReason = null; // Track current banner reason for locale re-apply
 
     // ─── Pending response queue ───
     // When WS disconnects while sandbox is processing a request,
@@ -1153,6 +1191,13 @@
         'error.relay.unavailable': 'Cannot connect to relay. Make sure your IDE has FigCraft running.',
         'error.relay.suggestion': 'Try restarting your IDE or check if another process is using the port.',
         'status.retrying': 'Retrying automatically...',
+        'banner.relay.title': 'Cannot connect to relay',
+        'banner.relay.hint': 'No relay found on ports 3055–3060. Ensure FigCraft MCP is running in your IDE.',
+        'banner.relay.hint.persistent': 'Still no relay after multiple retries. Try restarting FigCraft MCP server in your IDE (MCP Servers → figcraft → Restart).',
+        'banner.connecting.title': 'Connecting...',
+        'banner.connecting.hint': 'Scanning ports 3055–3060 for relay server.',
+        'banner.retrying.title': 'Connection lost',
+        'banner.retrying.hint': 'Retrying automatically. Check that your IDE is running.',
       },
       zh: {
         'tab.activity': '日志', 'tab.lint': '设计审查', 'tab.spec': '规范配置', 'tab.settings': '设置',
@@ -1189,6 +1234,13 @@
         'error.relay.unavailable': '无法连接到中继服务，请确认 IDE 已启动 FigCraft。',
         'error.relay.suggestion': '请尝试重启 IDE，或检查端口是否被占用。',
         'status.retrying': '正在自动重试...',
+        'banner.relay.title': '无法连接中继',
+        'banner.relay.hint': '在端口 3055–3060 上未找到中继服务。请确认 IDE 中 FigCraft MCP 正在运行。',
+        'banner.relay.hint.persistent': '多次重试仍无法连接。请在 IDE 中重启 FigCraft MCP 服务（MCP Servers → figcraft → 重启）。',
+        'banner.connecting.title': '连接中...',
+        'banner.connecting.hint': '正在扫描端口 3055–3060 寻找中继服务。',
+        'banner.retrying.title': '连接已断开',
+        'banner.retrying.hint': '正在自动重试，请检查 IDE 是否在运行。',
       }
     };
     // Designer-friendly rule display names
@@ -1284,7 +1336,7 @@
       document.getElementById('lang-zh').classList.toggle('active', lang === 'zh');
       applyLocale();
       // Re-apply dynamic texts that depend on current state
-      setStatus(connected ? 'connected' : 'disconnected', '');
+      setStatus(connected ? 'connected' : 'disconnected', '', lastBannerReason);
       updateModeUI(currentMode);
       if (typeof updateClearBarText === 'function') updateClearBarText();
       parent.postMessage({ pluginMessage: { type: 'save-lang', lang: lang } }, '*');
@@ -1417,22 +1469,54 @@
     });
 
     // ─── Status ───
-    function setStatus(state, text) {
+    function setStatus(state, text, reason) {
       connectBtn.className = 'btn status-btn ' + state;
       const statusSr = document.getElementById('status-sr');
+      const banner = document.getElementById('conn-banner');
+      const bannerTitle = document.getElementById('conn-banner-title');
+      const bannerHint = document.getElementById('conn-banner-hint');
+
+      // Track reason for locale re-apply (null = explicitly clear, undefined = keep previous)
+      if (reason !== undefined) lastBannerReason = reason;
+      var effectiveReason = lastBannerReason;
 
       if (state === 'connected') {
+        lastBannerReason = null;
         statusTextEl.textContent = t('btn.connected');
         if (statusSr) statusSr.textContent = t('status.sr.connected');
         connectBtn.disabled = false;
+        // Hide banner on successful connection
+        banner.classList.remove('visible', 'warn', 'error');
       } else if (state === 'connecting') {
         statusTextEl.textContent = t('btn.connecting');
         if (statusSr) statusSr.textContent = t('status.sr.connecting');
         connectBtn.disabled = true;
+        // Show subtle connecting banner only on first attempt;
+        // on retries, keep the previous diagnostic banner visible
+        if (reconnectAttempt === 0) {
+          bannerTitle.textContent = t('banner.connecting.title');
+          bannerHint.textContent = t('banner.connecting.hint');
+          banner.className = 'conn-banner visible warn';
+        }
       } else {
         statusTextEl.textContent = t('btn.connect');
         if (statusSr) statusSr.textContent = t('status.sr.disconnected');
         connectBtn.disabled = false;
+        // Show diagnostic banner based on reason
+        if (effectiveReason === 'relay_unreachable') {
+          bannerTitle.textContent = t('banner.relay.title');
+          bannerHint.textContent = reconnectAttempt >= 3
+            ? t('banner.relay.hint.persistent')
+            : t('banner.relay.hint');
+          banner.className = 'conn-banner visible error';
+        } else if (effectiveReason === 'retrying') {
+          bannerTitle.textContent = t('banner.retrying.title');
+          bannerHint.textContent = t('banner.retrying.hint');
+          banner.className = 'conn-banner visible warn';
+        } else {
+          // No reason (user disconnect or initial state) — hide banner
+          banner.classList.remove('visible', 'warn', 'error');
+        }
       }
 
       // Update settings tab connection info
@@ -1486,7 +1570,7 @@
         : RELAY_PORTS.slice(0);
 
       if (candidates.length === 0) {
-        setStatus('disconnected', 'Disconnected');
+        setStatus('disconnected', 'Disconnected', 'relay_unreachable');
         if (!silent) {
           log(t('error.relay.unavailable'), 'error');
           log(t('error.relay.suggestion'), 'info');
@@ -1509,7 +1593,7 @@
         openSockets.forEach(function(s) { s.onopen = null; s.onerror = null; s.close(); });
         openSockets = [];
         racingSockets = [];
-        setStatus('disconnected', 'Disconnected');
+        setStatus('disconnected', 'Disconnected', 'relay_unreachable');
         if (!silent) {
           log(t('error.relay.unavailable'), 'error');
           log(t('error.relay.suggestion'), 'info');
@@ -1579,7 +1663,7 @@
           ws.onclose = function() {
             connected = false;
             updateFixBtnTitle();
-            setStatus('disconnected', 'Disconnected');
+            setStatus('disconnected', 'Disconnected', 'retrying');
             // Only log on first disconnect; silent reconnects suppress noise
             if (reconnectAttempt === 0) log('Disconnected', 'error');
             scheduleReconnect();
@@ -1594,7 +1678,7 @@
             settled = true;
             clearTimeout(raceTimeout);
             racingSockets = [];
-            setStatus('disconnected', 'Disconnected');
+            setStatus('disconnected', 'Disconnected', 'relay_unreachable');
             if (!silent) {
               log(t('error.relay.unavailable'), 'error');
               log(t('error.relay.suggestion'), 'info');
@@ -1613,7 +1697,7 @@
       if (ws) { ws.onclose = null; ws.close(); ws = null; }
       connected = false;
       updateFixBtnTitle();
-      setStatus('disconnected', 'Disconnected');
+      setStatus('disconnected', 'Disconnected', null);
       log('Disconnected by user', 'info');
     }
 

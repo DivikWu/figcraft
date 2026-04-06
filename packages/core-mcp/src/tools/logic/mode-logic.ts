@@ -8,6 +8,7 @@ import { getToken } from '../../auth.js';
 import type { Bridge } from '../../bridge.js';
 import { fetchLibraryComponentSets, fetchLibraryComponents, groupComponentsBySet } from '../../figma-api.js';
 import { setFileContext } from '../../rest-fallback.js';
+import { type ConnectionDiagnostic, diagnosticError } from '../connection-diagnostics.js';
 import type { McpResponse } from './node-logic.js';
 
 export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
@@ -23,14 +24,26 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
   }
 
   if (!bridge.isConnected) {
+    // Diagnose the specific failure reason
+    if (bridge.isEvicted) {
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(diagnosticError('evicted')) }],
+      };
+    }
+    const probe = await bridge.probeRelay();
+    let diag: ConnectionDiagnostic;
+    if (!probe.reachable) {
+      diag = diagnosticError('relay_unreachable');
+    } else if (!probe.pluginConnected) {
+      diag = diagnosticError('plugin_not_connected');
+    } else {
+      diag = diagnosticError('plugin_not_responding');
+    }
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify({
-            connected: false,
-            error: 'Not connected to Figma. Open the FigCraft plugin in Figma and try again.',
-          }),
+          text: JSON.stringify(diag),
         },
       ],
     };
@@ -73,14 +86,16 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
         setFileContext(fileKey, documentName);
       }
     } catch {
+      // Diagnose why plugin isn't responding
+      const probe = await bridge.probeRelay();
+      const diag = probe.pluginConnected
+        ? diagnosticError('plugin_not_responding')
+        : diagnosticError('plugin_not_connected');
       return {
         content: [
           {
             type: 'text' as const,
-            text: JSON.stringify({
-              connected: false,
-              error: 'Plugin not responding. Make sure the FigCraft plugin is open in Figma.',
-            }),
+            text: JSON.stringify(diag),
           },
         ],
       };
@@ -186,8 +201,8 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
       contentRules:
         'Realistic, contextually appropriate text. NEVER use "Lorem ipsum", "Text goes here", "Button", "Title".',
       iconRules: hasLibrary
-        ? 'Use library icon components first (search_design_system query:"icon"). Fall back to icon_search + icon_create only when library has no match. NEVER use text characters as icon placeholders.'
-        : 'Single icon style per design (outline/filled/duotone). Use icon_search + icon_create for ALL icons. NEVER use text characters as icon placeholders (">" for chevron, "..." for more).',
+        ? 'Library icon components first (search_design_system), Iconify fallback. Single style, never text placeholders. Full rules: get_creation_guide(topic:"iconography").'
+        : 'Single icon set + style per design. icon_search → icon_create with index for ordering. Never text placeholders. Full rules: get_creation_guide(topic:"iconography").',
       antiSlop: 'No cheap gradients/glow effects. Vary corner radius across hierarchy. Prefer asymmetry over symmetry.',
       // Dynamic: accumulated design decisions from prior create_frame calls (creator mode only)
       ...(!hasLibrary && bridge.designDecisions
@@ -210,8 +225,14 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
       '⚠️ SIZING: Root screen frames MUST include layoutSizingHorizontal:"FIXED" + layoutSizingVertical:"FIXED" explicitly. Without this, Opinion Engine infers HUG and the frame collapses to content size.',
       '⚠️ PLACEHOLDERS: Use type:"frame" (not "rectangle") for any container that needs children later (logos, avatars, chart areas). Rectangles cannot have children. Add layoutMode:"HORIZONTAL", primaryAxisAlignItems:"CENTER", counterAxisAlignItems:"CENTER" to center content inside.',
       hasLibrary
-        ? '⚠️ ICONS: Before calling create_frame, plan all icons needed. Use search_design_system(query:"icon chevron") to find library icon components first. Fall back to icon_search + icon_create only when library has no match. NEVER use text characters as icon placeholders (">" for chevron, "..." for more menu).'
-        : '⚠️ ICONS: Before calling create_frame, plan all icons needed (navigation chevrons, social logos, action icons). Call icon_search to find icons, then include icon_create calls AFTER create_frame. NEVER use text characters as icon placeholders (">" for chevron, "..." for more menu).',
+        ? '⚠️ ICONS: Plan all icons before create_frame. Use search_design_system(query:"icon chevron") to find library icon components first; fall back to icon_search + icon_create. ' +
+          'ORDERING: icon_create with parentId appends to END by default — use index:0 to place icon BEFORE text (left side in HORIZONTAL layout). children array order = visual order in auto-layout. ' +
+          'NEVER use text characters as icon placeholders (">" for chevron, "..." for more). ' +
+          'For full icon patterns: get_creation_guide(topic:"iconography").'
+        : '⚠️ ICONS: Plan all icons before create_frame (navigation chevrons, social logos, action icons). Call icon_search to find icons, then icon_create with parentId + index to place correctly. ' +
+          'ORDERING: icon_create appends to END by default — use index:0 to place icon BEFORE text (left side in HORIZONTAL layout). children array order = visual order in auto-layout. ' +
+          'NEVER use text characters as icon placeholders (">" for chevron, "..." for more). ' +
+          'For full icon patterns: get_creation_guide(topic:"iconography").',
       'nodes update: ordered execution (simple props → fills/strokes → layout sizing → resize → text). Supports width/height directly, text properties, layoutPositioning. Safe to send layoutMode + width in same patch.',
       'For complex or ambiguous parameters, use dryRun:true first to preview Opinion Engine inferences before committing.',
       'After the FIRST create_frame failure, review ALL remaining planned payloads for the same pattern before retrying.',
@@ -233,6 +254,7 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
       batchStrategy: 'get_creation_guide(topic:"batching") — context budget and batching strategy',
       toolPatterns: 'get_creation_guide(topic:"tool-behavior") — tool usage patterns',
       opinionEngine: 'get_creation_guide(topic:"opinion-engine") — create_frame auto-inference docs',
+      iconography: 'get_creation_guide(topic:"iconography") — icon ordering, sizing, tool chain, design rules',
       designRules: 'get_design_guidelines(category) — aesthetic design direction rules',
     },
 

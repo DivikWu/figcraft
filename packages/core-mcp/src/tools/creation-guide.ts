@@ -25,6 +25,7 @@ const TOOL_BEHAVIOR_GUIDE = GUIDES.TOOL_BEHAVIOR;
 const RESPONSIVE_GUIDE = GUIDES.RESPONSIVE;
 const CONTENT_STATES_GUIDE = GUIDES.CONTENT_STATES;
 const OPINION_ENGINE_GUIDE = GUIDES.OPINION_ENGINE;
+const ICONOGRAPHY_GUIDE = GUIDES.ICONOGRAPHY;
 
 // ─── UI Type Templates ───
 // (Templates extracted to content/templates/*.yaml — see scripts/compile-content.ts)
@@ -88,9 +89,10 @@ export function registerCreationGuide(server: McpServer): void {
           'ui-patterns',
           'responsive',
           'content-states',
+          'iconography',
         ])
         .describe(
-          'Topic: layout (structural rules), multi-screen (flow architecture), batching (context budget), tool-behavior (usage patterns), opinion-engine (auto-inference docs), ui-patterns (UI type templates — requires uiType), responsive (web breakpoints + auto-layout), content-states (empty/loading/error patterns)',
+          'Topic: layout (structural rules), multi-screen (flow architecture), batching (context budget), tool-behavior (usage patterns), opinion-engine (auto-inference docs), ui-patterns (UI type templates — requires uiType), responsive (web breakpoints + auto-layout), content-states (empty/loading/error patterns), iconography (icon ordering, sizing, tool chain, design rules)',
         ),
       uiType: z
         .string()
@@ -127,6 +129,9 @@ export function registerCreationGuide(server: McpServer): void {
           break;
         case 'content-states':
           content = CONTENT_STATES_GUIDE;
+          break;
+        case 'iconography':
+          content = ICONOGRAPHY_GUIDE;
           break;
         case 'ui-patterns': {
           if (!uiType) {

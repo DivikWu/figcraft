@@ -5,22 +5,30 @@ AI-powered Figma plugin. Bridges AI IDEs to Figma via MCP for design review, lin
 ## ⛔ Figma UI Creation — Mandatory Pre-Flight (ALL AI IDEs)
 
 <!-- @inject-start: ide-shared/workflow.md -->
+**Tool routing by intent** (decide BEFORE entering the workflow):
+- CREATE/DESIGN UI → FigCraft tools only (workflow below)
+- IMPLEMENT CODE from existing design → Figma Desktop MCP: get_design_context
+- Figma URL in a creation request = WHERE to create, not what to read
+- NEVER call get_design_context on empty pages/frames — it will error and block
+
 Before ANY Figma write operation, complete these steps IN ORDER:
 
 ```
 STEP 0: ping                              → verify plugin connection
 STEP 1: get_current_page(maxDepth=1)      → inspect existing content, find placement
 STEP 2: get_mode                          → check library/token status, get _workflow
+        ├─ always           → load skill: ui-ux-fundamentals
         ├─ library selected → load skill: design-guardian
         └─ no library       → load skill: design-creator
 STEP 3: Follow _workflow.designPreflight  → present proposal → ⛔ WAIT for user confirmation
+        After platform confirmed → load skill: platform-ios / platform-android / responsive-design
 STEP 4: CLASSIFY TASK SCALE → pick creation method:
         ├─ single element   → 1 create_frame call
         ├─ single screen    → 1 create_frame call with full children tree
-        ├─ multi-screen 3-5 → 1 create_frame per screen
-        └─ large flow 6+    → batch 2-3 screens per conversation turn
+        ├─ multi-screen 3-5 → load skill: multi-screen-flow → 1 create_frame per screen
+        └─ large flow 6+    → load skill: multi-screen-flow → batch 2-3 screens per turn
 STEP 5: create_frame + children           → Opinion Engine auto-handles sizing, tokens, pitfalls
-        IF multi-screen → build wrapper with nested screen children, clipsContent: false
+        IF multi-screen → follow multi-screen-flow skill hierarchy (Wrapper → Header → Flow Row → Stage → Screen)
 STEP 6: verify_design                     → lint + screenshot + preflight audit in one call
 ```
 
@@ -92,7 +100,8 @@ Use `list_toolsets` to see current status. Load multiple: `load_toolset({ names:
 
 ### Context Budget (CRITICAL)
 
-0. **NEVER pre-load skills at the start of UI creation tasks.** The auto-loaded context is sufficient for all UI creation without a design system. Allowed: `discloseContext("figma-generate-design")` WITH a design system, `discloseContext("figma-generate-library")` for building design systems. Use `readFile` for individual reference docs as needed.
+0. **ALWAYS load the skills indicated by STEP 2** — `ui-ux-fundamentals` always, plus `design-guardian` (library) or `design-creator` (no library). Additionally: `figma-generate-design` when a design system is present, `figma-generate-library` for building design systems.
+1. After STEP 2 skills are loaded, do NOT call `get_design_guidelines(category:"all")` — the same content is already in context. Use `get_design_guidelines(category:"color")` etc. only when you need to focus on a specific area.
 
 ### Tool Behavior
 

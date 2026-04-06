@@ -796,7 +796,15 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
     },
     {
       "connected": false,
-      "error": "Not connected to relay. Start the relay (npm run dev:relay) and open the Figma plugin."
+      "error": "Cannot reach the FigCraft relay server.",
+      "diagnosis": {
+        "stage": "relay_not_running",
+        "steps": [
+          "The relay server is not running or not reachable.",
+          "Ensure FigCraft MCP is running in your IDE.",
+          "If already running, try restarting the IDE or the Figma plugin."
+        ]
+      }
     }
   ],
   'get_mode': [
@@ -845,7 +853,15 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
     },
     {
       "connected": false,
-      "error": "Not connected to Figma. Open the FigCraft plugin in Figma and try again."
+      "error": "Relay is running, but no Figma plugin is connected.",
+      "diagnosis": {
+        "stage": "plugin_not_open",
+        "steps": [
+          "Open your Figma file in the Figma desktop app.",
+          "Run the FigCraft plugin (Plugins → FigCraft).",
+          "Wait for the plugin UI to show a channel ID, then try again."
+        ]
+      }
     }
   ],
   'set_mode': [

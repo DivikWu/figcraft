@@ -44,6 +44,14 @@ npm run build = schema → content → build:server → build:plugin → build:f
 3. 更新 `skills/README.md` 添加到对应分组
 4. IDE 自动发现，无需改代码
 
+### Skill 内容编写规范
+
+- 每条规则必须是该 skill 场景特有的。如果一条规则在其他场景也适用，它应该放在更通用的 skill 里（如 `figma-create-ui` 或 `ui-ux-fundamentals`）
+- Section 顺序参考现有 skill：Skill Boundaries → Design Direction → On-Demand Guide → 核心内容 → Key Rules（核心内容较重要时可提前）
+- 必须包含 `## Skill Boundaries` section，说明适用范围和相邻 skill 的切换指引
+- 必须包含 `## Design Direction` section（固定文案：`Design rules are delivered by _workflow.designPreflight...`）
+- 如果对应 MCP guide 存在，必须包含 `## On-Demand Guide` section 指向它
+
 ### 修改 Skill
 
 直接编辑 `skills/<name>/SKILL.md`。如果是设计规则 skill，需 `npm run build` 更新 dist/。

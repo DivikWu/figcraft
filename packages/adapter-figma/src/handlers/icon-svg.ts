@@ -20,11 +20,17 @@ export function registerIconSvgHandler(): void {
     if (params.x != null) node.x = params.x as number;
     if (params.y != null) node.y = params.y as number;
 
-    // Append to parent
+    // Append to parent (with optional index for insertion position)
     if (params.parentId) {
       const parent = await findNodeByIdAsync(params.parentId as string);
       if (parent && 'appendChild' in parent) {
-        (parent as FrameNode).appendChild(node);
+        const container = parent as FrameNode;
+        if (params.index != null) {
+          const idx = Math.min(Math.max(0, params.index as number), container.children.length);
+          container.insertChild(idx, node);
+        } else {
+          container.appendChild(node);
+        }
       }
     }
 

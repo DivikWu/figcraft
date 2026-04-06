@@ -1,6 +1,6 @@
 /**
  * Ping tool — verifies MCP Server ↔ Relay ↔ Plugin connectivity.
- * Includes version mismatch detection.
+ * Includes version mismatch detection and step-by-step diagnostics.
  */
 
 import { VERSION as SERVER_VERSION } from '@figcraft/shared';
@@ -8,6 +8,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { Bridge } from '../bridge.js';
 import { setFileContext } from '../rest-fallback.js';
+import { diagnosticError } from './connection-diagnostics.js';
 
 export function registerPing(server: McpServer, bridge: Bridge): void {
   server.tool(
@@ -18,118 +19,112 @@ export function registerPing(server: McpServer, bridge: Bridge): void {
       channel: z.string().optional().describe('Channel ID (defaults to current channel)'),
     },
     async () => {
+      // ── Stage 1: Try connecting if not connected (including after eviction) ──
+      // Unlike request(), ping is a user-initiated diagnostic tool, so we
+      // attempt reconnection even after eviction — the user may have already
+      // removed the duplicate MCP config that caused the eviction.
       if (!bridge.isConnected) {
-        // Try reconnecting — the bridge may have been evicted or disconnected
         try {
           await bridge.connect();
           await bridge.discoverPluginChannel();
         } catch {
-          // Still not connected
+          // Fall through to diagnosis
         }
       }
 
+      // ── Stage 2: If still not connected, diagnose WHY ──
       if (!bridge.isConnected) {
+        if (bridge.isEvicted) {
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify(diagnosticError('evicted')) }],
+          };
+        }
+        const probe = await bridge.probeRelay();
+        if (!probe.reachable) {
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify(diagnosticError('relay_unreachable')) }],
+          };
+        }
+        if (!probe.pluginConnected) {
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify(diagnosticError('plugin_not_connected')) }],
+          };
+        }
+        // Relay is up and plugin is connected somewhere, but bridge couldn't connect
         return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify({
-                connected: false,
-                error: 'Not connected to relay. Start the relay (npm run dev:relay) and open the Figma plugin.',
-              }),
-            },
-          ],
+          content: [{ type: 'text' as const, text: JSON.stringify(diagnosticError('plugin_not_responding')) }],
         };
       }
 
+      // ── Stage 3: Connected — send ping to plugin ──
       const start = Date.now();
       try {
         const result = (await bridge.request('ping', {})) as Record<string, unknown>;
-        const latency = Date.now() - start;
-
-        const pluginVersion = result.pluginVersion as string | undefined;
-        let versionWarning: string | undefined;
-        if (pluginVersion && pluginVersion !== SERVER_VERSION) {
-          versionWarning = `Version mismatch: MCP Server ${SERVER_VERSION}, Plugin ${pluginVersion}. Please rebuild the plugin.`;
-        }
-
-        // Cache file context for REST API fallback
-        const fileKey = result.fileKey as string | undefined;
-        const documentName = result.documentName as string | undefined;
-        if (fileKey && documentName) {
-          setFileContext(fileKey, documentName);
-        }
-
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify({
-                connected: true,
-                latency: `${latency}ms`,
-                serverVersion: SERVER_VERSION,
-                pluginVersion: pluginVersion ?? 'unknown',
-                ...(versionWarning ? { versionWarning } : {}),
-                _hint: 'Connection OK. Proceed with your task — do NOT stop here.',
-                result,
-              }),
-            },
-          ],
-        };
+        return buildSuccessResponse(result, Date.now() - start);
       } catch (err) {
-        // Ping failed — the plugin may be on a different channel.
-        // Try auto-discovering the correct channel and retry once.
+        // Ping failed — try auto-discovering the correct channel and retry
         try {
           await bridge.discoverPluginChannel();
           const retryStart = Date.now();
           const retryResult = (await bridge.request('ping', {})) as Record<string, unknown>;
-          const retryLatency = Date.now() - retryStart;
+          return buildSuccessResponse(retryResult, Date.now() - retryStart, bridge.currentChannel);
+        } catch {
+          // Auto-discovery also failed — diagnose
+        }
 
-          const pluginVersion = retryResult.pluginVersion as string | undefined;
-          let versionWarning: string | undefined;
-          if (pluginVersion && pluginVersion !== SERVER_VERSION) {
-            versionWarning = `Version mismatch: MCP Server ${SERVER_VERSION}, Plugin ${pluginVersion}. Please rebuild the plugin.`;
-          }
-
-          const fileKey = retryResult.fileKey as string | undefined;
-          const documentName = retryResult.documentName as string | undefined;
-          if (fileKey && documentName) {
-            setFileContext(fileKey, documentName);
-          }
-
+        // Connected to relay but plugin not responding
+        const probe = await bridge.probeRelay();
+        if (probe.pluginConnected) {
           return {
             content: [
               {
                 type: 'text' as const,
-                text: JSON.stringify({
-                  connected: true,
-                  latency: `${retryLatency}ms`,
-                  serverVersion: SERVER_VERSION,
-                  pluginVersion: pluginVersion ?? 'unknown',
-                  ...(versionWarning ? { versionWarning } : {}),
-                  _channelAutoSwitched: bridge.currentChannel,
-                  _hint: 'Connection OK (auto-switched channel). Proceed with your task.',
-                  result: retryResult,
-                }),
+                text: JSON.stringify(
+                  diagnosticError('plugin_not_responding', err instanceof Error ? err.message : String(err)),
+                ),
               },
             ],
           };
-        } catch {
-          // Auto-discovery also failed — return original error
         }
-
         return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify({
-                connected: false,
-                error: err instanceof Error ? err.message : String(err),
-              }),
-            },
-          ],
+          content: [{ type: 'text' as const, text: JSON.stringify(diagnosticError('plugin_not_connected')) }],
         };
       }
     },
   );
+}
+
+function buildSuccessResponse(result: Record<string, unknown>, latencyMs: number, autoSwitchedChannel?: string) {
+  const pluginVersion = result.pluginVersion as string | undefined;
+  let versionWarning: string | undefined;
+  if (pluginVersion && pluginVersion !== SERVER_VERSION) {
+    versionWarning = `Version mismatch: MCP Server ${SERVER_VERSION}, Plugin ${pluginVersion}. Please rebuild the plugin.`;
+  }
+
+  // Cache file context for REST API fallback
+  const fileKey = result.fileKey as string | undefined;
+  const documentName = result.documentName as string | undefined;
+  if (fileKey && documentName) {
+    setFileContext(fileKey, documentName);
+  }
+
+  return {
+    content: [
+      {
+        type: 'text' as const,
+        text: JSON.stringify({
+          connected: true,
+          latency: `${latencyMs}ms`,
+          serverVersion: SERVER_VERSION,
+          pluginVersion: pluginVersion ?? 'unknown',
+          ...(versionWarning ? { versionWarning } : {}),
+          ...(autoSwitchedChannel ? { _channelAutoSwitched: autoSwitchedChannel } : {}),
+          _hint: autoSwitchedChannel
+            ? 'Connection OK (auto-switched channel). Proceed with your task.'
+            : 'Connection OK. Proceed with your task — do NOT stop here.',
+          result,
+        }),
+      },
+    ],
+  };
 }

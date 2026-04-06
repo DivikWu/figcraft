@@ -32,6 +32,8 @@ Forms the "create → review → fix" quality loop: `figma-create-ui` → `desig
 |-------|-------------|
 | **responsive-design** | Responsive web design — breakpoints, auto-layout strategy, sizing patterns. |
 | **content-states** | Empty, loading, and error state design patterns for data-driven views. |
+| **iconography** | Icon ordering in auto-layout, tool chain, sizing, spacing, style consistency. |
+| **multi-screen-flow** | Multi-screen flow architecture — wrapper hierarchy, stage containers, step pills, build order. |
 | **design-handoff** | Annotate designs with specs for developer handoff. |
 | **platform-ios** | iOS platform rules — screen dimensions, safe areas, SF Pro, HIG navigation. |
 | **platform-android** | Android platform rules — screen dimensions, Material Design 3, Roboto, navigation. |

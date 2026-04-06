@@ -66,10 +66,11 @@ Use `dryRun:true` to preview all inferences before creating nodes. For full deta
 
 - **Root screen frames** MUST include `layoutSizingHorizontal:"FIXED"` + `layoutSizingVertical:"FIXED"`. Without this, Opinion Engine infers HUG and the frame collapses.
 - **Placeholders** for logos/avatars/charts: use `type:"frame"` (not `"rectangle"`), because rectangles cannot have children.
-- **Icons**: use `icon_search` + `icon_create`, NEVER text characters as placeholders (">" for chevron).
+- **Icons**: use `icon_search` + `icon_create` with `index` param for ordering. NEVER text characters as placeholders. See [iconography](../iconography/SKILL.md).
 - **Content**: realistic, contextually appropriate text. NEVER "Lorem ipsum", "Button", "Title".
 - **dryRun:true** for complex or ambiguous parameters — preview before committing.
 - **After first failure**, review ALL remaining planned payloads for the same pattern before retrying.
+- **Icon ordering (CRITICAL)**: `icon_create` appends to END by default — use `index: 0` to place BEFORE text. Array order = visual order in auto-layout. Full patterns: `get_creation_guide(topic:"iconography")`.
 
 ## On-Demand Guides
 
@@ -78,7 +79,7 @@ Call these MCP tools when you need deeper guidance on a specific topic:
 | Guide | When to load |
 |-------|-------------|
 | `get_creation_guide(topic:"layout")` | Structural layout rules (39 rules from Quality Engine) |
-| `get_creation_guide(topic:"multi-screen")` | Multi-screen flow architecture (3-5+ screens) |
+| `get_creation_guide(topic:"multi-screen")` | Multi-screen flow details (skill `multi-screen-flow` is auto-loaded at STEP 4) |
 | `get_creation_guide(topic:"batching")` | Context budget and batching strategy |
 | `get_creation_guide(topic:"opinion-engine")` | Full Opinion Engine auto-inference documentation |
 | `get_creation_guide(topic:"ui-patterns", uiType:"xxx")` | UI type templates (login, dashboard, settings, etc.) |

@@ -123,9 +123,15 @@ export function registerIconTools(server: McpServer, bridge: Bridge): void {
       parentId: z.string().optional().describe('Parent node ID'),
       x: z.number().optional().describe('X position'),
       y: z.number().optional().describe('Y position'),
+      index: z
+        .number()
+        .optional()
+        .describe(
+          "Insertion position in parent's children list (0 = first child, visually leftmost/topmost in auto-layout). Default: append to end.",
+        ),
       colorVariableName: z.string().optional().describe('Color variable for the icon (e.g. "text/primary")'),
     },
-    async ({ icon, size, name, parentId, x, y, colorVariableName }) => {
+    async ({ icon, size, name, parentId, x, y, colorVariableName, index }) => {
       // 1. Fetch SVG from Iconify
       const result = await fetchIconSvg(icon, size);
       if ('error' in result) {
@@ -140,6 +146,7 @@ export function registerIconTools(server: McpServer, bridge: Bridge): void {
       if (parentId) createParams.parentId = parentId;
       if (x != null) createParams.x = x;
       if (y != null) createParams.y = y;
+      if (index != null) createParams.index = index;
       if (colorVariableName) createParams.colorVariableName = colorVariableName;
 
       const figmaResult = await bridge.request('create_icon_svg', createParams);
