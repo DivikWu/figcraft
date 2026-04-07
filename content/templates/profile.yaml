@@ -16,7 +16,7 @@ structure: |-
           ├── Content list (VERTICAL, FILL/FILL)
           └── Menu list (alternative to tabs — settings/profile style)
                 └── Menu Item (HORIZONTAL, FILL/FIXED 52, padding 0 24, MIN, CENTER, itemSpacing 12)
-                      ├── Icon (22×22, lucide outline)
+                      ├── Icon (24×24, lucide outline)
                       ├── Label (16px, FILL)  ← FILL pushes chevron to right edge
                       └── Chevron (20×20, lucide:chevron-right, muted)
 keyDecisions:
@@ -142,7 +142,7 @@ exampleParams:
           children:
             - type: icon
               icon: "lucide:settings"
-              size: 22
+              size: 24
             - type: text
               content: "Account Settings"
               fontSize: 16

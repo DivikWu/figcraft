@@ -796,7 +796,7 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
     }
   },
   "profile": {
-    "structure": "Screen (VERTICAL, FIXED 402×874, padding 0)\n  ├── Hero Area (VERTICAL, FILL/HUG, padding 24, counterAxisAlignItems CENTER)\n  │     ├── Avatar (80-120px circle, cornerRadius 9999, fill gray-200 placeholder)\n  │     ├── Name (20-24px, semibold, margin-top 16)\n  │     ├── Handle/bio (14px, muted, max 2 lines)\n  │     └── Action Row (HORIZONTAL, HUG/HUG, itemSpacing 12, margin-top 16)\n  │           ├── Primary CTA (\"Edit Profile\" / \"Follow\")\n  │           └── Secondary action (message icon / share)\n  ├── Stats Row (HORIZONTAL, FILL/HUG, padding 16, itemSpacing 0)\n  │     └── Stat × 3 (VERTICAL, layoutGrow 1, counterAxisAlignItems CENTER)\n  │           ├── Value (18-20px, bold)\n  │           └── Label (12px, muted)\n  └── Content Area (VERTICAL, FILL/FILL, padding 0)\n        ├── Tab bar (HORIZONTAL, FILL/HUG, itemSpacing 0) or section headers\n        ├── Content list (VERTICAL, FILL/FILL)\n        └── Menu list (alternative to tabs — settings/profile style)\n              └── Menu Item (HORIZONTAL, FILL/FIXED 52, padding 0 24, MIN, CENTER, itemSpacing 12)\n                    ├── Icon (22×22, lucide outline)\n                    ├── Label (16px, FILL)  ← FILL pushes chevron to right edge\n                    └── Chevron (20×20, lucide:chevron-right, muted)",
+    "structure": "Screen (VERTICAL, FIXED 402×874, padding 0)\n  ├── Hero Area (VERTICAL, FILL/HUG, padding 24, counterAxisAlignItems CENTER)\n  │     ├── Avatar (80-120px circle, cornerRadius 9999, fill gray-200 placeholder)\n  │     ├── Name (20-24px, semibold, margin-top 16)\n  │     ├── Handle/bio (14px, muted, max 2 lines)\n  │     └── Action Row (HORIZONTAL, HUG/HUG, itemSpacing 12, margin-top 16)\n  │           ├── Primary CTA (\"Edit Profile\" / \"Follow\")\n  │           └── Secondary action (message icon / share)\n  ├── Stats Row (HORIZONTAL, FILL/HUG, padding 16, itemSpacing 0)\n  │     └── Stat × 3 (VERTICAL, layoutGrow 1, counterAxisAlignItems CENTER)\n  │           ├── Value (18-20px, bold)\n  │           └── Label (12px, muted)\n  └── Content Area (VERTICAL, FILL/FILL, padding 0)\n        ├── Tab bar (HORIZONTAL, FILL/HUG, itemSpacing 0) or section headers\n        ├── Content list (VERTICAL, FILL/FILL)\n        └── Menu list (alternative to tabs — settings/profile style)\n              └── Menu Item (HORIZONTAL, FILL/FIXED 52, padding 0 24, MIN, CENTER, itemSpacing 12)\n                    ├── Icon (24×24, lucide outline)\n                    ├── Label (16px, FILL)  ← FILL pushes chevron to right edge\n                    └── Chevron (20×20, lucide:chevron-right, muted)",
     "keyDecisions": {
       "avatarSize": "80px compact, 120px prominent — always circle (cornerRadius 9999)",
       "statsLayout": "layoutGrow: 1 on each stat for equal distribution, centered text",
@@ -947,7 +947,7 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
                 {
                   "type": "icon",
                   "icon": "lucide:settings",
-                  "size": 22
+                  "size": 24
                 },
                 {
                   "type": "text",

@@ -22,7 +22,7 @@ Prefer library styles and tokens. Use what exists, skip what doesn't — never l
 
 ## Spacing (Library Addendum)
 
-- MUST use library spacing tokens when available; fall back to 8dp base unit multiples
+- MUST use library spacing tokens when available; fall back to 4px-grid spacing scale
 
 ## Elevation (Library Addendum)
 

@@ -26,11 +26,20 @@ Universal design quality rules. Apply regardless of library mode.
 
 ## Spacing
 
-- MUST use 8px base unit (or library spacing tokens when available), all spacing as multiples: 2 | 4 | 8 | 12 | 16 | 24 | 32 | 48 | 64 | 80 | 96
+- MUST use 4px as the base spatial unit; spacing scale: 2 | 4 | 8 | 12 | 16 | 24 | 32 | 48 | 64 | 80 | 96
+- MUST use 8px as the primary spacing step for padding and gaps: 8 | 12 | 16 | 24 | 32 | 48 | 64 | 80 | 96
 - MUST use larger spacing between groups than within groups (Gestalt proximity)
 - SHOULD follow vertical rhythm: element gap < module gap < section gap < page gap
 - SHOULD use spacing as primary separator — prefer whitespace over dividers/borders
-- NEVER use non-scale values (5px, 7px, 13px, etc.)
+- NEVER use non-scale values for spacing (5px, 7px, 13px, etc.)
+
+## Sizing (4px Grid)
+
+- SHOULD set frame/container width and height as multiples of 4 (e.g. 36, 44, 48, 52, 60, 64, 80, 120, 160, 200, 240, 320, 360, 400)
+- SHOULD set icon size as multiples of 4 (16, 20, 24, 32, 40, 48)
+- Does NOT apply to: fontSize, lineHeight, cornerRadius, strokeWeight — these follow their own scales defined elsewhere
+- Does NOT apply to: platform-specific dimensions (device screen sizes like 402×874, safe area insets like 34px home indicator)
+- When a design-system token or WCAG requirement conflicts with the 4px grid, the token/requirement wins
 
 ## Grid & Layout
 

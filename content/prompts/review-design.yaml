@@ -18,7 +18,7 @@ steps: |
   - Are gradients/shadows refined or cheap-looking?
   - Is there a clear visual hierarchy and focal point?
   - Is composition intentional (asymmetry where appropriate, no uniform grids)?
-  - Is spacing consistent and using library tokens (or 8dp multiples)?
+  - Is spacing consistent and using library tokens (or 4px-grid spacing scale)?
   - Are text contents realistic and contextually appropriate (not placeholder)?
   - Are icons consistent in style (outline/filled/duotone not mixed)?
   - Are shadow levels consistent and within ≤ 3 tiers?

@@ -61,7 +61,7 @@ Load the appropriate design guidelines based on mode:
   - Are colors/fonts bound to library tokens? Flag hardcoded values when tokens exist
   - Is there a clear visual hierarchy and focal point?
   - Is composition intentional (asymmetry where appropriate, no uniform grids)?
-  - Is spacing consistent and using library tokens (or 8dp multiples)?
+  - Is spacing consistent and using library tokens (or 4px-grid spacing scale)?
   - Are text contents realistic and contextually appropriate (not placeholder)?
   - Are icons consistent in style (outline/filled/duotone not mixed)?
   - Are shadow levels consistent and within ≤ 3 tiers?
@@ -109,7 +109,7 @@ Use `get_design_guidelines(category)` for focused reviews:
 |----------|---------------|
 | `color` | Token binding, palette restraint, contrast |
 | `typography` | Text styles, hierarchy, font choice |
-| `spacing` | 8dp grid, token usage, rhythm |
+| `spacing` | 4px grid, token usage, rhythm |
 | `layout` | Auto-layout, sizing, overflow |
 | `composition` | Focal point, asymmetry, whitespace |
 | `content` | Realistic text, no placeholders |
