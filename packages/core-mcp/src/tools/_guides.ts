@@ -47,6 +47,7 @@ create_frame includes an Opinion Engine that automatically handles common Figma 
 | Parent promotion | Children need FILL → parent auto-gets layoutMode | deterministic/ambiguous |
 | Text resize | Empty text → HEIGHT; overflow → HEIGHT; lineHeight fix | deterministic |
 | Empty frame → rectangle | Empty fixed-size frame downgraded to avoid HUG errors | deterministic |
+| Primary-axis overflow shrink | Fixed children exceeding parent width/height auto-shrunk proportionally | deterministic |
 | Font normalization | "700" → "Bold", "SemiBold" → "Semi Bold" | deterministic |
 | Direction | WRAP → HORIZONTAL; name matches row/toolbar → HORIZONTAL | deterministic |
 
@@ -77,7 +78,7 @@ create_frame(dryRun:true) validates without creating:
   TOOL_BEHAVIOR: `# Tool Behavior Rules
 
 ## Mandatory Sequence
-1. Always call ping first to verify connection
+1. Always call get_mode first (built-in ping + page inspection)
 2. Complete workflow in one turn until ⛔ HARD STOP checkpoints
 3. Prefer batch tools: lint_fix_all over lint_check + lint_fix separately
 

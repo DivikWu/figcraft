@@ -12,6 +12,7 @@ create_frame includes an Opinion Engine that automatically handles common Figma 
 | Parent promotion | Children need FILL → parent auto-gets layoutMode | deterministic/ambiguous |
 | Text resize | Empty text → HEIGHT; overflow → HEIGHT; lineHeight fix | deterministic |
 | Empty frame → rectangle | Empty fixed-size frame downgraded to avoid HUG errors | deterministic |
+| Primary-axis overflow shrink | Fixed children exceeding parent width/height auto-shrunk proportionally | deterministic |
 | Font normalization | "700" → "Bold", "SemiBold" → "Semi Bold" | deterministic |
 | Direction | WRAP → HORIZONTAL; name matches row/toolbar → HORIZONTAL | deterministic |
 

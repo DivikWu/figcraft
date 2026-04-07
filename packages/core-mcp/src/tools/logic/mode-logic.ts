@@ -102,6 +102,26 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
     }
   }
 
+  // Phase 2.5: Built-in page inspection (replaces separate get_current_page call in Create workflow)
+  let pageContext: { isEmpty: boolean; childCount: number; topFrameNames: string[] } | undefined;
+  try {
+    const pageResult = (await bridge.request('get_current_page', {
+      maxDepth: 1,
+      maxNodes: 20,
+      detail: 'summary',
+    })) as Record<string, unknown>;
+    const childCount = typeof pageResult.childCount === 'number' ? pageResult.childCount : 0;
+    const nodes = Array.isArray(pageResult.nodes) ? (pageResult.nodes as Record<string, unknown>[]) : [];
+    pageContext = {
+      isEmpty: childCount === 0 && nodes.length === 0,
+      childCount,
+      topFrameNames: nodes.slice(0, 10).map((n) => (n.name as string) || 'unnamed'),
+    };
+  } catch {
+    // Page inspection failed — non-fatal, continue without it
+    pageContext = undefined;
+  }
+
   const result = (await bridge.request('get_mode', {})) as {
     mode: string;
     selectedLibrary?: string;
@@ -219,7 +239,7 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
 
     // After user confirms the design proposal:
     creationSteps: [
-      'get_current_page(maxDepth=1) — inspect existing content, find placement position.',
+      'Page context is included above in pageContext (isEmpty, childCount, topFrameNames). If you need deeper detail (node styles, nested tree), call get_current_page(maxDepth=2).',
       'After platform confirmed: load platform-specific rules via get_creation_guide(topic:"platform-ios") / get_creation_guide(topic:"platform-android") / get_creation_guide(topic:"responsive"). These provide safe areas, typography, navigation patterns, and touch targets specific to the target platform.',
       'Classify task scale: single element / single screen / multi-screen (3-5) / large flow (6+).',
       'Use create_frame + children (declarative) for all creation. children support optional index field for insertion order. type:"rectangle" for simple shapes (dividers, spacers), type:"frame" for containers with children/auto-layout. For text range styling: text(method:"set_range"). For grouping: group_nodes (requires load_toolset("shapes-vectors")). For complex layouts, call get_creation_guide(topic:"layout") for structural rules.',
@@ -299,6 +319,7 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
     connected: true,
     latency: pingLatency,
     ...(versionWarning ? { versionWarning } : {}),
+    ...(pageContext ? { pageContext } : {}),
     ...(result as Record<string, unknown>),
   };
 

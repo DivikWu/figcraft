@@ -1,7 +1,7 @@
 # Tool Behavior Rules
 
 ## Mandatory Sequence
-1. Always call ping first to verify connection
+1. Always call get_mode first (built-in ping + page inspection)
 2. Complete workflow in one turn until ⛔ HARD STOP checkpoints
 3. Prefer batch tools: lint_fix_all over lint_check + lint_fix separately
 

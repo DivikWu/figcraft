@@ -710,6 +710,7 @@ create_frame:
     8. Font preloading → all text fonts collected and loaded in parallel before creation
     9. Per-child error cleanup → failed child creation auto-removes orphan nodes
     10. Auto-focus → viewport scrolls to created node; use export_image for visual verification
+    11. Primary-axis overflow shrink → when fixed-width children exceed parent, auto-shrinks proportionally to fit
 
     Use dryRun:true to preview all inferences BEFORE creating nodes.
   toolset: core

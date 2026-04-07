@@ -623,6 +623,75 @@ export function validateParams(params: Record<string, unknown>, nodePath: string
   // ── 6. Children structural pre-checks (detectable without creation) ──
   if (remainingChildren) {
     const parentWidth = params.width as number | undefined;
+    const parentHeight = params.height as number | undefined;
+
+    // ── 6.0. Primary-axis overflow auto-shrink ──
+    // When a fixed-size parent has HORIZONTAL/VERTICAL layout and ALL children have fixed
+    // dimensions on the primary axis, check if they overflow. If so, shrink proportionally.
+    // Skip when clipsContent is true (designer intends scrolling/clipping).
+    if (effectiveLayoutMode && params.clipsContent !== true) {
+      const isHorizontal = effectiveLayoutMode === 'HORIZONTAL';
+      const parentDim = isHorizontal ? parentWidth : parentHeight;
+      const dimField = isHorizontal ? 'width' : 'height';
+      const sizingField = isHorizontal ? 'layoutSizingHorizontal' : 'layoutSizingVertical';
+      const padStart = isHorizontal
+        ? ((params.paddingLeft ?? params.padding ?? 0) as number)
+        : ((params.paddingTop ?? params.padding ?? 0) as number);
+      const padEnd = isHorizontal
+        ? ((params.paddingRight ?? params.padding ?? 0) as number)
+        : ((params.paddingBottom ?? params.padding ?? 0) as number);
+
+      if (parentDim != null) {
+        const childrenArr = params.children as Record<string, unknown>[];
+        const spacing = (params.itemSpacing ?? 0) as number;
+
+        // Only trigger when ALL children have fixed dimensions (no FILL/HUG)
+        const allFixed = childrenArr.every((c) => {
+          const sizing = c[sizingField] as string | undefined;
+          return c[dimField] != null && sizing !== 'FILL' && sizing !== 'HUG';
+        });
+
+        if (allFixed && childrenArr.length > 0) {
+          const totalChildDim = childrenArr.reduce((sum, c) => sum + (c[dimField] as number), 0);
+          const totalSpacing = spacing * Math.max(0, childrenArr.length - 1);
+          const required = totalChildDim + totalSpacing + padStart + padEnd;
+
+          if (required > parentDim + 1) {
+            const available = parentDim - padStart - padEnd - totalSpacing;
+            const ratio = available / totalChildDim;
+
+            if (ratio >= 0.5) {
+              // Proportionally shrink each child
+              for (const child of childrenArr) {
+                const original = child[dimField] as number;
+                const shrunk = Math.floor(original * ratio);
+                child[dimField] = shrunk;
+                const childName = (child.name as string) ?? dimField;
+                inferences.push({
+                  path: `${nodePath} > ${childName}`,
+                  field: dimField,
+                  from: original,
+                  to: shrunk,
+                  confidence: 'deterministic',
+                  reason: `children total ${dimField} (${Math.round(required)}px) exceeds parent (${parentDim}px) — shrunk proportionally to fit`,
+                });
+              }
+            } else {
+              // Shrink too aggressive (>50%) — warn instead
+              inferences.push({
+                path: nodePath,
+                field: `_${dimField}Overflow`,
+                from: required,
+                to: parentDim,
+                confidence: 'ambiguous',
+                reason: `children total ${dimField} (${Math.round(required)}px) exceeds parent (${parentDim}px) by more than 2× — reduce child count or ${dimField}s manually`,
+              });
+            }
+          }
+        }
+      }
+    }
+
     for (const [idx, childDef] of (params.children as Record<string, unknown>[]).entries()) {
       const child = childDef as Record<string, unknown>;
       const childName = (child.name as string) ?? `child[${idx}]`;

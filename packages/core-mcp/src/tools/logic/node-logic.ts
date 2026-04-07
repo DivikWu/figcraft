@@ -99,7 +99,7 @@ export async function getCurrentPageLogic(
         ? (raw.nodes as unknown[]).length === 0
         : false);
   const nextHint = isEmpty
-    ? '\n⚡ NEXT: Page is empty. Continue with get_mode to check library/token status before creating content. Follow the mandatory workflow steps in order.'
+    ? '\n⚡ IMMEDIATE: Page is empty — call get_mode NOW in this same turn. Do NOT stop or reply to the user yet.'
     : '\n⚡ NEXT: Use nodes(method: "get") on specific nodes for detailed inspection. Use lint_fix_all to check design compliance. Use audit_node for deep quality review of a specific element.';
 
   return {
