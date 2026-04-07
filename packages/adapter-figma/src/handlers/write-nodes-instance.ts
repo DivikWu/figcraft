@@ -12,6 +12,44 @@ import { applyStroke, setComponentProperties } from '../utils/node-helpers.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
 import { getCachedModeLibrary } from './write-nodes.js';
 
+// ─── Semantic text property naming for component conversion ───
+// Assigns semantic roles (title, description, detail, caption) based on position,
+// falls back to layer name or sanitized content for larger groups.
+const SEMANTIC_ROLES = ['title', 'description', 'detail', 'caption'];
+
+function deriveTextPropertyName(textNode: TextNode, index: number, total: number, usedNames: Set<string>): string {
+  const layerName = textNode.name;
+  const content = textNode.characters;
+
+  let name: string;
+
+  // Priority 1: explicit layer name (if different from content — designer intentionally named it)
+  if (layerName !== content && layerName !== 'Text' && !/^Text \d+$/.test(layerName)) {
+    name = layerName;
+  }
+  // Priority 2: semantic role by position (for small groups ≤ 4 items)
+  else if (total <= 4) {
+    name = SEMANTIC_ROLES[index] ?? `text_${index + 1}`;
+  }
+  // Priority 3: sanitize content to slug (for larger groups)
+  else {
+    const slug = content
+      .replace(/[^a-zA-Z0-9\u4e00-\u9fff]+/g, '_')
+      .replace(/^_|_$/g, '')
+      .slice(0, 24);
+    name = slug || `text_${index + 1}`;
+  }
+
+  // Deduplicate
+  const base = name;
+  let counter = 2;
+  while (usedNames.has(name)) {
+    name = `${base}_${counter++}`;
+  }
+  usedNames.add(name);
+  return name;
+}
+
 export function registerInstanceHandlers(): void {
   // ─── Create instance ───
   registerHandler('create_instance', async (params) => {
@@ -74,8 +112,18 @@ export function registerInstanceHandlers(): void {
       }
       findTexts(component);
 
-      for (const t of textNodes) {
-        const propName = t.name || 'Text';
+      // Sort text nodes by vertical then horizontal position for stable semantic naming
+      textNodes.sort((a, b) => {
+        const dy = (a.y ?? 0) - (b.y ?? 0);
+        return Math.abs(dy) > 4 ? dy : (a.x ?? 0) - (b.x ?? 0);
+      });
+
+      const usedNames = new Set<string>();
+      for (let i = 0; i < textNodes.length; i++) {
+        const t = textNodes[i];
+        const propName = deriveTextPropertyName(t, i, textNodes.length, usedNames);
+        // Update the text node name to match the semantic property name
+        t.name = propName;
         try {
           component.addComponentProperty(propName, 'TEXT', t.characters);
           const defs = component.componentPropertyDefinitions;
