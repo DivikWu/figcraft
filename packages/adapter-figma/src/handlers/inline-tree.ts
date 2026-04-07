@@ -578,6 +578,41 @@ export function validateParams(params: Record<string, unknown>, nodePath: string
     }
   }
 
+  // ── 4.55. SPACE_BETWEEN + FILL text + small siblings → downgrade to MIN ──
+  // When a HORIZONTAL container uses SPACE_BETWEEN and has a [small, FILL, small] pattern
+  // (e.g. icon + text + chevron), SPACE_BETWEEN causes itemSpacing to be ignored between
+  // the small elements and the FILL element. Downgrade to MIN so itemSpacing works correctly.
+  if (hasChildren && effectiveLayoutMode === 'HORIZONTAL' && params.primaryAxisAlignItems === 'SPACE_BETWEEN') {
+    const childrenArr = params.children as Record<string, unknown>[];
+    if (childrenArr.length >= 3) {
+      const hasFillChild = childrenArr.some((c) => c.layoutSizingHorizontal === 'FILL');
+      const smallFixedCount = childrenArr.filter((c) => {
+        const w = c.width as number | undefined;
+        const h = c.height as number | undefined;
+        // Both dimensions must be small (or only one specified and it's small)
+        const wSmall = w == null || w <= 32;
+        const hSmall = h == null || h <= 32;
+        const hasDim = w != null || h != null;
+        const isSmall = hasDim && wSmall && hSmall;
+        const isIcon = (c.type as string) === 'icon' || (c.type as string) === 'svg';
+        return isSmall || isIcon;
+      }).length;
+
+      if (hasFillChild && smallFixedCount >= 2) {
+        inferences.push({
+          path: nodePath,
+          field: 'primaryAxisAlignItems',
+          from: 'SPACE_BETWEEN',
+          to: 'MIN',
+          confidence: 'deterministic',
+          reason:
+            'SPACE_BETWEEN with [small, FILL, small] children pattern (e.g. icon + text + chevron) — itemSpacing is ignored between FILL and siblings. Downgraded to MIN so itemSpacing controls gaps correctly.',
+        });
+        params.primaryAxisAlignItems = 'MIN';
+      }
+    }
+  }
+
   // ── 4.6. Spacer frame prevention ──
   // Detect children with spacer-like names and convert to parent itemSpacing.
   if (hasChildren) {
