@@ -31,6 +31,7 @@ import {
 import { registerAuditTools } from './audit.js';
 import { registerAuthTools } from './auth.js';
 import { registerChannelTools } from './channel.js';
+import { registerCreateFrame } from './create-frame.js';
 import { registerCreationGuide } from './creation-guide.js';
 import { registerEndpointTools } from './endpoints.js';
 import { registerExecuteJsTools } from './execute-js.js';
@@ -243,6 +244,9 @@ export function registerAllTools(server: McpServer, bridge: Bridge): void {
 
   // Register icon tools (Iconify integration)
   registerIconTools(server, bridge);
+
+  // Register custom create_frame handler (resolves icon children before forwarding to Plugin)
+  registerCreateFrame(server, bridge);
 
   // Register image tools (Pexels integration)
   registerPexelsTools(server);

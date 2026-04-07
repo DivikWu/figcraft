@@ -46,7 +46,6 @@ export const GENERATED_CORE_TOOLS = new Set([
 export const GENERATED_BRIDGE_TOOLS = new Set([
   'get_selection',
   'list_fonts',
-  'create_frame',
   'create_text',
   'set_current_page',
   'save_version_history',
@@ -119,6 +118,7 @@ export const GENERATED_CUSTOM_TOOLS = new Set([
   'get_channel',
   'get_current_page',
   'get_document_info',
+  'create_frame',
   'lint_fix_all',
   'export_image',
   'execute_js',

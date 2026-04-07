@@ -73,6 +73,8 @@ const MULTI_SCREEN_GUIDE = loadSkillGuide(skillsDir, useSkills, 'multi-screen-fl
 const RESPONSIVE_GUIDE = loadSkillGuide(skillsDir, useSkills, 'responsive-design', 'responsive.md');
 const CONTENT_STATES_GUIDE = loadSkillGuide(skillsDir, useSkills, 'content-states', 'content-states.md');
 const ICONOGRAPHY_GUIDE = loadSkillGuide(skillsDir, useSkills, 'iconography', 'iconography.md');
+const PLATFORM_IOS_GUIDE = loadSkillGuide(skillsDir, useSkills, 'platform-ios', 'platform-ios.md');
+const PLATFORM_ANDROID_GUIDE = loadSkillGuide(skillsDir, useSkills, 'platform-android', 'platform-android.md');
 
 // Compiled guides (source of truth: content/guides/*.md → _guides.ts)
 const BATCHING_GUIDE = GUIDES.BATCHING;
@@ -142,9 +144,11 @@ export function registerCreationGuide(server: McpServer): void {
           'responsive',
           'content-states',
           'iconography',
+          'platform-ios',
+          'platform-android',
         ])
         .describe(
-          'Topic: layout (structural rules), multi-screen (flow architecture), batching (context budget), tool-behavior (usage patterns), opinion-engine (auto-inference docs), ui-patterns (UI type templates — requires uiType), responsive (web breakpoints + auto-layout), content-states (empty/loading/error patterns), iconography (icon ordering, sizing, tool chain, design rules)',
+          'Topic: layout (structural rules), multi-screen (flow architecture), batching (context budget), tool-behavior (usage patterns), opinion-engine (auto-inference docs), ui-patterns (UI type templates — requires uiType), responsive (web breakpoints + auto-layout), content-states (empty/loading/error patterns), iconography (icon ordering, sizing, tool chain, design rules), platform-ios (iOS safe areas, SF Pro, HIG conventions), platform-android (Material Design 3, Roboto, navigation)',
         ),
       uiType: z
         .string()
@@ -184,6 +188,12 @@ export function registerCreationGuide(server: McpServer): void {
           break;
         case 'iconography':
           content = ICONOGRAPHY_GUIDE;
+          break;
+        case 'platform-ios':
+          content = PLATFORM_IOS_GUIDE;
+          break;
+        case 'platform-android':
+          content = PLATFORM_ANDROID_GUIDE;
           break;
         case 'ui-patterns': {
           if (!uiType) {

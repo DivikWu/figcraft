@@ -33,6 +33,7 @@ import {
 } from '../utils/node-helpers.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
 import { ensureLoaded, getEffectStyleByName, getTextStyleId } from '../utils/style-registry.js';
+import { applyIconColor } from './icon-svg.js';
 import type { Inference } from './inline-tree.js';
 import {
   buildCorrectedPayload,
@@ -95,18 +96,13 @@ function normalizeAliases(p: Record<string, unknown>): void {
     p.strokeColor = { _variable: p.strokeVariableName };
     delete p.strokeVariableName;
   }
-  // Padding shorthand — warn if mixed with per-side padding (ambiguous intent)
+  // Padding shorthand — CSS cascade: padding sets base, per-side overrides
   if (p.padding != null) {
-    const perSide = ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'].filter((k) => p[k] != null);
-    if (perSide.length > 0) {
-      throw new Error(
-        `Conflicting padding: "padding" and "${perSide.join('", "')}" both specified. Use either "padding" shorthand or individual sides, not both.`,
-      );
-    }
-    p.paddingTop = p.padding;
-    p.paddingRight = p.padding;
-    p.paddingBottom = p.padding;
-    p.paddingLeft = p.padding;
+    if (p.paddingTop == null) p.paddingTop = p.padding;
+    if (p.paddingRight == null) p.paddingRight = p.padding;
+    if (p.paddingBottom == null) p.paddingBottom = p.padding;
+    if (p.paddingLeft == null) p.paddingLeft = p.padding;
+    delete p.padding;
   }
 }
 
@@ -1269,6 +1265,11 @@ async function createInlineChildren(
           child.height != null,
         );
         applySizingOverrides(svgNode, child);
+        // Apply icon color from _iconMeta (set by MCP Server resolve-icons)
+        if (child._iconMeta && typeof child._iconMeta === 'object') {
+          const meta = child._iconMeta as Record<string, unknown>;
+          await applyIconColor(svgNode, meta.fill as string | undefined, meta.colorVariableName as string | undefined);
+        }
         createdNode = svgNode;
         results.push({ id: svgNode.id, type: 'FRAME', name: svgNode.name });
       } else if (childType === 'star') {

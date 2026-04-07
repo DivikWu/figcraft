@@ -37,8 +37,8 @@ Wrapper (VERTICAL, HUG/HUG, counterAxisAlignItems=MIN, clipsContent=false,
 
 1. **Skeleton first** — `create_frame`: Wrapper + children with full hierarchy (Header + Flow Row + Stages + empty Screens) → check _children in response to confirm structure
 2. **Verify layout** — `export_image(scale:0.3)` to confirm all screens are horizontal in Flow Row. Do NOT proceed until this is confirmed.
-3. **Fill screens** — `create_frame` per screen (parentId=screenId, children=[TopContent, BottomContent]) → `export_image` to verify layout
-4. **Fill remaining screens** — one by one → `export_image` as needed
+3. **Fill screens** — `create_frame` per screen (parentId=screenId, children=[TopContent, BottomContent]). Use inline `{type: "icon", icon: "lucide:home", size: 24}` children for icons — do NOT call `icon_search`/`icon_create` separately. Merge Top + Bottom content into a single `create_frame` call per screen.
+4. **Fill remaining screens** — one `create_frame` per screen → `export_image` as needed
 5. **Lint** — `lint_fix_all` → done
 
 The Opinion Engine automatically handles: sizing inference, FILL ordering, conflict detection, cross-level validation, and failure cleanup. No need to manually handle these Figma API details.
@@ -49,6 +49,7 @@ The Opinion Engine automatically handles: sizing inference, FILL ordering, confl
 - Screen uses `primaryAxisAlignItems: "SPACE_BETWEEN"` for top/bottom distribution
 - Screen dimensions: iOS 402×874, Android 412×915
 - Wrapper fill: light gray (#F3F4F6 or similar) to contrast with white screens
+- Screen is a page-level container, NOT a card — do not add shadow/elevation
 - Use `dryRun: true` when uncertain about parameters
 
 ## Design Direction

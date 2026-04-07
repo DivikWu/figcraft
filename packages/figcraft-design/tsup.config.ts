@@ -14,6 +14,8 @@ const CREATION_GUIDE_SKILLS = [
   { skill: 'responsive-design', out: 'responsive.md' },
   { skill: 'content-states', out: 'content-states.md' },
   { skill: 'iconography', out: 'iconography.md' },
+  { skill: 'platform-ios', out: 'platform-ios.md' },
+  { skill: 'platform-android', out: 'platform-android.md' },
 ] as const;
 
 const SECTIONS_TO_STRIP = ['Skill Boundaries', 'Design Direction', 'On-Demand Guide'];

@@ -201,8 +201,8 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
       contentRules:
         'Realistic, contextually appropriate text. NEVER use "Lorem ipsum", "Text goes here", "Button", "Title".',
       iconRules: hasLibrary
-        ? 'Library icon components first (search_design_system), Iconify fallback. Single style, never text placeholders. Full rules: get_creation_guide(topic:"iconography").'
-        : 'Single icon set + style per design. icon_search → icon_create with index for ordering. Never text placeholders. Full rules: get_creation_guide(topic:"iconography").',
+        ? 'Library icon components first (search_design_system), Iconify fallback. Single style, never text placeholders. MUST call get_creation_guide(topic:"iconography") before placing any icons.'
+        : 'Single icon set + style per design. icon_search → icon_create with index for ordering. Never text placeholders. MUST call get_creation_guide(topic:"iconography") before placing any icons.',
       antiSlop: 'No cheap gradients/glow effects. Vary corner radius across hierarchy. Prefer asymmetry over symmetry.',
       // Dynamic: accumulated design decisions from prior create_frame calls (creator mode only)
       ...(!hasLibrary && bridge.designDecisions
@@ -220,6 +220,7 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
     // After user confirms the design proposal:
     creationSteps: [
       'get_current_page(maxDepth=1) — inspect existing content, find placement position.',
+      'After platform confirmed: load platform-specific rules via get_creation_guide(topic:"platform-ios") / get_creation_guide(topic:"platform-android") / get_creation_guide(topic:"responsive"). These provide safe areas, typography, navigation patterns, and touch targets specific to the target platform.',
       'Classify task scale: single element / single screen / multi-screen (3-5) / large flow (6+).',
       'Use create_frame + children (declarative) for all creation. children support optional index field for insertion order. type:"rectangle" for simple shapes (dividers, spacers), type:"frame" for containers with children/auto-layout. For text range styling: text(method:"set_range"). For grouping: group_nodes (requires load_toolset("shapes-vectors")). For complex layouts, call get_creation_guide(topic:"layout") for structural rules.',
       '⚠️ SIZING: Root screen frames MUST include layoutSizingHorizontal:"FIXED" + layoutSizingVertical:"FIXED" explicitly. Without this, Opinion Engine infers HUG and the frame collapses to content size.',
@@ -228,11 +229,11 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
         ? '⚠️ ICONS: Plan all icons before create_frame. Use search_design_system(query:"icon chevron") to find library icon components first; fall back to icon_search + icon_create. ' +
           'ORDERING: icon_create with parentId appends to END by default — use index:0 to place icon BEFORE text (left side in HORIZONTAL layout). children array order = visual order in auto-layout. ' +
           'NEVER use text characters as icon placeholders (">" for chevron, "..." for more). ' +
-          'For full icon patterns: get_creation_guide(topic:"iconography").'
+          'MUST call get_creation_guide(topic:"iconography") before placing any icons.'
         : '⚠️ ICONS: Plan all icons before create_frame (navigation chevrons, social logos, action icons). Call icon_search to find icons, then icon_create with parentId + index to place correctly. ' +
           'ORDERING: icon_create appends to END by default — use index:0 to place icon BEFORE text (left side in HORIZONTAL layout). children array order = visual order in auto-layout. ' +
           'NEVER use text characters as icon placeholders (">" for chevron, "..." for more). ' +
-          'For full icon patterns: get_creation_guide(topic:"iconography").',
+          'MUST call get_creation_guide(topic:"iconography") before placing any icons.',
       'nodes update: ordered execution (simple props → fills/strokes → layout sizing → resize → text). Supports width/height directly, text properties, layoutPositioning. Safe to send layoutMode + width in same patch.',
       'For complex or ambiguous parameters, use dryRun:true first to preview Opinion Engine inferences before committing.',
       'After the FIRST create_frame failure, review ALL remaining planned payloads for the same pattern before retrying.',

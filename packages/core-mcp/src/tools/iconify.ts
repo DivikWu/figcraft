@@ -23,7 +23,7 @@ function parseIconName(icon: string): { prefix: string; name: string } | null {
 }
 
 // ─── Fetch SVG ───
-async function fetchIconSvg(icon: string, size?: number): Promise<{ svg: string } | { error: string }> {
+export async function fetchIconSvg(icon: string, size?: number): Promise<{ svg: string } | { error: string }> {
   const parsed = parseIconName(icon);
   if (!parsed) {
     return { error: `Invalid icon name "${icon}". Use "prefix:name" format (e.g. "lucide:home", "mdi:account").` };
@@ -130,8 +130,14 @@ export function registerIconTools(server: McpServer, bridge: Bridge): void {
           "Insertion position in parent's children list (0 = first child, visually leftmost/topmost in auto-layout). Default: append to end.",
         ),
       colorVariableName: z.string().optional().describe('Color variable for the icon (e.g. "text/primary")'),
+      fill: z
+        .string()
+        .optional()
+        .describe(
+          "Icon color as hex (e.g. '#FFFFFF'). Applied directly to fill/stroke vectors. Use colorVariableName for token binding instead.",
+        ),
     },
-    async ({ icon, size, name, parentId, x, y, colorVariableName, index }) => {
+    async ({ icon, size, name, parentId, x, y, colorVariableName, fill, index }) => {
       // 1. Fetch SVG from Iconify
       const result = await fetchIconSvg(icon, size);
       if ('error' in result) {
@@ -148,6 +154,7 @@ export function registerIconTools(server: McpServer, bridge: Bridge): void {
       if (y != null) createParams.y = y;
       if (index != null) createParams.index = index;
       if (colorVariableName) createParams.colorVariableName = colorVariableName;
+      if (fill) createParams.fill = fill;
 
       const figmaResult = await bridge.request('create_icon_svg', createParams);
       return jsonResponse(figmaResult);

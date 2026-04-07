@@ -183,6 +183,8 @@ const INSTANCE_PARAMS = new Set([...COMMON_PARAMS, 'componentId', 'variantProper
 
 const SVG_PARAMS = new Set([...COMMON_PARAMS, 'svg']);
 
+const ICON_PARAMS = new Set([...COMMON_PARAMS, 'icon', 'size', 'fill', 'colorVariableName']);
+
 const STAR_PARAMS = new Set([...SHAPE_PARAMS, 'pointCount', 'innerRadius']);
 const POLYGON_PARAMS = new Set([...SHAPE_PARAMS, 'pointCount']);
 
@@ -195,6 +197,7 @@ const PARAM_SETS: Record<string, Set<string>> = {
   polygon: POLYGON_PARAMS,
   instance: INSTANCE_PARAMS,
   svg: SVG_PARAMS,
+  icon: ICON_PARAMS,
 };
 
 /** Common wrong param names → corrective suggestion. */
@@ -335,12 +338,12 @@ function normalizeCorrectedAliases(p: Record<string, unknown>): void {
     p.strokeColor = { _variable: p.strokeVariableName };
     delete p.strokeVariableName;
   }
-  // Padding shorthand
-  if (p.padding != null && p.paddingTop == null) {
-    p.paddingTop = p.padding;
-    p.paddingRight = p.padding;
-    p.paddingBottom = p.padding;
-    p.paddingLeft = p.padding;
+  // Padding shorthand — CSS cascade: padding sets base, per-side overrides
+  if (p.padding != null) {
+    if (p.paddingTop == null) p.paddingTop = p.padding;
+    if (p.paddingRight == null) p.paddingRight = p.padding;
+    if (p.paddingBottom == null) p.paddingBottom = p.padding;
+    if (p.paddingLeft == null) p.paddingLeft = p.padding;
     delete p.padding;
   }
 }

@@ -345,14 +345,16 @@ get_creation_guide:
   params:
     topic:
       type: enum
-      values: [layout, multi-screen, batching, tool-behavior, opinion-engine, ui-patterns, responsive, content-states, iconography]
+      values: [layout, multi-screen, batching, tool-behavior, opinion-engine, ui-patterns, responsive, content-states, iconography, platform-ios, platform-android]
       required: true
       description: >-
         Topic: layout (structural rules), multi-screen (flow architecture),
         batching (context budget), tool-behavior (usage patterns),
         opinion-engine (auto-inference docs), ui-patterns (UI type templates),
         responsive (web breakpoints + auto-layout), content-states (empty/loading/error patterns),
-        iconography (icon ordering, sizing, tool chain, design rules)
+        iconography (icon ordering, sizing, tool chain, design rules),
+        platform-ios (iOS safe areas, SF Pro, HIG conventions),
+        platform-android (Material Design 3, Roboto, navigation)
     uiType:
       type: string
       required: false
@@ -713,7 +715,7 @@ create_frame:
   toolset: core
   write: true
   access: create
-  handler: bridge
+  handler: custom
   timeoutMs: 60000
   params:
     name:
@@ -898,14 +900,15 @@ create_frame:
         fields:
           type:
             type: enum
-            values: [frame, text, rectangle, ellipse, star, polygon, instance, svg]
+            values: [frame, text, rectangle, ellipse, star, polygon, instance, svg, icon]
             description: "Child node type"
       description: >-
-        Inline child nodes to create recursively. Each item: {type:'frame'|'text'|'rectangle'|'ellipse'|'instance'|'svg'|'star'|'polygon', ...params, children?}.
+        Inline child nodes to create recursively. Each item: {type:'frame'|'text'|'rectangle'|'ellipse'|'instance'|'svg'|'star'|'polygon'|'icon', ...params, children?}.
         Frame children accept all create_frame params. Text children accept all create_text params (incl. textCase, textDecoration).
         Rectangle/ellipse children accept: name, width, height, fill, fillVariableName, fillStyleName, strokeColor, strokeVariableName, strokeWeight, cornerRadius (rect only), opacity, rotation.
         Instance children accept: componentId (required), name, width, height, variantProperties, properties, layoutSizingHorizontal/Vertical.
         SVG children accept: svg (required), name, width, height.
+        Icon children accept: icon (required, "prefix:name" e.g. "lucide:home"), size (default: 24), fill (hex color), colorVariableName, name.
         Star children accept: name, width, height, fill, pointCount, innerRadius, opacity, rotation.
         Polygon children accept: name, width, height, fill, pointCount, opacity, rotation.
         Smart defaults apply: cross-axis FILL, primary-axis HUG inside auto-layout parents. Max depth: 10 levels.
@@ -1480,6 +1483,9 @@ icon_create:
     colorVariableName:
       type: string
       description: "Color variable for the icon (e.g. 'text/primary')"
+    fill:
+      type: string
+      description: "Icon color as hex (e.g. '#FFFFFF'). Applied directly to fill/stroke vectors. Use colorVariableName for token binding instead."
   response:
     type: object
     fields:
