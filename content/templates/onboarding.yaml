@@ -41,13 +41,17 @@ exampleParams:
   height: 874
   layoutMode: VERTICAL
   primaryAxisAlignItems: SPACE_BETWEEN
-  padding: 24
-  paddingTop: 60
-  paddingBottom: 34
+  paddingLeft: 24
+  paddingRight: 24
   cornerRadius: 28
   fill: "#FFFFFF"
   clipsContent: true
   children:
+    - type: frame
+      name: Status Bar
+      layoutMode: HORIZONTAL
+      layoutSizingHorizontal: FILL
+      height: 54
     - type: frame
       name: Top Content
       layoutMode: VERTICAL
@@ -101,3 +105,8 @@ exampleParams:
           fill: "#111827"
           primaryAxisAlignItems: CENTER
           counterAxisAlignItems: CENTER
+    - type: frame
+      name: Home Indicator
+      layoutMode: HORIZONTAL
+      layoutSizingHorizontal: FILL
+      height: 34

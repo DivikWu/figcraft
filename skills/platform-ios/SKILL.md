@@ -56,6 +56,11 @@ Rules:
 - Home indicator: 34px bottom on Face ID devices
 - System bar frames MUST be full-bleed: `paddingLeft: 0, paddingRight: 0, paddingTop: 0` (matches lint rule `system-bar-fullbleed`)
 - Content padding: 16px horizontal minimum
+- **Figma implementation**: safe areas MUST be visible transparent frames with `layoutMode: "HORIZONTAL"` (no fill, no stroke), NOT padding or hidden elements
+  - Status Bar: `{ type: 'frame', name: 'Status Bar', layoutMode: 'HORIZONTAL', height: 54 }` as first child of screen
+  - Home Indicator: `{ type: 'frame', name: 'Home Indicator', layoutMode: 'HORIZONTAL', height: 34 }` as last child of screen
+  - NEVER use `visible: false` on safe area frames — they must remain visible to preserve spacing
+  - NEVER use paddingTop/paddingBottom as substitute for safe area frames
 
 ## Typography — SF Pro
 
@@ -74,8 +79,8 @@ Rules:
 | Caption 2 | SF Pro Text | 11px | Regular | 13px |
 
 Rules:
-- SHOULD use SF Pro for iOS designs (check availability with `list_fonts`)
-- If SF Pro unavailable, use Inter as fallback (similar metrics)
+- Font is auto-detected by the tool layer: SF Pro Text/Display for Latin text, PingFang SC for Chinese, Hiragino Sans for Japanese, Apple SD Gothic Neo for Korean. No need to pass `fontFamily` explicitly — just use the correct screen dimensions (402×874) and the tool handles it.
+- If SF Pro is unavailable in the Figma environment, the tool falls back to Inter automatically.
 - MUST maintain the size/weight hierarchy — don't mix Display and Text roles
 
 ## Touch Targets

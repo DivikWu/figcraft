@@ -223,7 +223,7 @@ describe('empty frame invisible detection', () => {
   });
 
   it('empty frame with fixed size but no layoutMode is downgraded to rectangle (step 0)', () => {
-    const child: Record<string, unknown> = { type: 'frame', name: 'Icon Slot', width: 20, height: 20 };
+    const child: Record<string, unknown> = { type: 'frame', name: 'Box', width: 20, height: 20 };
     const params: Record<string, unknown> = {
       layoutMode: 'HORIZONTAL',
       children: [child],
@@ -235,5 +235,34 @@ describe('empty frame invisible detection', () => {
     expect(child.type).toBe('rectangle');
     const inv = result.inferences.find((i) => i.field === '_structure' && i.to === 'invisible');
     expect(inv).toBeUndefined();
+  });
+
+  it('Home Indicator with fixed size but no layoutMode stays as frame (step 0 exemption)', () => {
+    const child: Record<string, unknown> = { type: 'frame', name: 'Home Indicator', width: 354, height: 34 };
+    const params: Record<string, unknown> = {
+      layoutMode: 'VERTICAL',
+      children: [child],
+    };
+
+    const result = validateParams(params, 'Screen');
+
+    // Step 0 exemption: intentional structural name → stays as frame
+    expect(child.type).toBe('frame');
+    const downgrade = result.inferences.find((i) => i.field === 'type' && i.to === 'rectangle');
+    expect(downgrade).toBeUndefined();
+  });
+
+  it('Status Bar with fixed size but no layoutMode stays as frame (step 0 exemption)', () => {
+    const child: Record<string, unknown> = { type: 'frame', name: 'Status Bar', width: 402, height: 54 };
+    const params: Record<string, unknown> = {
+      layoutMode: 'VERTICAL',
+      children: [child],
+    };
+
+    const result = validateParams(params, 'Screen');
+
+    expect(child.type).toBe('frame');
+    const downgrade = result.inferences.find((i) => i.field === 'type' && i.to === 'rectangle');
+    expect(downgrade).toBeUndefined();
   });
 });

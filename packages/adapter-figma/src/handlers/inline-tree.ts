@@ -8,6 +8,11 @@
 import { SPACER_RE } from '@figcraft/quality-engine';
 import type { StructuredHint } from '../utils/hint-aggregator.js';
 
+/** Names that indicate an intentionally empty frame (spacer, placeholder, structural element).
+ *  Used by Step 0 (rectangle downgrade exemption) and Step 6 (invisible frame detection). */
+const INTENTIONAL_EMPTY_RE =
+  /slot|icon|logo|avatar|placeholder|image|thumb|status.?bar|spacer|divider|separator|toolbar|nav.?bar|tab.?bar|action.?bar|header|footer|handle|indicator|home.?indicator/;
+
 /** A single layout inference made during node creation. */
 export interface Inference {
   /** Node path in the tree, e.g. "Card > Header" */
@@ -389,19 +394,24 @@ export function validateParams(params: Record<string, unknown>, nodePath: string
   const hasHUGSizing = params.layoutSizingHorizontal === 'HUG' || params.layoutSizingVertical === 'HUG';
 
   // ── 0. Auto-downgrade: empty frame with fixed size but no layout → rectangle ──
+  // Intentional structural/placeholder frames (spacers, indicators, etc.) are exempt —
+  // they should stay as transparent frames, not become filled rectangles.
   const hasFixedSize = params.width != null || params.height != null;
   if (!hasChildren && hasFixedSize && params.layoutMode == null && !hasALParams) {
-    inferences.push({
-      path: nodePath,
-      field: 'type',
-      from: 'frame',
-      to: 'rectangle',
-      confidence: 'deterministic',
-      reason:
-        'empty frame with fixed size and no layout — auto-downgraded to rectangle (avoids HUG error in auto-layout parents)',
-    });
-    params.type = 'rectangle';
-    return { inferences, hasConflict: false };
+    const nameLC = ((params.name as string) ?? '').toLowerCase();
+    if (!INTENTIONAL_EMPTY_RE.test(nameLC)) {
+      inferences.push({
+        path: nodePath,
+        field: 'type',
+        from: 'frame',
+        to: 'rectangle',
+        confidence: 'deterministic',
+        reason:
+          'empty frame with fixed size and no layout — auto-downgraded to rectangle (avoids HUG error in auto-layout parents)',
+      });
+      params.type = 'rectangle';
+      return { inferences, hasConflict: false };
+    }
   }
 
   // ── 1. layoutMode conflict detection ──
@@ -837,11 +847,7 @@ export function validateParams(params: Record<string, unknown>, nodePath: string
         const noChildren = !Array.isArray(child.children) || (child.children as unknown[]).length === 0;
         if (noFills && noStrokes && noChildren) {
           const nameLC = ((child.name as string) ?? '').toLowerCase();
-          const isIntentionalEmpty =
-            /slot|icon|logo|avatar|placeholder|image|thumb|status.?bar|spacer|divider|separator|toolbar|nav.?bar|tab.?bar|action.?bar|header|footer|handle|indicator|home.?indicator/.test(
-              nameLC,
-            ) ||
-            (child.width != null && child.height != null);
+          const isIntentionalEmpty = INTENTIONAL_EMPTY_RE.test(nameLC) || (child.width != null && child.height != null);
           inferences.push({
             path: childPath,
             field: '_structure',

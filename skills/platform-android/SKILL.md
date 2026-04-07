@@ -55,6 +55,11 @@ Rules:
 - System bar frames MUST be full-bleed: `paddingLeft: 0, paddingRight: 0, paddingTop: 0` (matches lint rule `system-bar-fullbleed`)
 - Content padding: 16dp horizontal minimum
 - Edge-to-edge: content draws behind system bars with appropriate insets
+- **Figma implementation**: safe areas MUST be visible transparent frames with `layoutMode: "HORIZONTAL"` (no fill, no stroke), NOT padding or hidden elements
+  - Status Bar: `{ type: 'frame', name: 'Status Bar', layoutMode: 'HORIZONTAL', height: 24 }` as first child of screen
+  - Navigation Bar: `{ type: 'frame', name: 'Navigation Bar', layoutMode: 'HORIZONTAL', height: 48 }` (gesture) or 80 (3-button) as last child of screen
+  - NEVER use `visible: false` on safe area frames — they must remain visible to preserve spacing
+  - NEVER use paddingTop/paddingBottom as substitute for safe area frames
 
 ## Typography — Roboto / Material Type Scale
 
@@ -77,8 +82,8 @@ Rules:
 | Label Small | Roboto | 11dp | Medium | 16dp | 0.5 |
 
 Rules:
-- SHOULD use Roboto for Android designs (check availability with `list_fonts`)
-- If Roboto unavailable, use Inter as fallback
+- Font is auto-detected by the tool layer: Roboto for Latin text, Noto Sans SC for Chinese, Noto Sans JP for Japanese, Noto Sans KR for Korean. No need to pass `fontFamily` explicitly — just use the correct screen dimensions (412×915) and the tool handles it.
+- If Roboto unavailable, the tool falls back to Inter automatically.
 - Material 3 uses 5 categories × 3 sizes = 15 type roles
 
 ## Touch Targets

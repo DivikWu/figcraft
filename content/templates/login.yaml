@@ -17,7 +17,7 @@ keyDecisions:
   layout: SPACE_BETWEEN distributes top brand + form + bottom links; form group centered vertically
   buttonHeight: ≥48px, full-width on mobile, centered text
   inputSpacing: 12-16px between fields, 24px between form sections
-  padding: horizontal 24px, top 60-80px (below status bar), bottom 34px (home indicator)
+  padding: horizontal 24px; safe areas use dedicated transparent frames (Status Bar 54px, Home Indicator 34px), NOT padding
   inputStructure: HORIZONTAL auto-layout frame with stroke, no standalone text — always wrapped in frame
 pitfalls:
   - "button-structure: CTA height < 48px or missing auto-layout"
@@ -49,13 +49,17 @@ exampleParams:
   height: 874
   layoutMode: VERTICAL
   primaryAxisAlignItems: SPACE_BETWEEN
-  padding: 24
-  paddingTop: 60
-  paddingBottom: 34
+  paddingLeft: 24
+  paddingRight: 24
   cornerRadius: 28
   fill: "#FFFFFF"
   clipsContent: true
   children:
+    - type: frame
+      name: Status Bar
+      layoutMode: HORIZONTAL
+      layoutSizingHorizontal: FILL
+      height: 54
     - type: frame
       name: Top Content
       layoutMode: VERTICAL
@@ -126,3 +130,8 @@ exampleParams:
           layoutSizingHorizontal: FILL
           layoutSizingVertical: HUG
           itemSpacing: 12
+    - type: frame
+      name: Home Indicator
+      layoutMode: HORIZONTAL
+      layoutSizingHorizontal: FILL
+      height: 34

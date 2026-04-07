@@ -196,13 +196,19 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
       "height": 874,
       "layoutMode": "VERTICAL",
       "primaryAxisAlignItems": "SPACE_BETWEEN",
-      "padding": 24,
-      "paddingTop": 60,
-      "paddingBottom": 34,
+      "paddingLeft": 24,
+      "paddingRight": 24,
       "cornerRadius": 28,
       "fill": "#FFFFFF",
       "clipsContent": true,
       "children": [
+        {
+          "type": "frame",
+          "name": "Status Bar",
+          "layoutMode": "HORIZONTAL",
+          "layoutSizingHorizontal": "FILL",
+          "height": 54
+        },
         {
           "type": "frame",
           "name": "Cart Items",
@@ -279,6 +285,13 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
               "counterAxisAlignItems": "CENTER"
             }
           ]
+        },
+        {
+          "type": "frame",
+          "name": "Home Indicator",
+          "layoutMode": "HORIZONTAL",
+          "layoutSizingHorizontal": "FILL",
+          "height": 34
         }
       ]
     }
@@ -535,7 +548,7 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
       "layout": "SPACE_BETWEEN distributes top brand + form + bottom links; form group centered vertically",
       "buttonHeight": "≥48px, full-width on mobile, centered text",
       "inputSpacing": "12-16px between fields, 24px between form sections",
-      "padding": "horizontal 24px, top 60-80px (below status bar), bottom 34px (home indicator)",
+      "padding": "horizontal 24px; safe areas use dedicated transparent frames (Status Bar 54px, Home Indicator 34px), NOT padding",
       "inputStructure": "HORIZONTAL auto-layout frame with stroke, no standalone text — always wrapped in frame"
     },
     "pitfalls": [
@@ -573,13 +586,19 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
       "height": 874,
       "layoutMode": "VERTICAL",
       "primaryAxisAlignItems": "SPACE_BETWEEN",
-      "padding": 24,
-      "paddingTop": 60,
-      "paddingBottom": 34,
+      "paddingLeft": 24,
+      "paddingRight": 24,
       "cornerRadius": 28,
       "fill": "#FFFFFF",
       "clipsContent": true,
       "children": [
+        {
+          "type": "frame",
+          "name": "Status Bar",
+          "layoutMode": "HORIZONTAL",
+          "layoutSizingHorizontal": "FILL",
+          "height": 54
+        },
         {
           "type": "frame",
           "name": "Top Content",
@@ -670,6 +689,13 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
               "itemSpacing": 12
             }
           ]
+        },
+        {
+          "type": "frame",
+          "name": "Home Indicator",
+          "layoutMode": "HORIZONTAL",
+          "layoutSizingHorizontal": "FILL",
+          "height": 34
         }
       ]
     }
@@ -713,13 +739,19 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
       "height": 874,
       "layoutMode": "VERTICAL",
       "primaryAxisAlignItems": "SPACE_BETWEEN",
-      "padding": 24,
-      "paddingTop": 60,
-      "paddingBottom": 34,
+      "paddingLeft": 24,
+      "paddingRight": 24,
       "cornerRadius": 28,
       "fill": "#FFFFFF",
       "clipsContent": true,
       "children": [
+        {
+          "type": "frame",
+          "name": "Status Bar",
+          "layoutMode": "HORIZONTAL",
+          "layoutSizingHorizontal": "FILL",
+          "height": 54
+        },
         {
           "type": "frame",
           "name": "Top Content",
@@ -791,6 +823,13 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
               "counterAxisAlignItems": "CENTER"
             }
           ]
+        },
+        {
+          "type": "frame",
+          "name": "Home Indicator",
+          "layoutMode": "HORIZONTAL",
+          "layoutSizingHorizontal": "FILL",
+          "height": 34
         }
       ]
     }
@@ -1122,13 +1161,19 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
       "height": 874,
       "layoutMode": "VERTICAL",
       "primaryAxisAlignItems": "SPACE_BETWEEN",
-      "padding": 24,
-      "paddingTop": 60,
-      "paddingBottom": 34,
+      "paddingLeft": 24,
+      "paddingRight": 24,
       "cornerRadius": 28,
       "fill": "#FFFFFF",
       "clipsContent": true,
       "children": [
+        {
+          "type": "frame",
+          "name": "Status Bar",
+          "layoutMode": "HORIZONTAL",
+          "layoutSizingHorizontal": "FILL",
+          "height": 54
+        },
         {
           "type": "frame",
           "name": "Top Content",
@@ -1221,6 +1266,13 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
               "itemSpacing": 12
             }
           ]
+        },
+        {
+          "type": "frame",
+          "name": "Home Indicator",
+          "layoutMode": "HORIZONTAL",
+          "layoutSizingHorizontal": "FILL",
+          "height": 34
         }
       ]
     }
