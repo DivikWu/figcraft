@@ -152,7 +152,10 @@ export function registerEndpointTools(server: McpServer, bridge: Bridge): void {
             limit: p.limit as number | undefined,
           }),
         update: (b, p) => bridgeRequestLogic(b, 'patch_nodes', { patches: p.patches }),
-        delete: (b, p) => bridgeRequestLogic(b, 'delete_nodes', { nodeIds: p.nodeIds }),
+        delete: (b, p) =>
+          bridgeRequestLogic(b, 'delete_nodes', {
+            nodeIds: p.nodeIds ?? (p.nodeId ? [p.nodeId as string] : []),
+          }),
         clone: (b, p) => bridgeRequestLogic(b, 'clone_nodes', { items: p.items }),
         reparent: (b, p) => bridgeRequestLogic(b, 'reparent_nodes', { items: p.items }),
       },

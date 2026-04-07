@@ -825,24 +825,31 @@ export function validateParams(params: Record<string, unknown>, nodePath: string
       }
 
       // Frame: no visual content and no children → will be invisible
-      // Intentional placeholder frames (icon slots, logo containers, avatar placeholders)
-      // are downgraded to deterministic so they don't trigger staging — the workflow
-      // recommends creating empty frames first and filling them with icon_create later.
+      // Intentional placeholder/structural frames (icon slots, spacers, status bars, etc.)
+      // are downgraded to deterministic so they don't trigger staging.
+      // Detection: name matches known patterns OR has explicit dimensions.
+      // Note: pure "Spacer" names are typically caught earlier by step 4.6 (SPACER_RE →
+      // itemSpacing conversion). The `spacer` pattern here is defensive — it catches
+      // compound names like "Content Spacer Area" that survive step 4.6.
       if (ct === 'frame') {
         const noFills = child.fill == null && child.fills == null && child.fillVariableName == null;
         const noStrokes = child.stroke == null && child.strokes == null;
         const noChildren = !Array.isArray(child.children) || (child.children as unknown[]).length === 0;
         if (noFills && noStrokes && noChildren) {
           const nameLC = ((child.name as string) ?? '').toLowerCase();
-          const isIntentionalSlot = /slot|icon|logo|avatar|placeholder|image|thumb/.test(nameLC);
+          const isIntentionalEmpty =
+            /slot|icon|logo|avatar|placeholder|image|thumb|status.?bar|spacer|divider|separator|toolbar|nav.?bar|tab.?bar|action.?bar|header|footer|handle|indicator|home.?indicator/.test(
+              nameLC,
+            ) ||
+            (child.width != null && child.height != null);
           inferences.push({
             path: childPath,
             field: '_structure',
             from: undefined,
             to: 'invisible',
-            confidence: isIntentionalSlot ? 'deterministic' : 'ambiguous',
-            reason: isIntentionalSlot
-              ? `empty placeholder frame "${child.name}" — will be filled post-creation (e.g. icon_create)`
+            confidence: isIntentionalEmpty ? 'deterministic' : 'ambiguous',
+            reason: isIntentionalEmpty
+              ? `empty structural/placeholder frame "${child.name}" — will be filled post-creation`
               : 'empty frame with no fills/strokes/children — will be invisible',
           });
         }
