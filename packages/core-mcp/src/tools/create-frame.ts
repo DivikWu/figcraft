@@ -21,6 +21,12 @@ export function registerCreateFrame(server: McpServer, bridge: Bridge): void {
     'Create a frame node with optional auto-layout, fills, stroke, corner radius, and parent. Supports token auto-binding (fillVariableName, strokeVariableName), smart defaults, and inline children for building entire node trees in one call.\nOpinion Engine (automatic inferences — no manual handling needed): 1. layoutMode → auto-inferred as VERTICAL when padding/spacing/alignment/children present 2. layoutSizingHorizontal/Vertical → cross-axis FILL, primary-axis HUG inside auto-layout parent 3. FILL ordering → internally sets FILL AFTER appendChild (avoids Figma API error) 4. Parent promotion → when children declare FILL/HUG but parent has no layoutMode, auto-promotes to VERTICAL 5. Cross-level FILL→HUG downgrade → when parent HUGs on cross-axis, child FILL is downgraded to HUG (prevents 0-collapse) 6. FILL+width conflict detection → rejects contradictory params (e.g. FILL + explicit width) 7. Token auto-binding → fillVariableName/strokeVariableName matched to library variables/styles 8. Font preloading → all text fonts collected and loaded in parallel before creation 9. Per-child error cleanup → failed child creation auto-removes orphan nodes 10. Auto-focus → viewport scrolls to created node; use export_image for visual verification\nUse dryRun:true to preview all inferences BEFORE creating nodes.',
     {
       name: z.string().optional().describe('Frame name (default: "Frame")'),
+      role: z
+        .string()
+        .optional()
+        .describe(
+          "Semantic role (e.g. 'screen', 'button', 'input'). Stored as plugin data for deterministic lint identification.",
+        ),
       x: z.number().optional().describe('X position'),
       y: z.number().optional().describe('Y position'),
       width: z.number().optional().describe('Width in px (omit to shrink-to-content via HUG when auto-layout)'),

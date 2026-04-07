@@ -65,6 +65,8 @@ Use `dryRun:true` to preview all inferences before creating nodes. For full deta
 ## Best Practices
 
 - **Root screen frames** MUST include `layoutSizingHorizontal:"FIXED"` + `layoutSizingVertical:"FIXED"`. Without this, Opinion Engine infers HUG and the frame collapses.
+- **Semantic role**: Screen containers MUST include `role: "screen"`. Buttons SHOULD include `role: "button"`. This enables deterministic lint identification instead of name-regex guessing, especially important for non-English names.
+- **SPACE_BETWEEN children**: Direct child of a SPACE_BETWEEN parent MUST declare `layoutSizingVertical: "FILL"` explicitly — Opinion Engine defaults to HUG which defeats SPACE_BETWEEN.
 - **Placeholders** for logos/avatars/charts: use `type:"frame"` (not `"rectangle"`), because rectangles cannot have children.
 - **Icons**: use `icon_search` + `icon_create` with `index` param for ordering. NEVER text characters as placeholders. See [iconography](../iconography/SKILL.md).
 - **Content**: realistic, contextually appropriate text. NEVER "Lorem ipsum", "Button", "Title".

@@ -5,6 +5,7 @@
  */
 
 import { simplifyNode } from '../adapters/node-simplifier.js';
+import { PLUGIN_DATA_KEYS } from '../constants.js';
 import { registerHandler } from '../registry.js';
 import { hexToFigmaRgb, hexToFigmaRgba } from '../utils/color.js';
 import { autoBindTypography } from '../utils/design-context.js';
@@ -525,6 +526,24 @@ function inferChildSizing(
   const isVertical = parentDir === 'VERTICAL';
   const isShape = isShapeNode(node);
 
+  // SPACE_BETWEEN + single child → FILL on primary axis (HUG defeats SPACE_BETWEEN)
+  if (parentFrame.primaryAxisAlignItems === 'SPACE_BETWEEN' && parentFrame.children.length === 1 && !isShape) {
+    const primaryAxis = isVertical ? 'vertical' : 'horizontal';
+    const primaryField = isVertical ? 'layoutSizingVertical' : 'layoutSizingHorizontal';
+    const primaryExplicit = isVertical ? explicitV : explicitH;
+    if (!primaryExplicit) {
+      setLayoutSizing(node, primaryAxis, 'FILL');
+      hints.push({
+        confidence: 'deterministic',
+        field: primaryField,
+        value: 'FILL',
+        reason: 'single child under SPACE_BETWEEN parent — FILL to stretch (HUG defeats SPACE_BETWEEN)',
+      });
+      if (isVertical) explicitV = 'FILL';
+      else explicitH = 'FILL';
+    }
+  }
+
   // Determine safe cross-axis default:
   // - If parent HUGs on cross-axis → child can't FILL (would collapse to 0), use HUG (or FIXED for shapes)
   // - If parent uses CENTER/MAX/BASELINE alignment → FILL would override alignment, use HUG/FIXED
@@ -595,6 +614,14 @@ function inferChildSizing(
   }
 }
 
+// ─── Role-driven defaults: semantic role → missing property auto-fill ───
+const ROLE_DEFAULTS: Record<string, Record<string, unknown>> = {
+  screen: { layoutMode: 'VERTICAL', clipsContent: true },
+  button: { layoutMode: 'HORIZONTAL', primaryAxisAlignItems: 'CENTER', counterAxisAlignItems: 'CENTER' },
+  input: { layoutMode: 'HORIZONTAL', counterAxisAlignItems: 'CENTER' },
+  header: { layoutMode: 'HORIZONTAL', counterAxisAlignItems: 'CENTER' },
+};
+
 // ─── Core frame setup (shared by create_frame and inline children) ───
 async function setupFrame(frame: FrameNode, p: Record<string, unknown>, ctx: CreateContext): Promise<void> {
   normalizeAliases(p);
@@ -602,6 +629,27 @@ async function setupFrame(frame: FrameNode, p: Record<string, unknown>, ctx: Cre
   frame.name = (p.name as string) ?? 'Frame';
   if (p.x != null) frame.x = p.x as number;
   if (p.y != null) frame.y = p.y as number;
+
+  // ── Semantic role ──
+  if (p.role != null) {
+    frame.setPluginData(PLUGIN_DATA_KEYS.ROLE, p.role as string);
+  }
+
+  // ── Role-driven defaults: fill missing properties from role semantics ──
+  const effectiveRole = (p.role as string) || undefined;
+  if (effectiveRole && ROLE_DEFAULTS[effectiveRole]) {
+    for (const [key, value] of Object.entries(ROLE_DEFAULTS[effectiveRole])) {
+      if (p[key] == null) {
+        p[key] = value;
+        ctx.hints.push({
+          confidence: 'deterministic',
+          field: key,
+          value,
+          reason: `role "${effectiveRole}" default`,
+        });
+      }
+    }
+  }
 
   // ── Smart default: infer layoutMode ──
   const inferredMode = inferLayoutMode(p, ctx.hints);
@@ -903,6 +951,18 @@ async function setupFrame(frame: FrameNode, p: Record<string, unknown>, ctx: Cre
         reason: 'input field minimum',
       });
     }
+  }
+
+  // ── Auto-infer role:"screen" from structural signals (multi-signal convergence) ──
+  // Only when: no explicit role + root-level frame + explicit dimensions + screen-sized
+  if (p.role == null && p.parentId == null && p.width != null && p.height != null && isScreenSize(frame)) {
+    frame.setPluginData(PLUGIN_DATA_KEYS.ROLE, 'screen');
+    ctx.hints.push({
+      confidence: 'deterministic',
+      field: 'role',
+      value: 'screen',
+      reason: 'root-level frame with screen dimensions — auto-tagged for lint identification',
+    });
   }
 }
 
@@ -1517,6 +1577,14 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
         out._correctedPayload = buildCorrectedPayload(params, allInferences);
       }
       out._inferenceCount = allInferences.length;
+
+      // ── Inference transparency: show deterministic inferences to AI ──
+      const deterministicInferences = allInferences.filter((i) => i.confidence === 'deterministic');
+      if (deterministicInferences.length > 0) {
+        out._applied = deterministicInferences.map(
+          (i) => `${i.path}: ${i.field}=${JSON.stringify(i.to)} (${i.reason})`,
+        );
+      }
     }
 
     // Attach typed hints for batch aggregation — cap at 10 most important

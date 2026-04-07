@@ -722,6 +722,9 @@ create_frame:
     name:
       type: string
       description: 'Frame name (default: "Frame")'
+    role:
+      type: string
+      description: "Semantic role (e.g. 'screen', 'button', 'input', 'header', 'container'). Stored as plugin data — lint rules use this for deterministic identification instead of name-regex guessing."
     x:
       type: number
       description: X position

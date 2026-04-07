@@ -21,6 +21,7 @@ const INPUT_NAME_RE = /input|field|text.?field|search.?bar|email.?field|password
 
 function looksLikeScreenContainer(node: AbstractNode): boolean {
   if (node.type !== 'FRAME') return false;
+  if (node.role === 'screen' || node.role === 'page') return true;
   // Only treat as screen container if name matches screen patterns AND has multiple children
   if (SCREEN_NAME_RE.test(node.name) && (node.children?.length ?? 0) >= 2) return true;
   // Containers with 3+ children or 2+ frame-like children are not inputs
@@ -47,6 +48,11 @@ function looksLikeFieldGroup(node: AbstractNode): boolean {
 }
 
 function looksLikeInput(node: AbstractNode): boolean {
+  // ── Declaration-driven: role overrides all heuristics ──
+  if (node.role === 'input' || node.role === 'field') return true;
+  if (node.role && node.role !== 'input' && node.role !== 'field') return false;
+
+  // ── Heuristic fallback (only when role is absent) ──
   if (looksLikeScreenContainer(node)) return false;
   if (looksLikeFieldGroup(node)) return false;
   if (INPUT_NAME_RE.test(node.name)) return true;

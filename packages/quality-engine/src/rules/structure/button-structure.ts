@@ -19,6 +19,7 @@ const PILL_TAG_NAME_RE = /pill|tag|badge|chip|label|step|标签|步骤/i;
 
 function looksLikeScreenContainer(node: AbstractNode): boolean {
   if (node.type !== 'FRAME') return false;
+  if (node.role === 'screen' || node.role === 'page') return true;
   if (SCREEN_NAME_RE.test(node.name) && (node.children?.length ?? 0) >= 2) return true;
   if ((node.children?.length ?? 0) >= 3) return true;
   const frameLikeChildren =
@@ -33,6 +34,11 @@ function looksLikePill(node: AbstractNode): boolean {
 }
 
 function looksLikeButton(node: AbstractNode): boolean {
+  // ── Declaration-driven: role overrides all heuristics ──
+  if (node.role === 'button') return true;
+  if (node.role && node.role !== 'button') return false;
+
+  // ── Heuristic fallback (only when role is absent) ──
   if (PILL_TAG_NAME_RE.test(node.name)) return false;
   if (looksLikePill(node)) return false;
   if (looksLikeScreenContainer(node)) return false;

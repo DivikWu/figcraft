@@ -27,9 +27,10 @@ Wrapper (VERTICAL, HUG/HUG, counterAxisAlignItems=MIN, clipsContent=false,
               │              padding 6/14, itemSpacing=6)
               │     ├── Number ("01", accent color, bold, 13px)
               │     └── Label ("登录", white, medium, 13px)
-              └── Screen / {label} (VERTICAL, FIXED 402×874, cornerRadius=28,
-                                    clipsContent=true, padding, SPACE_BETWEEN)
-                    ├── Top Content (VERTICAL, FILL/HUG)
+              └── Screen / {label} (VERTICAL, FIXED 402×874, role:"screen",
+                                    cornerRadius=28, clipsContent=true, padding,
+                                    SPACE_BETWEEN)
+                    ├── Top Content (VERTICAL, FILL/FILL)
                     └── Bottom Content (VERTICAL, FILL/HUG)
 ```
 
@@ -46,7 +47,9 @@ The Opinion Engine automatically handles: sizing inference, FILL ordering, confl
 ## Key Rules
 
 - ALL ancestor containers of Screen MUST have `clipsContent: false`
+- Screen MUST include `role: "screen"` — prevents lint from misidentifying it as button/input based on name
 - Screen uses `primaryAxisAlignItems: "SPACE_BETWEEN"` for top/bottom distribution
+- Direct child of SPACE_BETWEEN screen MUST declare `layoutSizingVertical: "FILL"` — HUG defeats SPACE_BETWEEN
 - Screen dimensions: iOS 402×874, Android 412×915
 - Wrapper fill: light gray (#F3F4F6 or similar) to contrast with white screens
 - Screen is a page-level container, NOT a card — do not add shadow/elevation

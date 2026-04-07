@@ -613,6 +613,29 @@ export function validateParams(params: Record<string, unknown>, nodePath: string
     }
   }
 
+  // ── 4.56. SPACE_BETWEEN + single child → FILL on primary axis ──
+  // A single HUG child under SPACE_BETWEEN defeats the distribution intent.
+  if (hasChildren && params.primaryAxisAlignItems === 'SPACE_BETWEEN') {
+    const childrenArr = params.children as Record<string, unknown>[];
+    if (childrenArr.length === 1) {
+      const child = childrenArr[0];
+      const isVertical = effectiveLayoutMode === 'VERTICAL';
+      const sizingField = isVertical ? 'layoutSizingVertical' : 'layoutSizingHorizontal';
+      if (child[sizingField] == null) {
+        const childName = (child.name as string) ?? 'child';
+        inferences.push({
+          path: `${nodePath} > ${childName}`,
+          field: sizingField,
+          from: undefined,
+          to: 'FILL',
+          confidence: 'deterministic',
+          reason: 'single child under SPACE_BETWEEN parent — FILL to stretch (HUG defeats SPACE_BETWEEN)',
+        });
+        child[sizingField] = 'FILL';
+      }
+    }
+  }
+
   // ── 4.6. Spacer frame prevention ──
   // Detect children with spacer-like names and convert to parent itemSpacing.
   if (hasChildren) {

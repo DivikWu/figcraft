@@ -5,7 +5,10 @@ function isFormLike(node: AbstractNode): boolean {
 }
 
 function isButtonLike(node: AbstractNode): boolean {
+  // ── Declaration-driven: role overrides all heuristics ──
   if (node.role === 'button') return true;
+  if (node.role && node.role !== 'button') return false;
+
   return (
     /button|btn|submit|continue|next|sign.?in|sign.?up|login|register|cta/i.test(node.name) ||
     !!node.fills?.some((fill) => fill.visible !== false && fill.type === 'SOLID')
@@ -13,7 +16,10 @@ function isButtonLike(node: AbstractNode): boolean {
 }
 
 function isInputLike(node: AbstractNode): boolean {
+  // ── Declaration-driven: role overrides all heuristics ──
   if (node.role === 'input' || node.role === 'field') return true;
+  if (node.role && node.role !== 'input' && node.role !== 'field') return false;
+
   return (
     /input|field|email|password|username|search/i.test(node.name) ||
     !!node.strokes?.some((stroke) => stroke.visible !== false)

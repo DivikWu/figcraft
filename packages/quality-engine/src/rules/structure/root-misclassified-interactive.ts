@@ -5,7 +5,10 @@ const BUTTON_NAME_RE = /button|btn|submit|cta|sign.?in|sign.?up|log.?in|登录|�
 const INPUT_NAME_RE = /input|field|text.?field|search.?bar|邮箱|密码|用户名|email|password|username/i;
 
 function isInteractiveShell(node: AbstractNode): boolean {
+  // ── Declaration-driven: role overrides all heuristics ──
   if (node.role === 'button' || node.role === 'input' || node.role === 'field') return true;
+  if (node.role && node.role !== 'button' && node.role !== 'input' && node.role !== 'field') return false;
+
   if (node.type !== 'FRAME' && node.type !== 'COMPONENT') return false;
   const hasDirectTextChild = node.children?.some((child) => child.type === 'TEXT') ?? false;
   const compactShell = (node.children?.length ?? 0) <= 3;

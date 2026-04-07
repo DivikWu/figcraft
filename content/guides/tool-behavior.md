@@ -13,6 +13,12 @@
 6. nodes(method:"update") uses 5-phase ordered execution: simple props → fills/strokes → layout sizing → resize → text. Safe to send layoutMode + width in same patch.
 7. nodes(method:"update") supports width/height directly (calls resize internally), text properties, and layoutPositioning.
 
+## Semantic Role
+8. Use `role:"screen"` for screen containers, `role:"button"` for buttons, `role:"input"` for inputs, `role:"header"` for headers. Role is stored as plugin data — lint rules use it for deterministic identification instead of name-regex guessing.
+9. Role triggers automatic property defaults: `role:"screen"` → VERTICAL + clipsContent:true; `role:"button"` → HORIZONTAL + CENTER/CENTER; `role:"input"` → HORIZONTAL + CENTER. Explicit params always override role defaults.
+10. If role is omitted for a root-level frame with screen dimensions (402×874 etc.), the system auto-infers `role:"screen"` for lint. But always prefer explicit declaration.
+
 ## Validation
-8. dryRun:true for complex or ambiguous parameters — preview Opinion Engine inferences before committing
-9. After the FIRST create_frame failure, review ALL remaining planned payloads for the same pattern before retrying
+11. dryRun:true for complex or ambiguous parameters — preview Opinion Engine inferences before committing
+12. After the FIRST create_frame failure, review ALL remaining planned payloads for the same pattern before retrying
+13. Check the `_applied` field in create_frame responses — it lists all deterministic inferences the Opinion Engine made (e.g., role defaults, sizing inference). Use this to understand what the system auto-filled.
