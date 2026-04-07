@@ -5,7 +5,9 @@
 - [x] 三组件中继架构（MCP Server + Relay + Plugin）
 - [x] 双模式操作（Library / Spec）
 - [x] 136 个 MCP 工具（31 核心 + 13 工具集）
-- [x] Opinion Engine（10 条推断规则）
+- [x] Opinion Engine Level 2（语义级推断 — role→defaults, SPACE_BETWEEN FILL, auto-role, `_applied` 透明度）
+- [x] 声明驱动 lint 架构（role-aware 识别，5 条启发式规则统一接入）
+- [x] 组件文本语义命名（title/description/detail/caption 自动分配）
 - [x] 质量引擎（38 条 lint 规则 + 自动修复）
 - [x] DTCG Token 同步（幂等、全类型映射）
 - [x] 9 种 UI 类型模板 + 8 个创建指南 topic
@@ -23,7 +25,7 @@
 - [ ] 基于 lint_stats 数据调整规则 severity 和 prevention checklist 优先级
 - [ ] 补充 UI 模板的 keyDecisions（从实际违规中发现遗漏）
 - [ ] 扩展基准测试场景（tablet、web、暗色模式变体）
-- [ ] Opinion Engine 新增推断（从重复的创建模式中提炼）
+- [ ] Opinion Engine 覆盖面扩展（新 role 值、新布局推断规则、新 auto-role 信号，按实际创建错误驱动）
 
 ## 中期（v0.3.x — 深度集成）
 
