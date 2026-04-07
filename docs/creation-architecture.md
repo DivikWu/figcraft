@@ -153,40 +153,38 @@ Level 1（属性级推断）→ Level 2（语义级推断）→ Level 3（意图
 3. **`content/guides/tool-behavior.md`** — Semantic Role 节加说明
 4. `npm run schema && npm run content && npm run build`
 
-### 新推断规则
+### 新场景处理策略
 
-当某种父子布局组合导致 AI 必须记违反直觉的参数时：
+新场景**默认用 warning**，只有同时满足以下全部条件才升级为自动修复规则：
 
-1. **`inline-tree.ts`** validateParams — 处理 inline children 路径
-2. **`write-nodes-create.ts`** inferChildSizing — 处理 parentId 路径
-3. `npm run build:plugin`
-
-AI 不需要被告知——系统自动生效，`_applied` 被动学习。
-
-### 新 auto-role 信号
-
-当某类节点 AI 经常忘传 role 但有明显结构特征时：
-
-1. **`write-nodes-create.ts`** setupFrame 末尾 — 加多信号收敛条件（至少 3 个独立信号）
-2. `npm run build:plugin`
-
-### 判断标准
-
-| 加 | 不加 |
+| 升级为规则 | 保持 warning |
 |---|---|
 | 同一遗漏出现 2+ 次 | 只出现 1 次的偶发遗漏 |
-| 规则是确定性的 | 规则是概率性的 |
-| 只补全缺失值 | 会覆盖显式声明 |
-| 加一行代码解决 | 需要新机制或架构变更 |
+| 答案确定性（只有一个正确选择） | 有歧义（多个合理选择） |
+| 只补全缺失值，不覆盖显式声明 | 会改变 AI 显式传的参数 |
+
+**原因**：
+- AI 不跨 session 学习——自动修复规则每个 session 都有恒定价值
+- 但推断规则的维护成本也是恒定的——只有高频确定性模式才值得
+- Warning 质量投资覆盖所有场景（包括无规则覆盖的），通用性更强
+- 随着 AI 模型进步，warning 触发的重试次数自然减少
+
+### Warning 质量标准
+
+每个 warning/error 消息应包含：
+- **问题**：什么不对
+- **候选项**：可用的正确值（如 `Available: Shadow/Sm, Shadow/Md, ...`）
+- **修复建议**：AI 应该怎么做（如 `call search_design_system(query:"X")`）
 
 ## 竞品对比（Vibma）
 
 | 维度 | FigCraft | Vibma |
 |------|----------|-------|
 | 推断深度 | 更深（语义级 + 更多边界情况） | 属性级 |
-| 推断透明度 | `_applied` 字段 | hints confirm/warn |
+| 推断透明度 | `_applied` 全覆盖 | hints confirm/warn |
 | 语义识别 | pluginData role 系统 | 无 |
 | 参数负担 | role→defaults 减少 ~60% | 全部手传 |
+| 新场景策略 | 默认 warning，高频确定性升级规则 | 默认 warning |
 | 文本语义 | title/description/detail/caption | 相同策略 |
 | Staging | dryRun + two-path authoring | auto-stage |
 
