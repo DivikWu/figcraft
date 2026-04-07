@@ -33,7 +33,13 @@ import {
   setComponentProperties,
 } from '../utils/node-helpers.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
-import { ensureLoaded, getEffectStyleByName, getTextStyleId } from '../utils/style-registry.js';
+import {
+  ensureLoaded,
+  getAvailableEffectStyleNames,
+  getAvailableTextStyleNames,
+  getEffectStyleByName,
+  getTextStyleId,
+} from '../utils/style-registry.js';
 import { applyIconColor } from './icon-svg.js';
 import type { Inference } from './inline-tree.js';
 import {
@@ -46,6 +52,109 @@ import {
 import { PRE_RULE_TO_LINT_RULE, quickLintSummary } from './lint-inline.js';
 import { getCachedModeLibrary, resolveFontAsync } from './write-nodes.js';
 
+// ─── Platform detection & font resolution ───
+
+type Platform = 'ios' | 'android' | 'web' | 'unknown';
+
+/** CJK Unicode range detection. */
+const CJK_RE =
+  // biome-ignore lint/suspicious/noMisleadingCharacterClass: intentional CJK range
+  /[\u4E00-\u9FFF\u3400-\u4DBF\u{20000}-\u{2A6DF}\u{2A700}-\u{2B73F}\u{2B740}-\u{2B81F}\u{2B820}-\u{2CEAF}\u{2CEB0}-\u{2EBEF}\u{30000}-\u{3134F}\u3000-\u303F\uFF00-\uFFEF]/u;
+const KANA_RE = /[\u3040-\u309F\u30A0-\u30FF\u31F0-\u31FF]/;
+const HANGUL_RE = /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F\uA960-\uA97F\uD7B0-\uD7FF]/;
+
+/** Detect platform from screen dimensions. */
+function detectPlatformFromDimensions(width: number, height: number): Platform {
+  // iOS: iPhone SE (375×667) → iPhone 16 Pro Max (440×956)
+  if (width >= 375 && width <= 440 && height >= 667 && height <= 960) return 'ios';
+  // iOS: iPad range
+  if (width >= 768 && width <= 1024 && height >= 1024 && height <= 1366) return 'ios';
+  // Android: common widths 360–412, heights 640–915
+  if (width >= 340 && width < 375 && height >= 640 && height <= 920) return 'android';
+  if (width >= 412 && width <= 414 && height >= 869 && height <= 920) return 'android';
+  // Web: wider than mobile
+  if (width >= 1024) return 'web';
+  return 'unknown';
+}
+
+/** Walk up the node tree to find the nearest screen ancestor and detect platform. */
+function detectPlatformFromAncestors(node: BaseNode): Platform {
+  let current: BaseNode | null = node;
+  while (current) {
+    if ('width' in current && 'height' in current) {
+      const w = Math.round((current as any).width);
+      const h = Math.round((current as any).height);
+      const role = 'getPluginData' in current ? (current as SceneNode).getPluginData(PLUGIN_DATA_KEYS.ROLE) : '';
+      if (role === 'screen') {
+        return detectPlatformFromDimensions(w, h);
+      }
+    }
+    current = current.parent;
+  }
+  return 'unknown';
+}
+
+/** Platform-aware font defaults based on text content script detection. */
+interface PlatformFontResult {
+  family: string;
+  style: string;
+  note: string | null;
+}
+
+const PLATFORM_FONTS: Record<
+  Platform,
+  {
+    latin: string;
+    cjkSC: string;
+    cjkTC: string;
+    cjkJP: string;
+    cjkKR: string;
+  }
+> = {
+  ios: {
+    latin: 'SF Pro Text',
+    cjkSC: 'PingFang SC',
+    cjkTC: 'PingFang TC',
+    cjkJP: 'Hiragino Sans',
+    cjkKR: 'Apple SD Gothic Neo',
+  },
+  android: {
+    latin: 'Roboto',
+    cjkSC: 'Noto Sans SC',
+    cjkTC: 'Noto Sans TC',
+    cjkJP: 'Noto Sans JP',
+    cjkKR: 'Noto Sans KR',
+  },
+  web: {
+    latin: 'Inter',
+    cjkSC: 'Noto Sans SC',
+    cjkTC: 'Noto Sans TC',
+    cjkJP: 'Noto Sans JP',
+    cjkKR: 'Noto Sans KR',
+  },
+  unknown: {
+    latin: 'Inter',
+    cjkSC: 'Inter',
+    cjkTC: 'Inter',
+    cjkJP: 'Inter',
+    cjkKR: 'Inter',
+  },
+};
+
+/** Detect the dominant script in text content and return the appropriate font family. */
+function platformDefaultFont(platform: Platform, content: string): string {
+  const fonts = PLATFORM_FONTS[platform];
+  if (!content) return fonts.latin;
+
+  // Check for CJK scripts — prioritize by specificity
+  if (HANGUL_RE.test(content)) return fonts.cjkKR;
+  if (KANA_RE.test(content)) return fonts.cjkJP;
+  // Distinguish SC vs TC: use SC as default for CJK (most common in mainland China)
+  if (CJK_RE.test(content)) return fonts.cjkSC;
+
+  return fonts.latin;
+}
+
 // ─── Shared context for library-aware creation ───
 interface CreateContext {
   useLib: boolean;
@@ -55,13 +164,15 @@ interface CreateContext {
   warnings: string[];
   /** Typed hints emitted directly (bypassing StructuredHint conversion). */
   typedHints: Hint[];
+  /** Detected target platform for font resolution. */
+  platform: Platform;
 }
 
 async function initCreateContext(): Promise<CreateContext> {
   const [mode, library] = await getCachedModeLibrary();
   const useLib = mode === 'library' && !!library;
   if (useLib) await ensureLoaded(library!);
-  return { useLib, library, libraryBindings: [], hints: [], warnings: [], typedHints: [] };
+  return { useLib, library, libraryBindings: [], hints: [], warnings: [], typedHints: [], platform: 'unknown' };
 }
 
 // ─── Alias normalization: fillVariableName/fillStyleName → fill ───
@@ -614,6 +725,9 @@ function inferChildSizing(
   }
 }
 
+// Fields already tracked by structuredHintsToInferences (avoids double-counting in _applied)
+const INFERRED_FIELDS_SET = new Set(['layoutMode', 'layoutSizingHorizontal', 'layoutSizingVertical']);
+
 // ─── Role-driven defaults: semantic role → missing property auto-fill ───
 const ROLE_DEFAULTS: Record<string, Record<string, unknown>> = {
   screen: { layoutMode: 'VERTICAL', clipsContent: true },
@@ -853,10 +967,16 @@ async function setupFrame(frame: FrameNode, p: Record<string, unknown>, ctx: Cre
         if (registryMatch) {
           await setEffectStyleIdAsync(frame, registryMatch.id);
         } else {
-          ctx.warnings.push(`effectStyle "${name}" not found in local styles or library "${ctx.library}"`);
+          const avail = getAvailableEffectStyleNames(10);
+          ctx.warnings.push(
+            `effectStyle "${name}" not found in local styles or library "${ctx.library}".${avail.length > 0 ? ` Available: ${avail.join(', ')}` : ''}`,
+          );
         }
       } else {
-        ctx.warnings.push(`effectStyle "${name}" not found`);
+        const avail = getAvailableEffectStyleNames(10);
+        ctx.warnings.push(
+          `effectStyle "${name}" not found.${avail.length > 0 ? ` Available: ${avail.join(', ')}` : ''}`,
+        );
       }
     } catch (err) {
       ctx.warnings.push(`effectStyle failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -973,7 +1093,8 @@ async function setupText(text: TextNode, p: Record<string, unknown>, ctx: Create
   const content = (p.content as string) ?? (p.text as string) ?? '';
   const name = (p.name as string) ?? (content || 'Text');
   const fontSize = (p.fontSize as number) ?? 14;
-  const fontFamily = (p.fontFamily as string) ?? 'Inter';
+  const explicitFontFamily = p.fontFamily as string | undefined;
+  const fontFamily = explicitFontFamily ?? platformDefaultFont(ctx.platform, content);
   const fontStyle = normalizeFontStyle((p.fontStyle as string) ?? 'Regular');
 
   const fontResolution = await resolveFontAsync(fontFamily, fontStyle);
@@ -1049,7 +1170,10 @@ async function setupText(text: TextNode, p: Record<string, unknown>, ctx: Create
           await setTextStyleIdAsync(text, match.id);
           ctx.libraryBindings.push(`textStyle:${match.name}`);
         } else {
-          ctx.warnings.push(`textStyle "${name}" not found`);
+          const avail = getAvailableTextStyleNames(10);
+          ctx.warnings.push(
+            `textStyle "${name}" not found.${avail.length > 0 ? ` Available: ${avail.join(', ')}` : ''}`,
+          );
         }
       } catch (err) {
         ctx.warnings.push(`textStyle lookup failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -1195,19 +1319,20 @@ async function createShapeChild(
 const MAX_INLINE_DEPTH = 10;
 
 /** Recursively collect unique font specs from text children for batch preloading. */
-function collectTextFonts(children: unknown[]): Array<{ family: string; style: string }> {
+function collectTextFonts(children: unknown[], platform: Platform): Array<{ family: string; style: string }> {
   const fonts: Array<{ family: string; style: string }> = [];
   for (const childDef of children) {
     const child = childDef as Record<string, unknown>;
     const type = (child.type as string) ?? 'frame';
     if (type === 'text') {
+      const content = (child.content as string) ?? (child.text as string) ?? '';
       fonts.push({
-        family: (child.fontFamily as string) ?? 'Inter',
+        family: (child.fontFamily as string) ?? platformDefaultFont(platform, content),
         style: normalizeFontStyle((child.fontStyle as string) ?? 'Regular'),
       });
     }
     if (Array.isArray(child.children)) {
-      fonts.push(...collectTextFonts(child.children));
+      fonts.push(...collectTextFonts(child.children, platform));
     }
   }
   return fonts;
@@ -1226,7 +1351,7 @@ async function createInlineChildren(
 
   // Batch-preload all text fonts at root level (parallel Promise.all vs serial per-node)
   if (depth === 0) {
-    const fonts = collectTextFonts(children);
+    const fonts = collectTextFonts(children, ctx.platform);
     const unique = [...new Map(fonts.map((f) => [`${f.family}:${f.style}`, f])).values()];
     if (unique.length > 0) {
       await Promise.all(unique.map((f) => resolveFontAsync(f.family, f.style)));
@@ -1538,6 +1663,13 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
       }
     }
 
+    // Detect platform from screen ancestor for font resolution
+    ctx.platform = detectPlatformFromAncestors(frame);
+    // Also detect from frame itself if it's a screen
+    if (ctx.platform === 'unknown' && params.width != null && params.height != null) {
+      ctx.platform = detectPlatformFromDimensions(params.width as number, params.height as number);
+    }
+
     inferChildSizing(
       frame,
       parentNode,
@@ -1578,13 +1710,21 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
       }
       out._inferenceCount = allInferences.length;
 
-      // ── Inference transparency: show deterministic inferences to AI ──
-      const deterministicInferences = allInferences.filter((i) => i.confidence === 'deterministic');
-      if (deterministicInferences.length > 0) {
-        out._applied = deterministicInferences.map(
-          (i) => `${i.path}: ${i.field}=${JSON.stringify(i.to)} (${i.reason})`,
-        );
+      // ── Inference transparency: show ALL deterministic auto-fixes to AI ──
+      // Sources: preValidation inferences + ctx.hints (includes ROLE_DEFAULTS, auto-role, etc.)
+      const appliedItems: string[] = [];
+      for (const i of allInferences) {
+        if (i.confidence === 'deterministic') {
+          appliedItems.push(`${i.path}: ${i.field}=${JSON.stringify(i.to)} (${i.reason})`);
+        }
       }
+      // Also include ctx.hints NOT covered by INFERRED_FIELDS (e.g. role defaults for clipsContent)
+      for (const h of ctx.hints) {
+        if (h.confidence === 'deterministic' && !INFERRED_FIELDS_SET.has(h.field)) {
+          appliedItems.push(`${h.path ?? rootName}: ${h.field}=${JSON.stringify(h.value)} (${h.reason})`);
+        }
+      }
+      if (appliedItems.length > 0) out._applied = appliedItems;
     }
 
     // Attach typed hints for batch aggregation — cap at 10 most important
@@ -1638,7 +1778,6 @@ async function createSingleText(params: Record<string, unknown>): Promise<Record
   const text = figma.createText();
   try {
     const p = { ...params };
-    await setupText(text, p, ctx);
 
     // ── Parent append ──
     let parentNode: BaseNode | null = null;
@@ -1648,6 +1787,11 @@ async function createSingleText(params: Record<string, unknown>): Promise<Record
         (parentNode as FrameNode).appendChild(text);
       }
     }
+
+    // Detect platform from screen ancestor for font resolution
+    ctx.platform = detectPlatformFromAncestors(text);
+
+    await setupText(text, p, ctx);
 
     // ── Smart default sizing (AFTER appendChild) ──
     inferChildSizing(

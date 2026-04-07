@@ -397,6 +397,28 @@ export function getAvailablePaintStyleNames(limit = 20): string[] {
   return names;
 }
 
+/** Return a list of available text style names (up to `limit`). */
+export function getAvailableTextStyleNames(limit = 20): string[] {
+  const names: string[] = [];
+  for (const entries of textStyleMap.values()) {
+    for (const entry of entries) {
+      names.push(entry.name);
+      if (names.length >= limit) return names;
+    }
+  }
+  return names;
+}
+
+/** Return a list of available effect style names (up to `limit`). */
+export function getAvailableEffectStyleNames(limit = 20): string[] {
+  const names: string[] = [];
+  for (const entry of effectStyleMap.values()) {
+    names.push(entry.name);
+    if (names.length >= limit) return names;
+  }
+  return names;
+}
+
 /**
  * Search paint styles by hex value (case-insensitive).
  * Returns the closest match info or null.

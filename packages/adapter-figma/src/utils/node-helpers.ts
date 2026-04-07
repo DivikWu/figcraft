@@ -319,7 +319,7 @@ export async function applyFill(
           autoBound = `var:${variable.name}`;
         }
       } else {
-        colorHint = `Variable "${fill._variable}" not found. Use a hex color or check variable name.`;
+        colorHint = `Variable "${fill._variable}" not found. Use a hex color, or call search_design_system(query:"${fill._variable}") to find available variables.`;
       }
     } catch (err) {
       colorHint = err instanceof Error ? err.message : `Variable "${fill._variable}" lookup failed.`;
