@@ -85,6 +85,7 @@ const COMMON_PARAMS = new Set([
   'layoutSizingHorizontal',
   'layoutSizingVertical',
   'layoutPositioning',
+  'layoutGrow',
   'opacity',
   'visible',
   'rotation',
@@ -133,6 +134,7 @@ const FRAME_PARAMS = new Set([
   'maxWidth',
   'minHeight',
   'maxHeight',
+  'role',
   'children',
   'dryRun',
   'noPreview',
@@ -636,6 +638,57 @@ export function validateParams(params: Record<string, unknown>, nodePath: string
     }
   }
 
+  // ── 4.57. Input field pattern: [icon, text, icon] → middle text FILL ──
+  // In HORIZONTAL layouts with exactly 3 children where the first and last are small
+  // (icons/svgs/small frames) and the middle is text, the text should FILL to push
+  // the trailing icon to the right edge. Common in input fields (e.g. lock + password + eye).
+  if (hasChildren && effectiveLayoutMode === 'HORIZONTAL') {
+    const childrenArr = params.children as Record<string, unknown>[];
+    if (childrenArr.length === 3) {
+      const isSmallOrIcon = (c: Record<string, unknown>) => {
+        const t = c.type as string | undefined;
+        if (t === 'icon' || t === 'svg') return true;
+        const w = c.width as number | undefined;
+        const h = c.height as number | undefined;
+        const size = (c as Record<string, unknown>).size as number | undefined;
+        return (w != null && w <= 32) || (h != null && h <= 32) || (size != null && size <= 32);
+      };
+      const first = childrenArr[0];
+      const middle = childrenArr[1];
+      const last = childrenArr[2];
+      const middleType = (middle.type as string) ?? 'frame';
+      const middleSizing = middle.layoutSizingHorizontal as string | undefined;
+
+      if (isSmallOrIcon(first) && isSmallOrIcon(last) && middleType === 'text' && middleSizing == null) {
+        const middleName = (middle.name as string) ?? 'child[1]';
+        inferences.push({
+          path: `${nodePath} > ${middleName}`,
+          field: 'layoutSizingHorizontal',
+          from: undefined,
+          to: 'FILL',
+          confidence: 'deterministic',
+          reason: 'input field pattern [icon, text, icon] — middle text FILL to push trailing icon to right edge',
+        });
+        middle.layoutSizingHorizontal = 'FILL';
+
+        // SPACE_BETWEEN + FILL text → itemSpacing is ignored (Figma distributes remaining space,
+        // but FILL text consumes all of it → 0 gap). Downgrade to MIN so itemSpacing works.
+        if (params.primaryAxisAlignItems === 'SPACE_BETWEEN') {
+          inferences.push({
+            path: nodePath,
+            field: 'primaryAxisAlignItems',
+            from: 'SPACE_BETWEEN',
+            to: 'MIN',
+            confidence: 'deterministic',
+            reason:
+              'SPACE_BETWEEN + FILL text child — itemSpacing is ignored because FILL consumes all remaining space. Downgraded to MIN so itemSpacing controls gaps.',
+          });
+          params.primaryAxisAlignItems = 'MIN';
+        }
+      }
+    }
+  }
+
   // ── 4.6. Spacer frame prevention ──
   // Detect children with spacer-like names and convert to parent itemSpacing.
   if (hasChildren) {
@@ -772,18 +825,25 @@ export function validateParams(params: Record<string, unknown>, nodePath: string
       }
 
       // Frame: no visual content and no children → will be invisible
+      // Intentional placeholder frames (icon slots, logo containers, avatar placeholders)
+      // are downgraded to deterministic so they don't trigger staging — the workflow
+      // recommends creating empty frames first and filling them with icon_create later.
       if (ct === 'frame') {
         const noFills = child.fill == null && child.fills == null && child.fillVariableName == null;
         const noStrokes = child.stroke == null && child.strokes == null;
         const noChildren = !Array.isArray(child.children) || (child.children as unknown[]).length === 0;
         if (noFills && noStrokes && noChildren) {
+          const nameLC = ((child.name as string) ?? '').toLowerCase();
+          const isIntentionalSlot = /slot|icon|logo|avatar|placeholder|image|thumb/.test(nameLC);
           inferences.push({
             path: childPath,
             field: '_structure',
             from: undefined,
             to: 'invisible',
-            confidence: 'ambiguous',
-            reason: 'empty frame with no fills/strokes/children — will be invisible',
+            confidence: isIntentionalSlot ? 'deterministic' : 'ambiguous',
+            reason: isIntentionalSlot
+              ? `empty placeholder frame "${child.name}" — will be filled post-creation (e.g. icon_create)`
+              : 'empty frame with no fills/strokes/children — will be invisible',
           });
         }
       }
