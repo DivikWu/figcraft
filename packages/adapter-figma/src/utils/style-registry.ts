@@ -40,6 +40,11 @@ export interface RegisteredStyles {
 
 /** Text styles keyed by fontSize. Multiple styles can share the same fontSize (e.g. Body/Regular vs Body/Bold). */
 const textStyleMap = new Map<number, Array<{ id: string; name: string; fontFamily: string; fontWeight: string }>>();
+/** Text styles keyed by lowercase name. Parallel index for O(1) name-based lookup (textStyleName binding + font preloading). */
+const textStyleByName = new Map<
+  string,
+  { id: string; name: string; fontFamily: string; fontWeight: string; fontSize: number }
+>();
 /** Paint styles keyed by hex. Multiple styles can share the same hex (e.g. Primary/500 vs Info/Default). */
 const paintStyleMap = new Map<string, Array<{ id: string; name: string }>>();
 const effectStyleMap = new Map<string, { id: string; name: string }>();
@@ -65,6 +70,7 @@ export async function registerStyles(
 ): Promise<{ textStyles: number; paintStyles: number; effectStyles: number }> {
   // Clear previous maps
   textStyleMap.clear();
+  textStyleByName.clear();
   paintStyleMap.clear();
   effectStyleMap.clear();
 
@@ -99,13 +105,15 @@ export async function registerStyles(
   for (const r of textResults) {
     if (r.status === 'fulfilled') {
       const existing = textStyleMap.get(r.value.fontSize) ?? [];
-      existing.push({
+      const entry = {
         id: r.value.id,
         name: r.value.name,
         fontFamily: r.value.fontFamily,
         fontWeight: r.value.fontWeight,
-      });
+      };
+      existing.push(entry);
       textStyleMap.set(r.value.fontSize, existing);
+      textStyleByName.set(r.value.name.toLowerCase(), { ...entry, fontSize: r.value.fontSize });
     }
   }
   for (const r of paintResults) {
@@ -201,6 +209,16 @@ export function getTextStyleId(
 }
 
 /**
+ * Get a text style by exact name (case-insensitive).
+ * Returns font info for preloading + style id for binding.
+ */
+export function getTextStyleByName(
+  name: string,
+): { id: string; name: string; fontFamily: string; fontWeight: string; fontSize: number } | null {
+  return textStyleByName.get(name.toLowerCase()) ?? null;
+}
+
+/**
  * Get a paint style matching the given hex color.
  * When multiple styles share the same hex, returns the first registered one.
  */
@@ -280,6 +298,7 @@ export async function registerStylesIncremental(
             if (filtered.length === 0) textStyleMap.delete(ts.fontSize);
             else textStyleMap.set(ts.fontSize, filtered);
           }
+          textStyleByName.delete(ts.name.toLowerCase());
         }
       }
       for (const ps of stored.paintStyles) {
@@ -341,6 +360,7 @@ export async function registerStylesIncremental(
       if (idx >= 0) existing[idx] = entry;
       else existing.push(entry);
       textStyleMap.set(r.value.fontSize, existing);
+      textStyleByName.set(entry.name.toLowerCase(), { ...entry, fontSize: r.value.fontSize });
       _imported++;
     }
   }
@@ -543,6 +563,7 @@ export function getEffectStyleByName(name: string): { id: string; name: string }
 
 export function clearStyleRegistry(): void {
   textStyleMap.clear();
+  textStyleByName.clear();
   paintStyleMap.clear();
   effectStyleMap.clear();
   loadedLibrary = null;

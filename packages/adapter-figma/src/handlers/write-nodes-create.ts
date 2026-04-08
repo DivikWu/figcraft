@@ -16,6 +16,7 @@ import {
   setBlendMode,
   setEffectStyleIdAsync,
   setFillStyleIdAsync,
+  setLayoutGrow,
   setLayoutPositioning,
   setLayoutSizing,
   setLayoutWrap,
@@ -38,6 +39,7 @@ import {
   getAvailableEffectStyleNames,
   getAvailableTextStyleNames,
   getEffectStyleByName,
+  getTextStyleByName,
   getTextStyleId,
 } from '../utils/style-registry.js';
 import { applyIconColor } from './icon-svg.js';
@@ -737,7 +739,12 @@ const ROLE_DEFAULTS: Record<string, Record<string, unknown>> = {
 };
 
 // ─── Core frame setup (shared by create_frame and inline children) ───
-async function setupFrame(frame: FrameNode, p: Record<string, unknown>, ctx: CreateContext): Promise<void> {
+async function setupFrame(
+  frame: FrameNode,
+  p: Record<string, unknown>,
+  ctx: CreateContext,
+  parentName?: string,
+): Promise<void> {
   normalizeAliases(p);
 
   frame.name = (p.name as string) ?? 'Frame';
@@ -1046,20 +1053,28 @@ async function setupFrame(frame: FrameNode, p: Record<string, unknown>, ctx: Cre
     }
     // Buttons: minimum touch target + label space
     if (/button|btn|cta/.test(name)) {
+      // Skip minHeight when button is nested inside an input field — the parent
+      // already provides the touch target, and forcing minHeight causes overflow.
+      const isNestedInInput =
+        parentName != null && /input|field|text.?field|search.?bar/.test(parentName.toLowerCase());
       frame.minWidth = Math.max(48, Math.round(frame.width * 0.5));
-      frame.minHeight = frame.minHeight ?? Math.max(36, Math.min(frame.height, 48));
+      if (!isNestedInInput) {
+        frame.minHeight = frame.minHeight ?? Math.max(36, Math.min(frame.height, 48));
+      }
       ctx.hints.push({
         confidence: 'deterministic',
         field: 'minWidth',
         value: frame.minWidth,
         reason: 'button constraints',
       });
-      ctx.hints.push({
-        confidence: 'deterministic',
-        field: 'minHeight',
-        value: frame.minHeight,
-        reason: 'button constraints',
-      });
+      if (!isNestedInInput) {
+        ctx.hints.push({
+          confidence: 'deterministic',
+          field: 'minHeight',
+          value: frame.minHeight,
+          reason: 'button constraints',
+        });
+      }
     }
     // Input fields: minimum usable width
     if (/input|field|text.?field|search.?bar/.test(name)) {
@@ -1147,7 +1162,7 @@ async function setupText(text: TextNode, p: Record<string, unknown>, ctx: Create
     let bound = false;
     // Try library style registry first (if library mode)
     if (ctx.useLib) {
-      const styleMatch = getTextStyleId(fontSize, { styleName: p.textStyleName as string } as any);
+      const styleMatch = getTextStyleByName(p.textStyleName as string);
       if (styleMatch) {
         try {
           await setTextStyleIdAsync(text, styleMatch.id);
@@ -1167,6 +1182,10 @@ async function setupText(text: TextNode, p: Record<string, unknown>, ctx: Create
           localStyles.find((s) => s.name === name) ??
           localStyles.find((s) => s.name.toLowerCase() === name.toLowerCase());
         if (match) {
+          // Local style may use a different font than the node's current font — preload before applying
+          if (typeof match.fontName === 'object') {
+            await figma.loadFontAsync(match.fontName);
+          }
           await setTextStyleIdAsync(text, match.id);
           ctx.libraryBindings.push(`textStyle:${match.name}`);
         } else {
@@ -1330,6 +1349,16 @@ function collectTextFonts(children: unknown[], platform: Platform): Array<{ fami
         family: (child.fontFamily as string) ?? platformDefaultFont(platform, content),
         style: normalizeFontStyle((child.fontStyle as string) ?? 'Regular'),
       });
+      // textStyleName references a style that may use a different font — preload it too
+      if (child.textStyleName) {
+        const tsInfo = getTextStyleByName(child.textStyleName as string);
+        if (tsInfo) {
+          fonts.push({
+            family: tsInfo.fontFamily,
+            style: normalizeFontStyle(tsInfo.fontWeight ?? 'Regular'),
+          });
+        }
+      }
     }
     if (Array.isArray(child.children)) {
       fonts.push(...collectTextFonts(child.children, platform));
@@ -1474,7 +1503,7 @@ async function createInlineChildren(
         // frame type (default)
         const frame = figma.createFrame();
         try {
-          await setupFrame(frame, child, ctx);
+          await setupFrame(frame, child, ctx, parent.name);
           insertOrAppend(parent, frame, child.index as number | undefined);
           // Smart default sizing
           inferChildSizing(
@@ -1511,8 +1540,12 @@ async function createInlineChildren(
       throw e;
     }
 
-    // ── Per-child inline validation + self-healing ──
+    // ── Per-child post-creation: layoutGrow + validation ──
     if (createdNode) {
+      // Apply layoutGrow for equal-distribution layouts (e.g. stats columns, card grids)
+      if (child.layoutGrow != null) {
+        setLayoutGrow(createdNode, child.layoutGrow as number);
+      }
       validateChildNode(createdNode, parent, childPath, ctx);
     }
   }
@@ -1922,7 +1955,8 @@ export function registerCreateHandlers(): void {
       };
       if (batchLintSummary) batchResult._lintSummary = batchLintSummary;
       // Aggregate hints: suppress confirmations, dedup suggest/warn, batch hardcoded colors
-      const aggregated = aggregateHints(allHints);
+      const [, batchLib] = await getCachedModeLibrary();
+      const aggregated = aggregateHints(allHints, { isLibraryMode: !!batchLib });
       if (aggregated.length > 0) batchResult.warnings = aggregated;
       return batchResult;
     }
@@ -1978,7 +2012,8 @@ export function registerCreateHandlers(): void {
         total: items.length,
         items: results,
       };
-      const aggregated = aggregateHints(allHints);
+      const [, textBatchLib] = await getCachedModeLibrary();
+      const aggregated = aggregateHints(allHints, { isLibraryMode: !!textBatchLib });
       if (aggregated.length > 0) batchResult.warnings = aggregated;
       return batchResult;
     }
