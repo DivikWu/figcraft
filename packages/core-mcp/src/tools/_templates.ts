@@ -2,7 +2,6 @@
 // Source: content/templates/*.yaml
 
 export interface UiPattern {
-  libraryNote?: string;
   structure: string;
   keyDecisions: Record<string, string>;
   pitfalls: string[];
@@ -13,7 +12,6 @@ export interface UiPattern {
 
 export const UI_PATTERNS: Record<string, UiPattern> = {
   "card-grid": {
-    "libraryNote": "In library mode, replace Input/Button/Card frames in exampleParams with type:\"instance\" using componentKey/componentSetKey discovered via search_design_system. The structure below shows the layout skeleton.",
     "structure": "Screen (VERTICAL, FIXED 402×874 mobile / 1280×800 web, padding 16-24)\n  ├── Header (HORIZONTAL, FILL/HUG, itemSpacing 12)\n  │     ├── Title (\"Explore\")\n  │     └── Filter chips (HORIZONTAL, HUG/HUG, itemSpacing 8)\n  └── Grid (VERTICAL, FILL/FILL, itemSpacing 16)\n        └── Row × N (HORIZONTAL, FILL/HUG, itemSpacing 12-16)\n              └── Card × 2-3 (VERTICAL, layoutGrow 1, cornerRadius 12-16, clipsContent true)\n                    ├── Image (FILL/FIXED height 140-180, fill gray-100)\n                    └── Content (VERTICAL, FILL/HUG, padding 12-16, itemSpacing 4-8)\n                          ├── Title (16px, semibold, max 2 lines)\n                          ├── Subtitle (14px, muted)\n                          └── Footer (HORIZONTAL, FILL/HUG) — price, rating, action",
     "keyDecisions": {
       "columns": "Mobile: 2 columns (layoutGrow: 1 each). Web: 3-4 columns",
@@ -234,7 +232,6 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
     }
   },
   "checkout": {
-    "libraryNote": "In library mode, replace Input/Button/Card frames in exampleParams with type:\"instance\" using componentKey/componentSetKey discovered via search_design_system. The structure below shows the layout skeleton.",
     "structure": "Use Multi-Screen Flow Architecture (see get_creation_guide topic:\"multi-screen\").\n\nTypical 3-4 screens:\n\nScreen 1 — Cart Review (VERTICAL, FIXED 402×874, SPACE_BETWEEN, padding 24)\n  ├── Cart Items (VERTICAL, FILL/HUG, itemSpacing 16)\n  │     └── Item × N (HORIZONTAL, FILL/HUG, padding 12, itemSpacing 12)\n  │           ├── Thumbnail (64×64, cornerRadius 8)\n  │           ├── Details (VERTICAL, FILL/HUG) — name, variant, qty\n  │           └── Price (right-aligned, bold)\n  └── Summary + CTA (VERTICAL, FILL/HUG, itemSpacing 12)\n        ├── Subtotal / Shipping / Total rows\n        └── \"Proceed to Payment\" CTA\n\nScreen 2 — Shipping (form with address fields)\nScreen 3 — Payment (card fields + billing)\nScreen 4 — Confirmation (success icon + order summary)",
     "keyDecisions": {
       "progressBar": "Step indicator at top: Cart → Shipping → Payment → Done (HORIZONTAL dots or numbered steps)",
@@ -428,7 +425,6 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
     }
   },
   "dashboard": {
-    "libraryNote": "In library mode, replace Input/Button/Card frames in exampleParams with type:\"instance\" using componentKey/componentSetKey discovered via search_design_system. The structure below shows the layout skeleton.",
     "structure": "Screen (VERTICAL, FIXED 402×874 mobile / 1280×800 web, padding 16-24)\n  ├── Header (HORIZONTAL, FILL/HUG, itemSpacing 12)\n  │     ├── Title (\"Dashboard\")\n  │     ├── Spacer (layoutGrow 1) or counterAxisAlignItems: MIN\n  │     └── Actions (avatar, notification bell, settings icon)\n  ├── Stats Row (HORIZONTAL, FILL/HUG, itemSpacing 12-16)\n  │     └── Stat Card × 3-4 (VERTICAL, equal width via layoutGrow, padding 16, cornerRadius 12, fill surface)\n  │           ├── Label (12-14px, muted)\n  │           ├── Value (24-32px, bold)\n  │           └── Trend (12px, green/red + arrow)\n  ├── Chart Area (VERTICAL, FILL/HUG, padding 16, cornerRadius 12, fill surface)\n  │     ├── Chart title + period selector\n  │     └── Chart placeholder (FILL/FIXED height 200-240, fill gray-100)\n  └── List / Table (VERTICAL, FILL/HUG)\n        ├── Section header (\"Recent activity\")\n        └── Row × N (HORIZONTAL, FILL/HUG, padding 12-16, itemSpacing 12)",
     "keyDecisions": {
       "density": "Mobile: stack vertically, 1 column. Web: 2-3 column grid via HORIZONTAL rows",
@@ -670,7 +666,6 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
     }
   },
   "list-detail": {
-    "libraryNote": "In library mode, replace Input/Button/Card frames in exampleParams with type:\"instance\" using componentKey/componentSetKey discovered via search_design_system. The structure below shows the layout skeleton.",
     "structure": "Screen (VERTICAL, FIXED 402×874, padding 0)\n  ├── Header (HORIZONTAL, FILL/HUG, padding 16-24, itemSpacing 12)\n  │     ├── Back arrow icon (24×24)\n  │     ├── Title (\"Products\")\n  │     └── Filter/Search icon (right-aligned)\n  ├── Search Bar (HORIZONTAL, FILL/HUG, margin-h 16, padding 12, cornerRadius 8, fill gray-100)\n  │     ├── Search icon (16×16, muted)\n  │     └── Placeholder text (\"Search...\")\n  └── List (VERTICAL, FILL/FILL, padding-h 16, itemSpacing 0)\n        └── List Item × N (HORIZONTAL, FILL/HUG, padding 12-16, itemSpacing 12)\n              ├── Thumbnail (48-64px square, cornerRadius 8, fill gray-100)\n              ├── Content (VERTICAL, FILL/HUG, itemSpacing 4)\n              │     ├── Title (16px, semibold)\n              │     └── Subtitle (14px, muted)\n              └── Trailing (price, chevron, or badge)",
     "keyDecisions": {
       "listScrolling": "primaryAxisAlignItems: \"MIN\" (scrollable list, not SPACE_BETWEEN)",
@@ -822,7 +817,6 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
     }
   },
   "login": {
-    "libraryNote": "In library mode, replace Input/Button frames in exampleParams with type:\"instance\" using componentKey/componentSetKey discovered via search_design_system. The structure below shows the layout skeleton — swap manual frames for library component instances.",
     "structure": "Screen (VERTICAL, FIXED 402×874, SPACE_BETWEEN, padding 24)\n  ├── Top Content (VERTICAL, FILL/HUG, itemSpacing 24)\n  │     ├── Logo / Brand mark (48-64px)\n  │     ├── Heading (\"Welcome back\")\n  │     └── Subheading (optional, muted color)\n  ├── Form (VERTICAL, FILL/HUG, itemSpacing 12-16)\n  │     ├── Email input (HORIZONTAL, FILL/HUG, stroke, cornerRadius 8-12, padding 16, height ≥48)\n  │     ├── Password input (same structure)\n  │     ├── Forgot password link (right-aligned text, small)\n  │     └── Primary CTA (HORIZONTAL, FILL/FIXED height ≥48, centered text, cornerRadius 8-12, fill accent)\n  └── Bottom Content (VERTICAL, FILL/HUG, itemSpacing 16)\n        ├── Divider with \"or\" label\n        ├── Social login row (HORIZONTAL, gap 12-16)\n        └── Sign up link (\"Don't have an account? Sign up\")",
     "keyDecisions": {
       "layout": "SPACE_BETWEEN distributes top brand + form + bottom links; form group centered vertically",
@@ -1061,7 +1055,6 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
     }
   },
   "onboarding": {
-    "libraryNote": "In library mode, replace Input/Button/Card frames in exampleParams with type:\"instance\" using componentKey/componentSetKey discovered via search_design_system. The structure below shows the layout skeleton.",
     "structure": "Use Multi-Screen Flow Architecture (see get_creation_guide topic:\"multi-screen\").\n\nPer Screen (VERTICAL, FIXED 402×874, padding 24, SPACE_BETWEEN):\n  ├── Top Content (VERTICAL, FILL/HUG, itemSpacing 16-24)\n  │     ├── Illustration / Hero image (FILL/FIXED height 200-300)\n  │     ├── Heading (24-28px, max 2 lines)\n  │     └── Body text (14-16px, max 3 lines, muted)\n  └── Bottom Content (VERTICAL, FILL/HUG, itemSpacing 12)\n        ├── Progress indicator (dots or bar)\n        ├── Primary CTA (\"Next\" / \"Continue\" / \"Get Started\")\n        └── Skip link (optional, \"Skip\" text button)",
     "keyDecisions": {
       "screenCount": "3-5 screens is ideal; more loses attention",
@@ -1226,7 +1219,6 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
     }
   },
   "profile": {
-    "libraryNote": "In library mode, replace Input/Button/Card frames in exampleParams with type:\"instance\" using componentKey/componentSetKey discovered via search_design_system. The structure below shows the layout skeleton.",
     "structure": "Screen (VERTICAL, FIXED 402×874, padding 0)\n  ├── Hero Area (VERTICAL, FILL/HUG, padding 24, counterAxisAlignItems CENTER)\n  │     ├── Avatar (80-120px circle, cornerRadius 9999, fill gray-200 placeholder)\n  │     ├── Name (20-24px, semibold, margin-top 16)\n  │     ├── Handle/bio (14px, muted, max 2 lines)\n  │     └── Action Row (HORIZONTAL, HUG/HUG, itemSpacing 12, margin-top 16)\n  │           ├── Primary CTA (\"Edit Profile\" / \"Follow\")\n  │           └── Secondary action (message icon / share)\n  ├── Stats Row (HORIZONTAL, FILL/HUG, padding 16, itemSpacing 0)\n  │     └── Stat × 3 (VERTICAL, layoutGrow 1, counterAxisAlignItems CENTER)\n  │           ├── Value (18-20px, bold)\n  │           └── Label (12px, muted)\n  └── Content Area (VERTICAL, FILL/FILL, padding 0)\n        ├── Tab bar (HORIZONTAL, FILL/HUG, itemSpacing 0) or section headers\n        ├── Content list (VERTICAL, FILL/FILL)\n        └── Menu list (alternative to tabs — settings/profile style)\n              └── Menu Item (HORIZONTAL, FILL/FIXED 52, padding 0 24, MIN, CENTER, itemSpacing 12)\n                    ├── Icon (24×24, lucide outline)\n                    ├── Label (16px, FILL)  ← FILL pushes chevron to right edge\n                    └── Chevron (20×20, lucide:chevron-right, muted)",
     "keyDecisions": {
       "avatarSize": "80px compact, 120px prominent — always circle (cornerRadius 9999)",
@@ -1453,7 +1445,6 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
     }
   },
   "settings": {
-    "libraryNote": "In library mode, replace Input/Button/Card frames in exampleParams with type:\"instance\" using componentKey/componentSetKey discovered via search_design_system. The structure below shows the layout skeleton.",
     "structure": "Screen (VERTICAL, FIXED 402×874, padding 0)\n  ├── Header (HORIZONTAL, FILL/HUG, padding 16-24)\n  │     └── Title (\"Settings\")\n  └── Sections (VERTICAL, FILL/FILL, padding-h 0, itemSpacing 24)\n        └── Section × N (VERTICAL, FILL/HUG, itemSpacing 0)\n              ├── Section Header (padding-h 16, 12px uppercase, muted, letterSpacing 1)\n              └── Row × N (HORIZONTAL, FILL/HUG, padding 16, itemSpacing 12, min-height 48)\n                    ├── Icon (24×24, optional)\n                    ├── Label (FILL/HUG, layoutGrow 1, 16px)\n                    └── Trailing (toggle switch / chevron / value text)",
     "keyDecisions": {
       "sectionGrouping": "Group related rows under section headers (Account, Preferences, About)",
@@ -1615,7 +1606,6 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
     }
   },
   "signup": {
-    "libraryNote": "In library mode, replace Input/Button/Card frames in exampleParams with type:\"instance\" using componentKey/componentSetKey discovered via search_design_system. The structure below shows the layout skeleton.",
     "structure": "Screen (VERTICAL, FIXED 402×874, SPACE_BETWEEN, padding 24)\n  ├── Top Content (VERTICAL, FILL/HUG, itemSpacing 24)\n  │     ├── Heading (\"Create account\")\n  │     └── Subheading (\"Join 10,000+ users\")\n  ├── Form (VERTICAL, FILL/HUG, itemSpacing 12-16)\n  │     ├── Name input (full width or split first/last as HORIZONTAL row)\n  │     ├── Email input\n  │     ├── Password input (with strength indicator below)\n  │     ├── Terms checkbox row (HORIZONTAL, gap 8, \"I agree to Terms\")\n  │     └── Primary CTA (\"Create account\")\n  └── Bottom Content (VERTICAL, FILL/HUG)\n        ├── Social signup options (HORIZONTAL or VERTICAL stack)\n        └── Login link (\"Already have an account? Log in\")",
     "keyDecisions": {
       "layout": "SPACE_BETWEEN or MIN depending on field count; 3-4 fields use SPACE_BETWEEN, 5+ use MIN with scroll",

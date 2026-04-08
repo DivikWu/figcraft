@@ -62,7 +62,9 @@ export const PROMPT_DEFINITIONS: PromptDef[] = [
    Ask for (skip any already answered):
    a. **UI type** — if not clear from the request (e.g. "design a page" is vague; "login page" is clear). Provide 3–4 examples.
    b. **Platform** — Web, iOS, or Android? (affects touch targets, safe areas, conventions)
+   c. **Library tone** — Do not ask the user. Infer from designContext and libraryComponents (corner radius patterns, color token naming, variant options). State the inferred tone in Propose.
    Language/region can be inferred from the user's message language — no need to ask unless ambiguous.
+   After language is confirmed, load get_creation_guide(topic:"ux-writing") for UI copy conventions with language-specific rules.
 
    --- IF no selectedLibrary (Design Creator mode) ---
    Ask for (skip any already answered):
@@ -73,6 +75,7 @@ export const PROMPT_DEFINITIONS: PromptDef[] = [
 
    MERGE SHORTCUT: If ALL items are already clear from the user's request, skip Gather entirely and go directly to Propose.
    Language/region can be inferred from the user's message language if not explicitly stated — no need to ask.
+   After language is confirmed, load get_creation_guide(topic:"ux-writing") for UI copy conventions with language-specific rules.
    **STOP and wait for answers.** Then proceed to Propose.
 
 ## Propose

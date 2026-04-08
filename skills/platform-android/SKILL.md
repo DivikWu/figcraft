@@ -86,6 +86,29 @@ Rules:
 - If Roboto unavailable, the tool falls back to Inter automatically.
 - Material 3 uses 5 categories × 3 sizes = 15 type roles
 
+## Typography — Noto Sans SC (Chinese)
+
+When UI language is Chinese, font is auto-detected to Noto Sans SC. Use this adjusted type scale:
+
+| Role | Font | Size | Weight | Line Height | Tracking |
+|------|------|------|--------|-------------|----------|
+| Display Large | Noto Sans SC | 57dp | Regular | 80dp (1.4) | -0.25 |
+| Headline Large | Noto Sans SC | 32dp | Regular | 48dp (1.5) | 0 |
+| Headline Medium | Noto Sans SC | 28dp | Regular | 42dp (1.5) | 0 |
+| Title Large | Noto Sans SC | 22dp | Medium | 34dp (1.55) | 0 |
+| Title Medium | Noto Sans SC | 16dp | Medium | 26dp (1.63) | 0 |
+| Body Large | Noto Sans SC | 16dp | Regular | 26dp (1.63) | 0 |
+| Body Medium | Noto Sans SC | 14dp | Regular | 24dp (1.71) | 0 |
+| Body Small | Noto Sans SC | 12dp | Regular | 20dp (1.67) | 0 |
+| Label Large | Noto Sans SC | 14dp | Medium | 22dp (1.57) | 0 |
+
+CJK-specific rules:
+- CJK body line-height: 1.6–1.8 (wider than Latin 1.2–1.4) — complex strokes need vertical breathing room
+- CJK heading line-height can tighten to 1.4–1.5 (titles are short)
+- Minimum body size: 14dp (12dp for captions only)
+- NEVER add positive letter-spacing to CJK body text (CJK has built-in character spacing)
+- Tracking values from Latin Roboto scale do NOT apply to CJK — use 0 for all CJK text
+
 ## Touch Targets
 
 - MUST minimum 48 × 48dp for all interactive elements

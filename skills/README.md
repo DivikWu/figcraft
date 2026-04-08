@@ -37,6 +37,7 @@ Forms the "create → review → fix" quality loop: `figma-create-ui` → `desig
 | **design-handoff** | Annotate designs with specs for developer handoff. |
 | **platform-ios** | iOS platform rules — screen dimensions, safe areas, SF Pro, HIG navigation. |
 | **platform-android** | Android platform rules — screen dimensions, Material Design 3, Roboto, navigation. |
+| **ux-writing** | UX writing rules — universal best practices + language-specific rules (Chinese, English). Buttons, forms, errors, empty states. |
 
 ## Advanced Orchestration
 

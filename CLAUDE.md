@@ -237,9 +237,11 @@ Server-side type checking: `npm run typecheck` (uses main `tsconfig.json`, exclu
 FIGCRAFT_RELAY_URL=ws://localhost:3055    # Relay address (default, usually no need to set)
 FIGCRAFT_RELAY_PORT=3055                  # Relay preferred port (default 3055, auto-switches to 3056-3060 if occupied)
 FIGCRAFT_CHANNEL=figcraft                 # Default channel (both Plugin and MCP Server default to figcraft)
+FIGCRAFT_ACCESS=edit                      # Access level: read | create | edit (default: edit). Controls which tools are available.
 FIGMA_API_TOKEN=figd_xxx                  # Figma Personal Access Token (optional, can also be configured in plugin panel)
 FIGMA_CLIENT_ID=xxx                       # OAuth 2.0 Client ID (optional, for figma_login)
 FIGMA_CLIENT_SECRET=xxx                   # OAuth 2.0 Client Secret (optional, for figma_login)
+PEXELS_API_KEY=xxx                        # Pexels API key (optional, for image_search/image_preview tools)
 ```
 
 > **Note**: `FIGMA_API_TOKEN` has three configuration methods (priority high to low):

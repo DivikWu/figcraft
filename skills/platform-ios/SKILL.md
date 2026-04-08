@@ -83,6 +83,28 @@ Rules:
 - If SF Pro is unavailable in the Figma environment, the tool falls back to Inter automatically.
 - MUST maintain the size/weight hierarchy — don't mix Display and Text roles
 
+## Typography — PingFang SC (Chinese)
+
+When UI language is Chinese, font is auto-detected to PingFang SC. Use this adjusted type scale:
+
+| Role | Font | Size | Weight | Line Height |
+|------|------|------|--------|-------------|
+| Large Title | PingFang SC | 34px | Semibold | 48px (1.4) |
+| Title 1 | PingFang SC | 24px | Semibold | 36px (1.5) |
+| Title 2 | PingFang SC | 20px | Semibold | 30px (1.5) |
+| Title 3 | PingFang SC | 17px | Medium | 26px (1.53) |
+| Body | PingFang SC | 17px | Regular | 28px (1.65) |
+| Subheadline | PingFang SC | 15px | Regular | 24px (1.6) |
+| Footnote | PingFang SC | 13px | Regular | 22px (1.69) |
+| Caption | PingFang SC | 12px | Regular | 20px (1.67) |
+
+CJK-specific rules:
+- CJK body line-height: 1.6–1.8 (wider than Latin 1.2–1.4) — complex strokes need vertical breathing room
+- CJK heading line-height can tighten to 1.4 (titles are short, less vertical rhythm needed)
+- Minimum body size: 14px (12px for captions only — complex CJK strokes become illegible below 12px)
+- NEVER add positive letter-spacing to CJK body text (CJK has built-in character spacing)
+- PingFang SC uses Semibold for headings (not Bold) — matches Apple's CJK typographic convention
+
 ## Touch Targets
 
 - MUST minimum 44 × 44pt for all interactive elements

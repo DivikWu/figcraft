@@ -3,6 +3,9 @@
  *
  * Provides request/response tracking with UUID + 30s timeout.
  * Auto-reconnects on disconnect.
+ *
+ * Design workflow state (design decisions, mode, migration context) is
+ * managed by the DesignSession instance — Bridge delegates to it.
  */
 
 import http from 'node:http';
@@ -24,24 +27,19 @@ import {
 } from '@figcraft/shared';
 import WebSocket from 'ws';
 import { saveBridgeToken } from './auth.js';
+import { DesignSession } from './design-session.js';
 import { fetchFileName } from './figma-api.js';
 import { detectContentWarnings } from './tools/logic/content-warnings.js';
 import { extractDesignDecisions } from './tools/logic/design-decisions.js';
 import { truncateStructurally } from './tools/response-helpers.js';
 
+// Re-export DesignDecisions so existing consumers can import from bridge.ts
+export type { DesignDecisions } from './design-session.js';
+
 interface PendingRequest {
   resolve: (result: unknown) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
-}
-
-/** Accumulated design decisions in creator mode for cross-screen consistency. */
-export interface DesignDecisions {
-  fillsUsed: string[];
-  fontsUsed: string[];
-  radiusValues: number[];
-  spacingValues: number[];
-  elevationStyle?: 'flat' | 'subtle' | 'elevated';
 }
 
 export class Bridge {
@@ -53,21 +51,6 @@ export class Bridge {
   private connecting = false;
   private apiToken: string | null = null;
   private libraryFileKeys = new Map<string, string>();
-  /** Cached REST library component results (keyed by fileKey, 60s TTL). */
-  private _restComponentCache: { fileKey: string; data: unknown; ts: number } | null = null;
-  private static readonly REST_CACHE_TTL_MS = 300_000; // 5 min (set_mode resets modeQueried, busting stale data)
-  private _selectedLibrary: string | null | undefined = undefined;
-  private _modeQueried = false;
-  /** Hash of last _workflow returned by get_mode, for diff-aware caching. */
-  private _lastWorkflowHash: string | null = null;
-  /** Accumulated design decisions in creator mode (no library) for cross-screen consistency. */
-  private _designDecisions: DesignDecisions | null = null;
-  /** Accumulated fallback decisions in library mode — hex colors/fonts used when token binding was unavailable. */
-  private _libraryFallbackDecisions: DesignDecisions | null = null;
-  /** Cached designContext.defaults from last get_mode in library mode (role→variable mapping). */
-  private _designContextDefaults: Record<string, { name: string } | null> | null = null;
-  /** Saved design decisions from creator mode when migrating to library mode. Cleared after first get_mode. */
-  private _migrationContext: DesignDecisions | null = null;
   private reconnectAttempts = 0;
   private evicted = false;
   private missedPongs = 0;
@@ -76,6 +59,9 @@ export class Bridge {
   private intentionalDisconnect = false;
   private static readonly MAX_MISSED_PONGS = 3;
   private static readonly MAX_REQUEST_RECONNECT_ATTEMPTS = 2;
+
+  /** Design workflow state — mode, decisions, migration context, caches. */
+  readonly session = new DesignSession();
 
   /** Access level for two-path authoring (injected into _caps on every request). */
   _accessLevel: 'read' | 'create' | 'edit' = 'edit';
@@ -328,7 +314,7 @@ export class Bridge {
   async request(method: string, params: Record<string, unknown> = {}, timeoutMs?: number): Promise<unknown> {
     // Guard: UI creation tools require get_mode to be called first.
     // This ensures the design preflight workflow is followed across all IDEs.
-    if (Bridge.DESIGN_PREFLIGHT_METHODS.has(method) && !this._modeQueried) {
+    if (Bridge.DESIGN_PREFLIGHT_METHODS.has(method) && !this.session.modeQueried) {
       throw new Error(
         `[FigCraft] Cannot call ${method} before get_mode. ` +
           'Design preflight required: call get_mode first to check library status and get workflow instructions, ' +
@@ -382,7 +368,7 @@ export class Bridge {
           // Accumulate design decisions from create_frame params for cross-screen consistency
           if (method === 'create_frame' && !params.dryRun) {
             try {
-              if (!this._selectedLibrary) {
+              if (!this.session.selectedLibrary) {
                 // Creator mode: track all explicit choices
                 extractDesignDecisions(this, params);
               } else {
@@ -619,121 +605,75 @@ export class Bridge {
     this.libraryFileKeys.set(library, fileKey);
   }
 
-  /** Cache REST library component data (60s TTL). */
+  // ─── Design session delegation ───
+  // These accessors delegate to this.session (DesignSession) for backward compatibility.
+  // Consumers can also access bridge.session directly for the full API.
+
   setRestComponentCache(fileKey: string, data: unknown): void {
-    this._restComponentCache = { fileKey, data, ts: Date.now() };
+    this.session.setRestComponentCache(fileKey, data);
   }
 
-  /** Get cached REST library component data if still valid. */
   getRestComponentCache(fileKey: string): unknown | null {
-    if (!this._restComponentCache) return null;
-    if (this._restComponentCache.fileKey !== fileKey) return null;
-    if (Date.now() - this._restComponentCache.ts > Bridge.REST_CACHE_TTL_MS) {
-      this._restComponentCache = null;
-      return null;
-    }
-    return this._restComponentCache.data;
+    return this.session.getRestComponentCache(fileKey);
   }
 
-  /**
-   * Currently selected library name (cached from get_mode / set_mode).
-   * - `undefined` = unknown (never queried this session)
-   * - `null` = explicitly no library selected
-   * - `string` = library name or '__local__'
-   */
   get selectedLibrary(): string | null | undefined {
-    return this._selectedLibrary;
+    return this.session.selectedLibrary;
   }
 
   set selectedLibrary(value: string | null) {
-    this._selectedLibrary = value;
+    this.session.selectedLibrary = value;
   }
 
-  /** Whether get_mode or set_mode has been called this session. */
   get modeQueried(): boolean {
-    return this._modeQueried;
+    return this.session.modeQueried;
   }
 
   set modeQueried(value: boolean) {
-    this._modeQueried = value;
-    if (!value) {
-      this._lastWorkflowHash = null; // Reset on mode change
-      this._designDecisions = null; // Clear accumulated design decisions
-      this._libraryFallbackDecisions = null; // Clear library fallback decisions
-      this._designContextDefaults = null; // Clear library defaults cache
-    }
+    this.session.modeQueried = value;
   }
 
   get lastWorkflowHash(): string | null {
-    return this._lastWorkflowHash;
+    return this.session.lastWorkflowHash;
   }
 
   set lastWorkflowHash(value: string | null) {
-    this._lastWorkflowHash = value;
+    this.session.lastWorkflowHash = value;
   }
 
-  /** Accumulated design decisions in creator mode (no library). */
-  get designDecisions(): DesignDecisions | null {
-    return this._designDecisions;
+  get designDecisions() {
+    return this.session.designDecisions;
   }
 
-  /** Accumulated fallback decisions in library mode (hex colors/fonts when token binding unavailable). */
-  get libraryFallbackDecisions(): DesignDecisions | null {
-    return this._libraryFallbackDecisions;
+  get libraryFallbackDecisions() {
+    return this.session.libraryFallbackDecisions;
   }
 
-  /** Merge new design decisions into accumulated state. */
-  mergeDesignDecisions(partial: Partial<DesignDecisions>, target?: 'libraryFallback'): void {
-    const field = target === 'libraryFallback' ? '_libraryFallbackDecisions' : '_designDecisions';
-    if (!this[field]) {
-      this[field] = { fillsUsed: [], fontsUsed: [], radiusValues: [], spacingValues: [] };
-    }
-    const d = this[field]!;
-    if (partial.fillsUsed) {
-      for (const f of partial.fillsUsed) if (!d.fillsUsed.includes(f)) d.fillsUsed.push(f);
-    }
-    if (partial.fontsUsed) {
-      for (const f of partial.fontsUsed) if (!d.fontsUsed.includes(f)) d.fontsUsed.push(f);
-    }
-    if (partial.radiusValues) {
-      for (const v of partial.radiusValues) if (!d.radiusValues.includes(v)) d.radiusValues.push(v);
-    }
-    if (partial.spacingValues) {
-      for (const v of partial.spacingValues) if (!d.spacingValues.includes(v)) d.spacingValues.push(v);
-    }
-    if (partial.elevationStyle) d.elevationStyle = partial.elevationStyle;
+  mergeDesignDecisions(
+    partial: Partial<import('./design-session.js').DesignDecisions>,
+    target?: 'libraryFallback',
+  ): void {
+    this.session.mergeDesignDecisions(partial, target);
   }
 
-  /** Clear design decisions (called on mode change or disconnect). */
   clearDesignDecisions(): void {
-    this._designDecisions = null;
-    this._libraryFallbackDecisions = null;
+    this.session.clearDesignDecisions();
   }
 
-  /**
-   * Save current design decisions as migration context before switching to library mode.
-   * The context is consumed (and cleared) by the next get_mode call.
-   */
   saveMigrationContext(): void {
-    if (this._designDecisions) {
-      this._migrationContext = { ...this._designDecisions };
-    }
+    this.session.saveMigrationContext();
   }
 
-  /** Consume and clear migration context (called by get_mode after mode switch). */
-  consumeMigrationContext(): DesignDecisions | null {
-    const ctx = this._migrationContext;
-    this._migrationContext = null;
-    return ctx;
+  consumeMigrationContext() {
+    return this.session.consumeMigrationContext();
   }
 
-  /** Cached designContext.defaults from last get_mode (library mode only). */
-  get designContextDefaults(): Record<string, { name: string } | null> | null {
-    return this._designContextDefaults;
+  get designContextDefaults() {
+    return this.session.designContextDefaults;
   }
 
   set designContextDefaults(value: Record<string, { name: string } | null> | null) {
-    this._designContextDefaults = value;
+    this.session.designContextDefaults = value;
   }
 
   /**

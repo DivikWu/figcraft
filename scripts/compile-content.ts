@@ -153,7 +153,6 @@ function compileTemplates(): void {
 // Source: content/templates/*.yaml
 
 export interface UiPattern {
-  libraryNote?: string;
   structure: string;
   keyDecisions: Record<string, string>;
   pitfalls: string[];

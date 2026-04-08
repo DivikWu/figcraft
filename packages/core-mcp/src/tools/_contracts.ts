@@ -46,23 +46,6 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
       }).optional(),
       libraryComponentsError: z.string().optional(),
       libraryComponentsUnavailable: z.boolean().optional(),
-      localComponents: z.object({
-        componentSets: z.array(z.object({
-          id: z.string(),
-          name: z.string(),
-          description: z.string(),
-          containingFrame: z.string(),
-          variantCount: z.number(),
-          propertyOptions: z.record(z.array(z.string())),
-        })).optional(),
-        standalone: z.array(z.object({
-          id: z.string(),
-          name: z.string(),
-          description: z.string(),
-          containingFrame: z.string(),
-        })).optional(),
-      }).optional(),
-      localComponentsError: z.string().optional(),
       _hint: z.string().optional(),
       error: z.string().optional(),
     }),

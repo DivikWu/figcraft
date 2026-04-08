@@ -1,4 +1,3 @@
-libraryNote: "In library mode, replace Input/Button/Card frames in exampleParams with type:\"instance\" using componentKey/componentSetKey discovered via search_design_system. The structure below shows the layout skeleton."
 structure: |-
   Use Multi-Screen Flow Architecture (see get_creation_guide topic:"multi-screen").
 
