@@ -131,10 +131,24 @@ let typoMapCache: { library: string; map: Map<number, TypographyBinding> } | nul
 // Semantic role → candidate variable name patterns (first match wins)
 // Can be overridden per-library via clientStorage key 'figcraft_role_mappings_<library>'
 const DEFAULT_MAPPINGS: Record<string, string[]> = {
+  // Text colors
   textColor: ['text/primary', 'text/default', 'color/text/primary', 'colors/text-primary'],
   headingColor: ['text/emphasis', 'text/heading', 'color/text/emphasis', 'colors/text-emphasis'],
+  textSecondary: ['text/secondary', 'text/muted', 'color/text/secondary', 'colors/text-secondary'],
+  textDisabled: ['text/disabled', 'text/tertiary', 'color/text/disabled', 'colors/text-disabled'],
+  // Surface / background colors
   background: ['surface/primary', 'surface/default', 'background/primary', 'colors/surface-primary'],
+  backgroundSecondary: ['surface/secondary', 'surface/subtle', 'background/secondary', 'colors/surface-secondary'],
+  inputBackground: ['surface/input', 'input/background', 'surface/field', 'colors/surface-input', 'surface/secondary'],
+  // Border colors
   border: ['border/default', 'border/primary', 'colors/border-default'],
+  // Action / interactive colors
+  primary: ['fill/primary', 'action/primary', 'brand/primary', 'interactive/primary', 'colors/fill-primary'],
+  primaryText: ['text/on-primary', 'text/inverse', 'fill/on-primary', 'colors/text-on-primary'],
+  // State colors
+  error: ['error/default', 'status/error', 'danger/default', 'colors/error-default'],
+  success: ['success/default', 'status/success', 'colors/success-default'],
+  warning: ['warning/default', 'status/warning', 'colors/warning-default'],
 };
 
 /** Custom role mappings cache (per-library). */

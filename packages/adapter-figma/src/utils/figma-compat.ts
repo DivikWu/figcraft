@@ -100,6 +100,62 @@ export interface ResolvedComponent {
   fallbackWarning?: string;
 }
 
+/**
+ * Import a component by key/ID and resolve to a concrete ComponentNode.
+ * Shared helper that eliminates the duplicated import chain across:
+ * - write-nodes-instance.ts (standalone + batch)
+ * - write-nodes-create.ts (inline tree children)
+ *
+ * Resolution chain: componentSetKey → componentKey → componentId
+ * Each key is tried as both component and component set to handle misidentified types.
+ */
+export async function importAndResolveComponent(spec: {
+  componentSetKey?: string;
+  componentKey?: string;
+  componentId?: string;
+  variantProperties?: Record<string, string>;
+}): Promise<ResolvedComponent> {
+  const { componentSetKey, componentKey, componentId, variantProperties } = spec;
+  let node: BaseNode | null = null;
+
+  if (componentSetKey) {
+    try {
+      node = await figma.importComponentSetByKeyAsync(componentSetKey);
+    } catch {
+      /* not found */
+    }
+  } else if (componentKey) {
+    try {
+      node = await figma.importComponentByKeyAsync(componentKey);
+    } catch {
+      try {
+        node = await figma.importComponentSetByKeyAsync(componentKey);
+      } catch {
+        /* not found */
+      }
+    }
+  } else if (componentId) {
+    node = figma.getNodeById(componentId);
+    if (!node) {
+      try {
+        node = await figma.importComponentByKeyAsync(componentId);
+      } catch {
+        try {
+          node = await figma.importComponentSetByKeyAsync(componentId);
+        } catch {
+          /* not found */
+        }
+      }
+    }
+  }
+
+  if (!node) {
+    throw new Error(`Component not found: ${componentSetKey || componentKey || componentId}`);
+  }
+
+  return resolveComponent(node, variantProperties);
+}
+
 /** Resolve a ComponentNode from a node that may be a COMPONENT or COMPONENT_SET.
  *  If variantProperties are provided and the node is a COMPONENT_SET, picks the matching variant. */
 export function resolveComponent(node: BaseNode, variantProperties?: Record<string, string>): ResolvedComponent {

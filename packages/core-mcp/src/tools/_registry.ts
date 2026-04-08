@@ -357,8 +357,8 @@ export const GENERATED_TOOLSETS: Record<string, { description: string; tools: st
       'audit_components',
     ],
   },
-  'library': {
-    description: "Library operations — browse and import library variables, styles, and components from shared libraries.",
+  'library-import': {
+    description: "Library import — browse and import library variables, styles, and components into the local file (design system authoring).",
     tools: [
       'list_library_collections',
       'list_library_variables',
@@ -447,7 +447,7 @@ export const GENERATED_TOOLSET_DESCRIPTIONS: Record<string, string> = {
   'tokens': "DTCG token sync — parse, diff, sync, reverse-sync design tokens between JSON files and Figma.",
   'styles': "Style management — create, update, delete paint/text/effect styles, sync composite tokens.",
   'components-advanced': "Advanced component ops — create components, manage variants/properties/overrides, audit.",
-  'library': "Library operations — browse and import library variables, styles, and components from shared libraries.",
+  'library-import': "Library import — browse and import library variables, styles, and components into the local file (design system authoring).",
   'shapes-vectors': "Shape primitives & vectors — stars, polygons, sections, boolean ops, flatten.",
   'annotations': "Annotations — add, read, batch-set, and clear annotations on nodes.",
   'prototype': "Prototype interactions — get/add/remove/set reactions, analyze prototype flows and navigation.",

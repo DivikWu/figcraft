@@ -6,7 +6,7 @@ Core tools are always enabled. Load additional toolsets as needed via `load_tool
 | `tokens` | Syncing DTCG design tokens |
 | `styles` | Managing paint/text/effect styles |
 | `components-advanced` | Building component libraries, managing variants |
-| `library` | Importing from shared Figma libraries |
+| `library-import` | Importing library variables, styles, and components into local file (design system authoring, NOT for UI creation in library mode) |
 | `shapes-vectors` | Stars, polygons, sections, boolean ops, flatten |
 | `annotations` | Adding, reading, and clearing annotations on nodes |
 | `prototype` | Prototype interactions, flow analysis, batch-connect screens |

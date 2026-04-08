@@ -6,7 +6,7 @@
 
 import { simplifyNode } from '../adapters/node-simplifier.js';
 import { registerHandler } from '../registry.js';
-import { applySizingOverrides, resolveComponent, setLayoutSizing } from '../utils/figma-compat.js';
+import { applySizingOverrides, importAndResolveComponent, setLayoutSizing } from '../utils/figma-compat.js';
 import { assertHandler } from '../utils/handler-error.js';
 import { applyStroke, setComponentProperties } from '../utils/node-helpers.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
@@ -61,41 +61,12 @@ export function registerInstanceHandlers(): void {
       'componentId, componentKey, or componentSetKey is required',
     );
 
-    let node: BaseNode | null = null;
-
-    if (componentSetKey) {
-      try {
-        node = await figma.importComponentSetByKeyAsync(componentSetKey);
-      } catch {
-        /* not found */
-      }
-    } else if (componentKey) {
-      try {
-        node = await figma.importComponentByKeyAsync(componentKey);
-      } catch {
-        try {
-          node = await figma.importComponentSetByKeyAsync(componentKey);
-        } catch {
-          /* not found */
-        }
-      }
-    } else if (componentId) {
-      node = await findNodeByIdAsync(componentId);
-      if (!node) {
-        try {
-          node = await figma.importComponentByKeyAsync(componentId);
-        } catch {
-          try {
-            node = await figma.importComponentSetByKeyAsync(componentId);
-          } catch {
-            /* not found */
-          }
-        }
-      }
-    }
-    assertHandler(node, `Component not found: ${componentSetKey || componentKey || componentId}`, 'NOT_FOUND');
-
-    const resolved = resolveComponent(node, params.variantProperties as Record<string, string> | undefined);
+    const resolved = await importAndResolveComponent({
+      componentSetKey,
+      componentKey,
+      componentId,
+      variantProperties: params.variantProperties as Record<string, string> | undefined,
+    });
     const warnings: string[] = [];
     if (resolved.fallbackWarning) warnings.push(resolved.fallbackWarning);
 
@@ -109,7 +80,13 @@ export function registerInstanceHandlers(): void {
 
     // Set component properties
     if (params.properties) {
-      setComponentProperties(instance, params.properties as Record<string, string | boolean>);
+      const { unmatchedProperties } = setComponentProperties(
+        instance,
+        params.properties as Record<string, string | boolean>,
+      );
+      if (unmatchedProperties.length > 0) {
+        warnings.push(`Unmatched properties (ignored): ${unmatchedProperties.join(', ')}`);
+      }
     }
 
     // Parent append
@@ -125,6 +102,8 @@ export function registerInstanceHandlers(): void {
     applySizingOverrides(instance, params);
 
     const result = simplifyNode(instance);
+    // Add _actualVariant to help AI verify which variant was instantiated
+    (result as unknown as Record<string, unknown>)._actualVariant = resolved.component.name;
     if (warnings.length > 0) (result as unknown as Record<string, unknown>)._warnings = warnings;
     return result;
   });
@@ -187,7 +166,14 @@ export function registerInstanceHandlers(): void {
     const items = params.items as Array<Record<string, unknown>>;
     assertHandler(Array.isArray(items) && items.length > 0, 'items array is required');
 
-    const results: Array<{ id: string; ok: boolean; error?: string; _warning?: string }> = [];
+    const results: Array<{
+      id: string;
+      ok: boolean;
+      error?: string;
+      _warning?: string;
+      _warnings?: string[];
+      _actualVariant?: string;
+    }> = [];
     for (const item of items) {
       try {
         const componentId = item.componentId as string | undefined;
@@ -198,50 +184,12 @@ export function registerInstanceHandlers(): void {
           'componentId, componentKey, or componentSetKey is required',
         );
 
-        let cNode: BaseNode | null = null;
-        if (componentSetKey) {
-          try {
-            cNode = await figma.importComponentSetByKeyAsync(componentSetKey);
-          } catch {
-            /* not found */
-          }
-        } else if (componentKey) {
-          try {
-            cNode = await figma.importComponentByKeyAsync(componentKey);
-          } catch {
-            try {
-              cNode = await figma.importComponentSetByKeyAsync(componentKey);
-            } catch {
-              /* not found */
-            }
-          }
-        } else if (componentId) {
-          cNode = await findNodeByIdAsync(componentId);
-          if (!cNode) {
-            try {
-              cNode = await figma.importComponentByKeyAsync(componentId);
-            } catch {
-              try {
-                cNode = await figma.importComponentSetByKeyAsync(componentId);
-              } catch {
-                /* not found */
-              }
-            }
-          }
-        }
-        assertHandler(cNode, `Component not found: ${componentSetKey || componentKey || componentId}`, 'NOT_FOUND');
-
-        let resolved: ReturnType<typeof resolveComponent> | undefined;
-        try {
-          resolved = resolveComponent(cNode, item.variantProperties as Record<string, string> | undefined);
-        } catch {
-          results.push({
-            id: componentSetKey || componentKey || componentId || '?',
-            ok: false,
-            error: `Not a component (type: ${cNode.type})`,
-          });
-          continue;
-        }
+        const resolved = await importAndResolveComponent({
+          componentSetKey,
+          componentKey,
+          componentId,
+          variantProperties: item.variantProperties as Record<string, string> | undefined,
+        });
 
         const instance = resolved.component.createInstance();
         if (item.name) instance.name = item.name as string;
@@ -250,8 +198,16 @@ export function registerInstanceHandlers(): void {
         if (item.width != null || item.height != null) {
           instance.resize((item.width as number) ?? instance.width, (item.height as number) ?? instance.height);
         }
+        const itemWarnings: string[] = [];
+        if (resolved?.fallbackWarning) itemWarnings.push(resolved.fallbackWarning);
         if (item.properties) {
-          setComponentProperties(instance, item.properties as Record<string, string | boolean>);
+          const { unmatchedProperties } = setComponentProperties(
+            instance,
+            item.properties as Record<string, string | boolean>,
+          );
+          if (unmatchedProperties.length > 0) {
+            itemWarnings.push(`Unmatched properties: ${unmatchedProperties.join(', ')}`);
+          }
         }
         if (item.parentId) {
           const parent = await findNodeByIdAsync(item.parentId as string);
@@ -268,7 +224,8 @@ export function registerInstanceHandlers(): void {
         results.push({
           id: instance.id,
           ok: true,
-          ...(resolved.fallbackWarning ? { _warning: resolved.fallbackWarning } : {}),
+          _actualVariant: resolved?.component.name,
+          ...(itemWarnings.length > 0 ? { _warnings: itemWarnings } : {}),
         });
       } catch (err) {
         results.push({

@@ -272,7 +272,17 @@ export function registerSearchDesignSystemTool(server: McpServer, bridge: Bridge
           variables: [],
           styles: [],
           summary: { components: 0, variables: 0, styles: 0 },
+          _searchScope: 'none',
         });
+      }
+
+      // Add search scope indicator to help AI understand result completeness
+      const hasPlugin = !pluginResult._partial;
+      const scope = restAvailable ? (hasPlugin ? 'local+library' : 'library-only') : hasPlugin ? 'local-only' : 'none';
+      pluginResult._searchScope = scope;
+      if (scope === 'local-only') {
+        pluginResult._searchScopeNote =
+          'Components searched from current page only. Configure FIGMA_API_TOKEN to search all published library components.';
       }
 
       return compactResponse(pluginResult);

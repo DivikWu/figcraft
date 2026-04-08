@@ -127,70 +127,8 @@ export function registerComponentHandlers(): void {
     return simplifyNode(component);
   });
 
-  registerHandler('create_instance', async (params) => {
-    const componentId = params.componentId as string;
-    const componentKey = params.componentKey as string | undefined;
-    const componentSetKey = params.componentSetKey as string | undefined;
-
-    let component: ComponentNode | null = null;
-
-    if (componentSetKey) {
-      // Import component set from library, then find the matching variant
-      const imported = await figma.importComponentSetByKeyAsync(componentSetKey);
-      if (params.properties && typeof params.properties === 'object') {
-        // Find variant matching the requested properties
-        const requestedProps = params.properties as Record<string, string>;
-        const match = imported.children.find((child) => {
-          if (child.type !== 'COMPONENT') return false;
-          // Parse variant name "Prop1=Val1, Prop2=Val2" into a map
-          const variantProps: Record<string, string> = {};
-          for (const part of child.name.split(',')) {
-            const eq = part.indexOf('=');
-            if (eq > 0) variantProps[part.slice(0, eq).trim()] = part.slice(eq + 1).trim();
-          }
-          return Object.entries(requestedProps).every(([k, v]) => variantProps[k] === v);
-        });
-        component = (match as ComponentNode) ?? (imported.defaultVariant as ComponentNode);
-      } else {
-        component = imported.defaultVariant as ComponentNode;
-      }
-    } else if (componentKey) {
-      // Import from library by key
-      const imported = await figma.importComponentByKeyAsync(componentKey);
-      component = imported;
-    } else {
-      const node = await findNodeByIdAsync(componentId);
-      if (node && node.type === 'COMPONENT') {
-        component = node as ComponentNode;
-      }
-    }
-
-    if (!component) {
-      throw new HandlerError('Component not found', 'NOT_FOUND');
-    }
-
-    const instance = component.createInstance();
-
-    // Set variant properties if provided
-    if (params.properties && typeof params.properties === 'object') {
-      for (const [key, value] of Object.entries(params.properties as Record<string, string>)) {
-        try {
-          instance.setProperties({ [key]: value });
-        } catch {
-          // Property may not exist — skip silently
-        }
-      }
-    }
-
-    if (params.parentId) {
-      const parent = await findNodeByIdAsync(params.parentId as string);
-      if (parent && 'appendChild' in parent) {
-        (parent as FrameNode).appendChild(instance);
-      }
-    }
-
-    return simplifyNode(instance);
-  });
+  // create_instance is registered in write-nodes-instance.ts (with shared importAndResolveComponent,
+  // _actualVariant feedback, and unmatched properties reporting). No duplicate here.
 
   registerHandler('swap_instance', async (params) => {
     const instanceId = params.instanceId as string;

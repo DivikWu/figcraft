@@ -47,7 +47,7 @@ const EXPECTED_TOOLSETS = [
   'tokens',
   'styles',
   'components-advanced',
-  'library',
+  'library-import',
   'shapes-vectors',
   'annotations',
   'prototype',

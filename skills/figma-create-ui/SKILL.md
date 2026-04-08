@@ -32,21 +32,115 @@ This SKILL.md is a **lightweight entry point**. The detailed, context-aware crea
 ## Skill Boundaries
 
 - Use this skill to **create new UI** using declarative tools (`create_frame`, `create_text`).
-- In **library mode**: load `figma-generate-design` skill for component discovery and `type:"instance"` instantiation. Use `search_design_system` for token discovery.
+- This skill covers **both** simple layouts and **library component assembly**. In library mode, use `search_design_system` and `type:"instance"` as described in the Library Components section below.
 - If the task is **building a design system** (variables, component libraries, theming), switch to [figma-generate-library](../figma-generate-library/SKILL.md).
 - If the task is **reviewing existing designs**, switch to [design-review](../design-review/SKILL.md).
 - If the task is **implementing code from Figma**, switch to [figma-implement-design](../figma-implement-design/SKILL.md).
 
-### When to Use This Skill vs figma-generate-design
+## Library Components — Reuse Design System
 
-| Signal | This skill (create-ui) | figma-generate-design |
-|--------|----------------------|----------------------|
-| Design system | No library or simple token binding | Library with reusable components (Button, Input, Card) |
-| Typical task | "Design a card", "Build a quick layout" | "Design a login page using the design system" |
-| Component reuse | Hand-built frames + text | `type:"instance"` + `componentKey` from `search_design_system` |
-| Complexity | Single elements, simple screens | Full screens assembled from library components |
+When `get_mode` returns `libraryComponents`, **always prefer component instances over hand-built frames**.
 
-**Rule of thumb**: If `get_mode` returns `libraryComponents` with Button/Input/Card components, load `figma-generate-design` and follow its component discovery workflow. Use this skill for simple layouts without library components.
+### Component Discovery
+
+⛔ **MANDATORY: Always search before building.** The design system likely has the component you need.
+
+1. **Check `libraryComponents` from `get_mode`** — it lists all component sets (name, key, containingFrame, propertyNames) and standalone components. Use this as your starting inventory.
+
+2. **Search for specific components** via `search_design_system`:
+   ```
+   search_design_system(query: "button")
+   search_design_system(query: "input")
+   ```
+
+3. **Disambiguate with `containingFrame`** — property names like "Placeholder"/"Size" appear across unrelated component types:
+   - `containingFrame: "Forms"` → form components (inputs, selects, checkboxes)
+   - `containingFrame: "Avatars"` → profile/user image components — NEVER use for form inputs
+   - For form inputs, verify **State/Error/Focused** variants — Avatars never have these.
+
+4. **Inspect variant details** when needed:
+   ```
+   components(method: "list_properties", nodeId: "<component-id>")
+   ```
+
+5. **Build a component map** before creating:
+   ```
+   Component Map:
+   - Button → key: "abc123", variants: Type=Primary/Secondary, Size=Small/Medium/Large
+   - Input  → key: "def456", variants: Size=md/lg, State=Default/Focused/Error
+   - Card   → key: "ghi789", standalone component
+   ```
+
+### Creating with Library Components
+
+Use `create_frame` with `type:"instance"` in children:
+
+| Build manually | Import from design system |
+|----------------|--------------------------|
+| Page wrapper frame | **Components**: buttons, cards, inputs, toggles, tabs, etc. |
+| Section container frames | **Variables**: colors (`fillVariableName`), spacing, radii |
+| Layout structure (rows, columns) | **Text styles**: `textStyleName: "body-md"` |
+| Dividers, spacers | **Effect styles**: `effectStyleName: "elevation-200"` |
+
+### Instance Properties
+
+- **`variantProperties`** — selects which variant to instantiate from a component **set**:
+  ```json
+  { "type": "instance", "componentSetKey": "abc123", "variantProperties": { "Type": "Primary", "Size": "Large" } }
+  ```
+
+- **`properties`** — sets instance overrides (text, booleans) on a **single component** or after variant selection:
+  ```json
+  { "type": "instance", "componentKey": "abc123", "properties": { "Label": "Sign In" } }
+  ```
+
+- **`componentKey`** — imports a single component from the library
+- **`componentSetKey`** — imports a full variant set (use with `variantProperties`)
+- **`componentId`** — references a local component by node ID
+
+### Example: Login Screen
+
+```json
+{
+  "name": "Screen / Login",
+  "width": 402, "height": 874,
+  "layoutMode": "VERTICAL",
+  "primaryAxisAlignItems": "SPACE_BETWEEN",
+  "role": "screen",
+  "fillVariableName": "surface/primary",
+  "children": [
+    {
+      "type": "frame", "name": "Top Content",
+      "layoutMode": "VERTICAL", "itemSpacing": 32,
+      "padding": 24, "paddingTop": 80,
+      "children": [
+        { "type": "text", "content": "Welcome back", "textStyleName": "display-md", "fontColorVariableName": "text/emphasis" },
+        { "type": "text", "content": "Sign in to your account", "textStyleName": "body-md", "fontColorVariableName": "text/secondary" },
+        {
+          "type": "instance", "componentKey": "INPUT_KEY",
+          "properties": { "Placeholder": "your@email.com", "Size": "lg" }
+        },
+        {
+          "type": "instance", "componentKey": "INPUT_KEY",
+          "properties": { "Placeholder": "Password", "Size": "lg" }
+        }
+      ]
+    },
+    {
+      "type": "frame", "name": "Bottom Content",
+      "layoutMode": "VERTICAL", "itemSpacing": 16,
+      "padding": 24, "paddingBottom": 48,
+      "children": [
+        {
+          "type": "instance", "componentKey": "BUTTON_KEY",
+          "properties": { "Label": "Sign In", "Type": "Primary", "Size": "Large" },
+          "layoutSizingHorizontal": "FILL"
+        }
+      ]
+    }
+  ]
+}
+```
 
 ## Opinion Engine
 
@@ -72,6 +166,20 @@ Use `dryRun:true` to preview all inferences before creating nodes. For full deta
 - **dryRun:true** for complex or ambiguous parameters — preview before committing.
 - **After first failure**, review ALL remaining planned payloads for the same pattern before retrying.
 - **Icon ordering (CRITICAL)**: `icon_create` appends to END by default — use `index: 0` to place BEFORE text. Array order = visual order in auto-layout. Full patterns: `get_creation_guide(topic:"iconography")`.
+- **Always search before building** in library mode. Manual construction should be the exception, not the rule.
+- **Prefer component instances over manual builds.** Instances stay linked to the source component and update automatically.
+- **Validate visually after each screen.** Use `export_image` to catch issues early.
+- **Match existing conventions.** If the file already has screens, match their naming and layout patterns.
+
+## Updating an Existing Screen
+
+When updating rather than creating:
+
+1. `nodes(method: "get", nodeId: "<screen-id>")` — inspect current structure
+2. `nodes(method: "update", patches: [...])` — update properties, swap variants
+3. `nodes(method: "delete", nodeId: "<old-section>")` — remove deprecated sections
+4. Create new sections with `create_frame(parentId: "<screen-id>", ...)`
+5. Validate with `export_image` after each modification
 
 ## On-Demand Guides
 
