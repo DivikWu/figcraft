@@ -22,7 +22,12 @@ STEP 2: CLASSIFY TASK SCALE → pick creation method:
         └─ large flow 6+    → load skill: multi-screen-flow → batch 2-3 screens per turn
 STEP 3: create_frame + children           → Opinion Engine auto-handles sizing, tokens, pitfalls
         IF multi-screen → follow multi-screen-flow skill hierarchy (Wrapper → Header → Flow Row → Stage → Screen)
+        Harness Pipeline auto-enriches response:
+          _qualityScore (0-100)    → check this; if < 80 or errors exist, call verify_design()
+          _verificationDebt        → persists in ALL subsequent responses until verified
+          _recovery (on error)     → follow suggestion to fix and retry
 STEP 4: verify_design                     → lint + screenshot + preflight audit in one call
+        Clears _verificationDebt for verified nodes
 ```
 
 During execution: verify after every write (`export_image` at milestones). Run `lint_fix_all` before replying.

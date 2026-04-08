@@ -21,7 +21,7 @@ interface IconChild {
   [key: string]: unknown;
 }
 
-interface IconWarning {
+export interface IconWarning {
   icon: string;
   error: string;
 }

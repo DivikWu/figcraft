@@ -34,7 +34,12 @@ STEP 2: CLASSIFY TASK SCALE → pick creation method:
         └─ large flow 6+    → load skill: multi-screen-flow → batch 2-3 screens per turn
 STEP 3: create_frame + children           → Opinion Engine auto-handles sizing, tokens, pitfalls
         IF multi-screen → follow multi-screen-flow skill hierarchy (Wrapper → Header → Flow Row → Stage → Screen)
+        Harness Pipeline auto-enriches response:
+          _qualityScore (0-100)    → check this; if < 80 or errors exist, call verify_design()
+          _verificationDebt        → persists in ALL subsequent responses until verified
+          _recovery (on error)     → follow suggestion to fix and retry
 STEP 4: verify_design                     → lint + screenshot + preflight audit in one call
+        Clears _verificationDebt for verified nodes
 ```
 
 During execution: verify after every write (`export_image` at milestones). Run `lint_fix_all` before replying.
@@ -75,6 +80,29 @@ All of these are returned by MCP tools and enforced at runtime:
 
 Do NOT duplicate these rules in steering files. They update with the MCP Server code.
 
+## Harness Response Fields
+
+<!-- @inject-start: ide-shared/harness-fields.md -->
+Harness Pipeline auto-enriches bridge responses. Check these fields after every tool call:
+
+| Field | When present | What to do |
+|-------|-------------|------------|
+| `_qualityScore` | After root-level `create_frame` | If < 80 or errors exist → call `verify_design()` |
+| `_qualityWarning` | When `_qualityScore` has violations | Read the warning, follow its fix suggestion |
+| `_verificationDebt` | After any tool, if unverified creations exist | Persists until `verify_design()` or `lint_fix_all` clears it. Call `verify_design()` before replying to user |
+| `_recovery` | On error (appended to error message) | Follow the `suggestion` to fix and retry. Includes `errorType` for classification |
+| `_warnings` | After `create_frame` with placeholder text | Replace placeholder content with real text |
+| `_nextSteps` | After `sync_tokens`, `set_mode` | Follow the listed steps in order |
+
+Error recovery patterns (from `content/harness/recovery-patterns.yaml`):
+- **connection_lost** → check Figma plugin is running, try `ping`
+- **token_not_found** → call `search_design_system(query:"...")` to find available tokens
+- **node_deleted** → call `nodes(method:"list")` to get current IDs
+- **file_not_found** → check file path (use absolute path)
+- **parse_error** → file must be valid DTCG JSON
+- **response_too_large** → narrow scope with `nodeId`, `maxDepth`, or `detail:"summary"`
+<!-- @inject-end -->
+
 ## Project Assets
 
 <!-- @inject-start: ide-shared/asset-locations.md -->
@@ -85,6 +113,8 @@ Project assets and their locations:
 - **MCP tools**: `schema/tools.yaml` (`npm run schema` to compile)
 - **Lint rules**: `packages/quality-engine/src/rules/` (TypeScript)
 - **Opinion Engine**: `packages/adapter-figma/src/handlers/inline-tree.ts`
+- **Harness rules** (code): `packages/core-mcp/src/harness/rules/` (TypeScript)
+- **Harness rules** (data): `content/harness/` (YAML, `npm run content` to compile)
 
 On-demand docs via MCP tools:
 - `get_creation_guide(topic)` — layout, multi-screen, batching, tool-behavior, opinion-engine, responsive, content-states, ui-patterns

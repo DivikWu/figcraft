@@ -1,0 +1,19 @@
+# Harness next-steps — tool→subsequent steps mapping.
+# After a tool succeeds, these steps are injected as _nextSteps
+# to guide AI through multi-step workflows.
+#
+# Fields:
+#   tool: MCP tool name
+#   steps: ordered list of follow-up actions
+#
+# Edit this file and run: npm run content
+
+- tool: sync_tokens
+  steps:
+    - Run lint_fix_all to check compliance with synced tokens.
+    - Use export_image on modified screens to verify visual changes.
+    - Run verify_design for a final quality audit.
+
+- tool: set_mode
+  steps:
+    - Call get_mode to refresh workflow instructions for the new mode.

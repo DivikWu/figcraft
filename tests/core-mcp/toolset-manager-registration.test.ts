@@ -45,6 +45,8 @@ class FakeMcpServer {
 function createBridge(): Bridge {
   return {
     request: vi.fn(),
+    setPipeline: vi.fn(),
+    session: { modeQueried: false, selectedLibrary: undefined },
   } as unknown as Bridge;
 }
 

@@ -12,7 +12,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { Bridge } from '../bridge.js';
-import { resolveIconChildren } from './logic/resolve-icons.js';
 import { jsonResponse } from './response-helpers.js';
 
 export function registerCreateFrame(server: McpServer, bridge: Bridge): void {
@@ -194,19 +193,9 @@ export function registerCreateFrame(server: McpServer, bridge: Bridge): void {
         ),
     },
     async (params) => {
-      // Resolve icon children → svg children (MCP Server has network access)
-      const iconWarnings = await resolveIconChildren(params as Record<string, unknown>);
-
-      // Forward resolved params to Plugin
-      const result = await bridge.request('create_frame', params, 60000);
-
-      // Merge icon warnings into response
-      if (iconWarnings.length > 0 && result && typeof result === 'object') {
-        const res = result as Record<string, unknown>;
-        const existing = Array.isArray(res._warnings) ? (res._warnings as unknown[]) : [];
-        res._warnings = [...existing, ...iconWarnings.map((w) => `Icon "${w.icon}" failed: ${w.error}`)];
-      }
-
+      // Icon resolution + content warnings + design decisions are handled by
+      // the Harness Pipeline (pre-transform + post-enrich rules).
+      const result = await bridge.request('create_frame', params, 60000, 'create_frame', true);
       return jsonResponse(result);
     },
   );

@@ -8,16 +8,21 @@
 - [figma-mcp-comparison.md](figma-mcp-comparison.md) — 与 Figma 官方 MCP 的对比与协同说明
 - [roadmap.md](roadmap.md) — 产品路线图：已完成 / 短期 / 中期 / 长期
 
+## 架构
+
+- [creation-architecture.md](creation-architecture.md) — Opinion Engine 架构：语义级推断、角色系统、四层决策模型
+- [harness-architecture.md](harness-architecture.md) — Harness Pipeline 架构：6 层可靠性模型、验证债务、错误恢复、设计原则
+
 ## 维护
 
-- [asset-maintenance.md](asset-maintenance.md) — 资产维护手册：六类资产的位置、扩展方法、速查表
+- [asset-maintenance.md](asset-maintenance.md) — 资产维护手册：七类资产的位置、扩展方法、速查表
 - [contributing-content.md](contributing-content.md) — 内容编辑指南：设计师/PM 如何编辑模板、指南、Prompt
 - [public-contract.md](public-contract.md) — 公共契约：环境变量、Skills 目录、质量门槛
 
 ## 战略
 
 - [architecture-review.md](architecture-review.md) — 架构决策记录：增长资产混合架构方案（2026-04-03）
-- [growth-assets.md](growth-assets.md) — 增长资产路线图：六类资产的扩展方向和优先级
+- [growth-assets.md](growth-assets.md) — 增长资产路线图：七类资产的扩展方向和优先级
 - [skills-strategy.md](skills-strategy.md) — Skills 长期战略：拓展路线、编排模式、质量衡量
 
 ## 历史

@@ -33,7 +33,7 @@ export function registerGeneratedTools(
     "Get the currently selected nodes in Figma with full compressed data.",
     {},
     async (params) => {
-      const result = await bridge.request('get_selection', {});
+      const result = await bridge.request('get_selection', {}, undefined, 'get_selection', false);
       return jsonResponse(result);
     },
   );
@@ -47,7 +47,7 @@ export function registerGeneratedTools(
       family: z.string().optional().describe("Font family name to get available styles for"),
     },
     async ({ family }) => {
-      const result = await bridge.request('list_fonts', { family });
+      const result = await bridge.request('list_fonts', { family }, undefined, 'list_fonts', false);
       return jsonResponse(result);
     },
   );
@@ -86,7 +86,7 @@ export function registerGeneratedTools(
       items: z.array(z.unknown()).optional().describe("Batch mode: array of create_text param objects. When provided, creates multiple text nodes in one call. Each item accepts the same params as create_text (content, fontSize, fontFamily, fill, parentId, etc.). Max 50 text nodes per batch. Returns {created, total, items: [{id, name, ok, error?}]}."),
     },
     async (params) => {
-      const result = await bridge.request('create_text', params);
+      const result = await bridge.request('create_text', params, undefined, 'create_text', true);
       return jsonResponse(result);
     },
   );
@@ -100,7 +100,7 @@ export function registerGeneratedTools(
       nameOrId: z.string().describe("Page name or page ID"),
     },
     async ({ nameOrId }) => {
-      const result = await bridge.request('set_current_page', { nameOrId });
+      const result = await bridge.request('set_current_page', { nameOrId }, undefined, 'set_current_page', false);
       return jsonResponse(result);
     },
   );
@@ -115,7 +115,7 @@ export function registerGeneratedTools(
       description: z.string().optional().describe("Optional description of what was done"),
     },
     async ({ title, description }) => {
-      const result = await bridge.request('save_version_history', { title, description });
+      const result = await bridge.request('save_version_history', { title, description }, undefined, 'save_version_history', false);
       return jsonResponse(result);
     },
   );
@@ -130,7 +130,7 @@ export function registerGeneratedTools(
       scrollIntoView: z.boolean().optional().describe("Scroll viewport to show selected nodes (default: true)"),
     },
     async (params) => {
-      const result = await bridge.request('set_selection', params);
+      const result = await bridge.request('set_selection', params, undefined, 'set_selection', false);
       return jsonResponse(result);
     },
   );
@@ -148,7 +148,7 @@ export function registerGeneratedTools(
       y: z.number().optional().describe("Y position"),
     },
     async (params) => {
-      const result = await bridge.request('create_svg', params);
+      const result = await bridge.request('create_svg', params, undefined, 'create_svg', true);
       return jsonResponse(result);
     },
   );
@@ -164,7 +164,7 @@ export function registerGeneratedTools(
       includePath: z.boolean().optional().describe("Include layer hierarchy path (e.g. 'Frame > Card > Label')"),
     },
     async ({ nodeId, limit, includePath }) => {
-      const result = await bridge.request('text_scan', { nodeId, limit, includePath });
+      const result = await bridge.request('text_scan', { nodeId, limit, includePath }, undefined, 'text_scan', false);
       return jsonResponse(result);
     },
   );
@@ -180,7 +180,7 @@ export function registerGeneratedTools(
       modeId: z.string().describe("Mode ID to set (get available modes from list_collections)"),
     },
     async ({ nodeId, collectionId, modeId }) => {
-      const result = await bridge.request('set_explicit_variable_mode', { nodeId, collectionId, modeId });
+      const result = await bridge.request('set_explicit_variable_mode', { nodeId, collectionId, modeId }, undefined, 'set_explicit_variable_mode', true);
       return jsonResponse(result);
     },
   );
@@ -195,7 +195,7 @@ export function registerGeneratedTools(
       name: z.string().describe("New collection name"),
     },
     async ({ collectionId, name }) => {
-      const result = await bridge.request('rename_collection', { collectionId, name });
+      const result = await bridge.request('rename_collection', { collectionId, name }, undefined, 'rename_collection', true);
       return jsonResponse(result);
     },
   );
@@ -210,7 +210,7 @@ export function registerGeneratedTools(
       name: z.string().describe("Mode name (e.g. \"Dark\", \"Compact\")"),
     },
     async ({ collectionId, name }) => {
-      const result = await bridge.request('add_collection_mode', { collectionId, name });
+      const result = await bridge.request('add_collection_mode', { collectionId, name }, undefined, 'add_collection_mode', true);
       return jsonResponse(result);
     },
   );
@@ -226,7 +226,7 @@ export function registerGeneratedTools(
       name: z.string().describe("New mode name"),
     },
     async ({ collectionId, modeId, name }) => {
-      const result = await bridge.request('rename_collection_mode', { collectionId, modeId, name });
+      const result = await bridge.request('rename_collection_mode', { collectionId, modeId, name }, undefined, 'rename_collection_mode', true);
       return jsonResponse(result);
     },
   );
@@ -241,7 +241,7 @@ export function registerGeneratedTools(
       modeId: z.string().describe("Mode ID to remove"),
     },
     async ({ collectionId, modeId }) => {
-      const result = await bridge.request('remove_collection_mode', { collectionId, modeId });
+      const result = await bridge.request('remove_collection_mode', { collectionId, modeId }, undefined, 'remove_collection_mode', true);
       return jsonResponse(result);
     },
   );
@@ -257,7 +257,7 @@ export function registerGeneratedTools(
       modeId: z.string().optional().describe("Mode ID (defaults to first mode)"),
     },
     async ({ variableId, targetVariableId, modeId }) => {
-      const result = await bridge.request('create_variable_alias', { variableId, targetVariableId, modeId });
+      const result = await bridge.request('create_variable_alias', { variableId, targetVariableId, modeId }, undefined, 'create_variable_alias', true);
       return jsonResponse(result);
     },
   );
@@ -269,7 +269,7 @@ export function registerGeneratedTools(
     "List all cached token entries in Figma clientStorage.",
     {},
     async (params) => {
-      const result = await bridge.request('list_spec_tokens', {});
+      const result = await bridge.request('list_spec_tokens', {}, undefined, 'list_cached_tokens', false);
       return jsonResponse(result);
     },
   );
@@ -283,7 +283,7 @@ export function registerGeneratedTools(
       name: z.string().describe("Cache entry name to delete"),
     },
     async ({ name }) => {
-      const result = await bridge.request('delete_spec_tokens', { name });
+      const result = await bridge.request('delete_spec_tokens', { name }, undefined, 'delete_cached_tokens', true);
       return jsonResponse(result);
     },
   );
@@ -295,7 +295,7 @@ export function registerGeneratedTools(
     "Scan all local styles (paint, text, effect) and return a summary with counts and details.",
     {},
     async (params) => {
-      const result = await bridge.request('scan_styles', {});
+      const result = await bridge.request('scan_styles', {}, undefined, 'scan_styles', false);
       return jsonResponse(result);
     },
   );
@@ -307,7 +307,7 @@ export function registerGeneratedTools(
     "Export all local Figma variables as DTCG-format tokens, grouped by collection.",
     {},
     async (params) => {
-      const result = await bridge.request('export_tokens', {});
+      const result = await bridge.request('export_tokens', {}, undefined, 'export_tokens', false);
       return jsonResponse(result);
     },
   );
@@ -325,7 +325,7 @@ export function registerGeneratedTools(
         })).describe("DTCG tokens to compare against Figma variables"),
     },
     async (params) => {
-      const result = await bridge.request('diff_styles', params);
+      const result = await bridge.request('diff_styles', params, undefined, 'diff_styles', false);
       return jsonResponse(result);
     },
   );
@@ -339,7 +339,7 @@ export function registerGeneratedTools(
       library: z.string().describe("Library name"),
     },
     async ({ library }) => {
-      const result = await bridge.request('get_registered_styles', { library });
+      const result = await bridge.request('get_registered_styles', { library }, undefined, 'get_registered_styles', false);
       return jsonResponse(result);
     },
   );
@@ -370,7 +370,7 @@ export function registerGeneratedTools(
       properties: z.array(z.unknown()).optional().describe("Non-text component properties: [{propertyName, type:'BOOLEAN'|'INSTANCE_SWAP', defaultValue}]. TEXT properties are created automatically from children with componentPropertyName."),
     },
     async (params) => {
-      const result = await bridge.request('create_component', params);
+      const result = await bridge.request('create_component', params, undefined, 'create_component', true);
       return jsonResponse(result);
     },
   );
@@ -385,7 +385,7 @@ export function registerGeneratedTools(
       name: z.string().optional().describe("Name for the variant set"),
     },
     async (params) => {
-      const result = await bridge.request('create_component_set', params);
+      const result = await bridge.request('create_component_set', params, undefined, 'create_component_set', true);
       return jsonResponse(result);
     },
   );
@@ -403,7 +403,7 @@ export function registerGeneratedTools(
       height: z.number().optional().describe("New height in px"),
     },
     async (params) => {
-      const result = await bridge.request('update_component', params);
+      const result = await bridge.request('update_component', params, undefined, 'update_component', true);
       return jsonResponse(result);
     },
   );
@@ -417,7 +417,7 @@ export function registerGeneratedTools(
       nodeId: z.string().describe("Component node ID to delete"),
     },
     async ({ nodeId }) => {
-      const result = await bridge.request('delete_component', { nodeId });
+      const result = await bridge.request('delete_component', { nodeId }, undefined, 'delete_component', true);
       return jsonResponse(result);
     },
   );
@@ -443,7 +443,7 @@ export function registerGeneratedTools(
       name: z.string().optional().describe("Instance layer name"),
     },
     async (params) => {
-      const result = await bridge.request('create_instance', params);
+      const result = await bridge.request('create_instance', params, undefined, 'create_instance', true);
       return jsonResponse(result);
     },
   );
@@ -457,7 +457,7 @@ export function registerGeneratedTools(
       items: z.array(z.record(z.unknown())).describe("Array of {componentId, variantProperties?, properties?, parentId?, sizing?, layoutSizingHorizontal?, ...}"),
     },
     async (params) => {
-      const result = await bridge.request('create_instances', params);
+      const result = await bridge.request('create_instances', params, undefined, 'create_instances', true);
       return jsonResponse(result);
     },
   );
@@ -473,7 +473,7 @@ export function registerGeneratedTools(
       exposeText: z.boolean().optional().describe("Auto-expose text children as editable TEXT properties (default: true)"),
     },
     async ({ nodeId, name, exposeText }) => {
-      const result = await bridge.request('create_component_from_node', { nodeId, name, exposeText });
+      const result = await bridge.request('create_component_from_node', { nodeId, name, exposeText }, undefined, 'create_component_from_node', true);
       return jsonResponse(result);
     },
   );
@@ -488,7 +488,7 @@ export function registerGeneratedTools(
       componentKey: z.string().describe("New component key to swap to"),
     },
     async ({ instanceId, componentKey }) => {
-      const result = await bridge.request('swap_instance', { instanceId, componentKey });
+      const result = await bridge.request('swap_instance', { instanceId, componentKey }, undefined, 'swap_instance', true);
       return jsonResponse(result);
     },
   );
@@ -502,7 +502,7 @@ export function registerGeneratedTools(
       instanceId: z.string().describe("Instance node ID"),
     },
     async ({ instanceId }) => {
-      const result = await bridge.request('detach_instance', { instanceId });
+      const result = await bridge.request('detach_instance', { instanceId }, undefined, 'detach_instance', true);
       return jsonResponse(result);
     },
   );
@@ -516,7 +516,7 @@ export function registerGeneratedTools(
       instanceId: z.string().describe("Instance node ID"),
     },
     async ({ instanceId }) => {
-      const result = await bridge.request('reset_instance_overrides', { instanceId });
+      const result = await bridge.request('reset_instance_overrides', { instanceId }, undefined, 'reset_instance_overrides', true);
       return jsonResponse(result);
     },
   );
@@ -530,7 +530,7 @@ export function registerGeneratedTools(
       nodeId: z.string().describe("Instance node ID"),
     },
     async ({ nodeId }) => {
-      const result = await bridge.request('get_instance_overrides', { nodeId });
+      const result = await bridge.request('get_instance_overrides', { nodeId }, undefined, 'get_instance_overrides', false);
       return jsonResponse(result);
     },
   );
@@ -545,7 +545,7 @@ export function registerGeneratedTools(
       targetIds: z.array(z.string()).describe("Target instance node IDs to apply overrides to"),
     },
     async (params) => {
-      const result = await bridge.request('set_instance_overrides', params);
+      const result = await bridge.request('set_instance_overrides', params, undefined, 'set_instance_overrides', true);
       return jsonResponse(result);
     },
   );
@@ -562,7 +562,7 @@ export function registerGeneratedTools(
       defaultValue: z.unknown().describe("Default value"),
     },
     async ({ nodeId, propertyName, type, defaultValue }) => {
-      const result = await bridge.request('add_component_property', { nodeId, propertyName, type, defaultValue });
+      const result = await bridge.request('add_component_property', { nodeId, propertyName, type, defaultValue }, undefined, 'add_component_property', true);
       return jsonResponse(result);
     },
   );
@@ -579,7 +579,7 @@ export function registerGeneratedTools(
       defaultValue: z.unknown().optional().describe("New default value"),
     },
     async ({ nodeId, propertyName, newName, defaultValue }) => {
-      const result = await bridge.request('update_component_property', { nodeId, propertyName, newName, defaultValue });
+      const result = await bridge.request('update_component_property', { nodeId, propertyName, newName, defaultValue }, undefined, 'update_component_property', true);
       return jsonResponse(result);
     },
   );
@@ -594,7 +594,7 @@ export function registerGeneratedTools(
       propertyName: z.string().describe("Property name to delete"),
     },
     async ({ nodeId, propertyName }) => {
-      const result = await bridge.request('delete_component_property', { nodeId, propertyName });
+      const result = await bridge.request('delete_component_property', { nodeId, propertyName }, undefined, 'delete_component_property', true);
       return jsonResponse(result);
     },
   );
@@ -608,7 +608,7 @@ export function registerGeneratedTools(
       nodeIds: z.array(z.string()).optional().describe("Specific node IDs to audit (default: entire page)"),
     },
     async (params) => {
-      const result = await bridge.request('audit_components', params);
+      const result = await bridge.request('audit_components', params, undefined, 'audit_components', false);
       return jsonResponse(result);
     },
   );
@@ -620,7 +620,7 @@ export function registerGeneratedTools(
     "List all available team library variable collections. Returns collection key, name, and library name.",
     {},
     async (params) => {
-      const result = await bridge.request('list_library_collections', {});
+      const result = await bridge.request('list_library_collections', {}, undefined, 'list_library_collections', false);
       return jsonResponse(result);
     },
   );
@@ -634,7 +634,7 @@ export function registerGeneratedTools(
       collectionKey: z.string().describe("The library collection key"),
     },
     async ({ collectionKey }) => {
-      const result = await bridge.request('list_library_variables', { collectionKey });
+      const result = await bridge.request('list_library_variables', { collectionKey }, undefined, 'list_library_variables', false);
       return jsonResponse(result);
     },
   );
@@ -648,7 +648,7 @@ export function registerGeneratedTools(
       variableKey: z.string().describe("The library variable key to import"),
     },
     async ({ variableKey }) => {
-      const result = await bridge.request('import_library_variable', { variableKey });
+      const result = await bridge.request('import_library_variable', { variableKey }, undefined, 'import_library_variable', true);
       return jsonResponse(result);
     },
   );
@@ -669,7 +669,7 @@ export function registerGeneratedTools(
       strokeWeight: z.number().optional().describe("Stroke weight (default: 1)"),
     },
     async (params) => {
-      const result = await bridge.request('create_line', params);
+      const result = await bridge.request('create_line', params, undefined, 'create_line', true);
       return jsonResponse(result);
     },
   );
@@ -691,7 +691,7 @@ export function registerGeneratedTools(
       parentId: z.string().optional().describe("Parent node ID"),
     },
     async (params) => {
-      const result = await bridge.request('create_star', params);
+      const result = await bridge.request('create_star', params, undefined, 'create_star', true);
       return jsonResponse(result);
     },
   );
@@ -712,7 +712,7 @@ export function registerGeneratedTools(
       parentId: z.string().optional().describe("Parent node ID"),
     },
     async (params) => {
-      const result = await bridge.request('create_polygon', params);
+      const result = await bridge.request('create_polygon', params, undefined, 'create_polygon', true);
       return jsonResponse(result);
     },
   );
@@ -746,7 +746,7 @@ export function registerGeneratedTools(
       parentId: z.string().optional().describe("Parent node ID"),
     },
     async (params) => {
-      const result = await bridge.request('create_rectangle', params);
+      const result = await bridge.request('create_rectangle', params, undefined, 'create_rectangle', true);
       return jsonResponse(result);
     },
   );
@@ -774,7 +774,7 @@ export function registerGeneratedTools(
       parentId: z.string().optional().describe("Parent node ID"),
     },
     async (params) => {
-      const result = await bridge.request('create_ellipse', params);
+      const result = await bridge.request('create_ellipse', params, undefined, 'create_ellipse', true);
       return jsonResponse(result);
     },
   );
@@ -791,7 +791,7 @@ export function registerGeneratedTools(
       childIds: z.array(z.string()).optional().describe("Node IDs to move inside the section"),
     },
     async (params) => {
-      const result = await bridge.request('create_section', params);
+      const result = await bridge.request('create_section', params, undefined, 'create_section', true);
       return jsonResponse(result);
     },
   );
@@ -806,7 +806,7 @@ export function registerGeneratedTools(
       name: z.string().optional().describe("Group name (default: 'Group')"),
     },
     async (params) => {
-      const result = await bridge.request('group_nodes', params);
+      const result = await bridge.request('group_nodes', params, undefined, 'group_nodes', true);
       return jsonResponse(result);
     },
   );
@@ -820,7 +820,7 @@ export function registerGeneratedTools(
       nodeId: z.string().describe("Node ID to flatten"),
     },
     async ({ nodeId }) => {
-      const result = await bridge.request('flatten_node', { nodeId });
+      const result = await bridge.request('flatten_node', { nodeId }, undefined, 'flatten_node', true);
       return jsonResponse(result);
     },
   );
@@ -836,7 +836,7 @@ export function registerGeneratedTools(
       name: z.string().optional().describe("Name for the resulting node"),
     },
     async (params) => {
-      const result = await bridge.request('boolean_operation', params);
+      const result = await bridge.request('boolean_operation', params, undefined, 'boolean_operation', true);
       return jsonResponse(result);
     },
   );
@@ -850,7 +850,7 @@ export function registerGeneratedTools(
       nodeId: z.string().optional().describe("Node ID to inspect; omit to scan the entire current page"),
     },
     async ({ nodeId }) => {
-      const result = await bridge.request('get_annotations', { nodeId });
+      const result = await bridge.request('get_annotations', { nodeId }, undefined, 'get_annotations', false);
       return jsonResponse(result);
     },
   );
@@ -866,7 +866,7 @@ export function registerGeneratedTools(
       replace: z.boolean().optional().describe("If true, replaces all existing annotations on the node (default: false = append)"),
     },
     async ({ nodeId, label, replace }) => {
-      const result = await bridge.request('set_annotation', { nodeId, label, replace });
+      const result = await bridge.request('set_annotation', { nodeId, label, replace }, undefined, 'set_annotation', true);
       return jsonResponse(result);
     },
   );
@@ -884,7 +884,7 @@ export function registerGeneratedTools(
         })).describe("List of annotation operations"),
     },
     async (params) => {
-      const result = await bridge.request('set_multiple_annotations', params);
+      const result = await bridge.request('set_multiple_annotations', params, undefined, 'set_multiple_annotations', true);
       return jsonResponse(result);
     },
   );
@@ -898,7 +898,7 @@ export function registerGeneratedTools(
       nodeIds: z.array(z.string()).optional().describe("Node IDs to clear (default: all on page)"),
     },
     async (params) => {
-      const result = await bridge.request('clear_annotations', params);
+      const result = await bridge.request('clear_annotations', params, undefined, 'clear_annotations', true);
       return jsonResponse(result);
     },
   );
@@ -912,7 +912,7 @@ export function registerGeneratedTools(
       nodeId: z.string().optional().describe("Node ID to inspect; omit to scan the entire current page"),
     },
     async ({ nodeId }) => {
-      const result = await bridge.request('get_reactions', { nodeId });
+      const result = await bridge.request('get_reactions', { nodeId }, undefined, 'get_reactions', false);
       return jsonResponse(result);
     },
   );
@@ -949,7 +949,7 @@ export function registerGeneratedTools(
         })).optional().describe("Batch mode: array of {nodeId, trigger, actions} objects. When provided, nodeId/trigger/actions params are ignored."),
     },
     async (params) => {
-      const result = await bridge.request('add_reaction', params);
+      const result = await bridge.request('add_reaction', params, undefined, 'add_reaction', true);
       return jsonResponse(result);
     },
   );
@@ -966,7 +966,7 @@ export function registerGeneratedTools(
       removeAll: z.boolean().optional().describe("Remove all reactions from the node"),
     },
     async ({ nodeId, index, triggerType, removeAll }) => {
-      const result = await bridge.request('remove_reaction', { nodeId, index, triggerType, removeAll });
+      const result = await bridge.request('remove_reaction', { nodeId, index, triggerType, removeAll }, undefined, 'remove_reaction', true);
       return jsonResponse(result);
     },
   );
@@ -995,7 +995,7 @@ export function registerGeneratedTools(
         })).describe("Array of reaction specs. Each: {trigger: {type, delay?, timeout?}, actions: [{type, destinationId?, navigation?, transition?, url?}]}"),
     },
     async (params) => {
-      const result = await bridge.request('set_reactions', params);
+      const result = await bridge.request('set_reactions', params, undefined, 'set_reactions', true);
       return jsonResponse(result);
     },
   );
@@ -1007,7 +1007,7 @@ export function registerGeneratedTools(
     "List all available lint rules with descriptions.",
     {},
     async (params) => {
-      const result = await bridge.request('lint_rules', {});
+      const result = await bridge.request('lint_rules', {}, undefined, 'lint_rules', false);
       return jsonResponse(result);
     },
   );
@@ -1021,7 +1021,7 @@ export function registerGeneratedTools(
       name: z.string().describe("Page name"),
     },
     async ({ name }) => {
-      const result = await bridge.request('create_page', { name });
+      const result = await bridge.request('create_page', { name }, undefined, 'create_page', true);
       return jsonResponse(result);
     },
   );
@@ -1036,7 +1036,7 @@ export function registerGeneratedTools(
       name: z.string().describe("New page name"),
     },
     async ({ pageId, name }) => {
-      const result = await bridge.request('rename_page', { pageId, name });
+      const result = await bridge.request('rename_page', { pageId, name }, undefined, 'rename_page', true);
       return jsonResponse(result);
     },
   );
@@ -1050,7 +1050,7 @@ export function registerGeneratedTools(
       nodeId: z.string().describe("Node ID to delete"),
     },
     async ({ nodeId }) => {
-      const result = await bridge.request('delete_node', { nodeId });
+      const result = await bridge.request('delete_node', { nodeId }, undefined, 'delete_node', true);
       return jsonResponse(result);
     },
   );

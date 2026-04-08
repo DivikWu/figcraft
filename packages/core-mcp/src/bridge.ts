@@ -29,8 +29,11 @@ import WebSocket from 'ws';
 import { saveBridgeToken } from './auth.js';
 import { DesignSession } from './design-session.js';
 import { fetchFileName } from './figma-api.js';
-import { detectContentWarnings } from './tools/logic/content-warnings.js';
-import { extractDesignDecisions } from './tools/logic/design-decisions.js';
+import type { HarnessPipeline } from './harness/pipeline.js';
+import { createHarnessContext } from './harness/pipeline.js';
+// NOTE: content-warnings, design-decisions, and response-size logic
+// migrated to harness/rules/. Keeping truncateStructurally import for
+// Bridge.guardResponseSize() backward compat (used by some custom handlers).
 import { truncateStructurally } from './tools/response-helpers.js';
 
 // Re-export DesignDecisions so existing consumers can import from bridge.ts
@@ -65,6 +68,14 @@ export class Bridge {
 
   /** Access level for two-path authoring (injected into _caps on every request). */
   _accessLevel: 'read' | 'create' | 'edit' = 'edit';
+
+  /** Harness pipeline — middleware for pre/post processing of bridge requests. */
+  private _pipeline: HarnessPipeline | null = null;
+
+  /** Attach a harness pipeline. Called during server initialization. */
+  setPipeline(pipeline: HarnessPipeline): void {
+    this._pipeline = pipeline;
+  }
 
   constructor(
     private relayUrl: string,
@@ -307,20 +318,36 @@ export class Bridge {
     });
   }
 
-  /** UI creation methods that require get_mode to be called first. */
-  private static readonly DESIGN_PREFLIGHT_METHODS = new Set(['create_frame', 'create_text', 'create_svg']);
-
-  /** Send a request to the Plugin and await its response. */
-  async request(method: string, params: Record<string, unknown> = {}, timeoutMs?: number): Promise<unknown> {
-    // Guard: UI creation tools require get_mode to be called first.
-    // This ensures the design preflight workflow is followed across all IDEs.
-    if (Bridge.DESIGN_PREFLIGHT_METHODS.has(method) && !this.session.modeQueried) {
-      throw new Error(
-        `[FigCraft] Cannot call ${method} before get_mode. ` +
-          'Design preflight required: call get_mode first to check library status and get workflow instructions, ' +
-          'then present a design proposal to the user and wait for confirmation before creating UI elements.',
-      );
+  /**
+   * Send a request to the Plugin and await its response.
+   *
+   * If a harness pipeline is attached, the request flows through:
+   *   Phase 1-2 (pre-guard, pre-transform) → WebSocket send/receive → Phase 4-6 (post-enrich, error-recovery, session-update)
+   *
+   * Without a pipeline, behaves identically to the original implementation.
+   *
+   * @param method - Plugin handler method name (e.g. 'create_frame')
+   * @param params - Request parameters
+   * @param timeoutMs - Optional timeout override
+   * @param toolName - MCP tool name (for pipeline context; defaults to method)
+   * @param isWrite - Whether this is a write operation (for pipeline context; defaults to false)
+   */
+  async request(
+    method: string,
+    params: Record<string, unknown> = {},
+    timeoutMs?: number,
+    toolName?: string,
+    isWrite?: boolean,
+  ): Promise<unknown> {
+    if (this._pipeline) {
+      const ctx = createHarnessContext(toolName ?? method, method, params, this.session, isWrite ?? false);
+      return this._pipeline.run(ctx, () => this.sendRequest(method, ctx.params, timeoutMs));
     }
+    return this.sendRequest(method, params, timeoutMs);
+  }
+
+  /** Raw WebSocket send/receive — the Phase 3 "execute" that pipeline wraps. */
+  private async sendRequest(method: string, params: Record<string, unknown>, timeoutMs?: number): Promise<unknown> {
     // If disconnected, wait for reconnection (up to 10s)
     if (!this.ws || !this.connected) {
       await this.waitForConnection(10_000);
@@ -365,33 +392,6 @@ export class Bridge {
         resolve: (result: unknown) => {
           const elapsed = Date.now() - startTime;
           console.error(`[FigCraft bridge] ✓ ${method} — ${elapsed}ms (id=${id.slice(0, 8)})`);
-          // Accumulate design decisions from create_frame params for cross-screen consistency
-          if (method === 'create_frame' && !params.dryRun) {
-            try {
-              if (!this.session.selectedLibrary) {
-                // Creator mode: track all explicit choices
-                extractDesignDecisions(this, params);
-              } else {
-                // Library mode: track hardcoded hex/font fallbacks for consistency
-                extractDesignDecisions(this, params, 'libraryFallback');
-              }
-            } catch {
-              /* best-effort */
-            }
-          }
-          // Content validation: detect placeholder text in create_frame params
-          if (method === 'create_frame' && !params.dryRun) {
-            try {
-              const contentWarnings = detectContentWarnings(params);
-              if (contentWarnings.length > 0 && result && typeof result === 'object') {
-                const r = result as Record<string, unknown>;
-                const existing = Array.isArray(r._warnings) ? (r._warnings as string[]) : [];
-                r._warnings = [...existing, ...contentWarnings.map((w) => w.message)];
-              }
-            } catch {
-              /* best-effort */
-            }
-          }
           resolve(result);
         },
         reject: (error: Error) => {

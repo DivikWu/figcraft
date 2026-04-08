@@ -155,8 +155,8 @@ export function buildWorkflow(input: WorkflowInput): Record<string, unknown> {
       'nodes update: ordered execution (simple props → fills/strokes → layout sizing → resize → text). Supports width/height directly, text properties, layoutPositioning. Safe to send layoutMode + width in same patch.',
       'For complex or ambiguous parameters, use dryRun:true first to preview Opinion Engine inferences before committing.',
       'After the FIRST create_frame failure, review ALL remaining planned payloads for the same pattern before retrying.',
-      'Verify each create_frame response: check _children structure. Use export_image(scale:0.5) for visual verification when needed.',
-      'lint_fix_all on completed screens (supports dryRun:true to preview). If remaining violations include severity:"error", read the details and fix manually before replying.',
+      'System auto-verifies root-level creations: check _qualityScore and _qualityWarning in create_frame response. If score < 80 or errors exist, call verify_design() to fix. System tracks verification debt — persistent _verificationDebt reminders appear in all subsequent responses until verified.',
+      'lint_fix_all clears verification debt for the page (supports dryRun:true to preview). If remaining violations include severity:"error", read the details and fix manually before replying.',
     ].filter(Boolean),
 
     // Key tool behavior rules (full version: get_creation_guide(topic:"tool-behavior"))

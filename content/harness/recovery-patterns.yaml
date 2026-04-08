@@ -1,0 +1,90 @@
+# Harness error recovery patterns — error→suggestion mapping.
+# Each entry defines: when an error matches specific patterns,
+# what recovery suggestion to provide to AI.
+#
+# Fields:
+#   name: unique rule identifier
+#   tools: which MCP tools this applies to (use '*' for all)
+#   patterns: regex patterns to match against error messages (case-insensitive)
+#   errorType: classification label
+#   suggestion: recovery guidance for AI
+#   retryHint: (optional) params to modify on retry
+#   doNotRetry: (optional) if true, AI should not retry
+#
+# Edit this file and run: npm run content
+
+- name: connection-lost
+  tools: ["*"]
+  patterns:
+    - "bridge not connected"
+    - "timed out"
+    - "websocket.*closed"
+    - "connection.*refused"
+  errorType: connection_lost
+  suggestion: >-
+    Lost connection to Figma plugin.
+    Check that the FigCraft plugin is running in Figma. Try calling ping to verify connection.
+
+- name: token-not-found
+  tools: [create_frame, create_text, create_svg, create_rectangle, create_ellipse, variables_ep]
+  patterns:
+    - "variable.*not found"
+    - "token.*not found"
+    - "no matching.*variable"
+    - "cannot find.*variable"
+  errorType: token_not_found
+  suggestion: >-
+    The requested variable/token was not found.
+    Call search_design_system(query:"<token name>") to find available tokens,
+    or omit the variable name to use a hardcoded value as fallback.
+  retryHint:
+    fillVariableName: null
+    strokeVariableName: null
+
+- name: node-deleted
+  tools: ["*"]
+  patterns:
+    - "node.*does not exist"
+    - "node.*not found"
+    - "cannot find node"
+    - "invalid.*node.*id"
+  errorType: node_deleted
+  suggestion: >-
+    The referenced node no longer exists (may have been deleted or moved).
+    Call nodes(method:"list") or get_current_page() to get current node IDs.
+
+- name: file-not-found
+  tools: [sync_tokens]
+  patterns:
+    - "ENOENT"
+    - "no such file"
+    - "file not found"
+    - "cannot read file"
+  errorType: file_not_found
+  suggestion: >-
+    Token file not found. Check the file path — use an absolute path.
+    Ensure the DTCG JSON file exists at the specified location.
+
+- name: parse-error
+  tools: [sync_tokens]
+  patterns:
+    - "json.*parse"
+    - "syntax.*error.*json"
+    - "unexpected.*token"
+    - "invalid.*json"
+  errorType: parse_error
+  suggestion: >-
+    Token file contains invalid JSON.
+    The file must be a valid DTCG JSON format with $type and $value fields.
+
+- name: response-too-large
+  tools: ["*"]
+  patterns:
+    - "too large"
+    - "response.*exceed"
+    - "context overflow"
+  errorType: response_too_large
+  suggestion: >-
+    Response exceeded the size limit. Narrow the scope:
+    use a specific nodeId instead of fetching the full page,
+    reduce maxDepth, or use detail:"summary".

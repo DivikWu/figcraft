@@ -241,6 +241,12 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
     ...(result as Record<string, unknown>),
   };
 
+  // ── Inject recent errors from error journal (cross-turn learning) ──
+  const recentErrors = bridge.session.getRecentErrors();
+  if (recentErrors.length > 0 && response._workflow && typeof response._workflow === 'object') {
+    (response._workflow as Record<string, unknown>)._recentErrors = recentErrors;
+  }
+
   // ── _workflow diff-aware caching ──
   // Compute a simple hash of the _workflow JSON. If unchanged since last call,
   // replace the full _workflow with a compact cached marker to save ~120 lines of tokens.

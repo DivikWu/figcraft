@@ -101,10 +101,12 @@ figcraft/
 │   ├── ide-shared/                 # shared snippets injected into IDE config files
 │   ├── templates/*.yaml            # UI templates → _templates.ts
 │   ├── guides/*.md                 # creation guides → _guides.ts
-│   └── prompts/*.yaml              # MCP Prompts → _prompts.ts
+│   ├── prompts/*.yaml              # MCP Prompts → _prompts.ts
+│   └── harness/*.yaml              # harness data rules (recovery + next-steps) → _harness.ts
 ├── packages/
 │   ├── figcraft-design/src/        # published CLI shell
 │   ├── core-mcp/src/               # MCP Server runtime, bridge, tools, prompts
+│   │   └── harness/                # Harness Pipeline (auto-verify, debt tracking, error recovery)
 │   ├── relay/src/                  # WebSocket Relay
 │   ├── shared/src/                 # shared protocol, types, version
 │   ├── quality-engine/src/         # lint rules and quality engine

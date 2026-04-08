@@ -177,6 +177,76 @@ export class DesignSession {
     return this._restComponentCache.data;
   }
 
+  // ─── Verification Debt ───
+
+  /** Tracks root-level creations that haven't been verified via verify_design/lint_fix_all. */
+  private _unverifiedCreations: Array<{ nodeId: string; name: string; ts: number }> = [];
+
+  /** Record a single creation for debt tracking. */
+  recordCreation(nodeId: string, name: string): void {
+    this._unverifiedCreations.push({ nodeId, name, ts: Date.now() });
+  }
+
+  /** Record multiple creations (batch/items[] mode). */
+  recordCreations(items: Array<{ nodeId: string; name: string }>): void {
+    const ts = Date.now();
+    for (const item of items) {
+      this._unverifiedCreations.push({ ...item, ts });
+    }
+  }
+
+  /**
+   * Clear verification debt.
+   * @param nodeId - Clear debt for a specific node. Omit to clear all.
+   */
+  recordVerification(nodeId?: string): void {
+    if (nodeId) {
+      this._unverifiedCreations = this._unverifiedCreations.filter((c) => c.nodeId !== nodeId);
+    } else {
+      this._unverifiedCreations = [];
+    }
+  }
+
+  /** Number of unverified creations. */
+  get verificationDebt(): number {
+    return this._unverifiedCreations.length;
+  }
+
+  /** List of unverified nodes (for debt reminders). */
+  get unverifiedNodes(): Array<{ nodeId: string; name: string }> {
+    return this._unverifiedCreations.map(({ nodeId, name }) => ({ nodeId, name }));
+  }
+
+  // ─── Error Journal ───
+
+  /** Tracks recent errors for cross-turn learning. */
+  private _errorJournal: Array<{ tool: string; errorType: string; detail: string; ts: number }> = [];
+
+  /** Max age for error journal entries (1 hour). */
+  private static readonly ERROR_JOURNAL_TTL_MS = 3_600_000;
+
+  /** Record an error for cross-turn learning. Keeps last 10 entries, expires after 1 hour. */
+  recordError(tool: string, errorType: string, detail: string): void {
+    const now = Date.now();
+    // Expire old entries
+    this._errorJournal = this._errorJournal.filter((e) => now - e.ts < DesignSession.ERROR_JOURNAL_TTL_MS);
+    this._errorJournal.push({ tool, errorType, detail, ts: now });
+    if (this._errorJournal.length > 10) this._errorJournal.shift();
+  }
+
+  /**
+   * Get recent errors for injection into _workflow.
+   * @param tool - Filter by tool name (optional).
+   * @returns Most recent 3 relevant error summaries.
+   */
+  getRecentErrors(tool?: string): string[] {
+    const now = Date.now();
+    return this._errorJournal
+      .filter((e) => now - e.ts < DesignSession.ERROR_JOURNAL_TTL_MS && (!tool || e.tool === tool))
+      .slice(-3)
+      .map((e) => `[${e.tool}] ${e.errorType}: ${e.detail}`);
+  }
+
   // ─── Full reset ───
 
   /** Reset all session state. Called on mode change or when starting fresh. */
@@ -189,5 +259,7 @@ export class DesignSession {
     this._designContextDefaults = null;
     this._migrationContext = null;
     this._restComponentCache = null;
+    this._unverifiedCreations = [];
+    this._errorJournal = [];
   }
 }

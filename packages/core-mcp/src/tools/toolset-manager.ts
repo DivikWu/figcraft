@@ -14,6 +14,7 @@
 import type { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { Bridge } from '../bridge.js';
+import { createHarnessPipeline } from '../harness/index.js';
 import { registerGeneratedTools } from './_generated.js';
 // ─── Generated registry (single source of truth from schema/tools.yaml) ───
 import {
@@ -223,6 +224,11 @@ function registerRemovedToolGhosts(server: McpServer): void {
 }
 
 export function registerAllTools(server: McpServer, bridge: Bridge): void {
+  // Initialize Harness Pipeline — middleware for pre/post processing of bridge requests.
+  // Must be set before tool registration so that all bridge.request() calls go through it.
+  const pipeline = createHarnessPipeline(bridge);
+  bridge.setPipeline(pipeline);
+
   // Register every tool group (same as original index.ts)
   registerPing(server, bridge);
   registerAuthTools(server);

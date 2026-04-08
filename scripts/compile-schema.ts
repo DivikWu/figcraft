@@ -423,14 +423,18 @@ for (const [toolName, def] of bridgeTools) {
       ? `\n      // Inject deprecation warning\n      if (typeof result === 'object' && result !== null) { (result as Record<string, unknown>)._deprecation = { warning: "This tool is deprecated. Use ${escapedReplacedBy} instead.", replacement: "${escapedReplacedBy}" }; }`
       : '';
 
+  // Harness pipeline params: toolName + isWrite (passed to bridge.request for pipeline context)
+  const timeoutArg = def.timeoutMs ? `, ${def.timeoutMs}` : ', undefined';
+  const harnessArgs = `${timeoutArg}, '${toolName}', ${def.write ? 'true' : 'false'}`;
+
   let handlerBody: string;
   if (paramEntries.length === 0) {
-    handlerBody = `const result = await bridge.request('${bridgeMethod}', {}${def.timeoutMs ? `, ${def.timeoutMs}` : ''});${deprecationSuffix}
+    handlerBody = `const result = await bridge.request('${bridgeMethod}', {}${harnessArgs});${deprecationSuffix}
       return jsonResponse(result);`;
   } else if (allParamNames.length <= 4 && !paramEntries.some(([, p]) => p.type === 'array' || p.type === 'object')) {
     // Destructured params for simple tools
     const destructure = `{ ${allParamNames.join(', ')} }`;
-    handlerBody = `const result = await bridge.request('${bridgeMethod}', { ${allParamNames.join(', ')} }${def.timeoutMs ? `, ${def.timeoutMs}` : ''});${deprecationSuffix}
+    handlerBody = `const result = await bridge.request('${bridgeMethod}', { ${allParamNames.join(', ')} }${harnessArgs});${deprecationSuffix}
       return jsonResponse(result);`;
     genCode += `  if (shouldRegisterGeneratedTool(include, '${toolName}')) {
     server.tool(
@@ -446,7 +450,7 @@ for (const [toolName, def] of bridgeTools) {
 `;
     continue;
   } else {
-    handlerBody = `const result = await bridge.request('${bridgeMethod}', params${def.timeoutMs ? `, ${def.timeoutMs}` : ''});${deprecationSuffix}
+    handlerBody = `const result = await bridge.request('${bridgeMethod}', params${harnessArgs});${deprecationSuffix}
       return jsonResponse(result);`;
   }
 

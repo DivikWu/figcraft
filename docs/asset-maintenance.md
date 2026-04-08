@@ -1,6 +1,6 @@
 # FigCraft 资产维护手册
 
-项目有六类增长资产。本文档说明每类资产在哪里、怎么加新的、怎么改现有的。
+项目有七类增长资产。本文档说明每类资产在哪里、怎么加新的、怎么改现有的。
 
 ## 资产总览
 
@@ -12,6 +12,7 @@
 | **MCP Prompts** | `content/prompts/*.yaml` | YAML | 9 | `npm run content` |
 | **MCP 工具** | `schema/tools.yaml` | YAML | 111 | `npm run schema` |
 | **Lint 规则** | `packages/quality-engine/src/rules/` | TypeScript | 40 | `npm run build` |
+| **Harness 规则** | `packages/core-mcp/src/harness/rules/` | TypeScript | 18 | `npm run build` |
 
 ## 构建流水线
 
@@ -219,9 +220,59 @@ steps: |                 # 工作流步骤文本
 | 改设计规则 | `skills/ui-ux-fundamentals/SKILL.md` 等 | `npm run build` |
 | 加一项 Opinion Engine 推断 | `adapter-figma/src/handlers/inline-tree.ts` | `npm test` |
 
+---
+
+## 7. Harness 规则
+
+**注册**: `packages/core-mcp/src/harness/index.ts`（集中注册所有规则）
+
+**索引**: `schema/tools.yaml` 每个工具的 `# harness:` 注释
+
+**Pipeline 引擎**: `packages/core-mcp/src/harness/pipeline.ts`
+
+**消费者**: `bridge.request()` — 所有经过 bridge 的工具调用自动经过 pipeline
+
+### 规则类型
+
+| 类型 | 位置 | 编辑者 | 构建 |
+|------|------|--------|------|
+| 代码型（复杂逻辑） | `packages/core-mcp/src/harness/rules/*.ts` | 开发者 | `npm run build` |
+| 数据型（recovery + next-steps） | `content/harness/*.yaml` | UX 设计师/开发者 | `npm run content` |
+
+### 规则分层
+
+| Layer | Phase | 作用 | 规则数 | 类型 |
+|-------|-------|------|--------|------|
+| 0 | pre-guard | 拦截无效调用 | 1 (design-preflight) | 代码型 |
+| 1 | pre-transform | 修正参数 | 1 (resolve-icons) | 代码型 |
+| 2 | post-enrich | 响应增强 | 6 (content-warnings, auto-verify, verification-debt-remind, response-size-guard, next-steps, resolve-icons-warnings) | 代码型 + 数据型 |
+| 4 | error-recovery | 错误恢复建议 | 6 (connection-lost, token-not-found, node-deleted, file-not-found, parse-error, response-too-large) | 数据型 |
+| 5 | session-update | 跨 turn 学习 | 4 (design-decisions, record-creation-debt, record-verification, error-journal) | 代码型 |
+
+### 新增代码型规则
+
+1. 在 `packages/core-mcp/src/harness/rules/` 创建文件，实现 `HarnessRule` 接口
+2. 在 `packages/core-mcp/src/harness/index.ts` 注册
+3. 在 `schema/tools.yaml` 对应工具添加 `# harness:` 注释
+4. 添加测试到 `tests/core-mcp/harness/`
+
+### 新增/修改数据型规则
+
+数据型规则由 YAML 定义、编译到 `_harness.ts`、运行时由 `data-recovery.ts`（recovery）和 `next-steps.ts`（后续步骤）消费。
+
+1. 编辑 `content/harness/recovery-patterns.yaml`（error recovery）或 `content/harness/next-steps.yaml`（后续步骤引导）
+2. `npm run content` — 编译到 `packages/core-mcp/src/harness/_harness.ts`
+3. 在 `schema/tools.yaml` 对应工具更新 `# harness:` 注释
+
+### 修改代码型规则
+
+直接编辑 `harness/rules/<name>.ts`。如果改变了适用工具范围，同步更新 `schema/tools.yaml` 中的 `# harness:` 注释。
+
+---
+
 ## 相关文档
 
 - [架构审查](architecture-review.md) — 架构决策和理想结构
-- [增长资产](growth-assets.md) — 六类资产的扩展路线
+- [增长资产](growth-assets.md) — 七类资产的扩展路线
 - [Skills 战略](skills-strategy.md) — Skills 拓展路线图
 - [编辑内容资产](contributing-content.md) — 设计师/PM 编辑指南
