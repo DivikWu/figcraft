@@ -12,7 +12,7 @@ import { autoBindTypography } from '../utils/design-context.js';
 import {
   applySizingOverrides,
   getLayoutSizing,
-  resolveComponent,
+  importAndResolveComponent,
   setBlendMode,
   setEffectStyleIdAsync,
   setFillStyleIdAsync,
@@ -150,12 +150,20 @@ function platformDefaultFont(platform: Platform, content: string): string {
 }
 
 // ─── Shared context for library-aware creation ───
+interface TokenBindingFailure {
+  requested: string;
+  type: 'variable' | 'style';
+  action: 'skipped' | 'used_fallback';
+}
+
 interface CreateContext {
   useLib: boolean;
   library: string | undefined;
   libraryBindings: string[];
   hints: StructuredHint[];
   warnings: string[];
+  /** Structured token binding failures for agent parsing. */
+  tokenBindingFailures: TokenBindingFailure[];
   /** Typed hints emitted directly (bypassing StructuredHint conversion). */
   typedHints: Hint[];
   /** Detected target platform for font resolution. */
@@ -166,7 +174,16 @@ async function initCreateContext(): Promise<CreateContext> {
   const [mode, library] = await getCachedModeLibrary();
   const useLib = mode === 'library' && !!library;
   if (useLib) await ensureLoaded(library!);
-  return { useLib, library, libraryBindings: [], hints: [], warnings: [], typedHints: [], platform: 'unknown' };
+  return {
+    useLib,
+    library,
+    libraryBindings: [],
+    hints: [],
+    warnings: [],
+    tokenBindingFailures: [],
+    typedHints: [],
+    platform: 'unknown',
+  };
 }
 
 // ─── Alias normalization: fillVariableName/fillStyleName → fill ───
@@ -782,6 +799,7 @@ async function setupFrame(
     });
     if (fillResult.autoBound) ctx.libraryBindings.push(fillResult.autoBound);
     if (fillResult.colorHint) ctx.warnings.push(fillResult.colorHint);
+    if (fillResult.bindingFailure) ctx.tokenBindingFailures.push(fillResult.bindingFailure);
     // When not in library mode but fill is a hex color, try matching local variables/styles
     if (!fillResult.autoBound && !ctx.useLib && typeof p.fill === 'string') {
       try {
@@ -801,6 +819,7 @@ async function setupFrame(
       });
       if (fillResult.autoBound) ctx.libraryBindings.push(fillResult.autoBound);
       if (fillResult.colorHint) ctx.warnings.push(fillResult.colorHint);
+      if (fillResult.bindingFailure) ctx.tokenBindingFailures.push(fillResult.bindingFailure);
     } else {
       frame.fills = []; // structural container — transparent
     }
@@ -1117,6 +1136,27 @@ async function setupText(text: TextNode, p: Record<string, unknown>, ctx: Create
   const fontFamily = explicitFontFamily ?? platformDefaultFont(ctx.platform, content);
   const fontStyle = normalizeFontStyle((p.fontStyle as string) ?? 'Regular');
 
+  // Warn when explicit font doesn't support detected CJK script
+  if (explicitFontFamily && content) {
+    const detectedCjk = HANGUL_RE.test(content)
+      ? 'Korean'
+      : KANA_RE.test(content)
+        ? 'Japanese'
+        : CJK_RE.test(content)
+          ? 'Chinese'
+          : null;
+    if (detectedCjk) {
+      const recommended = platformDefaultFont(ctx.platform, content);
+      if (recommended !== explicitFontFamily) {
+        ctx.warnings.push(
+          `Font "${explicitFontFamily}" may not support ${detectedCjk} characters. ` +
+            `Recommended: "${recommended}" for ${ctx.platform} platform. ` +
+            `CJK text with a Latin-only font will show missing glyphs (tofu).`,
+        );
+      }
+    }
+  }
+
   const fontResolution = await resolveFontAsync(fontFamily, fontStyle);
   text.fontName = fontResolution.fontName;
   if (fontResolution.fallbackNote) ctx.warnings.push(fontResolution.fallbackNote);
@@ -1140,6 +1180,7 @@ async function setupText(text: TextNode, p: Record<string, unknown>, ctx: Create
     });
     if (fillResult.autoBound) ctx.libraryBindings.push(fillResult.autoBound);
     if (fillResult.colorHint) ctx.warnings.push(fillResult.colorHint);
+    if (fillResult.bindingFailure) ctx.tokenBindingFailures.push(fillResult.bindingFailure);
     // When not in library mode but fill is a hex color, try matching local variables/styles
     if (!fillResult.autoBound && !ctx.useLib && typeof p.fill === 'string') {
       try {
@@ -1155,6 +1196,7 @@ async function setupText(text: TextNode, p: Record<string, unknown>, ctx: Create
     });
     if (fillResult.autoBound) ctx.libraryBindings.push(fillResult.autoBound);
     if (fillResult.colorHint) ctx.warnings.push(fillResult.colorHint);
+    if (fillResult.bindingFailure) ctx.tokenBindingFailures.push(fillResult.bindingFailure);
   }
 
   // ── Line height (before typography binding so it can be overridden) ──
@@ -1468,44 +1510,12 @@ async function createInlineChildren(
           'instance child requires componentId, componentKey, or componentSetKey',
         );
 
-        let cNode: BaseNode | null = null;
-
-        if (componentSetKey) {
-          // Import component set from library by key
-          try {
-            cNode = await figma.importComponentSetByKeyAsync(componentSetKey);
-          } catch {
-            /* not found */
-          }
-        } else if (componentKey) {
-          // Import component from library by key
-          try {
-            cNode = await figma.importComponentByKeyAsync(componentKey);
-          } catch {
-            try {
-              cNode = await figma.importComponentSetByKeyAsync(componentKey);
-            } catch {
-              /* not found */
-            }
-          }
-        } else if (componentId) {
-          // Local lookup first, then library fallback
-          cNode = await findNodeByIdAsync(componentId);
-          if (!cNode) {
-            try {
-              cNode = await figma.importComponentByKeyAsync(componentId);
-            } catch {
-              try {
-                cNode = await figma.importComponentSetByKeyAsync(componentId);
-              } catch {
-                /* not found */
-              }
-            }
-          }
-        }
-        assertHandler(cNode, `Component not found: ${componentSetKey || componentKey || componentId}`, 'NOT_FOUND');
-
-        const resolved = resolveComponent(cNode, child.variantProperties as Record<string, string> | undefined);
+        const resolved = await importAndResolveComponent({
+          componentSetKey,
+          componentKey,
+          componentId,
+          variantProperties: child.variantProperties as Record<string, string> | undefined,
+        });
         if (resolved.fallbackWarning)
           ctx.hints.push({
             confidence: 'ambiguous',
@@ -1521,7 +1531,18 @@ async function createInlineChildren(
         }
         // Set component properties
         if (child.properties) {
-          setComponentProperties(instance, child.properties as Record<string, string | boolean>);
+          const { unmatchedProperties } = setComponentProperties(
+            instance,
+            child.properties as Record<string, string | boolean>,
+          );
+          if (unmatchedProperties.length > 0) {
+            ctx.hints.push({
+              confidence: 'ambiguous' as const,
+              field: 'properties',
+              value: unmatchedProperties.join(', '),
+              reason: `Unmatched component properties (ignored): ${unmatchedProperties.join(', ')}`,
+            });
+          }
         }
         insertOrAppend(parent, instance, child.index as number | undefined);
         inferChildSizing(
@@ -1825,6 +1846,7 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
     if (ctx.libraryBindings.length > 0) out._libraryBindings = ctx.libraryBindings;
     // _hints removed — _typedHints carries the same info in structured form
     if (ctx.warnings.length > 0) out._warnings = ctx.warnings;
+    if (ctx.tokenBindingFailures.length > 0) out._tokenBindingFailures = ctx.tokenBindingFailures;
     if (childResults) out._children = childResults;
 
     const allInferences: Inference[] = [
@@ -1950,6 +1972,7 @@ async function createSingleText(params: Record<string, unknown>): Promise<Record
     if (ctx.libraryBindings.length > 0) out._libraryBindings = ctx.libraryBindings;
     // _hints removed — _typedHints carries the same info
     if (ctx.warnings.length > 0) out._warnings = ctx.warnings;
+    if (ctx.tokenBindingFailures.length > 0) out._tokenBindingFailures = ctx.tokenBindingFailures;
     // Attach typed hints for batch aggregation — cap at 10
     const typedHints: Hint[] = [...structuredHintsToTyped(ctx.hints), ...ctx.typedHints];
     if (ctx.warnings.length > 0) {

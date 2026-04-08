@@ -102,3 +102,38 @@ exampleParams:
               padding: 16
               itemSpacing: 12
               counterAxisAlignItems: CENTER
+webExampleParams:
+  name: Screen / Settings
+  width: 1280
+  height: 800
+  layoutMode: HORIZONTAL
+  fill: "#F9FAFB"
+  clipsContent: true
+  children:
+    - type: frame
+      name: Sidebar
+      layoutMode: VERTICAL
+      width: 280
+      layoutSizingVertical: FILL
+      padding: 24
+      itemSpacing: 4
+      fill: "#FFFFFF"
+    - type: frame
+      name: Content
+      layoutMode: VERTICAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: FILL
+      padding: 48
+      itemSpacing: 32
+      children:
+        - type: frame
+          name: Section / Account
+          layoutMode: VERTICAL
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: HUG
+          itemSpacing: 0
+          cornerRadius: 12
+          fill: "#FFFFFF"
+          paddingTop: 4
+          paddingBottom: 4
+          maxWidth: 720

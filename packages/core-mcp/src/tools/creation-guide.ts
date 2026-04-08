@@ -117,12 +117,21 @@ function formatUiPattern(
       lines.push(`- ${prop}: ${value}`);
     }
   }
-  lines.push('', '## Example Parameters (minimal tone)', '');
+  lines.push('', '## Example Parameters — Mobile (minimal tone)', '');
   lines.push('Ready-to-use `create_frame` params skeleton. Customize text, colors, and icons after creation.');
   lines.push('');
   lines.push('```json');
   lines.push(JSON.stringify(pattern.exampleParams, null, 2));
   lines.push('```');
+
+  if (pattern.webExampleParams) {
+    lines.push('', '## Example Parameters — Web/Desktop (minimal tone)', '');
+    lines.push('Desktop variant (1280×800). Same structure adapted for wider viewport.');
+    lines.push('');
+    lines.push('```json');
+    lines.push(JSON.stringify(pattern.webExampleParams, null, 2));
+    lines.push('```');
+  }
 
   // Library mode: inject token mapping from designContext.defaults
   if (libraryDefaults) {

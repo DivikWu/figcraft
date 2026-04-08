@@ -132,3 +132,35 @@ exampleParams:
       layoutMode: HORIZONTAL
       layoutSizingHorizontal: FILL
       height: 34
+webExampleParams:
+  name: Screen / Sign Up
+  width: 1280
+  height: 800
+  layoutMode: HORIZONTAL
+  fill: "#FFFFFF"
+  clipsContent: true
+  children:
+    - type: frame
+      name: Left Panel
+      layoutMode: VERTICAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: FILL
+      primaryAxisAlignItems: CENTER
+      counterAxisAlignItems: CENTER
+      fill: "#F3F4F6"
+    - type: frame
+      name: Right Panel
+      layoutMode: VERTICAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: FILL
+      primaryAxisAlignItems: CENTER
+      counterAxisAlignItems: CENTER
+      padding: 64
+      itemSpacing: 32
+      children:
+        - type: frame
+          name: Form
+          layoutMode: VERTICAL
+          width: 400
+          layoutSizingVertical: HUG
+          itemSpacing: 16

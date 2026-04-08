@@ -62,8 +62,12 @@ export class Bridge {
   private _lastWorkflowHash: string | null = null;
   /** Accumulated design decisions in creator mode (no library) for cross-screen consistency. */
   private _designDecisions: DesignDecisions | null = null;
+  /** Accumulated fallback decisions in library mode — hex colors/fonts used when token binding was unavailable. */
+  private _libraryFallbackDecisions: DesignDecisions | null = null;
   /** Cached designContext.defaults from last get_mode in library mode (role→variable mapping). */
   private _designContextDefaults: Record<string, { name: string } | null> | null = null;
+  /** Saved design decisions from creator mode when migrating to library mode. Cleared after first get_mode. */
+  private _migrationContext: DesignDecisions | null = null;
   private reconnectAttempts = 0;
   private evicted = false;
   private missedPongs = 0;
@@ -375,10 +379,16 @@ export class Bridge {
         resolve: (result: unknown) => {
           const elapsed = Date.now() - startTime;
           console.error(`[FigCraft bridge] ✓ ${method} — ${elapsed}ms (id=${id.slice(0, 8)})`);
-          // Creator mode: accumulate design decisions from create_frame params
-          if (method === 'create_frame' && !this._selectedLibrary && !params.dryRun) {
+          // Accumulate design decisions from create_frame params for cross-screen consistency
+          if (method === 'create_frame' && !params.dryRun) {
             try {
-              extractDesignDecisions(this, params);
+              if (!this._selectedLibrary) {
+                // Creator mode: track all explicit choices
+                extractDesignDecisions(this, params);
+              } else {
+                // Library mode: track hardcoded hex/font fallbacks for consistency
+                extractDesignDecisions(this, params, 'libraryFallback');
+              }
             } catch {
               /* best-effort */
             }
@@ -649,6 +659,7 @@ export class Bridge {
     if (!value) {
       this._lastWorkflowHash = null; // Reset on mode change
       this._designDecisions = null; // Clear accumulated design decisions
+      this._libraryFallbackDecisions = null; // Clear library fallback decisions
       this._designContextDefaults = null; // Clear library defaults cache
     }
   }
@@ -666,12 +677,18 @@ export class Bridge {
     return this._designDecisions;
   }
 
+  /** Accumulated fallback decisions in library mode (hex colors/fonts when token binding unavailable). */
+  get libraryFallbackDecisions(): DesignDecisions | null {
+    return this._libraryFallbackDecisions;
+  }
+
   /** Merge new design decisions into accumulated state. */
-  mergeDesignDecisions(partial: Partial<DesignDecisions>): void {
-    if (!this._designDecisions) {
-      this._designDecisions = { fillsUsed: [], fontsUsed: [], radiusValues: [], spacingValues: [] };
+  mergeDesignDecisions(partial: Partial<DesignDecisions>, target?: 'libraryFallback'): void {
+    const field = target === 'libraryFallback' ? '_libraryFallbackDecisions' : '_designDecisions';
+    if (!this[field]) {
+      this[field] = { fillsUsed: [], fontsUsed: [], radiusValues: [], spacingValues: [] };
     }
-    const d = this._designDecisions;
+    const d = this[field]!;
     if (partial.fillsUsed) {
       for (const f of partial.fillsUsed) if (!d.fillsUsed.includes(f)) d.fillsUsed.push(f);
     }
@@ -690,6 +707,24 @@ export class Bridge {
   /** Clear design decisions (called on mode change or disconnect). */
   clearDesignDecisions(): void {
     this._designDecisions = null;
+    this._libraryFallbackDecisions = null;
+  }
+
+  /**
+   * Save current design decisions as migration context before switching to library mode.
+   * The context is consumed (and cleared) by the next get_mode call.
+   */
+  saveMigrationContext(): void {
+    if (this._designDecisions) {
+      this._migrationContext = { ...this._designDecisions };
+    }
+  }
+
+  /** Consume and clear migration context (called by get_mode after mode switch). */
+  consumeMigrationContext(): DesignDecisions | null {
+    const ctx = this._migrationContext;
+    this._migrationContext = null;
+    return ctx;
   }
 
   /** Cached designContext.defaults from last get_mode (library mode only). */

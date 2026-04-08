@@ -1,8 +1,11 @@
 /**
  * Design decisions extraction — extracts color/font/radius/spacing choices from
- * create_frame params for creator mode cross-screen consistency.
+ * create_frame params for cross-screen consistency.
  *
- * Called by bridge after successful create_frame responses (non-dryRun, no library).
+ * Called by bridge after successful create_frame responses (non-dryRun).
+ * - Creator mode: tracks all explicit choices for palette consistency.
+ * - Library mode (target='libraryFallback'): tracks hardcoded hex/font fallbacks
+ *   used when token binding was unavailable, ensuring fallback consistency across screens.
  */
 
 import type { Bridge, DesignDecisions } from '../../bridge.js';
@@ -10,7 +13,11 @@ import type { Bridge, DesignDecisions } from '../../bridge.js';
 const HEX_RE = /^#[0-9a-f]{3,8}$/i;
 
 /** Extract design decisions from create_frame params and merge into bridge cache. */
-export function extractDesignDecisions(bridge: Bridge, params: Record<string, unknown>): void {
+export function extractDesignDecisions(
+  bridge: Bridge,
+  params: Record<string, unknown>,
+  target?: 'libraryFallback',
+): void {
   const partial: Partial<DesignDecisions> = {};
 
   collectFromNode(params, partial);
@@ -23,7 +30,7 @@ export function extractDesignDecisions(bridge: Bridge, params: Record<string, un
     partial.spacingValues?.length ||
     partial.elevationStyle
   ) {
-    bridge.mergeDesignDecisions(partial);
+    bridge.mergeDesignDecisions(partial, target);
   }
 }
 

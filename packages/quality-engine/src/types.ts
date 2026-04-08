@@ -62,6 +62,15 @@ export interface AbstractNode {
   children?: AbstractNode[];
   // Parent background color (hex, propagated during lint traversal for contrast checks)
   parentBgColor?: string;
+  /**
+   * Per-mode resolved colors for bound color variables.
+   * Keyed by mode name (e.g. "Light", "Dark"), value is hex color.
+   * Used by wcag-contrast to check contrast in all modes, not just the current one.
+   * Only populated when the node's fill/text color is bound to a mode-aware variable.
+   */
+  variableModeColors?: Record<string, string>;
+  /** Per-mode resolved colors for the parent background variable. */
+  parentBgModeColors?: Record<string, string>;
   // Parent width (propagated during lint traversal for overflow checks)
   parentWidth?: number;
   // Parent layout mode (propagated during lint traversal for overflow fix strategy)

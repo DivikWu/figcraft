@@ -18,7 +18,7 @@ STEP 0: get_mode                          → verifies connection (built-in ping
                                              (built-in pageContext), gets _workflow
         ├─ always              → load skill: ui-ux-fundamentals
         ├─ library selected    → load skill: design-guardian
-        ├─ library + components/variables present → load skill: figma-generate-design
+        ├─ library + components/variables present → figma-create-ui covers component discovery
         └─ no library          → load skill: design-creator
 STEP 1: Follow _workflow.designPreflight  → present proposal → ⛔ WAIT for user confirmation
         After platform confirmed → load skill: platform-ios / platform-android / responsive-design
@@ -81,7 +81,7 @@ Core tools are always enabled. Load additional toolsets as needed via `load_tool
 | `tokens` | Syncing DTCG design tokens |
 | `styles` | Managing paint/text/effect styles |
 | `components-advanced` | Building component libraries, managing variants |
-| `library` | Importing from shared Figma libraries |
+| `library-import` | Importing library variables, styles, and components into local file (design system authoring, NOT for UI creation in library mode) |
 | `shapes-vectors` | Stars, polygons, sections, boolean ops, flatten |
 | `annotations` | Adding, reading, and clearing annotations on nodes |
 | `prototype` | Prototype interactions, flow analysis, batch-connect screens |
@@ -100,7 +100,7 @@ Use `list_toolsets` to see current status. Load multiple: `load_toolset({ names:
 
 ### Context Budget (CRITICAL)
 
-0. **ALWAYS load the skills indicated by STEP 2** — `ui-ux-fundamentals` always, plus `design-guardian` (library) or `design-creator` (no library). Additionally: `figma-generate-design` when a design system is present, `figma-generate-library` for building design systems.
+0. **ALWAYS load the skills indicated by STEP 2** — `ui-ux-fundamentals` always, plus `design-guardian` (library) or `design-creator` (no library). Additionally: `figma-generate-library` for building design systems.
 1. After STEP 2 skills are loaded, do NOT call `get_design_guidelines(category:"all")` — the same content is already in context. Use `get_design_guidelines(category:"color")` etc. only when you need to focus on a specific area.
 
 ### Tool Behavior

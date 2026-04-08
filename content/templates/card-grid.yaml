@@ -122,3 +122,62 @@ exampleParams:
                   layoutSizingVertical: HUG
                   padding: 12
                   itemSpacing: 4
+webExampleParams:
+  name: Screen / Card Grid
+  width: 1280
+  height: 800
+  layoutMode: VERTICAL
+  primaryAxisAlignItems: MIN
+  padding: 32
+  fill: "#F9FAFB"
+  clipsContent: true
+  itemSpacing: 24
+  children:
+    - type: frame
+      name: Header
+      layoutMode: HORIZONTAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      counterAxisAlignItems: CENTER
+      itemSpacing: 16
+    - type: frame
+      name: Grid
+      layoutMode: HORIZONTAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: FILL
+      layoutWrap: WRAP
+      itemSpacing: 16
+      counterAxisSpacing: 16
+      children:
+        - type: frame
+          name: Card / 1
+          layoutMode: VERTICAL
+          width: 280
+          layoutSizingVertical: HUG
+          cornerRadius: 12
+          fill: "#FFFFFF"
+          clipsContent: true
+        - type: frame
+          name: Card / 2
+          layoutMode: VERTICAL
+          width: 280
+          layoutSizingVertical: HUG
+          cornerRadius: 12
+          fill: "#FFFFFF"
+          clipsContent: true
+        - type: frame
+          name: Card / 3
+          layoutMode: VERTICAL
+          width: 280
+          layoutSizingVertical: HUG
+          cornerRadius: 12
+          fill: "#FFFFFF"
+          clipsContent: true
+        - type: frame
+          name: Card / 4
+          layoutMode: VERTICAL
+          width: 280
+          layoutSizingVertical: HUG
+          cornerRadius: 12
+          fill: "#FFFFFF"
+          clipsContent: true

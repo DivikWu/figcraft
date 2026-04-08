@@ -225,9 +225,12 @@ export function runLint(nodes: AbstractNode[], ctx: LintContext, options: LintOp
       const effectiveWidth = node.width ?? node.parentWidth;
       // Propagate parent layout mode for text overflow fix strategy.
       const effectiveLayoutMode = node.layoutMode ?? node.parentLayoutMode;
+      // Propagate per-mode background colors for dark mode contrast checks.
+      const effectiveBgModes = node.variableModeColors ?? node.parentBgModeColors;
       for (const child of node.children) {
         if (earlyExit) return;
         if (effectiveBg) child.parentBgColor = effectiveBg;
+        if (effectiveBgModes) child.parentBgModeColors = effectiveBgModes;
         if (effectiveWidth != null) child.parentWidth = effectiveWidth;
         if (effectiveLayoutMode) child.parentLayoutMode = effectiveLayoutMode;
         walk(child);

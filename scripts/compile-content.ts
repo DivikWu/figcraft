@@ -159,6 +159,7 @@ export interface UiPattern {
   pitfalls: string[];
   toneVariants: Record<string, Record<string, string>>;
   exampleParams: Record<string, unknown>;
+  webExampleParams?: Record<string, unknown>;
 }
 
 export const UI_PATTERNS: Record<string, UiPattern> = {

@@ -418,8 +418,7 @@ AI 调用 `get_mode` 时根据库状态自动选择 guardian 或 creator，funda
 
 | Skill | 触发场景 |
 |---|---|
-| `figma-create-ui` | "帮我设计一个登录页" — 用 FigCraft 声明式工具（create_frame） |
-| `figma-generate-design` | "把这个代码页面写到 Figma" — 从设计系统组件组装（use_figma） |
+| `figma-create-ui` | "帮我设计一个登录页" / "把这个代码页面写到 Figma" — 声明式创建 + 库组件组装 |
 | `figma-generate-library` | "建一套设计系统" — 变量/组件库/主题（use_figma） |
 
 **辅助**（Figma 官方 Skill，按需使用）：
@@ -568,7 +567,7 @@ AI 调用 `get_mode` 时根据库状态自动选择 guardian 或 creator，funda
 load_toolset("tokens")                # Token 同步
 load_toolset("variables")             # Variable 管理
 load_toolset("components-advanced")   # 高级组件操作
-load_toolset("library")               # 共享库浏览/导入
+load_toolset("library-import")        # 共享库变量/样式导入（设计系统管理用）
 load_toolset("shapes-vectors")        # 基础图形
 load_toolset("styles")                # Style 管理
 load_toolset("prototype")             # 原型交互

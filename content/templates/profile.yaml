@@ -151,3 +151,46 @@ exampleParams:
             - type: icon
               icon: "lucide:chevron-right"
               size: 20
+webExampleParams:
+  name: Screen / Profile
+  width: 1280
+  height: 800
+  layoutMode: VERTICAL
+  fill: "#F9FAFB"
+  clipsContent: true
+  padding: 32
+  itemSpacing: 24
+  children:
+    - type: frame
+      name: Header
+      layoutMode: HORIZONTAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      counterAxisAlignItems: CENTER
+      itemSpacing: 16
+    - type: frame
+      name: Content
+      layoutMode: HORIZONTAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: FILL
+      itemSpacing: 24
+      children:
+        - type: frame
+          name: Profile Card
+          layoutMode: VERTICAL
+          width: 320
+          layoutSizingVertical: HUG
+          padding: 32
+          cornerRadius: 12
+          fill: "#FFFFFF"
+          itemSpacing: 16
+          counterAxisAlignItems: CENTER
+        - type: frame
+          name: Details
+          layoutMode: VERTICAL
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: HUG
+          padding: 32
+          cornerRadius: 12
+          fill: "#FFFFFF"
+          itemSpacing: 24

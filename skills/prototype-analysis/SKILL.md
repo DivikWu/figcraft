@@ -97,6 +97,6 @@ After connecting, `connect_screens` automatically re-runs `analyze_prototype_flo
 ## Integration
 
 Prototype analysis is typically used:
-- After building multi-screen flows with `figma-create-ui` or `figma-generate-design`
+- After building multi-screen flows with `figma-create-ui`
 - During design review to verify navigation completeness
 - Before handoff to ensure all flows are documented

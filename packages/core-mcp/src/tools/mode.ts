@@ -114,6 +114,10 @@ export function registerModeTools(server: McpServer, bridge: Bridge): void {
         ),
     },
     async ({ mode, library }) => {
+      // Save design decisions before mode switch for migration context
+      if (bridge.designDecisions && (library || mode === 'library')) {
+        bridge.saveMigrationContext();
+      }
       const params: Record<string, unknown> = { mode };
       if (library !== undefined) params.library = library;
       const result = (await bridge.request('set_mode', params)) as { mode: string; selectedLibrary: string | null };

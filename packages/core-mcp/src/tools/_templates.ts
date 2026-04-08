@@ -8,6 +8,7 @@ export interface UiPattern {
   pitfalls: string[];
   toneVariants: Record<string, Record<string, string>>;
   exampleParams: Record<string, unknown>;
+  webExampleParams?: Record<string, unknown>;
 }
 
 export const UI_PATTERNS: Record<string, UiPattern> = {
@@ -156,6 +157,80 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
           ]
         }
       ]
+    },
+    "webExampleParams": {
+      "name": "Screen / Card Grid",
+      "width": 1280,
+      "height": 800,
+      "layoutMode": "VERTICAL",
+      "primaryAxisAlignItems": "MIN",
+      "padding": 32,
+      "fill": "#F9FAFB",
+      "clipsContent": true,
+      "itemSpacing": 24,
+      "children": [
+        {
+          "type": "frame",
+          "name": "Header",
+          "layoutMode": "HORIZONTAL",
+          "layoutSizingHorizontal": "FILL",
+          "layoutSizingVertical": "HUG",
+          "counterAxisAlignItems": "CENTER",
+          "itemSpacing": 16
+        },
+        {
+          "type": "frame",
+          "name": "Grid",
+          "layoutMode": "HORIZONTAL",
+          "layoutSizingHorizontal": "FILL",
+          "layoutSizingVertical": "FILL",
+          "layoutWrap": "WRAP",
+          "itemSpacing": 16,
+          "counterAxisSpacing": 16,
+          "children": [
+            {
+              "type": "frame",
+              "name": "Card / 1",
+              "layoutMode": "VERTICAL",
+              "width": 280,
+              "layoutSizingVertical": "HUG",
+              "cornerRadius": 12,
+              "fill": "#FFFFFF",
+              "clipsContent": true
+            },
+            {
+              "type": "frame",
+              "name": "Card / 2",
+              "layoutMode": "VERTICAL",
+              "width": 280,
+              "layoutSizingVertical": "HUG",
+              "cornerRadius": 12,
+              "fill": "#FFFFFF",
+              "clipsContent": true
+            },
+            {
+              "type": "frame",
+              "name": "Card / 3",
+              "layoutMode": "VERTICAL",
+              "width": 280,
+              "layoutSizingVertical": "HUG",
+              "cornerRadius": 12,
+              "fill": "#FFFFFF",
+              "clipsContent": true
+            },
+            {
+              "type": "frame",
+              "name": "Card / 4",
+              "layoutMode": "VERTICAL",
+              "width": 280,
+              "layoutSizingVertical": "HUG",
+              "cornerRadius": 12,
+              "fill": "#FFFFFF",
+              "clipsContent": true
+            }
+          ]
+        }
+      ]
     }
   },
   "checkout": {
@@ -297,6 +372,59 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
           "height": 34
         }
       ]
+    },
+    "webExampleParams": {
+      "name": "Screen / Checkout",
+      "width": 1280,
+      "height": 800,
+      "layoutMode": "VERTICAL",
+      "fill": "#F9FAFB",
+      "clipsContent": true,
+      "padding": 32,
+      "itemSpacing": 24,
+      "children": [
+        {
+          "type": "frame",
+          "name": "Header",
+          "layoutMode": "HORIZONTAL",
+          "layoutSizingHorizontal": "FILL",
+          "layoutSizingVertical": "HUG",
+          "counterAxisAlignItems": "CENTER"
+        },
+        {
+          "type": "frame",
+          "name": "Content",
+          "layoutMode": "HORIZONTAL",
+          "layoutSizingHorizontal": "FILL",
+          "layoutSizingVertical": "FILL",
+          "itemSpacing": 32,
+          "children": [
+            {
+              "type": "frame",
+              "name": "Form Area",
+              "layoutMode": "VERTICAL",
+              "layoutSizingHorizontal": "FILL",
+              "layoutSizingVertical": "HUG",
+              "layoutGrow": 2,
+              "padding": 32,
+              "cornerRadius": 12,
+              "fill": "#FFFFFF",
+              "itemSpacing": 24
+            },
+            {
+              "type": "frame",
+              "name": "Order Summary",
+              "layoutMode": "VERTICAL",
+              "width": 380,
+              "layoutSizingVertical": "HUG",
+              "padding": 32,
+              "cornerRadius": 12,
+              "fill": "#FFFFFF",
+              "itemSpacing": 16
+            }
+          ]
+        }
+      ]
     }
   },
   "dashboard": {
@@ -432,6 +560,113 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
           "itemSpacing": 0
         }
       ]
+    },
+    "webExampleParams": {
+      "name": "Screen / Dashboard",
+      "width": 1280,
+      "height": 800,
+      "layoutMode": "VERTICAL",
+      "primaryAxisAlignItems": "MIN",
+      "padding": 32,
+      "fill": "#F9FAFB",
+      "clipsContent": true,
+      "itemSpacing": 24,
+      "children": [
+        {
+          "type": "frame",
+          "name": "Header",
+          "layoutMode": "HORIZONTAL",
+          "layoutSizingHorizontal": "FILL",
+          "layoutSizingVertical": "HUG",
+          "counterAxisAlignItems": "CENTER",
+          "itemSpacing": 16
+        },
+        {
+          "type": "frame",
+          "name": "Stats Row",
+          "layoutMode": "HORIZONTAL",
+          "layoutSizingHorizontal": "FILL",
+          "layoutSizingVertical": "HUG",
+          "itemSpacing": 16,
+          "children": [
+            {
+              "type": "frame",
+              "name": "Stat Card / Revenue",
+              "layoutMode": "VERTICAL",
+              "layoutSizingVertical": "HUG",
+              "layoutGrow": 1,
+              "padding": 24,
+              "cornerRadius": 12,
+              "fill": "#FFFFFF",
+              "itemSpacing": 8
+            },
+            {
+              "type": "frame",
+              "name": "Stat Card / Users",
+              "layoutMode": "VERTICAL",
+              "layoutSizingVertical": "HUG",
+              "layoutGrow": 1,
+              "padding": 24,
+              "cornerRadius": 12,
+              "fill": "#FFFFFF",
+              "itemSpacing": 8
+            },
+            {
+              "type": "frame",
+              "name": "Stat Card / Orders",
+              "layoutMode": "VERTICAL",
+              "layoutSizingVertical": "HUG",
+              "layoutGrow": 1,
+              "padding": 24,
+              "cornerRadius": 12,
+              "fill": "#FFFFFF",
+              "itemSpacing": 8
+            },
+            {
+              "type": "frame",
+              "name": "Stat Card / Growth",
+              "layoutMode": "VERTICAL",
+              "layoutSizingVertical": "HUG",
+              "layoutGrow": 1,
+              "padding": 24,
+              "cornerRadius": 12,
+              "fill": "#FFFFFF",
+              "itemSpacing": 8
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "name": "Content Row",
+          "layoutMode": "HORIZONTAL",
+          "layoutSizingHorizontal": "FILL",
+          "layoutSizingVertical": "FILL",
+          "itemSpacing": 24,
+          "children": [
+            {
+              "type": "frame",
+              "name": "Chart Area",
+              "layoutMode": "VERTICAL",
+              "layoutSizingVertical": "FILL",
+              "layoutGrow": 2,
+              "padding": 24,
+              "cornerRadius": 12,
+              "fill": "#FFFFFF"
+            },
+            {
+              "type": "frame",
+              "name": "Activity List",
+              "layoutMode": "VERTICAL",
+              "layoutSizingVertical": "FILL",
+              "layoutGrow": 1,
+              "padding": 24,
+              "cornerRadius": 12,
+              "fill": "#FFFFFF",
+              "itemSpacing": 12
+            }
+          ]
+        }
+      ]
     }
   },
   "list-detail": {
@@ -543,6 +778,45 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
               ]
             }
           ]
+        }
+      ]
+    },
+    "webExampleParams": {
+      "name": "Screen / List-Detail",
+      "width": 1280,
+      "height": 800,
+      "layoutMode": "HORIZONTAL",
+      "fill": "#F9FAFB",
+      "clipsContent": true,
+      "children": [
+        {
+          "type": "frame",
+          "name": "List Panel",
+          "layoutMode": "VERTICAL",
+          "width": 360,
+          "layoutSizingVertical": "FILL",
+          "fill": "#FFFFFF",
+          "itemSpacing": 0,
+          "children": [
+            {
+              "type": "frame",
+              "name": "List Header",
+              "layoutMode": "HORIZONTAL",
+              "layoutSizingHorizontal": "FILL",
+              "layoutSizingVertical": "HUG",
+              "padding": 16,
+              "counterAxisAlignItems": "CENTER"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "name": "Detail Panel",
+          "layoutMode": "VERTICAL",
+          "layoutSizingHorizontal": "FILL",
+          "layoutSizingVertical": "FILL",
+          "padding": 32,
+          "itemSpacing": 24
         }
       ]
     }
@@ -705,6 +979,85 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
           "height": 34
         }
       ]
+    },
+    "webExampleParams": {
+      "name": "Screen / Login",
+      "width": 1280,
+      "height": 800,
+      "layoutMode": "HORIZONTAL",
+      "fill": "#FFFFFF",
+      "clipsContent": true,
+      "children": [
+        {
+          "type": "frame",
+          "name": "Left Panel",
+          "layoutMode": "VERTICAL",
+          "layoutSizingHorizontal": "FILL",
+          "layoutSizingVertical": "FILL",
+          "primaryAxisAlignItems": "CENTER",
+          "counterAxisAlignItems": "CENTER",
+          "fill": "#F3F4F6"
+        },
+        {
+          "type": "frame",
+          "name": "Right Panel",
+          "layoutMode": "VERTICAL",
+          "layoutSizingHorizontal": "FILL",
+          "layoutSizingVertical": "FILL",
+          "primaryAxisAlignItems": "CENTER",
+          "counterAxisAlignItems": "CENTER",
+          "padding": 64,
+          "itemSpacing": 32,
+          "children": [
+            {
+              "type": "frame",
+              "name": "Form",
+              "layoutMode": "VERTICAL",
+              "width": 400,
+              "layoutSizingVertical": "HUG",
+              "itemSpacing": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "name": "Input / Email",
+                  "layoutMode": "HORIZONTAL",
+                  "layoutSizingHorizontal": "FILL",
+                  "layoutSizingVertical": "FIXED",
+                  "height": 48,
+                  "padding": 16,
+                  "cornerRadius": 8,
+                  "strokeColor": "#D1D5DB",
+                  "strokeWeight": 1
+                },
+                {
+                  "type": "frame",
+                  "name": "Input / Password",
+                  "layoutMode": "HORIZONTAL",
+                  "layoutSizingHorizontal": "FILL",
+                  "layoutSizingVertical": "FIXED",
+                  "height": 48,
+                  "padding": 16,
+                  "cornerRadius": 8,
+                  "strokeColor": "#D1D5DB",
+                  "strokeWeight": 1
+                },
+                {
+                  "type": "frame",
+                  "name": "Button / Primary",
+                  "layoutMode": "HORIZONTAL",
+                  "layoutSizingHorizontal": "FILL",
+                  "layoutSizingVertical": "FIXED",
+                  "height": 48,
+                  "cornerRadius": 8,
+                  "fill": "#111827",
+                  "primaryAxisAlignItems": "CENTER",
+                  "counterAxisAlignItems": "CENTER"
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "onboarding": {
@@ -838,6 +1191,36 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
           "layoutMode": "HORIZONTAL",
           "layoutSizingHorizontal": "FILL",
           "height": 34
+        }
+      ]
+    },
+    "webExampleParams": {
+      "name": "Screen / Onboarding",
+      "width": 1280,
+      "height": 800,
+      "layoutMode": "VERTICAL",
+      "primaryAxisAlignItems": "CENTER",
+      "counterAxisAlignItems": "CENTER",
+      "fill": "#FFFFFF",
+      "clipsContent": true,
+      "padding": 64,
+      "itemSpacing": 48,
+      "children": [
+        {
+          "type": "frame",
+          "name": "Content",
+          "layoutMode": "VERTICAL",
+          "width": 600,
+          "layoutSizingVertical": "HUG",
+          "counterAxisAlignItems": "CENTER",
+          "itemSpacing": 24
+        },
+        {
+          "type": "frame",
+          "name": "Actions",
+          "layoutMode": "HORIZONTAL",
+          "layoutSizingVertical": "HUG",
+          "itemSpacing": 16
         }
       ]
     }
@@ -1013,6 +1396,60 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
           ]
         }
       ]
+    },
+    "webExampleParams": {
+      "name": "Screen / Profile",
+      "width": 1280,
+      "height": 800,
+      "layoutMode": "VERTICAL",
+      "fill": "#F9FAFB",
+      "clipsContent": true,
+      "padding": 32,
+      "itemSpacing": 24,
+      "children": [
+        {
+          "type": "frame",
+          "name": "Header",
+          "layoutMode": "HORIZONTAL",
+          "layoutSizingHorizontal": "FILL",
+          "layoutSizingVertical": "HUG",
+          "counterAxisAlignItems": "CENTER",
+          "itemSpacing": 16
+        },
+        {
+          "type": "frame",
+          "name": "Content",
+          "layoutMode": "HORIZONTAL",
+          "layoutSizingHorizontal": "FILL",
+          "layoutSizingVertical": "FILL",
+          "itemSpacing": 24,
+          "children": [
+            {
+              "type": "frame",
+              "name": "Profile Card",
+              "layoutMode": "VERTICAL",
+              "width": 320,
+              "layoutSizingVertical": "HUG",
+              "padding": 32,
+              "cornerRadius": 12,
+              "fill": "#FFFFFF",
+              "itemSpacing": 16,
+              "counterAxisAlignItems": "CENTER"
+            },
+            {
+              "type": "frame",
+              "name": "Details",
+              "layoutMode": "VERTICAL",
+              "layoutSizingHorizontal": "FILL",
+              "layoutSizingVertical": "HUG",
+              "padding": 32,
+              "cornerRadius": 12,
+              "fill": "#FFFFFF",
+              "itemSpacing": 24
+            }
+          ]
+        }
+      ]
     }
   },
   "settings": {
@@ -1127,6 +1564,50 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
                   "counterAxisAlignItems": "CENTER"
                 }
               ]
+            }
+          ]
+        }
+      ]
+    },
+    "webExampleParams": {
+      "name": "Screen / Settings",
+      "width": 1280,
+      "height": 800,
+      "layoutMode": "HORIZONTAL",
+      "fill": "#F9FAFB",
+      "clipsContent": true,
+      "children": [
+        {
+          "type": "frame",
+          "name": "Sidebar",
+          "layoutMode": "VERTICAL",
+          "width": 280,
+          "layoutSizingVertical": "FILL",
+          "padding": 24,
+          "itemSpacing": 4,
+          "fill": "#FFFFFF"
+        },
+        {
+          "type": "frame",
+          "name": "Content",
+          "layoutMode": "VERTICAL",
+          "layoutSizingHorizontal": "FILL",
+          "layoutSizingVertical": "FILL",
+          "padding": 48,
+          "itemSpacing": 32,
+          "children": [
+            {
+              "type": "frame",
+              "name": "Section / Account",
+              "layoutMode": "VERTICAL",
+              "layoutSizingHorizontal": "FILL",
+              "layoutSizingVertical": "HUG",
+              "itemSpacing": 0,
+              "cornerRadius": 12,
+              "fill": "#FFFFFF",
+              "paddingTop": 4,
+              "paddingBottom": 4,
+              "maxWidth": 720
             }
           ]
         }
@@ -1284,6 +1765,47 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
           "layoutMode": "HORIZONTAL",
           "layoutSizingHorizontal": "FILL",
           "height": 34
+        }
+      ]
+    },
+    "webExampleParams": {
+      "name": "Screen / Sign Up",
+      "width": 1280,
+      "height": 800,
+      "layoutMode": "HORIZONTAL",
+      "fill": "#FFFFFF",
+      "clipsContent": true,
+      "children": [
+        {
+          "type": "frame",
+          "name": "Left Panel",
+          "layoutMode": "VERTICAL",
+          "layoutSizingHorizontal": "FILL",
+          "layoutSizingVertical": "FILL",
+          "primaryAxisAlignItems": "CENTER",
+          "counterAxisAlignItems": "CENTER",
+          "fill": "#F3F4F6"
+        },
+        {
+          "type": "frame",
+          "name": "Right Panel",
+          "layoutMode": "VERTICAL",
+          "layoutSizingHorizontal": "FILL",
+          "layoutSizingVertical": "FILL",
+          "primaryAxisAlignItems": "CENTER",
+          "counterAxisAlignItems": "CENTER",
+          "padding": 64,
+          "itemSpacing": 32,
+          "children": [
+            {
+              "type": "frame",
+              "name": "Form",
+              "layoutMode": "VERTICAL",
+              "width": 400,
+              "layoutSizingVertical": "HUG",
+              "itemSpacing": 16
+            }
+          ]
         }
       ]
     }

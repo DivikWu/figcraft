@@ -102,3 +102,33 @@ exampleParams:
               layoutSizingVertical: HUG
               itemSpacing: 4
               layoutGrow: 1
+webExampleParams:
+  name: Screen / List-Detail
+  width: 1280
+  height: 800
+  layoutMode: HORIZONTAL
+  fill: "#F9FAFB"
+  clipsContent: true
+  children:
+    - type: frame
+      name: List Panel
+      layoutMode: VERTICAL
+      width: 360
+      layoutSizingVertical: FILL
+      fill: "#FFFFFF"
+      itemSpacing: 0
+      children:
+        - type: frame
+          name: List Header
+          layoutMode: HORIZONTAL
+          layoutSizingHorizontal: FILL
+          layoutSizingVertical: HUG
+          padding: 16
+          counterAxisAlignItems: CENTER
+    - type: frame
+      name: Detail Panel
+      layoutMode: VERTICAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: FILL
+      padding: 32
+      itemSpacing: 24

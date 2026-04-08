@@ -121,3 +121,88 @@ exampleParams:
       layoutSizingHorizontal: FILL
       layoutSizingVertical: HUG
       itemSpacing: 0
+webExampleParams:
+  name: Screen / Dashboard
+  width: 1280
+  height: 800
+  layoutMode: VERTICAL
+  primaryAxisAlignItems: MIN
+  padding: 32
+  fill: "#F9FAFB"
+  clipsContent: true
+  itemSpacing: 24
+  children:
+    - type: frame
+      name: Header
+      layoutMode: HORIZONTAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      counterAxisAlignItems: CENTER
+      itemSpacing: 16
+    - type: frame
+      name: Stats Row
+      layoutMode: HORIZONTAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: HUG
+      itemSpacing: 16
+      children:
+        - type: frame
+          name: Stat Card / Revenue
+          layoutMode: VERTICAL
+          layoutSizingVertical: HUG
+          layoutGrow: 1
+          padding: 24
+          cornerRadius: 12
+          fill: "#FFFFFF"
+          itemSpacing: 8
+        - type: frame
+          name: Stat Card / Users
+          layoutMode: VERTICAL
+          layoutSizingVertical: HUG
+          layoutGrow: 1
+          padding: 24
+          cornerRadius: 12
+          fill: "#FFFFFF"
+          itemSpacing: 8
+        - type: frame
+          name: Stat Card / Orders
+          layoutMode: VERTICAL
+          layoutSizingVertical: HUG
+          layoutGrow: 1
+          padding: 24
+          cornerRadius: 12
+          fill: "#FFFFFF"
+          itemSpacing: 8
+        - type: frame
+          name: Stat Card / Growth
+          layoutMode: VERTICAL
+          layoutSizingVertical: HUG
+          layoutGrow: 1
+          padding: 24
+          cornerRadius: 12
+          fill: "#FFFFFF"
+          itemSpacing: 8
+    - type: frame
+      name: Content Row
+      layoutMode: HORIZONTAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: FILL
+      itemSpacing: 24
+      children:
+        - type: frame
+          name: Chart Area
+          layoutMode: VERTICAL
+          layoutSizingVertical: FILL
+          layoutGrow: 2
+          padding: 24
+          cornerRadius: 12
+          fill: "#FFFFFF"
+        - type: frame
+          name: Activity List
+          layoutMode: VERTICAL
+          layoutSizingVertical: FILL
+          layoutGrow: 1
+          padding: 24
+          cornerRadius: 12
+          fill: "#FFFFFF"
+          itemSpacing: 12

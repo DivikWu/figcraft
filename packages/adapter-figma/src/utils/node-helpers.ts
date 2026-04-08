@@ -244,10 +244,18 @@ async function clearStrokeStyle(node: SceneNode): Promise<void> {
 
 // ─── Fill application ───
 
+export interface TokenBindingFailure {
+  requested: string;
+  type: 'variable' | 'style';
+  action: 'skipped' | 'used_fallback';
+}
+
 export interface ApplyFillResult {
   autoBound: string | null;
   /** Hint for agent self-correction when no exact match found */
   colorHint?: string;
+  /** Structured failure info when token binding fails */
+  bindingFailure?: TokenBindingFailure;
 }
 
 /**
@@ -322,9 +330,19 @@ export async function applyFill(
         }
       } else {
         colorHint = `Variable "${fill._variable}" not found. Use a hex color, or call search_design_system(query:"${fill._variable}") to find available variables.`;
+        return {
+          autoBound,
+          colorHint,
+          bindingFailure: { requested: fill._variable, type: 'variable', action: 'skipped' },
+        };
       }
     } catch (err) {
       colorHint = err instanceof Error ? err.message : `Variable "${fill._variable}" lookup failed.`;
+      return {
+        autoBound,
+        colorHint,
+        bindingFailure: { requested: fill._variable, type: 'variable', action: 'skipped' },
+      };
     }
     return { autoBound, colorHint };
   }
@@ -344,6 +362,7 @@ export async function applyFill(
     } else {
       const available = getAvailablePaintStyleNames(10);
       colorHint = `Style "${fill._style}" not found.${available.length > 0 ? ` Available: ${available.join(', ')}` : ''}`;
+      return { autoBound, colorHint, bindingFailure: { requested: fill._style, type: 'style', action: 'skipped' } };
     }
     return { autoBound, colorHint };
   }
@@ -906,18 +925,25 @@ export async function applyCornerRadius(
 
 /**
  * Set component properties on an instance, matching keys with Figma's `name#id` suffix format.
- * Silently skips unknown or type-mismatched properties.
+ * Returns list of unmatched property names for diagnostic feedback.
  */
-export function setComponentProperties(instance: InstanceNode, props: Record<string, string | boolean>): void {
+export function setComponentProperties(
+  instance: InstanceNode,
+  props: Record<string, string | boolean>,
+): { unmatchedProperties: string[] } {
   const defs = instance.componentProperties;
+  const unmatched: string[] = [];
   for (const [key, value] of Object.entries(props)) {
     const matchKey = Object.keys(defs).find((k) => k.startsWith(`${key}#`) || k === key);
     if (matchKey) {
       try {
         instance.setProperties({ [matchKey]: value });
       } catch {
-        /* skip */
+        unmatched.push(key);
       }
+    } else {
+      unmatched.push(key);
     }
   }
+  return { unmatchedProperties: unmatched };
 }

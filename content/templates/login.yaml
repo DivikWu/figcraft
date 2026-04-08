@@ -137,3 +137,66 @@ exampleParams:
       layoutMode: HORIZONTAL
       layoutSizingHorizontal: FILL
       height: 34
+webExampleParams:
+  name: Screen / Login
+  width: 1280
+  height: 800
+  layoutMode: HORIZONTAL
+  fill: "#FFFFFF"
+  clipsContent: true
+  children:
+    - type: frame
+      name: Left Panel
+      layoutMode: VERTICAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: FILL
+      primaryAxisAlignItems: CENTER
+      counterAxisAlignItems: CENTER
+      fill: "#F3F4F6"
+    - type: frame
+      name: Right Panel
+      layoutMode: VERTICAL
+      layoutSizingHorizontal: FILL
+      layoutSizingVertical: FILL
+      primaryAxisAlignItems: CENTER
+      counterAxisAlignItems: CENTER
+      padding: 64
+      itemSpacing: 32
+      children:
+        - type: frame
+          name: Form
+          layoutMode: VERTICAL
+          width: 400
+          layoutSizingVertical: HUG
+          itemSpacing: 16
+          children:
+            - type: frame
+              name: Input / Email
+              layoutMode: HORIZONTAL
+              layoutSizingHorizontal: FILL
+              layoutSizingVertical: FIXED
+              height: 48
+              padding: 16
+              cornerRadius: 8
+              strokeColor: "#D1D5DB"
+              strokeWeight: 1
+            - type: frame
+              name: Input / Password
+              layoutMode: HORIZONTAL
+              layoutSizingHorizontal: FILL
+              layoutSizingVertical: FIXED
+              height: 48
+              padding: 16
+              cornerRadius: 8
+              strokeColor: "#D1D5DB"
+              strokeWeight: 1
+            - type: frame
+              name: Button / Primary
+              layoutMode: HORIZONTAL
+              layoutSizingHorizontal: FILL
+              layoutSizingVertical: FIXED
+              height: 48
+              cornerRadius: 8
+              fill: "#111827"
+              primaryAxisAlignItems: CENTER
+              counterAxisAlignItems: CENTER

@@ -107,6 +107,9 @@ export function registerLintHandlers(): void {
     // Convert to abstract nodes
     const abstractNodes = targetNodes.map((n) => compressedToAbstract(simplifyNode(n)));
 
+    // Enrich nodes with per-mode variable colors for dark mode contrast checks
+    await enrichVariableModeColors(abstractNodes);
+
     // Run lint
     const report = runLint(abstractNodes, ctx, {
       rules,
@@ -679,6 +682,87 @@ export function registerLintHandlers(): void {
     return { cleared };
   });
 } // registerLintHandlers
+
+// ─── Variable mode color enrichment for dark mode contrast checks ───
+
+function rgbaToHex(color: { r: number; g: number; b: number }): string {
+  const r = Math.round(color.r * 255);
+  const g = Math.round(color.g * 255);
+  const b = Math.round(color.b * 255);
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`.toUpperCase();
+}
+
+/**
+ * Enrich AbstractNodes with per-mode resolved colors from bound variables.
+ * This enables wcag-contrast to check contrast in all variable modes (light/dark).
+ * Best-effort: failures are silently skipped.
+ */
+async function enrichVariableModeColors(nodes: AbstractNode[]): Promise<void> {
+  // Collect all variable IDs referenced by fills
+  const varIds = new Set<string>();
+  function collectVarIds(node: AbstractNode): void {
+    const bv = node.boundVariables as Record<string, { id?: string } | Array<{ id?: string }>> | undefined;
+    if (bv) {
+      // fills may be array of bindings or single binding
+      const fillBindings = bv.fills ?? bv['fills[0]'];
+      if (fillBindings) {
+        const bindings = Array.isArray(fillBindings) ? fillBindings : [fillBindings];
+        for (const b of bindings) {
+          if (b?.id) varIds.add(b.id);
+        }
+      }
+    }
+    if (node.children) node.children.forEach(collectVarIds);
+  }
+  nodes.forEach(collectVarIds);
+
+  if (varIds.size === 0) return;
+
+  // Resolve each variable's per-mode colors
+  const modeColorMap = new Map<string, Record<string, string>>(); // varId → { modeName: hex }
+  try {
+    for (const varId of varIds) {
+      const variable = await figma.variables.getVariableByIdAsync(varId);
+      if (!variable || variable.resolvedType !== 'COLOR') continue;
+      const collection = await figma.variables.getVariableCollectionByIdAsync(variable.variableCollectionId);
+      if (!collection || collection.modes.length < 2) continue; // only multi-mode variables
+
+      const modeColors: Record<string, string> = {};
+      for (const mode of collection.modes) {
+        const value = variable.valuesByMode[mode.modeId];
+        if (value && typeof value === 'object' && 'r' in value) {
+          modeColors[mode.name] = rgbaToHex(value as { r: number; g: number; b: number });
+        }
+      }
+      if (Object.keys(modeColors).length >= 2) {
+        modeColorMap.set(varId, modeColors);
+      }
+    }
+  } catch {
+    return; // best-effort
+  }
+
+  if (modeColorMap.size === 0) return;
+
+  // Attach mode colors to nodes
+  function attachModeColors(node: AbstractNode): void {
+    const bv = node.boundVariables as Record<string, { id?: string } | Array<{ id?: string }>> | undefined;
+    if (bv) {
+      const fillBindings = bv.fills ?? bv['fills[0]'];
+      if (fillBindings) {
+        const bindings = Array.isArray(fillBindings) ? fillBindings : [fillBindings];
+        for (const b of bindings) {
+          if (b?.id && modeColorMap.has(b.id)) {
+            node.variableModeColors = modeColorMap.get(b.id);
+            break;
+          }
+        }
+      }
+    }
+    if (node.children) node.children.forEach(attachModeColors);
+  }
+  nodes.forEach(attachModeColors);
+}
 
 // ─── Helpers ───
 

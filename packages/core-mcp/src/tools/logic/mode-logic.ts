@@ -159,22 +159,34 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
       const grouped = groupComponentsBySet(components, componentSets);
       // Cache full REST result for search_design_system reuse (60s TTL)
       bridge.setRestComponentCache(fileKey, grouped);
-      // Compress for get_mode: summary only (full variants via search_design_system)
+      // Compress for get_mode: summary with variant property options (reduces search_design_system calls)
       const summary = {
-        componentSets: grouped.componentSets.map((cs) => ({
-          key: cs.key,
-          name: cs.name,
-          description: cs.description,
-          // Library page/section name — critical for disambiguating components with similar property names
-          // (e.g., Avatar vs Input both have "Placeholder"/"Size" but live in different sections)
-          containingFrame: cs.containingFrame,
-          variantCount: cs.variants.length,
-          // Keep only first variant's property keys as schema hint
-          propertyNames: cs.variants.length > 0 ? Object.keys(cs.variants[0].properties) : [],
-        })),
+        componentSets: grouped.componentSets.map((cs) => {
+          // Collect unique values per property across all variants
+          const propertyOptions: Record<string, string[]> = {};
+          for (const variant of cs.variants) {
+            for (const [propName, propValue] of Object.entries(variant.properties)) {
+              if (!propertyOptions[propName]) propertyOptions[propName] = [];
+              if (!propertyOptions[propName].includes(propValue)) {
+                propertyOptions[propName].push(propValue);
+              }
+            }
+          }
+          return {
+            key: cs.key,
+            name: cs.name,
+            description: cs.description,
+            // Library page/section name — critical for disambiguating components with similar property names
+            // (e.g., Avatar vs Input both have "Placeholder"/"Size" but live in different sections)
+            containingFrame: cs.containingFrame,
+            variantCount: cs.variants.length,
+            // Property names with all possible values — enables direct variant selection without extra search calls
+            propertyOptions,
+          };
+        }),
         standalone: grouped.standalone,
         _note:
-          'Variant details omitted. Use search_design_system(query) or components(method:"list_properties") for full variant info.',
+          'Use componentSetKey + variantProperties to instantiate variants. For component details beyond this summary, call components(method:"list_properties").',
       };
       (result as Record<string, unknown>).libraryComponents = summary;
     } catch (err) {
@@ -200,34 +212,62 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
   // Structured workflow instructions — the single source of truth for all IDEs.
   // Replaces the old _hint with actionable, enforceable steps.
   const hasLibrary = !!result.selectedLibrary;
+  const isLocal = result.selectedLibrary === '__local__';
   (result as Record<string, unknown>)._workflow = {
     mode: hasLibrary ? 'design-guardian' : 'design-creator',
-    description: hasLibrary
-      ? 'Library mode — use library tokens and components. Exercise restraint, match existing patterns.'
-      : 'Creator mode — no library. Make intentional design choices, avoid AI defaults (blue/gray/Inter).',
+    description: isLocal
+      ? 'Local mode — using variables and styles from the current file. Bind to local tokens when available; create freely when not.'
+      : hasLibrary
+        ? 'Library mode — use library tokens and components. Exercise restraint, match existing patterns.'
+        : 'Creator mode — no library. Make intentional design choices, avoid AI defaults (blue/gray/Inter).',
 
     // ⛔ BLOCKING: must complete before ANY write tool call
     designPreflight: {
       required: true,
       instruction:
-        'Complete the design checklist below, then present a design proposal to the user and WAIT for explicit confirmation. Do NOT call create_frame/create_text/create_svg until user approves.',
+        'Classify task scale FIRST, then complete the required checklist items. ' +
+        'Present a design proposal to the user and WAIT for explicit confirmation. ' +
+        'Do NOT call create_frame/create_text/create_svg until user approves.',
+      scaleClassification: {
+        instruction: 'Classify the task into one of these scales. This determines which checklist items are required:',
+        scales: {
+          element:
+            'Single element (button, card, input). Required: purpose + colorRules + typographyRules. ' +
+            'Skip platform/language/density/tone unless user mentions them. ' +
+            'If existing screens are on the page, inherit their conventions.',
+          screen: 'Single screen (login, dashboard, settings). Required: ALL checklist items.',
+          flow: 'Multi-screen flow (3+ screens). Required: ALL checklist items + get_creation_guide(topic:"multi-screen").',
+        },
+      },
       checklist: {
         purpose: 'What problem does this solve? Who is the audience?',
-        platform: 'iOS (402×874) / Android (412×915) / Web? Determines touch targets and conventions.',
+        platform:
+          'iOS (402×874) / Android (412×915) / Web? Determines touch targets and conventions. ' +
+          '(Required for screen/flow scale. Element scale: inherit from existing page context.)',
         language:
           'What language for UI text? Determines font choice and content. ' +
           'Primary font MUST match language × platform (e.g. Chinese + iOS → PingFang SC, not SF Pro). ' +
-          'Refer to platform skill typography table after platform is confirmed.',
-        density: 'Sparse form vs dense dashboard — how much info per screen?',
-        tone: 'Minimal ← Elegant ← Warm → Bold → Maximal — pick a clear position.',
+          'Refer to platform skill typography table after platform is confirmed. ' +
+          '(Required for screen/flow scale. Element scale: inherit from existing page context.)',
+        density:
+          'Sparse form vs dense dashboard — how much info per screen? ' + '(Required for screen/flow scale only.)',
+        tone:
+          'Minimal ← Elegant ← Warm → Bold → Maximal — pick a clear position. ' +
+          '(Required for screen/flow scale only.)',
       },
       colorRules: hasLibrary
-        ? '⛔ MANDATORY: Use fillVariableName/strokeVariableName with variable names from designContext.defaults. NEVER pass fill:"#hex" when a matching library token exists. For defaults entries that are null (listed in unresolvedDefaults), call search_design_system to find alternatives.'
+        ? '⛔ MANDATORY: Use fillVariableName/strokeVariableName with variable names from designContext.defaults. NEVER pass fill:"#hex" when a matching library token exists. For defaults entries that are null (listed in unresolvedDefaults), call search_design_system to find alternatives.' +
+          (bridge.libraryFallbackDecisions?.fillsUsed?.length
+            ? ` (Fallback consistency: prior screens used hardcoded colors ${bridge.libraryFallbackDecisions.fillsUsed.join(', ')} where no token matched — reuse these for visual consistency.)`
+            : '')
         : bridge.designDecisions?.fillsUsed?.length
           ? `Established palette: ${bridge.designDecisions.fillsUsed.join(', ')}. Use these colors for consistency. Add new colors only if design requires it.`
           : '1 dominant + 1 accent, total ≤ 5. Dominant at 60%+. NEVER default to blue/gray without justification.',
       typographyRules: hasLibrary
-        ? 'Use library text styles. Clear heading/body distinction via existing style tiers.'
+        ? 'Use library text styles. Clear heading/body distinction via existing style tiers.' +
+          (bridge.libraryFallbackDecisions?.fontsUsed?.length
+            ? ` (Fallback consistency: prior screens used fonts ${bridge.libraryFallbackDecisions.fontsUsed.join(', ')} where no text style matched — reuse these.)`
+            : '')
         : bridge.designDecisions?.fontsUsed?.length
           ? `Established fonts: ${bridge.designDecisions.fontsUsed.join(', ')}. Continue using these. Add new fonts only if justified.`
           : 'Clear heading/body distinction (different weight or size). ≤ 3 font weights. NEVER use only Inter without justification. Primary font MUST match the language from checklist (e.g. Chinese → PingFang SC on iOS, not SF Pro).',
@@ -259,11 +299,15 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
           'Only use hardcoded hex as last resort when no matching token exists anywhere in the library.'
         : null,
       hasLibrary
-        ? '⛔ LIBRARY COMPONENT INSTANCES: Check libraryComponents from this response. ' +
-          'When Button/Input/Card components exist, use type:"instance" + componentKey (or componentSetKey for variant sets) in children[] instead of building frame+text manually. ' +
-          'componentKey imports a single component from the library; componentSetKey imports a full variant set — use with variantProperties to pick a variant. ' +
+        ? '⛔ LIBRARY COMPONENT INSTANCES: ' +
+          '1) Check libraryComponents from this response — it lists all component sets (name, key, containingFrame, propertyNames) and standalone components. Use this as your starting inventory. ' +
+          '2) For components you plan to use, call search_design_system(query) to get variant details and confirm keys. Build a Component Map before creating: ' +
+          'e.g. Button → key:"abc", variants: Type=Primary/Secondary; Input → setKey:"def", variants: Size=md/lg, State=Default/Error. ' +
+          '3) Use type:"instance" in children[]: ' +
+          'componentSetKey + variantProperties selects a variant from a set (e.g. variantProperties:{Type:"Primary",Size:"Large"}); ' +
+          'componentKey imports a single component; ' +
+          'properties sets instance overrides AFTER creation (text labels, boolean toggles — e.g. properties:{Label:"Sign In"}). ' +
           'componentId is for local components only (node ID). ' +
-          'Call search_design_system(query:"button") for component keys and variant properties. ' +
           'DISAMBIGUATION: Property names like "Placeholder" and "Size" appear on MANY component types (Avatar, Input, Card). ' +
           'Always check containingFrame to verify the component category (e.g., "Forms" vs "Avatars"). ' +
           'For form inputs, look for State/Error/Focused variants — Avatars never have these.'
@@ -306,6 +350,8 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
       opinionEngine: 'get_creation_guide(topic:"opinion-engine") — create_frame auto-inference docs',
       iconography: 'get_creation_guide(topic:"iconography") — icon ordering, sizing, tool chain, design rules',
       designRules: 'get_design_guidelines(category) — aesthetic design direction rules',
+      libraryImportToolset:
+        'load_toolset("library-import") — for importing library variables/styles into local file (design system authoring). NOT needed for UI creation in library mode — core tools suffice.',
     },
 
     // How search_design_system behaves in this mode
@@ -333,13 +379,31 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
       const workflow = (result as Record<string, unknown>)._workflow as Record<string, unknown>;
       workflow.localTokensEmpty = true;
       workflow.description =
-        'Local mode — no local variables or styles found. ' +
-        'Create with intentional design choices. Token binding will be skipped.';
+        'Local mode (empty) — no local variables or styles found in this file. ' +
+        'Behaves like creator mode: make intentional design choices. Token binding will be skipped. ' +
+        'To use a shared library instead, call set_mode with a library name.';
       (workflow.designPreflight as Record<string, unknown>).colorRules =
         'No local color tokens available. Choose colors intentionally: ' +
         '1 dominant + 1 accent, total ≤ 5. Do not hardcode random hex values.';
       (workflow.designPreflight as Record<string, unknown>).typographyRules =
         'No local text styles available. Choose fonts intentionally: ' + 'clear heading/body distinction, ≤ 3 weights.';
+    }
+  }
+
+  // Inject migration context if switching from creator → library mode
+  if (hasLibrary) {
+    const migration = bridge.consumeMigrationContext();
+    if (migration) {
+      const workflow = (result as Record<string, unknown>)._workflow as Record<string, unknown>;
+      workflow.migrationContext = {
+        description:
+          'Migrated from creator mode. The following design choices were established in prior screens. ' +
+          'Use search_design_system to find the closest library tokens for each, and maintain visual consistency.',
+        priorColors: migration.fillsUsed,
+        priorFonts: migration.fontsUsed,
+        priorRadius: migration.radiusValues,
+        priorSpacing: migration.spacingValues,
+      };
     }
   }
 

@@ -44,13 +44,14 @@ export const wcagContrastRule: LintRule = {
     const large = isLargeText(node.fontSize, node.fontName?.style);
     const threshold = large ? 3 : 4.5;
 
+    const violations: LintViolation[] = [];
+
     // Use actual parent background when available, otherwise fall back to white/black
     const parentBg = getParentBg(node);
     if (parentBg) {
       const ratio = contrastRatioTuple(fgRgb, parentBg);
-      if (ratio >= threshold) return [];
-      return [
-        {
+      if (ratio < threshold) {
+        violations.push({
           nodeId: node.id,
           nodeName: node.name,
           rule: 'wcag-contrast',
@@ -59,30 +60,55 @@ export const wcagContrastRule: LintRule = {
           expectedValue: `>= ${threshold}:1`,
           suggestion: `"${node.name}" text color may be hard to read — contrast is only ${ratio.toFixed(2)}:1 against its background (needs at least ${threshold}:1)`,
           autoFixable: false,
-        },
-      ];
+        });
+      }
+    } else {
+      // Fallback: check against both white and black (conservative)
+      const ratioOnWhite = contrastRatioTuple(fgRgb, [1, 1, 1]);
+      const ratioOnBlack = contrastRatioTuple(fgRgb, [0, 0, 0]);
+
+      if (ratioOnWhite < threshold && ratioOnBlack < threshold) {
+        const worstRatio = Math.max(ratioOnWhite, ratioOnBlack);
+        violations.push({
+          nodeId: node.id,
+          nodeName: node.name,
+          rule: 'wcag-contrast',
+          severity: 'unsafe',
+          currentValue: `${worstRatio.toFixed(2)}:1`,
+          expectedValue: `>= ${threshold}:1`,
+          suggestion: `"${node.name}" text color may be hard to read — contrast is only ${worstRatio.toFixed(2)}:1 (needs at least ${threshold}:1)`,
+          autoFixable: false,
+        });
+      }
     }
 
-    // Fallback: check against both white and black (conservative)
-    const ratioOnWhite = contrastRatioTuple(fgRgb, [1, 1, 1]);
-    const ratioOnBlack = contrastRatioTuple(fgRgb, [0, 0, 0]);
-
-    if (ratioOnWhite >= threshold || ratioOnBlack >= threshold) {
-      return [];
+    // Dark mode / multi-mode check: if variable mode colors are available,
+    // verify contrast in every mode (e.g. light AND dark)
+    if (node.variableModeColors && node.parentBgModeColors) {
+      const modes = new Set([...Object.keys(node.variableModeColors), ...Object.keys(node.parentBgModeColors)]);
+      for (const mode of modes) {
+        const fgHex = node.variableModeColors[mode];
+        const bgHex = node.parentBgModeColors[mode];
+        if (!fgHex || !bgHex) continue;
+        const fg = hexToRgbTuple(fgHex);
+        const bg = hexToRgbTuple(bgHex);
+        if (!fg || !bg) continue;
+        const ratio = contrastRatioTuple(fg, bg);
+        if (ratio < threshold) {
+          violations.push({
+            nodeId: node.id,
+            nodeName: node.name,
+            rule: 'wcag-contrast',
+            severity: 'unsafe',
+            currentValue: `${ratio.toFixed(2)}:1 (${mode} mode)`,
+            expectedValue: `>= ${threshold}:1`,
+            suggestion: `"${node.name}" fails contrast in ${mode} mode — ${ratio.toFixed(2)}:1 (needs ${threshold}:1). Check that both text and background variables resolve to adequate contrast in all modes.`,
+            autoFixable: false,
+          });
+        }
+      }
     }
 
-    const worstRatio = Math.max(ratioOnWhite, ratioOnBlack);
-    return [
-      {
-        nodeId: node.id,
-        nodeName: node.name,
-        rule: 'wcag-contrast',
-        severity: 'unsafe',
-        currentValue: `${worstRatio.toFixed(2)}:1`,
-        expectedValue: `>= ${threshold}:1`,
-        suggestion: `"${node.name}" text color may be hard to read — contrast is only ${worstRatio.toFixed(2)}:1 (needs at least ${threshold}:1)`,
-        autoFixable: false,
-      },
-    ];
+    return violations;
   },
 };
