@@ -87,12 +87,13 @@ export function registerModeTools(server: McpServer, bridge: Bridge): void {
 
   server.tool(
     'get_mode',
-    'Get current mode, selected library, design context, and library components. ' +
+    'Get current mode, selected library, design context, and components. ' +
       'Also verifies plugin connectivity (built-in ping). ' +
       'IMPORTANT: Call this before creating elements to get available design tokens and components. ' +
-      'Returns { connected, mode, selectedLibrary, designContext, libraryComponents? }. ' +
+      'Returns { connected, mode, selectedLibrary, designContext, libraryComponents?, localComponents? }. ' +
       'designContext contains grouped tokens (text/surface/fill/border) and defaults mapping. ' +
-      'libraryComponents (when library file URL is configured) lists component sets with variants grouped by set, plus standalone components.',
+      'libraryComponents (library mode) lists shared library component sets with variants. ' +
+      'localComponents (local mode, __local__) lists current file component sets and standalone components with node IDs.',
     {},
     async () => {
       return getModeLogic(bridge);

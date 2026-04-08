@@ -13,8 +13,10 @@ Prefer library styles and tokens. Use what exists, skip what doesn't — never l
 
 ## Spec Priority
 
-- MUST use library component instances (`type:"instance"` + `componentKey`/`componentSetKey`) when the component exists in libraryComponents; hand-built frame+text is only acceptable when no matching library component is found
-- MUST match colors/fonts/spacing/radii to library Style/Variable first; when no match exists, skip binding and choose freely
+- MUST use component instances (`type:"instance"`) when a matching component exists; hand-built frame+text is only acceptable when no matching component is found
+  - **Library mode**: use `componentKey`/`componentSetKey` from `libraryComponents`
+  - **Local mode**: use `componentId` (node ID) from `localComponents`
+- MUST match colors/fonts/spacing/radii to Style/Variable first; when no match exists, skip binding and choose freely
 - SHOULD use primary for focal points, secondary for supporting, tertiary for background; exercise restraint — don't use every available token
 - When selecting components, check `containingFrame` to verify category (e.g., "Forms" vs "Avatars") — property names like "Placeholder"/"Size" appear across unrelated component types
 

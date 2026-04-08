@@ -5,7 +5,7 @@ steps: |
   Help me create a design element with high design quality. Follow the Think → Gather → Propose → Confirm → Query → Create → Check workflow:
 
   ## Think
-  1. Call get_mode to verify plugin connection and get designContext (includes libraryComponents if available)
+  1. Call get_mode to verify plugin connection and get designContext (includes libraryComponents or localComponents if available)
   2. Based on the result, determine which mode you are in:
      - If selectedLibrary is set → Design Guardian mode. Key rules are in _workflow.designPreflight. For detailed rules on a specific area, call get_design_guidelines(category).
      - If no selectedLibrary → Design Creator mode. Key rules are in _workflow.designPreflight. For detailed rules on a specific area, call get_design_guidelines(category).
@@ -49,12 +49,12 @@ steps: |
   ## Confirm
   7. If the user requests changes, revise the plan and present again. If approved, proceed.
 
-  ## Query (library mode with components)
-  8. For local components, call components(method: "list_properties") to discover available variants.
-     For library components, get_mode's libraryComponents shows component sets with variantCount, propertyNames, and containingFrame.
+  ## Query (library/local mode with components)
+  8. Check get_mode response for available components:
+     - Library mode: libraryComponents lists shared library component sets (use componentSetKey/componentKey).
+     - Local mode: localComponents lists current file component sets (use componentId).
      Use containingFrame to verify component category — property names like "Placeholder"/"Size" appear on many types (Avatar, Input, Card).
      For full variant details, call search_design_system(query) or components(method: "list_properties").
-     When search returns isSet=true, use componentSetKey + variantProperties; when isSet=false, use componentKey.
      Skip this step entirely in Design Creator mode (no library selected).
 
   ## Create

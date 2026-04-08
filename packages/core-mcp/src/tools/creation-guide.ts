@@ -154,7 +154,7 @@ function formatUiPattern(
         'For colors not in this table, call `search_design_system(query:"<color role>")` to discover additional tokens.',
       );
       lines.push(
-        'For Button/Input/Card: check `libraryComponents` from get_mode — use `type:"instance"` + `componentId` instead of frame+text.',
+        'For Button/Input/Card: check `libraryComponents` or `localComponents` from get_mode — use `type:"instance"` instead of frame+text.',
       );
     }
   }

@@ -146,6 +146,18 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
     bridge.setLibraryFileKey(result.selectedLibrary, result.libraryFileKey);
   }
 
+  // Enrich with local components for __local__ mode (mirrors libraryComponents for library mode)
+  if (result.selectedLibrary === '__local__') {
+    try {
+      const localComps = (await bridge.request('list_local_components', {})) as Record<string, unknown>;
+      (result as Record<string, unknown>).localComponents = localComps;
+    } catch (err) {
+      console.warn('[FigCraft] Failed to enumerate local components:', err);
+      (result as Record<string, unknown>).localComponentsError =
+        `Failed to enumerate local components: ${err instanceof Error ? err.message : String(err)}.`;
+    }
+  }
+
   // Enrich with library components if fileKey is available
   const fileKey =
     result.libraryFileKey ?? (result.selectedLibrary ? bridge.getLibraryFileKey(result.selectedLibrary) : null);
@@ -292,26 +304,36 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
 
     // After user confirms the design proposal:
     creationSteps: [
+      // Token binding step (Library + Local with tokens)
       hasLibrary
-        ? '⛔ LIBRARY TOKEN BINDING: Use designContext.defaults for color bindings — pass fillVariableName/strokeVariableName (NOT fill/strokeColor hex). ' +
+        ? '⛔ TOKEN BINDING: Use designContext.defaults for color bindings — pass fillVariableName/strokeVariableName (NOT fill/strokeColor hex). ' +
           'Example: defaults["bg/primary"] → fillVariableName:"bg/primary". ' +
           'If a defaults entry is null (listed in unresolvedDefaults), call search_design_system to find the closest token. ' +
-          'Only use hardcoded hex as last resort when no matching token exists anywhere in the library.'
+          'Only use hardcoded hex as last resort when no matching token exists.'
         : null,
-      hasLibrary
-        ? '⛔ LIBRARY COMPONENT INSTANCES: ' +
-          '1) Check libraryComponents from this response — it lists all component sets (name, key, containingFrame, propertyNames) and standalone components. Use this as your starting inventory. ' +
-          '2) For components you plan to use, call search_design_system(query) to get variant details and confirm keys. Build a Component Map before creating: ' +
-          'e.g. Button → key:"abc", variants: Type=Primary/Secondary; Input → setKey:"def", variants: Size=md/lg, State=Default/Error. ' +
-          '3) Use type:"instance" in children[]: ' +
-          'componentSetKey + variantProperties selects a variant from a set (e.g. variantProperties:{Type:"Primary",Size:"Large"}); ' +
-          'componentKey imports a single component; ' +
-          'properties sets instance overrides AFTER creation (text labels, boolean toggles — e.g. properties:{Label:"Sign In"}). ' +
-          'componentId is for local components only (node ID). ' +
-          'DISAMBIGUATION: Property names like "Placeholder" and "Size" appear on MANY component types (Avatar, Input, Card). ' +
-          'Always check containingFrame to verify the component category (e.g., "Forms" vs "Avatars"). ' +
-          'For form inputs, look for State/Error/Focused variants — Avatars never have these.'
-        : null,
+      // Component instance step (Library vs Local vs Creator)
+      isLocal
+        ? '⛔ LOCAL COMPONENT INSTANCES: ' +
+          '1) Check localComponents from this response — it lists all local component sets (id, name, containingFrame, variantCount, propertyOptions) and standalone components. Use this as your starting inventory. ' +
+          '2) Use type:"instance" + componentId (node ID) in children[]. ' +
+          'For component sets: componentId + variantProperties selects a variant (e.g. variantProperties:{Type:"Primary",Size:"Large"}). ' +
+          'properties sets instance overrides AFTER creation (text labels, boolean toggles). ' +
+          '3) search_design_system(query) for on-demand discovery beyond the summary. ' +
+          'DISAMBIGUATION: Check containingFrame to verify component category (e.g., "Forms" vs "Avatars").'
+        : hasLibrary
+          ? '⛔ LIBRARY COMPONENT INSTANCES: ' +
+            '1) Check libraryComponents from this response — it lists all component sets (name, key, containingFrame, propertyNames) and standalone components. Use this as your starting inventory. ' +
+            '2) For components you plan to use, call search_design_system(query) to get variant details and confirm keys. Build a Component Map before creating: ' +
+            'e.g. Button → key:"abc", variants: Type=Primary/Secondary; Input → setKey:"def", variants: Size=md/lg, State=Default/Error. ' +
+            '3) Use type:"instance" in children[]: ' +
+            'componentSetKey + variantProperties selects a variant from a set (e.g. variantProperties:{Type:"Primary",Size:"Large"}); ' +
+            'componentKey imports a single component; ' +
+            'properties sets instance overrides AFTER creation (text labels, boolean toggles — e.g. properties:{Label:"Sign In"}). ' +
+            'componentId is for local components only (node ID). ' +
+            'DISAMBIGUATION: Property names like "Placeholder" and "Size" appear on MANY component types (Avatar, Input, Card). ' +
+            'Always check containingFrame to verify the component category (e.g., "Forms" vs "Avatars"). ' +
+            'For form inputs, look for State/Error/Focused variants — Avatars never have these.'
+          : null,
       'Page context is included above in pageContext (isEmpty, childCount, topFrameNames). If you need deeper detail (node styles, nested tree), call get_current_page(maxDepth=2).',
       'After platform confirmed: load platform-specific rules via get_creation_guide(topic:"platform-ios") / get_creation_guide(topic:"platform-android") / get_creation_guide(topic:"responsive"). These provide safe areas, typography, navigation patterns, and touch targets specific to the target platform.',
       'Classify task scale: single element / single screen / multi-screen (3-5) / large flow (6+).',
@@ -319,7 +341,7 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
       '⚠️ SIZING: Root screen frames MUST include layoutSizingHorizontal:"FIXED" + layoutSizingVertical:"FIXED" explicitly. Without this, Opinion Engine infers HUG and the frame collapses to content size.',
       '⚠️ PLACEHOLDERS: Use type:"frame" (not "rectangle") for any container that needs children later (logos, avatars, chart areas). Rectangles cannot have children. Add layoutMode:"HORIZONTAL", primaryAxisAlignItems:"CENTER", counterAxisAlignItems:"CENTER" to center content inside.',
       hasLibrary
-        ? '⚠️ ICONS: Plan all icons before create_frame. Use search_design_system(query:"icon chevron") to find library icon components first; fall back to icon_search + icon_create. ' +
+        ? `⚠️ ICONS: Plan all icons before create_frame. Use search_design_system(query:"icon chevron") to find ${isLocal ? 'local' : 'library'} icon components first; fall back to icon_search + icon_create. ` +
           'ORDERING: icon_create with parentId appends to END by default — use index:0 to place icon BEFORE text (left side in HORIZONTAL layout). children array order = visual order in auto-layout. ' +
           'NEVER use text characters as icon placeholders (">" for chevron, "..." for more). ' +
           'MUST call get_creation_guide(topic:"iconography") before placing any icons.'
@@ -367,7 +389,7 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
       : 'Reply to user: gather missing preferences (platform, style tone, color palette) OR present design proposal if user provided enough detail. WAIT for confirmation.',
   };
 
-  // Detect sparse local tokens for __local__ mode
+  // Detect sparse local tokens/components for __local__ mode — full fallback to creator rules
   if (result.selectedLibrary === '__local__') {
     const ctx = result.designContext as Record<string, unknown> | null;
     const hasTokens =
@@ -375,6 +397,11 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
       ((Array.isArray(ctx.colorVariables) && (ctx.colorVariables as unknown[]).length > 0) ||
         (Array.isArray(ctx.textStyles) && (ctx.textStyles as unknown[]).length > 0) ||
         (ctx.registeredStyles && typeof ctx.registeredStyles === 'object'));
+    const localComps = (result as Record<string, unknown>).localComponents as Record<string, unknown> | undefined;
+    const hasComponents =
+      localComps &&
+      ((Array.isArray(localComps.componentSets) && (localComps.componentSets as unknown[]).length > 0) ||
+        (Array.isArray(localComps.standalone) && (localComps.standalone as unknown[]).length > 0));
     if (!hasTokens) {
       const workflow = (result as Record<string, unknown>)._workflow as Record<string, unknown>;
       workflow.localTokensEmpty = true;
@@ -382,11 +409,32 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
         'Local mode (empty) — no local variables or styles found in this file. ' +
         'Behaves like creator mode: make intentional design choices. Token binding will be skipped. ' +
         'To use a shared library instead, call set_mode with a library name.';
-      (workflow.designPreflight as Record<string, unknown>).colorRules =
+      const preflight = workflow.designPreflight as Record<string, unknown>;
+      preflight.colorRules =
         'No local color tokens available. Choose colors intentionally: ' +
         '1 dominant + 1 accent, total ≤ 5. Do not hardcode random hex values.';
-      (workflow.designPreflight as Record<string, unknown>).typographyRules =
+      preflight.typographyRules =
         'No local text styles available. Choose fonts intentionally: ' + 'clear heading/body distinction, ≤ 3 weights.';
+      preflight.iconRules =
+        'No local icon components. Use icon_search + icon_create for all icons. ' +
+        'Single icon set + style per design. Never text placeholders. ' +
+        'MUST call get_creation_guide(topic:"iconography") before placing any icons.';
+
+      // Remove token binding and component instance steps (first two entries)
+      const steps = workflow.creationSteps as (string | null)[];
+      // Token binding step (index 0) and component instance step (index 1) are null-able
+      steps[0] = null; // Remove token binding — no tokens available
+      if (!hasComponents) {
+        steps[1] = null; // Remove component instance step — no local components either
+      }
+      // Re-filter nulls
+      workflow.creationSteps = steps.filter(Boolean);
+
+      workflow.searchBehavior = hasComponents
+        ? 'No local tokens, but local components exist. search_design_system can discover components. ' +
+          'For colors and typography, make intentional design choices directly.'
+        : 'No local tokens or components — search_design_system will return empty results. ' +
+          'Make intentional design choices directly.';
     }
   }
 

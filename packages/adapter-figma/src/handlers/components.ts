@@ -429,6 +429,105 @@ export function registerComponentHandlers(): void {
     comp.deleteComponentProperty(propertyName);
     return { ok: true, properties: Object.keys(comp.componentPropertyDefinitions) };
   });
+  // ─── Local Component Enumeration (for Local mode alignment with Library mode) ───
+
+  registerHandler('list_local_components', async () => {
+    const componentSets: Array<{
+      id: string;
+      name: string;
+      description: string;
+      containingFrame: string;
+      variantCount: number;
+      propertyOptions: Record<string, string[]>;
+    }> = [];
+    const standalone: Array<{
+      id: string;
+      name: string;
+      description: string;
+      containingFrame: string;
+    }> = [];
+    const seenSetIds = new Set<string>();
+
+    function getContainingFrame(node: SceneNode): string {
+      let current = node.parent;
+      while (current) {
+        if (current.type === 'PAGE') return '';
+        if (current.type === 'FRAME' || current.type === 'SECTION') return current.name;
+        // Skip COMPONENT_SET parent — we want the frame above it
+        if (current.type === 'COMPONENT_SET') {
+          current = current.parent;
+          continue;
+        }
+        current = current.parent;
+      }
+      return '';
+    }
+
+    function walk(node: SceneNode) {
+      if (node.type === 'COMPONENT_SET') {
+        const set = node as ComponentSetNode;
+        if (!seenSetIds.has(set.id)) {
+          seenSetIds.add(set.id);
+          const variants = set.children.filter((c) => c.type === 'COMPONENT') as ComponentNode[];
+          const propertyOptions: Record<string, string[]> = {};
+          for (const variant of variants) {
+            // Parse variant name "Property1=Value1, Property2=Value2"
+            const parts = variant.name.split(',').map((s) => s.trim());
+            for (const part of parts) {
+              const [propName, propValue] = part.split('=').map((s) => s.trim());
+              if (propName && propValue) {
+                if (!propertyOptions[propName]) propertyOptions[propName] = [];
+                if (!propertyOptions[propName].includes(propValue)) {
+                  propertyOptions[propName].push(propValue);
+                }
+              }
+            }
+          }
+          componentSets.push({
+            id: set.id,
+            name: set.name,
+            description: set.description || '',
+            containingFrame: getContainingFrame(set),
+            variantCount: variants.length,
+            propertyOptions,
+          });
+        }
+        return; // don't recurse into component set children
+      }
+      if (node.type === 'COMPONENT') {
+        const comp = node as ComponentNode;
+        // Skip if part of a component set (already collected above)
+        if (comp.parent?.type === 'COMPONENT_SET') return;
+        standalone.push({
+          id: comp.id,
+          name: comp.name,
+          description: comp.description || '',
+          containingFrame: getContainingFrame(comp),
+        });
+        return; // don't recurse into component children
+      }
+      if ('children' in node) {
+        for (const child of (node as ChildrenMixin).children) {
+          walk(child);
+        }
+      }
+    }
+
+    // Walk ALL pages to discover all local components
+    for (const page of figma.root.children) {
+      for (const child of page.children) {
+        walk(child);
+      }
+    }
+
+    return {
+      componentSets,
+      standalone,
+      _note:
+        'Use componentId (node ID) to create instances of local components. ' +
+        'For component sets, use componentId + variantProperties to select a variant.',
+    };
+  });
 } // registerComponentHandlers
 
 // ─── Helpers ───
