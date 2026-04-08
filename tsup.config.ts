@@ -17,8 +17,11 @@ const CREATION_GUIDE_SKILLS = [
   { skill: 'iconography', out: 'iconography.md' },
   { skill: 'platform-ios', out: 'platform-ios.md' },
   { skill: 'platform-android', out: 'platform-android.md' },
+  { skill: 'ux-writing', out: 'ux-writing.md' },
 ] as const;
 
+// SYNC: stripSkillSections logic is duplicated in creation-guide.ts and figcraft-design/tsup.config.ts
+// Guarded by tests/contracts/skill-sync.test.ts — keep all three in sync.
 const SECTIONS_TO_STRIP = ['Skill Boundaries', 'Design Direction', 'On-Demand Guide'];
 
 function stripSkillSections(content: string): string {

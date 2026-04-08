@@ -5,20 +5,21 @@
  * MCP Server round-trips to the plugin via bridge for every get/set.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { Bridge } from '../bridge.js';
 import { getModeLogic } from './logic/mode-logic.js';
+import { skillsDir, useSkills } from './skill-loader.js';
 
 // ─── Category extraction (pre-computed at module load time) ───
 
 const CATEGORY_HEADINGS: Record<string, string[]> = {
   color: ['## Color', '## Spec Priority'],
-  typography: ['## Typography'],
-  spacing: ['## Spacing'],
+  typography: ['## Typography', '## Typography (Library Addendum)', '## Typography (Creator Addendum)'],
+  spacing: ['## Spacing', '## Spacing (Library Addendum)'],
   layout: ['## Layout'],
   composition: ['## Composition'],
   content: ['## Content'],
@@ -57,34 +58,33 @@ function buildCategoryCache(rules: string): Map<string, string> {
   return cache;
 }
 
-export function registerModeTools(server: McpServer, bridge: Bridge): void {
-  // Load design rules from skills/ (source of truth) or fallback to co-located .md (built artifact)
-  const selfDir = dirname(fileURLToPath(import.meta.url));
-  const skillsDir = join(selfDir, '..', '..', '..', '..', 'skills');
-  const useSkills = existsSync(join(skillsDir, 'ui-ux-fundamentals', 'SKILL.md'));
+// ─── Design rule loading (pre-computed at module load time) ───
 
-  const stripFrontmatter = (content: string): string => content.replace(/^---[\s\S]*?---\s*/, '');
+const selfDir = dirname(fileURLToPath(import.meta.url));
+const stripFrontmatter = (content: string): string => content.replace(/^---[\s\S]*?---\s*/, '');
 
-  const loadRules = (skillName: string, fallbackFilename: string): string => {
-    try {
-      if (useSkills) {
-        return stripFrontmatter(readFileSync(join(skillsDir, skillName, 'SKILL.md'), 'utf-8'));
-      }
-      return readFileSync(join(selfDir, fallbackFilename), 'utf-8');
-    } catch {
-      return '';
+function loadRules(skillName: string, fallbackFilename: string): string {
+  try {
+    if (useSkills) {
+      return stripFrontmatter(readFileSync(join(skillsDir, skillName, 'SKILL.md'), 'utf-8'));
     }
-  };
-  const fundamentalsRules = loadRules('ui-ux-fundamentals', 'ui-ux-fundamentals.md');
-  const guardianRules = loadRules('design-guardian', 'design-guardian.md');
-  const creatorRules = loadRules('design-creator', 'design-creator.md');
+    return readFileSync(join(selfDir, fallbackFilename), 'utf-8');
+  } catch (err) {
+    console.warn(`[FigCraft] Failed to load design rule skill "${skillName}":`, err);
+    return '';
+  }
+}
 
-  // Pre-compute category sections for both modes (avoids re-parsing on every call)
-  const guardianFull = `${fundamentalsRules}\n\n---\n\n${guardianRules}`;
-  const creatorFull = `${fundamentalsRules}\n\n---\n\n${creatorRules}`;
-  const guardianCategoryCache = buildCategoryCache(guardianFull);
-  const creatorCategoryCache = buildCategoryCache(creatorFull);
+const fundamentalsRules = loadRules('ui-ux-fundamentals', 'ui-ux-fundamentals.md');
+const guardianRules = loadRules('design-guardian', 'design-guardian.md');
+const creatorRules = loadRules('design-creator', 'design-creator.md');
 
+const guardianFull = `${fundamentalsRules}\n\n---\n\n${guardianRules}`;
+const creatorFull = `${fundamentalsRules}\n\n---\n\n${creatorRules}`;
+const guardianCategoryCache = buildCategoryCache(guardianFull);
+const creatorCategoryCache = buildCategoryCache(creatorFull);
+
+export function registerModeTools(server: McpServer, bridge: Bridge): void {
   server.tool(
     'get_mode',
     'Get current mode, selected library, design context, and components. ' +

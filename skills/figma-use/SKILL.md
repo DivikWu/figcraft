@@ -10,6 +10,12 @@ Use `use_figma` MCP to execute JavaScript in Figma files via the Plugin API. All
 
 **Always pass `skillNames: "figma-use"` when calling `use_figma`.** This is a logging parameter used to track skill usage — it does not affect execution.
 
+## Skill Boundaries
+
+- Use this skill for **Plugin API operations** (`use_figma` / `execute_js`) — creating/editing nodes, variables, styles, components via JavaScript.
+- If the task is building a full page or screen layout, prefer [figma-create-ui](../figma-create-ui/SKILL.md) (declarative `create_frame` with Opinion Engine). Only use `use_figma` for operations `create_frame` cannot handle.
+- If the task is building a full design system, also load [figma-generate-library](../figma-generate-library/SKILL.md).
+
 **If the task involves building or updating a full page, screen, or multi-section layout in Figma**, prefer [figma-create-ui](../figma-create-ui/SKILL.md) which uses declarative tools (`create_frame`) with Opinion Engine. Only use `use_figma` for operations that `create_frame` cannot handle.
 
 Before anything, load [plugin-api-standalone.index.md](references/plugin-api-standalone.index.md) to understand what is possible. When you are asked to write plugin API code, use this context to grep [plugin-api-standalone.d.ts](references/plugin-api-standalone.d.ts) for relevant types, methods, and properties. This is the definitive source of truth for the API surface. It is a large typings file, so do not load it all at once, grep for relevant sections as needed.

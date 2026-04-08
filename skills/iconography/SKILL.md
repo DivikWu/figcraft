@@ -5,6 +5,12 @@ description: "Icon rules: ordering in auto-layout (children array order = visual
 
 # Iconography
 
+## Skill Boundaries
+
+- Use this skill for **icon placement, ordering, sizing, and tool chain** (`icon_search` → `icon_create`).
+- General icon design rules (single set, no text placeholders) are in [ui-ux-fundamentals](../ui-ux-fundamentals/SKILL.md).
+- Library-specific icon discovery (search_design_system for icon components) is handled by [design-guardian](../design-guardian/SKILL.md) workflow.
+
 ## Ordering — children order = visual order (CRITICAL)
 
 In auto-layout, the children array index directly controls visual position:

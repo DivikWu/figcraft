@@ -11,6 +11,12 @@ Prefer library styles and tokens. Use what exists, skip what doesn't — never l
 > **Scope**: Library-specific design direction only.
 > Layout structure, sizing defaults, auto-layout rules are handled by Quality Engine lint.
 
+## Skill Boundaries
+
+- Use this skill for **library mode design decisions** (token priority, component instances, dark mode).
+- Only loaded when a library is selected. If no library, use [design-creator](../design-creator/SKILL.md) instead.
+- Extends [ui-ux-fundamentals](../ui-ux-fundamentals/SKILL.md) — that skill must also be loaded.
+
 ## Spec Priority
 
 - MUST use component instances (`type:"instance"`) when a matching component exists; hand-built frame+text is only acceptable when no matching component is found

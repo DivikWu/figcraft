@@ -57,6 +57,9 @@ describe('content-generated freshness', () => {
       'skills/responsive-design/SKILL.md',
       'skills/content-states/SKILL.md',
       'skills/iconography/SKILL.md',
+      'skills/platform-ios/SKILL.md',
+      'skills/platform-android/SKILL.md',
+      'skills/ux-writing/SKILL.md',
     ];
     for (const path of skillGuides) {
       expect(existsSync(path)).toBe(true);

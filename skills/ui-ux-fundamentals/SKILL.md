@@ -13,6 +13,15 @@ Universal design quality rules. Apply regardless of library mode.
 > Responsive breakpoints → `responsive-design`.
 > Content state patterns → `content-states`.
 
+## Skill Boundaries
+
+- Use this skill for **universal design quality rules** (color, typography, spacing, content, accessibility).
+- Always loaded — applies in both library and no-library modes.
+- If library is selected, also load [design-guardian](../design-guardian/SKILL.md) for token priority rules.
+- If no library, also load [design-creator](../design-creator/SKILL.md) for intentional design rules.
+- Platform-specific rules (screen sizes, safe areas, native typography) → [platform-ios](../platform-ios/SKILL.md) / [platform-android](../platform-android/SKILL.md).
+- Responsive web breakpoints → [responsive-design](../responsive-design/SKILL.md).
+
 ## Color
 
 - MUST choose colors with intent — define semantic roles (primary action, surface, border, text) before picking hues
@@ -65,6 +74,11 @@ Universal design quality rules. Apply regardless of library mode.
 - SHOULD match content length to real-world usage
 - NEVER leave placeholder labels like "Button", "Title", "Label" — give them purpose
 - SHOULD show content count or status in section headers when data is loaded (e.g. "3 items", "Updated 2m ago")
+- Buttons: verb-first, 1–3 words, specific action ("Create account", "Save changes" — not "OK" or "Submit")
+- Sentence case for UI labels ("Sign in" not "Sign In"), except proper nouns and acronyms
+- Placeholders: show example format ("name@example.com", "(555) 123-4567"), not instructions
+- Error messages: state what happened + how to fix ("Password is too short. Use at least 8 characters.")
+- For language-specific UI copy rules (Chinese/English), load `get_creation_guide(topic:"ux-writing")`
 
 ## Iconography
 
@@ -156,7 +170,7 @@ Universal design quality rules. Apply regardless of library mode.
 ## CJK & Internationalization
 
 - MUST include CJK fallback fonts in font stack (e.g. "PingFang SC", "Noto Sans JP")
-- CJK body line-height: 1.7–1.8 (vs Latin 1.5–1.6)
+- CJK body line-height: 1.6–1.8 (vs Latin 1.5–1.6); headings can tighten to 1.4
 - CJK minimum body size: 14px (complex strokes need more pixels)
 - NEVER add positive letter-spacing to CJK body text
 - Buttons, tabs, nav items: use padding not fixed width — text length varies across languages

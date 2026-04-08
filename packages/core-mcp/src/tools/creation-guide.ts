@@ -11,7 +11,7 @@
  * as Claude Code and Kiro.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getPreventionChecklist } from '@figcraft/quality-engine';
@@ -21,11 +21,14 @@ import type { Bridge } from '../bridge.js';
 import { GUIDES } from './_guides.js';
 import type { UiPattern } from './_templates.js';
 import { UI_PATTERNS } from './_templates.js';
+import { skillsDir, useSkills } from './skill-loader.js';
 
 // ─── Skill-sourced guides (source of truth: skills/*/SKILL.md) ───
 // Same pattern as mode.ts design rule loading: read from skills/ at startup,
 // fallback to co-located .md in dist/ for packaged environments.
 
+// SYNC: stripSkillSections logic is duplicated in root tsup.config.ts and figcraft-design/tsup.config.ts
+// Guarded by tests/contracts/skill-sync.test.ts — keep all three in sync.
 const SECTIONS_TO_STRIP = ['Skill Boundaries', 'Design Direction', 'On-Demand Guide'];
 
 /** Remove YAML frontmatter (--- ... ---) from skill content */
@@ -51,31 +54,31 @@ function stripSkillSections(content: string): string {
     .trim();
 }
 
+// selfDir needed for fallback .md resolution in packaged environments
+const selfDir = dirname(fileURLToPath(import.meta.url));
+
 /** Load a creation guide from skill (source of truth) or fallback .md */
-function loadSkillGuide(skillsDir: string, useSkills: boolean, skillName: string, fallbackFilename: string): string {
+function loadSkillGuide(skillName: string, fallbackFilename: string): string {
   try {
     if (useSkills) {
       const raw = readFileSync(join(skillsDir, skillName, 'SKILL.md'), 'utf-8');
       return stripSkillSections(stripFrontmatter(raw));
     }
-    return readFileSync(join(dirname(fileURLToPath(import.meta.url)), fallbackFilename), 'utf-8');
-  } catch {
+    return readFileSync(join(selfDir, fallbackFilename), 'utf-8');
+  } catch (err) {
+    console.warn(`[FigCraft] Failed to load creation guide skill "${skillName}":`, err);
     return '';
   }
 }
 
-// Resolve skills directory (same path logic as mode.ts)
-const selfDir = dirname(fileURLToPath(import.meta.url));
-const skillsDir = join(selfDir, '..', '..', '..', '..', 'skills');
-const useSkills = existsSync(join(skillsDir, 'multi-screen-flow', 'SKILL.md'));
-
 // Skill-sourced guides (loaded once at startup)
-const MULTI_SCREEN_GUIDE = loadSkillGuide(skillsDir, useSkills, 'multi-screen-flow', 'multi-screen.md');
-const RESPONSIVE_GUIDE = loadSkillGuide(skillsDir, useSkills, 'responsive-design', 'responsive.md');
-const CONTENT_STATES_GUIDE = loadSkillGuide(skillsDir, useSkills, 'content-states', 'content-states.md');
-const ICONOGRAPHY_GUIDE = loadSkillGuide(skillsDir, useSkills, 'iconography', 'iconography.md');
-const PLATFORM_IOS_GUIDE = loadSkillGuide(skillsDir, useSkills, 'platform-ios', 'platform-ios.md');
-const PLATFORM_ANDROID_GUIDE = loadSkillGuide(skillsDir, useSkills, 'platform-android', 'platform-android.md');
+const MULTI_SCREEN_GUIDE = loadSkillGuide('multi-screen-flow', 'multi-screen.md');
+const RESPONSIVE_GUIDE = loadSkillGuide('responsive-design', 'responsive.md');
+const CONTENT_STATES_GUIDE = loadSkillGuide('content-states', 'content-states.md');
+const ICONOGRAPHY_GUIDE = loadSkillGuide('iconography', 'iconography.md');
+const PLATFORM_IOS_GUIDE = loadSkillGuide('platform-ios', 'platform-ios.md');
+const PLATFORM_ANDROID_GUIDE = loadSkillGuide('platform-android', 'platform-android.md');
+const UX_WRITING_GUIDE = loadSkillGuide('ux-writing', 'ux-writing.md');
 
 // Compiled guides (source of truth: content/guides/*.md → _guides.ts)
 const BATCHING_GUIDE = GUIDES.BATCHING;
@@ -119,6 +122,12 @@ function formatUiPattern(
   }
   lines.push('', '## Example Parameters — Mobile (minimal tone)', '');
   lines.push('Ready-to-use `create_frame` params skeleton. Customize text, colors, and icons after creation.');
+  if (libraryDefaults) {
+    lines.push(
+      '',
+      '> **⚠️ SKELETON ONLY** — in library mode, replace all `fill:"#hex"` / `strokeColor:"#hex"` with `fillVariableName` / `strokeVariableName` from the **Library Token Mapping** section below. Do NOT copy hex values directly.',
+    );
+  }
   lines.push('');
   lines.push('```json');
   lines.push(JSON.stringify(pattern.exampleParams, null, 2));
@@ -187,9 +196,10 @@ export function registerCreationGuide(server: McpServer, bridge?: Bridge): void 
           'iconography',
           'platform-ios',
           'platform-android',
+          'ux-writing',
         ])
         .describe(
-          'Topic: layout (structural rules), multi-screen (flow architecture), batching (context budget), tool-behavior (usage patterns), opinion-engine (auto-inference docs), ui-patterns (UI type templates — requires uiType), responsive (web breakpoints + auto-layout), content-states (empty/loading/error patterns), iconography (icon ordering, sizing, tool chain, design rules), platform-ios (iOS safe areas, SF Pro, HIG conventions), platform-android (Material Design 3, Roboto, navigation)',
+          'Topic: layout (structural rules), multi-screen (flow architecture), batching (context budget), tool-behavior (usage patterns), opinion-engine (auto-inference docs), ui-patterns (UI type templates — requires uiType), responsive (web breakpoints + auto-layout), content-states (empty/loading/error patterns), iconography (icon ordering, sizing, tool chain, design rules), platform-ios (iOS safe areas, SF Pro, HIG conventions), platform-android (Material Design 3, Roboto, navigation), ux-writing (UI copy conventions — buttons, forms, errors, with Chinese/English language-specific rules)',
         ),
       uiType: z
         .string()
@@ -235,6 +245,9 @@ export function registerCreationGuide(server: McpServer, bridge?: Bridge): void 
           break;
         case 'platform-android':
           content = PLATFORM_ANDROID_GUIDE;
+          break;
+        case 'ux-writing':
+          content = UX_WRITING_GUIDE;
           break;
         case 'ui-patterns': {
           if (!uiType) {

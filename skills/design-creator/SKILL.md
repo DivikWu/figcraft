@@ -11,6 +11,12 @@ Every design choice must be intentional. Never rely on AI defaults.
 > **Scope**: No-library design decisions only.
 > Layout structure, sizing defaults, auto-layout rules are handled by Quality Engine lint.
 
+## Skill Boundaries
+
+- Use this skill for **no-library mode design decisions** (intentional color, typography, iconography choices).
+- Only loaded when no library is selected. If library is selected, use [design-guardian](../design-guardian/SKILL.md) instead.
+- Extends [ui-ux-fundamentals](../ui-ux-fundamentals/SKILL.md) — that skill must also be loaded.
+
 ## Anti-Defaults
 
 - Inter + blue + centered symmetry is the AI safe zone — if you choose it, have a reason
