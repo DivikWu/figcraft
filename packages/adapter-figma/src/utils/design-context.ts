@@ -626,23 +626,36 @@ async function getLocalColorVarsResolved(): Promise<Array<{ variable: Variable; 
  * @param role - Binding context: 'background', 'textColor', or 'border'
  * @returns The matched variable or null
  */
-export async function suggestColorVariable(hex: string, role: string): Promise<Variable | null> {
+export async function suggestColorVariable(hex: string, role: string, libraryName?: string): Promise<Variable | null> {
   const normalizedHex = hex.replace('#', '').toUpperCase();
   const targetHex = `#${normalizedHex.slice(0, 6)}`;
   const acceptableScopes = ROLE_TO_SCOPES[role];
   if (!acceptableScopes) return null;
 
   const colorVars = await getLocalColorVarsResolved();
-  // First pass: exact hex match + scope match
+  // First pass: exact hex match + scope match (local variables)
   for (const entry of colorVars) {
     if (entry.hex !== targetHex) continue;
-    // Check scope: variable must have at least one acceptable scope, or ALL_SCOPES
     const hasScope =
-      entry.scopes.length === 0 || // no scopes = unrestricted
+      entry.scopes.length === 0 ||
       entry.scopes.includes('ALL_SCOPES') ||
       entry.scopes.some((s) => acceptableScopes.includes(s));
     if (hasScope) return entry.variable;
   }
+
+  // Library fallback: check if the default variable for this role exists in the library
+  if (libraryName) {
+    try {
+      const defaults = await resolveDefaults(libraryName);
+      const defaultVar = defaults[role];
+      if (defaultVar) {
+        return cachedImportVariable(defaultVar.key, `suggestColor:${defaultVar.name}`);
+      }
+    } catch {
+      /* best effort */
+    }
+  }
+
   return null;
 }
 
@@ -737,32 +750,134 @@ function resolveVariableByName(
 }
 
 /**
- * Find a COLOR variable by name with 3-level resolution:
- * 1. Exact case-insensitive match
- * 2. Slash-path / partial name match
- * 3. Scope-based disambiguation
+ * Find a COLOR variable by name with library-first resolution:
+ * In library mode (libraryName provided):
+ *   1. Search library color collections by name, import via key (priority)
+ *   2. Fallback to local variables with 3-level resolution
+ * In no-library mode:
+ *   1. Local variables with 3-level resolution (exact → slash-path → scope disambiguation)
  *
  * @param name - Variable name to search for (e.g. "colors/primary", "primary", "MyLib/colors/primary")
- * @param preferredScopes - Optional scope hints for disambiguation
+ * @param preferredScopes - Optional scope hints for disambiguation (local fallback only)
+ * @param libraryName - Optional library name; when provided, library is searched first
  * @returns The matched variable or null
  */
-export async function findColorVariableByName(name: string, preferredScopes?: string[]): Promise<Variable | null> {
+export async function findColorVariableByName(
+  name: string,
+  preferredScopes?: string[],
+  libraryName?: string,
+): Promise<Variable | null> {
+  // In library mode, search library first — library tokens take priority over local variables.
+  // This avoids the case where a local variable with the same name shadows the intended library token.
+  if (libraryName) {
+    try {
+      const variable = await findLibraryVariableByName(name, 'COLOR', libraryName);
+      if (variable) return variable;
+    } catch {
+      /* library lookup failed — fall through to local */
+    }
+  }
+
+  // Fallback: search local variables
   const colorVars = await getLocalColorVarsResolved();
   const entries = colorVars.map((e) => ({ variable: e.variable, scopes: e.scopes }));
   return resolveVariableByName(entries, name, preferredScopes);
 }
 
 /**
- * Find a FLOAT variable by name with 3-level resolution:
- * 1. Exact case-insensitive match
- * 2. Slash-path / partial name match
- * 3. Scope-based disambiguation
+ * Search library variable collections for a variable by name and import it.
+ *
+ * This is the library fallback for findColorVariableByName / findFloatVariableByName.
+ * When a variable name (e.g. "text/primary") exists in the team library but hasn't
+ * been used in the current file yet, getLocalVariablesAsync won't find it.
+ * This function searches the library's collections, finds the matching key,
+ * and imports the variable via cachedImportVariable.
+ *
+ * @param name - Variable name to search for
+ * @param resolvedType - 'COLOR' or 'FLOAT' to filter collections
+ * @param libraryName - The library to search in
+ * @returns The imported Variable or null
+ */
+async function findLibraryVariableByName(
+  name: string,
+  resolvedType: 'COLOR' | 'FLOAT',
+  libraryName: string,
+): Promise<Variable | null> {
+  const collections = await getCollectionIndex(libraryName);
+  if (collections.length === 0) return null;
+
+  const lower = name.toLowerCase();
+
+  // Filter collections by type heuristic:
+  // COLOR → collections with "color", "semantic", "theme" in name
+  // FLOAT → collections with "spacing", "size", "radius", "layout", "rounded" in name
+  // If no heuristic match, search all collections
+  const typeHints =
+    resolvedType === 'COLOR'
+      ? ['color', 'semantic', 'theme']
+      : ['spacing', 'size', 'radius', 'layout', 'rounded', 'typography'];
+  let targetCols = collections.filter((c) => {
+    const n = c.name.toLowerCase();
+    return typeHints.some((h) => n.includes(h));
+  });
+  // Fallback: search all collections if no heuristic match
+  if (targetCols.length === 0) targetCols = collections;
+
+  // Search each collection for a matching variable name
+  for (const col of targetCols) {
+    const vars = await getCollectionVariables(col.key);
+    const filtered = vars.filter((v) => v.resolvedType === resolvedType);
+
+    // Level 1: exact name match (case-insensitive)
+    const exact = filtered.find((v) => v.name.toLowerCase() === lower);
+    if (exact) {
+      return cachedImportVariable(exact.key, `library:${exact.name}`);
+    }
+
+    // Level 2: partial path match (input "primary" matches "text/primary")
+    if (!name.includes('/')) {
+      const partial = filtered.filter((v) => {
+        const parts = v.name.toLowerCase().split('/');
+        return parts[parts.length - 1] === lower;
+      });
+      if (partial.length === 1) {
+        return cachedImportVariable(partial[0].key, `library:${partial[0].name}`);
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Find a FLOAT variable by name with library-first resolution:
+ * In library mode (libraryName provided):
+ *   1. Search library collections by name, import via key (priority)
+ *   2. Fallback to local variables with 3-level resolution
+ * In no-library mode:
+ *   1. Local variables with 3-level resolution (exact → slash-path → scope disambiguation)
  *
  * @param name - Variable name to search for (e.g. "spacing/md", "radius/lg", "md")
- * @param preferredScopes - Optional scope hints for disambiguation
+ * @param preferredScopes - Optional scope hints for disambiguation (local fallback only)
+ * @param libraryName - Optional library name; when provided, library is searched first
  * @returns The matched variable or null
  */
-export async function findFloatVariableByName(name: string, preferredScopes?: string[]): Promise<Variable | null> {
+export async function findFloatVariableByName(
+  name: string,
+  preferredScopes?: string[],
+  libraryName?: string,
+): Promise<Variable | null> {
+  // In library mode, search library first
+  if (libraryName) {
+    try {
+      const variable = await findLibraryVariableByName(name, 'FLOAT', libraryName);
+      if (variable) return variable;
+    } catch {
+      /* library lookup failed — fall through to local */
+    }
+  }
+
+  // Fallback: search local variables
   const vars = await figma.variables.getLocalVariablesAsync('FLOAT');
   const entries = vars.map((v) => ({ variable: v, scopes: (v as any).scopes as string[] | undefined }));
   return resolveVariableByName(entries, name, preferredScopes);

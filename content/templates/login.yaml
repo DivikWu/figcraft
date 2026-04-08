@@ -1,3 +1,4 @@
+libraryNote: "In library mode, replace Input/Button frames in exampleParams with type:\"instance\" using componentKey/componentSetKey discovered via search_design_system. The structure below shows the layout skeleton — swap manual frames for library component instances."
 structure: |-
   Screen (VERTICAL, FIXED 402×874, SPACE_BETWEEN, padding 24)
     ├── Top Content (VERTICAL, FILL/HUG, itemSpacing 24)
@@ -28,6 +29,7 @@ pitfalls:
   - 'sizing-collapse: input/button children default to HUG width — explicitly set layoutSizingHorizontal:"FILL" on all inputs, buttons, and divider rows'
   - 'icon-placeholder: NEVER use ">" text for chevron or "..." for more — call icon_search + icon_create for lucide:chevron-right, lucide:ellipsis, etc.'
   - "social-login-icons: Social buttons MUST include brand icons (lucide:apple, iconoir:google) — text-only buttons look unfinished"
+  - "component-misidentification: For input fields, verify containingFrame shows 'Forms' or 'Input' — NEVER use Avatar/profile components (they share Placeholder/Size property names but are visually wrong)"
   - 'logo-as-rectangle: Logo placeholder must be type:"frame" with centered icon inside, NOT type:"rectangle" (which cannot have children)'
   - "clipsContent-text: Pure text wrapper frames should use clipsContent:false to prevent text clipping when frame height is tight"
 toneVariants:

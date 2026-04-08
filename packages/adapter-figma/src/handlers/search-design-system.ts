@@ -50,6 +50,7 @@ export function registerSearchDesignSystemHandler(): void {
     const limit = (params.limit as number) || 20;
     const selectedLibrary = (params.selectedLibrary as string | undefined) ?? null;
     const isLocalOnly = selectedLibrary === '__local__';
+    const skipRemoteComponents = (params.skipRemoteComponents as boolean) ?? false;
 
     const results: {
       components: Array<{
@@ -187,8 +188,9 @@ export function registerSearchDesignSystemHandler(): void {
           const inst = node as InstanceNode;
           const mc = inst.mainComponent;
           if (mc) {
-            // In local-only mode, skip library (remote) instances
-            if (isLocalOnly && mc.remote) {
+            // Skip remote (library) components when REST API handles them,
+            // or when in local-only mode
+            if ((isLocalOnly || skipRemoteComponents) && mc.remote) {
               // still walk children below
             } else {
               const cs = mc.parent?.type === 'COMPONENT_SET' ? (mc.parent as ComponentSetNode) : null;

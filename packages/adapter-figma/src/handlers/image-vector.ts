@@ -15,7 +15,12 @@ async function createShape(
   factory: () => SceneNode & GeometryMixin & MinimalFillsMixin & MinimalStrokesMixin & BlendMixin & LayoutMixin,
   defaultName: string,
   params: Record<string, unknown>,
-  applyExtras?: (node: ReturnType<typeof factory>, libraryBindings: string[], useLib: boolean) => void | Promise<void>,
+  applyExtras?: (
+    node: ReturnType<typeof factory>,
+    libraryBindings: string[],
+    useLib: boolean,
+    library: string | undefined,
+  ) => void | Promise<void>,
 ): Promise<Record<string, unknown>> {
   const [mode, library] = await getCachedModeLibrary();
   const useLib = mode === 'library' && !!library;
@@ -57,7 +62,7 @@ async function createShape(
   if (params.visible === false) (node as any).visible = false;
 
   // Shape-specific properties (corner radius, stroke details, etc.)
-  if (applyExtras) await applyExtras(node as any, libraryBindings, useLib);
+  if (applyExtras) await applyExtras(node as any, libraryBindings, useLib, library);
 
   if (params.parentId) {
     const parent = await findNodeByIdAsync(params.parentId as string);
@@ -216,7 +221,7 @@ export function registerImageVectorHandlers(): void {
       () => figma.createRectangle() as any,
       'Rectangle',
       params,
-      async (rect, libraryBindings, useLib) => {
+      async (rect, libraryBindings, useLib, library) => {
         // Rectangle-specific: stroke details
         if (params.strokeAlign) rect.strokeAlign = params.strokeAlign as 'INSIDE' | 'OUTSIDE' | 'CENTER';
         if (params.strokeDashes && Array.isArray(params.strokeDashes)) {
@@ -226,7 +231,13 @@ export function registerImageVectorHandlers(): void {
         if (params.strokeJoin) (rect as any).strokeJoin = params.strokeJoin as string;
         // Rectangle-specific: corner radius with token binding
         if (params.cornerRadius != null) {
-          const radiusBound = await applyCornerRadius(rect as any, params.cornerRadius as any, useLib);
+          const radiusBound = await applyCornerRadius(
+            rect as any,
+            params.cornerRadius as any,
+            useLib,
+            undefined,
+            library,
+          );
           libraryBindings.push(...radiusBound);
         }
         // Per-corner overrides

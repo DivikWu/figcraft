@@ -32,7 +32,7 @@ This SKILL.md is a **lightweight entry point**. The detailed, context-aware crea
 ## Skill Boundaries
 
 - Use this skill to **create new UI** using declarative tools (`create_frame`, `create_text`).
-- In **library mode**: use `search_design_system` for token discovery and `type:"instance"` + `componentId` for simple component instantiation (Button, Input). For **complex multi-step component assembly** (via `importComponentByKeyAsync` scripts), switch to [figma-generate-design](../figma-generate-design/SKILL.md).
+- In **library mode**: load `figma-generate-design` skill for component discovery and `type:"instance"` instantiation. Use `search_design_system` for token discovery.
 - If the task is **building a design system** (variables, component libraries, theming), switch to [figma-generate-library](../figma-generate-library/SKILL.md).
 - If the task is **reviewing existing designs**, switch to [design-review](../design-review/SKILL.md).
 - If the task is **implementing code from Figma**, switch to [figma-implement-design](../figma-implement-design/SKILL.md).
@@ -41,13 +41,12 @@ This SKILL.md is a **lightweight entry point**. The detailed, context-aware crea
 
 | Signal | This skill (create-ui) | figma-generate-design |
 |--------|----------------------|----------------------|
-| Tool | `create_frame` (declarative) | `use_figma` (Plugin API scripts) |
-| Design system | Token binding via `fillVariableName` + simple `type:"instance"` | Complex multi-step component assembly via scripts |
-| Typical task | "Design a login page", "Build a card" | "Recreate this React page in Figma" |
-| Component reuse | Simple instances via `type:"instance"` + `componentId` | Complex multi-step assembly via `importComponentByKeyAsync` |
-| Complexity | Single elements to full screens | Full pages with design system component assembly |
+| Design system | No library or simple token binding | Library with reusable components (Button, Input, Card) |
+| Typical task | "Design a card", "Build a quick layout" | "Design a login page using the design system" |
+| Component reuse | Hand-built frames + text | `type:"instance"` + `componentKey` from `search_design_system` |
+| Complexity | Single elements, simple screens | Full screens assembled from library components |
 
-**Rule of thumb**: Use `search_design_system` in library mode for token discovery and simple `type:"instance"` component placement within this skill. Switch to figma-generate-design only for complex multi-step component assembly (multiple `importComponentByKeyAsync` calls with variant matching).
+**Rule of thumb**: If `get_mode` returns `libraryComponents` with Button/Input/Card components, load `figma-generate-design` and follow its component discovery workflow. Use this skill for simple layouts without library components.
 
 ## Opinion Engine
 

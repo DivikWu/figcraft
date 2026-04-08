@@ -910,7 +910,7 @@ create_frame:
         Inline child nodes to create recursively. Each item: {type:'frame'|'text'|'rectangle'|'ellipse'|'instance'|'svg'|'star'|'polygon'|'icon', ...params, children?}.
         Frame children accept all create_frame params. Text children accept all create_text params (incl. textCase, textDecoration).
         Rectangle/ellipse children accept: name, width, height, fill, fillVariableName, fillStyleName, strokeColor, strokeVariableName, strokeWeight, cornerRadius (rect only), opacity, rotation.
-        Instance children accept: componentId (required), name, width, height, variantProperties, properties, layoutSizingHorizontal/Vertical.
+        Instance children accept: componentId (local node ID), componentKey (library component key), or componentSetKey (library component set key) — at least one required. Also: name, width, height, variantProperties, properties, layoutSizingHorizontal/Vertical. For library components, prefer componentKey or componentSetKey over componentId.
         SVG children accept: svg (required), name, width, height.
         Icon children accept: icon (required, "prefix:name" e.g. "lucide:home"), size (default: 24), fill (hex color), colorVariableName, name.
         Star children accept: name, width, height, fill, pointCount, innerRadius, opacity, rotation.
@@ -2783,7 +2783,8 @@ delete_component:
 create_instance:
   description: >-
     Create component instances with optional variant selection, property overrides, and smart sizing.
-    Workflow: components(method:"list") → create_instance with componentId + properties.
+    Supports local components (by ID) and library components (by key).
+    Workflow: search_design_system(query:"button") → create_instance with componentKey + variantProperties.
   toolset: components-advanced
   write: true
   access: create
@@ -2791,8 +2792,13 @@ create_instance:
   params:
     componentId:
       type: string
-      required: true
-      description: "Component or component set ID"
+      description: "Local component or component set node ID. For library components, use componentKey or componentSetKey instead."
+    componentKey:
+      type: string
+      description: "Library component key (from search_design_system or libraryComponents). Imports the component from the team library. Tries as standalone component first, then as component set."
+    componentSetKey:
+      type: string
+      description: "Library component set key. Imports the full component set (with all variants) from the team library. Use with variantProperties to pick a specific variant."
     variantProperties:
       type: object
       description: 'Pick variant e.g. {"Style":"Secondary","Size":"Large"}'

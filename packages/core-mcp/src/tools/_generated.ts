@@ -426,9 +426,11 @@ export function registerGeneratedTools(
   if (shouldRegisterGeneratedTool(include, 'create_instance')) {
     server.tool(
     'create_instance',
-    "Create component instances with optional variant selection, property overrides, and smart sizing. Workflow: components(method:\"list\") → create_instance with componentId + properties.",
+    "Create component instances with optional variant selection, property overrides, and smart sizing. Supports local components (by ID) and library components (by key). Workflow: search_design_system(query:\"button\") → create_instance with componentKey + variantProperties.",
     {
-      componentId: z.string().describe("Component or component set ID"),
+      componentId: z.string().optional().describe("Local component or component set node ID. For library components, use componentKey or componentSetKey instead."),
+      componentKey: z.string().optional().describe("Library component key (from search_design_system or libraryComponents). Imports the component from the team library. Tries as standalone component first, then as component set."),
+      componentSetKey: z.string().optional().describe("Library component set key. Imports the full component set (with all variants) from the team library. Use with variantProperties to pick a specific variant."),
       variantProperties: z.record(z.unknown()).optional().describe("Pick variant e.g. {\"Style\":\"Secondary\",\"Size\":\"Large\"}"),
       properties: z.record(z.unknown()).optional().describe("Set component properties inline e.g. {\"Label\":\"Click me\",\"ShowIcon\":true}"),
       parentId: z.string().optional().describe("Parent node ID"),

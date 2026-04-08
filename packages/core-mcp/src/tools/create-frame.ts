@@ -164,7 +164,7 @@ export function registerCreateFrame(server: McpServer, bridge: Bridge): void {
           "Inline child nodes to create recursively. Each item: {type:'frame'|'text'|'rectangle'|'ellipse'|'instance'|'svg'|'star'|'polygon'|'icon', ...params, children?}. " +
             'Frame children accept all create_frame params. Text children accept all create_text params (incl. textCase, textDecoration). ' +
             'Rectangle/ellipse children accept: name, width, height, fill, fillVariableName, fillStyleName, strokeColor, strokeVariableName, strokeWeight, cornerRadius (rect only), opacity, rotation. ' +
-            'Instance children accept: componentId (required), name, width, height, variantProperties, properties, layoutSizingHorizontal/Vertical. ' +
+            'Instance children accept: componentId (local node ID), componentKey (library component key), or componentSetKey (library component set key) — at least one required. Also: name, width, height, variantProperties, properties, layoutSizingHorizontal/Vertical. For library components, prefer componentKey or componentSetKey. ' +
             'SVG children accept: svg (required), name, width, height. ' +
             'Icon children accept: icon (required, "prefix:name" e.g. "lucide:home"), size (default: 24), fill (hex color), colorVariableName, name. ' +
             'Star children accept: name, width, height, fill, pointCount, innerRadius, opacity, rotation. ' +

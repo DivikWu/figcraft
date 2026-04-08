@@ -57,7 +57,7 @@ Forms the "create → review → fix" quality loop: `figma-create-ui` → `desig
 | Skill | Description |
 |-------|-------------|
 | **figma-use** | Mandatory prerequisite for all `use_figma`/`execute_js` calls. Plugin API rules. |
-| **figma-generate-design** | Build/update full screens from design system. References design rules + figma-use. |
+| **figma-generate-design** | Build/update screens from design system. Component discovery + instance assembly. |
 | **figma-generate-library** | Build professional design systems (20-100+ calls). References design rules + figma-use. |
 
 ## Auxiliary

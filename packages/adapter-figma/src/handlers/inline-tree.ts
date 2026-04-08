@@ -186,7 +186,14 @@ const SHAPE_PARAMS = new Set([
   'cornerRadius',
 ]);
 
-const INSTANCE_PARAMS = new Set([...COMMON_PARAMS, 'componentId', 'variantProperties', 'properties']);
+const INSTANCE_PARAMS = new Set([
+  ...COMMON_PARAMS,
+  'componentId',
+  'componentKey',
+  'componentSetKey',
+  'variantProperties',
+  'properties',
+]);
 
 const SVG_PARAMS = new Set([...COMMON_PARAMS, 'svg']);
 

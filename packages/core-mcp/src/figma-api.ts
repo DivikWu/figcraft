@@ -209,6 +209,8 @@ export interface GroupedLibraryComponents {
     key: string;
     name: string;
     description: string;
+    /** Page/section name in the library file (from REST API containing_frame) */
+    containingFrame?: string;
     variants: Array<{
       key: string;
       name: string;
@@ -219,6 +221,8 @@ export interface GroupedLibraryComponents {
     key: string;
     name: string;
     description: string;
+    /** Page/section name in the library file (from REST API containing_frame) */
+    containingFrame?: string;
   }>;
 }
 
@@ -255,6 +259,7 @@ export function groupComponentsBySet(
         key: set.key,
         name: set.name,
         description: set.description,
+        containingFrame: set.containing_frame?.name || undefined,
         variants,
       };
     })
@@ -266,6 +271,7 @@ export function groupComponentsBySet(
       key: c.key,
       name: c.name,
       description: c.description,
+      containingFrame: c.containing_frame?.name || undefined,
     })),
   };
 }

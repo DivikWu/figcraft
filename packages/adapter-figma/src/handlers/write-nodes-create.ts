@@ -60,7 +60,6 @@ type Platform = 'ios' | 'android' | 'web' | 'unknown';
 
 /** CJK Unicode range detection. */
 const CJK_RE =
-  // biome-ignore lint/suspicious/noMisleadingCharacterClass: intentional CJK range
   /[\u4E00-\u9FFF\u3400-\u4DBF\u{20000}-\u{2A6DF}\u{2A700}-\u{2B73F}\u{2B740}-\u{2B81F}\u{2B820}-\u{2CEAF}\u{2CEB0}-\u{2EBEF}\u{30000}-\u{3134F}\u3000-\u303F\uFF00-\uFFEF]/u;
 const KANA_RE = /[\u3040-\u309F\u30A0-\u30FF\u31F0-\u31FF]/;
 const HANGUL_RE = /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F\uA960-\uA97F\uD7B0-\uD7FF]/;
@@ -94,13 +93,6 @@ function detectPlatformFromAncestors(node: BaseNode): Platform {
     current = current.parent;
   }
   return 'unknown';
-}
-
-/** Platform-aware font defaults based on text content script detection. */
-interface PlatformFontResult {
-  family: string;
-  style: string;
-  note: string | null;
 }
 
 const PLATFORM_FONTS: Record<
@@ -800,11 +792,18 @@ async function setupFrame(
       }
     }
   } else if (ctx.useLib) {
-    const fillResult = await applyFill(frame, undefined, 'background', ctx.useLib, ctx.library, {
-      stylesPreloaded: true,
-    });
-    if (fillResult.autoBound) ctx.libraryBindings.push(fillResult.autoBound);
-    if (fillResult.colorHint) ctx.warnings.push(fillResult.colorHint);
+    // Only auto-bind surface fill to frames with a semantic role (e.g. role:"screen").
+    // Structural containers (layout wrappers, rows, groups) should be transparent —
+    // AI passes explicit fill/fillVariableName when a background is intended.
+    if (p.role != null) {
+      const fillResult = await applyFill(frame, undefined, 'background', ctx.useLib, ctx.library, {
+        stylesPreloaded: true,
+      });
+      if (fillResult.autoBound) ctx.libraryBindings.push(fillResult.autoBound);
+      if (fillResult.colorHint) ctx.warnings.push(fillResult.colorHint);
+    } else {
+      frame.fills = []; // structural container — transparent
+    }
   } else {
     frame.fills = []; // clear default white
   }
@@ -896,7 +895,7 @@ async function setupFrame(
       if (p[key] != null && typeof p[key] === 'number') tokenFieldMap[key] = p[key] as number;
     }
     if (Object.keys(tokenFieldMap).length > 0) {
-      const bound = await applyTokenFields(frame as SceneNode, tokenFieldMap);
+      const bound = await applyTokenFields(frame as SceneNode, tokenFieldMap, undefined, ctx.library);
       ctx.libraryBindings.push(...bound);
     }
   }
@@ -928,7 +927,13 @@ async function setupFrame(
 
   // ── Corner radius ──
   if (p.cornerRadius != null) {
-    const radiusBound = await applyCornerRadius(frame as SceneNode, p.cornerRadius as any, ctx.useLib);
+    const radiusBound = await applyCornerRadius(
+      frame as SceneNode,
+      p.cornerRadius as any,
+      ctx.useLib,
+      undefined,
+      ctx.library,
+    );
     ctx.libraryBindings.push(...radiusBound);
   }
   // Per-corner overrides (after uniform cornerRadius so they take precedence)
@@ -1173,7 +1178,7 @@ async function setupText(text: TextNode, p: Record<string, unknown>, ctx: Create
         }
       }
     }
-    // Fallback: try local text styles
+    // Fallback: try local text styles, then library style import by key
     if (!bound) {
       try {
         const localStyles = await figma.getLocalTextStylesAsync();
@@ -1188,14 +1193,43 @@ async function setupText(text: TextNode, p: Record<string, unknown>, ctx: Create
           }
           await setTextStyleIdAsync(text, match.id);
           ctx.libraryBindings.push(`textStyle:${match.name}`);
-        } else {
-          const avail = getAvailableTextStyleNames(10);
-          ctx.warnings.push(
-            `textStyle "${name}" not found.${avail.length > 0 ? ` Available: ${avail.join(', ')}` : ''}`,
-          );
+          bound = true;
         }
       } catch (err) {
         ctx.warnings.push(`textStyle lookup failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    // Fallback: import library style by key from clientStorage registry
+    if (!bound && ctx.useLib && ctx.library) {
+      try {
+        const name = p.textStyleName as string;
+        const storedJson = (await figma.clientStorage.getAsync(`figcraft_styles_${ctx.library}`)) as string | undefined;
+        if (storedJson) {
+          const stored = JSON.parse(storedJson) as {
+            textStyles: Array<{ key: string; name: string; fontSize: number; fontFamily: string; fontWeight: string }>;
+          };
+          const lower = name.toLowerCase();
+          const entry = stored.textStyles.find((s) => s.name.toLowerCase() === lower);
+          if (entry) {
+            const imported = await figma.importStyleByKeyAsync(entry.key);
+            // Preload font before applying
+            const fontName = (imported as any).fontName;
+            if (fontName && typeof fontName === 'object') {
+              await figma.loadFontAsync(fontName);
+            }
+            await setTextStyleIdAsync(text, imported.id);
+            ctx.libraryBindings.push(`textStyle:${entry.name}`);
+            bound = true;
+          }
+        }
+      } catch {
+        /* best effort — style import failed */
+      }
+      if (!bound) {
+        const avail = getAvailableTextStyleNames(10);
+        ctx.warnings.push(
+          `textStyle "${p.textStyleName}" not found.${avail.length > 0 ? ` Available: ${avail.join(', ')}` : ''}`,
+        );
       }
     }
   } else if (ctx.useLib) {
@@ -1314,7 +1348,7 @@ async function createShapeChild(
     if (sb) ctx.libraryBindings.push(sb);
   }
   if (opts?.supportsCornerRadius && child.cornerRadius != null) {
-    const rb = await applyCornerRadius(node as any, child.cornerRadius as any, ctx.useLib);
+    const rb = await applyCornerRadius(node as any, child.cornerRadius as any, ctx.useLib, undefined, ctx.library);
     ctx.libraryBindings.push(...rb);
   }
   if (child.opacity != null) (node as any).opacity = child.opacity as number;
@@ -1426,14 +1460,61 @@ async function createInlineChildren(
         createdNode = rect;
         results.push(result);
       } else if (childType === 'instance') {
-        const componentId = child.componentId as string;
-        assertHandler(componentId, 'instance child requires componentId');
-        const cNode = await findNodeByIdAsync(componentId);
-        assertHandler(cNode, `Component not found: ${componentId}`, 'NOT_FOUND');
+        const componentId = child.componentId as string | undefined;
+        const componentKey = child.componentKey as string | undefined;
+        const componentSetKey = child.componentSetKey as string | undefined;
+        assertHandler(
+          componentId || componentKey || componentSetKey,
+          'instance child requires componentId, componentKey, or componentSetKey',
+        );
 
-        const component = resolveComponent(cNode, child.variantProperties as Record<string, string> | undefined);
+        let cNode: BaseNode | null = null;
 
-        const instance = component.createInstance();
+        if (componentSetKey) {
+          // Import component set from library by key
+          try {
+            cNode = await figma.importComponentSetByKeyAsync(componentSetKey);
+          } catch {
+            /* not found */
+          }
+        } else if (componentKey) {
+          // Import component from library by key
+          try {
+            cNode = await figma.importComponentByKeyAsync(componentKey);
+          } catch {
+            try {
+              cNode = await figma.importComponentSetByKeyAsync(componentKey);
+            } catch {
+              /* not found */
+            }
+          }
+        } else if (componentId) {
+          // Local lookup first, then library fallback
+          cNode = await findNodeByIdAsync(componentId);
+          if (!cNode) {
+            try {
+              cNode = await figma.importComponentByKeyAsync(componentId);
+            } catch {
+              try {
+                cNode = await figma.importComponentSetByKeyAsync(componentId);
+              } catch {
+                /* not found */
+              }
+            }
+          }
+        }
+        assertHandler(cNode, `Component not found: ${componentSetKey || componentKey || componentId}`, 'NOT_FOUND');
+
+        const resolved = resolveComponent(cNode, child.variantProperties as Record<string, string> | undefined);
+        if (resolved.fallbackWarning)
+          ctx.hints.push({
+            confidence: 'ambiguous',
+            field: 'variantProperties',
+            value: child.variantProperties,
+            reason: resolved.fallbackWarning,
+          });
+
+        const instance = resolved.component.createInstance();
         if (child.name) instance.name = child.name as string;
         if (child.width != null || child.height != null) {
           instance.resize((child.width as number) ?? instance.width, (child.height as number) ?? instance.height);
@@ -1684,6 +1765,23 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
 
   const ctx = await initCreateContext();
   const frame = figma.createFrame();
+
+  // ── Auto-position: avoid overlapping existing page content for root-level frames ──
+  if (!params.parentId && params.x == null && params.y == null) {
+    const siblings = figma.currentPage.children;
+    if (siblings.length > 1) {
+      let maxBottom = 0;
+      for (const child of siblings) {
+        if (child.id === frame.id) continue;
+        if (!child.visible) continue;
+        maxBottom = Math.max(maxBottom, child.y + child.height);
+      }
+      if (maxBottom > 0) {
+        frame.y = maxBottom + 80;
+      }
+    }
+  }
+
   try {
     const p = { ...params };
     await setupFrame(frame, p, ctx);

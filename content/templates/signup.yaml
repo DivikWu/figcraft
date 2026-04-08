@@ -1,3 +1,4 @@
+libraryNote: "In library mode, replace Input/Button/Card frames in exampleParams with type:\"instance\" using componentKey/componentSetKey discovered via search_design_system. The structure below shows the layout skeleton."
 structure: |-
   Screen (VERTICAL, FIXED 402×874, SPACE_BETWEEN, padding 24)
     ├── Top Content (VERTICAL, FILL/HUG, itemSpacing 24)

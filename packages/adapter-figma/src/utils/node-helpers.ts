@@ -107,6 +107,7 @@ export async function applyTokenField(
   field: string,
   value: number | string | undefined,
   budgetExceeded?: () => boolean,
+  library?: string,
 ): Promise<string | null> {
   if (value == null || !(field in node)) return null;
   if (budgetExceeded?.()) {
@@ -118,7 +119,7 @@ export async function applyTokenField(
   if (typeof value === 'string') {
     const scope = FIELD_TO_SCOPE[field];
     try {
-      const variable = await findFloatVariableByName(value, scope ? [scope] : undefined);
+      const variable = await findFloatVariableByName(value, scope ? [scope] : undefined, library);
       if (variable) {
         try {
           (node as SceneNode).setBoundVariable(field as VariableBindableNodeField, variable);
@@ -158,10 +159,11 @@ export async function applyTokenFields(
   node: SceneNode,
   fields: Record<string, number | undefined>,
   budgetExceeded?: () => boolean,
+  library?: string,
 ): Promise<string[]> {
   const bound: string[] = [];
   for (const [field, value] of Object.entries(fields)) {
-    const name = await applyTokenField(node, field, value, budgetExceeded);
+    const name = await applyTokenField(node, field, value, budgetExceeded, library);
     if (name) bound.push(`${field}:${name}`);
   }
   return bound;
@@ -308,7 +310,7 @@ export async function applyFill(
       border: ['STROKE_COLOR', 'ALL_SCOPES'],
     };
     try {
-      const variable = await findColorVariableByName(fill._variable, ROLE_SCOPE_HINTS[role]);
+      const variable = await findColorVariableByName(fill._variable, ROLE_SCOPE_HINTS[role], library);
       if (variable) {
         await clearFillStyle(node);
         node.fills = [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }];
@@ -356,7 +358,7 @@ export async function applyFill(
         border: ['STROKE_COLOR', 'ALL_SCOPES'],
       };
       try {
-        const variable = await findColorVariableByName(fill, ROLE_SCOPE_HINTS[role]);
+        const variable = await findColorVariableByName(fill, ROLE_SCOPE_HINTS[role], library);
         if (variable) {
           await clearFillStyle(node);
           node.fills = [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }];
@@ -401,7 +403,7 @@ export async function applyFill(
       } else {
         // No exact paint style match — try scope-aware COLOR variable binding
         try {
-          const colorVar = await suggestColorVariable(fill, role);
+          const colorVar = await suggestColorVariable(fill, role, library);
           if (colorVar) {
             await clearFillStyle(node);
             const fills = [...(node.fills as Paint[])];
@@ -497,10 +499,11 @@ export async function applyStroke(
   // Handle { _variable: "name" } — variable binding with 3-level resolution
   if (stroke && typeof stroke === 'object' && '_variable' in stroke) {
     try {
-      const variable = await findColorVariableByName((stroke as { _variable: string })._variable, [
-        'STROKE_COLOR',
-        'ALL_SCOPES',
-      ]);
+      const variable = await findColorVariableByName(
+        (stroke as { _variable: string })._variable,
+        ['STROKE_COLOR', 'ALL_SCOPES'],
+        library,
+      );
       if (variable) {
         await clearStrokeStyle(node);
         node.strokes = [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }];
@@ -538,7 +541,7 @@ export async function applyStroke(
     if (!isHexColor(stroke)) {
       // Try as variable name first
       try {
-        const variable = await findColorVariableByName(stroke, ['STROKE_COLOR', 'ALL_SCOPES']);
+        const variable = await findColorVariableByName(stroke, ['STROKE_COLOR', 'ALL_SCOPES'], library);
         if (variable) {
           await clearStrokeStyle(node);
           node.strokes = [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }];
@@ -611,6 +614,7 @@ export async function applyPerSideStrokeWeights(
   props: Record<string, unknown>,
   useTokenBinding: boolean,
   budgetExceeded?: () => boolean,
+  library?: string,
 ): Promise<string[]> {
   const bound: string[] = [];
   const sides = ['strokeTopWeight', 'strokeBottomWeight', 'strokeLeftWeight', 'strokeRightWeight'] as const;
@@ -627,7 +631,7 @@ export async function applyPerSideStrokeWeights(
     const val = props[side];
     if (val == null) continue;
     if (useTokenBinding && typeof val === 'number') {
-      const name = await applyTokenField(node, side, val, budgetExceeded);
+      const name = await applyTokenField(node, side, val, budgetExceeded, library);
       if (name) bound.push(`${side}:${name}`);
     } else if (typeof val === 'number' && side in node) {
       (node as any)[side] = val;
@@ -850,6 +854,7 @@ export async function applyCornerRadius(
   value: number | number[] | string | undefined,
   useTokenBinding: boolean,
   budgetExceeded?: () => boolean,
+  library?: string,
 ): Promise<string[]> {
   if (value == null || !('cornerRadius' in node)) return [];
   const bound: string[] = [];
@@ -857,7 +862,7 @@ export async function applyCornerRadius(
   if (typeof value === 'string') {
     // Variable name → look up and bind to uniform cornerRadius
     if (useTokenBinding) {
-      const name = await applyTokenField(node, 'cornerRadius', value, budgetExceeded);
+      const name = await applyTokenField(node, 'cornerRadius', value, budgetExceeded, library);
       if (name) bound.push(`cornerRadius:${name}`);
     }
     return bound;
@@ -875,7 +880,7 @@ export async function applyCornerRadius(
     if (useTokenBinding) {
       for (const [field, val] of Object.entries(fields)) {
         if (field in node) {
-          const name = await applyTokenField(node, field, val, budgetExceeded);
+          const name = await applyTokenField(node, field, val, budgetExceeded, library);
           if (name) bound.push(`${field}:${name}`);
         }
       }
@@ -889,7 +894,7 @@ export async function applyCornerRadius(
 
   // Uniform number
   if (useTokenBinding) {
-    const name = await applyTokenField(node, 'cornerRadius', value, budgetExceeded);
+    const name = await applyTokenField(node, 'cornerRadius', value, budgetExceeded, library);
     if (name) bound.push(`cornerRadius:${name}`);
   } else {
     (node as any).cornerRadius = value;

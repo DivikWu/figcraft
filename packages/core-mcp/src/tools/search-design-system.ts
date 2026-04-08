@@ -39,13 +39,40 @@ function scoreMatch(name: string, queryTokens: string[]): number {
   return score;
 }
 
+/**
+ * Extended scoring that includes description and containingFrame context.
+ * Adds bonus points when query tokens match category/description signals,
+ * helping disambiguate components with similar names (e.g., Avatar vs Input
+ * both having "Placeholder"/"Size" properties).
+ */
+function scoreMatchWithContext(
+  name: string,
+  description: string,
+  containingFrame: string,
+  queryTokens: string[],
+): number {
+  let score = scoreMatch(name, queryTokens);
+  if (score === 0) return 0; // No name match → skip context bonus
+  const descLower = description.toLowerCase();
+  const frameLower = containingFrame.toLowerCase();
+  for (const token of queryTokens) {
+    if (frameLower.includes(token)) score += 20;
+    if (descLower.includes(token)) score += 15;
+  }
+  return score;
+}
+
 export function registerSearchDesignSystemTool(server: McpServer, bridge: Bridge): void {
   server.tool(
     'search_design_system',
     'Search design system assets (components, variables, styles) across all ' +
       'subscribed team libraries by keyword. Returns matching results ranked by ' +
       'relevance. Use this to discover reusable design tokens, components, and ' +
-      'styles before creating UI elements.',
+      'styles before creating UI elements. ' +
+      'Component results include isSet and containingFrame. ' +
+      'When isSet=true, use componentSetKey + variantProperties in create_frame children. ' +
+      'When isSet=false, use componentKey. ' +
+      'Check containingFrame to verify component category (e.g., "Forms" vs "Avatars").',
     {
       query: z.string().describe('Search keyword (e.g. "primary", "button", "heading")'),
       types: z
@@ -79,6 +106,21 @@ export function registerSearchDesignSystemTool(server: McpServer, bridge: Bridge
       const limit = limitParam ?? 20;
 
       // Bridge to plugin for the main search (variables, styles, local components, instance discovery)
+      // When REST API is available for library components, tell plugin to skip remote components
+      // to avoid mixing components from unrelated libraries.
+      let restAvailable = false;
+      if (types.has('components') && bridge.selectedLibrary !== '__local__') {
+        try {
+          const token = await getToken();
+          const selectedFileKey = bridge.selectedLibrary
+            ? bridge.getLibraryFileKey(bridge.selectedLibrary)
+            : bridge.getFirstLibraryFileKey();
+          restAvailable = !!token && !!selectedFileKey;
+        } catch {
+          /* no token */
+        }
+      }
+
       let pluginResult: Record<string, unknown> | null = null;
       try {
         pluginResult = (await bridge.request('search_design_system', {
@@ -86,6 +128,7 @@ export function registerSearchDesignSystemTool(server: McpServer, bridge: Bridge
           types: [...types],
           limit,
           selectedLibrary: bridge.selectedLibrary,
+          skipRemoteComponents: restAvailable,
         })) as Record<string, unknown>;
       } catch (err) {
         console.warn('[FigCraft] search_design_system plugin bridge failed:', err);
@@ -100,9 +143,11 @@ export function registerSearchDesignSystemTool(server: McpServer, bridge: Bridge
         try {
           const token = await getToken();
           if (token) {
-            // Get library fileKey from bridge cache (set by get_mode or UI).
-            // Use getFirstLibraryFileKey() to avoid a heavy get_mode round-trip.
-            const fileKey = bridge.getFirstLibraryFileKey();
+            // Get library fileKey for the selected library.
+            // Prefer exact match for selected library, fall back to first available.
+            const fileKey = bridge.selectedLibrary
+              ? bridge.getLibraryFileKey(bridge.selectedLibrary)
+              : bridge.getFirstLibraryFileKey();
             if (fileKey) {
               const queryTokens = queryTrimmed.toLowerCase().split(/\s+/).filter(Boolean);
               // Reuse cached REST result from get_mode if available (60s TTL)
@@ -131,14 +176,21 @@ export function registerSearchDesignSystemTool(server: McpServer, bridge: Bridge
                 name: string;
                 key: string;
                 description?: string;
+                containingFrame?: string;
               }>) {
                 if (pluginComponentKeys.has(cs.key)) continue;
-                const score = scoreMatch(cs.name, queryTokens);
+                const score = scoreMatchWithContext(
+                  cs.name,
+                  cs.description || '',
+                  cs.containingFrame || '',
+                  queryTokens,
+                );
                 if (score > 0) {
                   restComponents.push({
                     key: cs.key,
                     name: cs.name,
                     description: cs.description || '',
+                    containingFrame: cs.containingFrame || '',
                     isSet: true,
                     libraryName: '(library)',
                     _score: score,
@@ -150,14 +202,16 @@ export function registerSearchDesignSystemTool(server: McpServer, bridge: Bridge
                 name: string;
                 key: string;
                 description?: string;
+                containingFrame?: string;
               }>) {
                 if (pluginComponentKeys.has(c.key)) continue;
-                const score = scoreMatch(c.name, queryTokens);
+                const score = scoreMatchWithContext(c.name, c.description || '', c.containingFrame || '', queryTokens);
                 if (score > 0) {
                   restComponents.push({
                     key: c.key,
                     name: c.name,
                     description: c.description || '',
+                    containingFrame: c.containingFrame || '',
                     isSet: false,
                     libraryName: '(library)',
                     _score: score,
@@ -165,18 +219,25 @@ export function registerSearchDesignSystemTool(server: McpServer, bridge: Bridge
                 }
               }
 
-              // Merge REST components into plugin result, re-sort by score
+              // Merge REST components into plugin result, re-sort by score.
+              // REST results come from the selected library (via fileKey), so they should
+              // take priority over plugin-discovered components which may come from any library.
               if (restComponents.length > 0) {
                 const cleaned = restComponents
                   .sort((a, b) => b._score - a._score)
                   .slice(0, limit)
                   .map(({ _score, ...rest }) => rest);
 
+                // Build a set of REST keys (selected library) for dedup + priority
+                const restKeys = new Set(cleaned.map((c) => c.key as string));
+
                 if (pluginResult) {
-                  // Plugin results don't have _score, so append REST results at the end
-                  // (plugin results were already score-sorted on plugin side)
-                  const existing = (pluginResult.components as unknown[]) || [];
-                  pluginResult.components = [...existing, ...cleaned].slice(0, limit);
+                  // Partition plugin results: local components stay, remote duplicates removed
+                  const existing = ((pluginResult.components as Array<Record<string, unknown>>) || []).filter(
+                    (c) => !restKeys.has(c.key as string),
+                  );
+                  // REST results (selected library) first, then plugin-discovered (local + other libraries)
+                  pluginResult.components = [...cleaned, ...existing].slice(0, limit);
                   if (pluginResult.summary && typeof pluginResult.summary === 'object') {
                     (pluginResult.summary as Record<string, number>).components = (
                       pluginResult.components as unknown[]

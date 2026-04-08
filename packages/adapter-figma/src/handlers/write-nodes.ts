@@ -399,7 +399,7 @@ export function registerWriteNodeHandlers(): void {
             (node as any).layoutPositioning = value as string;
           } else if (key in DIRECT_PROPS && DIRECT_PROPS[key] in node) {
             if (useLib && tokenBindableFields.has(key) && typeof value === 'number') {
-              await applyTokenField(node as SceneNode, DIRECT_PROPS[key], value);
+              await applyTokenField(node as SceneNode, DIRECT_PROPS[key], value, undefined, patchLibrary);
             } else {
               (node as any)[DIRECT_PROPS[key]] = value;
             }
@@ -418,7 +418,13 @@ export function registerWriteNodeHandlers(): void {
           await applyStroke(node as any, props.strokes as any, existingWeight, useLib, patchLibrary);
         }
         if (props.cornerRadius != null && 'cornerRadius' in node) {
-          await applyCornerRadius(node as SceneNode, props.cornerRadius as number | number[] | string, useLib);
+          await applyCornerRadius(
+            node as SceneNode,
+            props.cornerRadius as number | number[] | string,
+            useLib,
+            undefined,
+            patchLibrary,
+          );
         }
         if (props.effects != null && 'effects' in node) {
           (node as BlendMixin).effects = props.effects as Effect[];

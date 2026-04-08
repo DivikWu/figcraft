@@ -165,6 +165,9 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
           key: cs.key,
           name: cs.name,
           description: cs.description,
+          // Library page/section name — critical for disambiguating components with similar property names
+          // (e.g., Avatar vs Input both have "Placeholder"/"Size" but live in different sections)
+          containingFrame: cs.containingFrame,
           variantCount: cs.variants.length,
           // Keep only first variant's property keys as schema hint
           propertyNames: cs.variants.length > 0 ? Object.keys(cs.variants[0].properties) : [],
@@ -257,8 +260,13 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
         : null,
       hasLibrary
         ? '⛔ LIBRARY COMPONENT INSTANCES: Check libraryComponents from this response. ' +
-          'When Button/Input/Card components exist, use type:"instance" + componentId in children[] instead of building frame+text manually. ' +
-          'Call search_design_system(query:"button") for component keys and variant properties.'
+          'When Button/Input/Card components exist, use type:"instance" + componentKey (or componentSetKey for variant sets) in children[] instead of building frame+text manually. ' +
+          'componentKey imports a single component from the library; componentSetKey imports a full variant set — use with variantProperties to pick a variant. ' +
+          'componentId is for local components only (node ID). ' +
+          'Call search_design_system(query:"button") for component keys and variant properties. ' +
+          'DISAMBIGUATION: Property names like "Placeholder" and "Size" appear on MANY component types (Avatar, Input, Card). ' +
+          'Always check containingFrame to verify the component category (e.g., "Forms" vs "Avatars"). ' +
+          'For form inputs, look for State/Error/Focused variants — Avatars never have these.'
         : null,
       'Page context is included above in pageContext (isEmpty, childCount, topFrameNames). If you need deeper detail (node styles, nested tree), call get_current_page(maxDepth=2).',
       'After platform confirmed: load platform-specific rules via get_creation_guide(topic:"platform-ios") / get_creation_guide(topic:"platform-android") / get_creation_guide(topic:"responsive"). These provide safe areas, typography, navigation patterns, and touch targets specific to the target platform.',

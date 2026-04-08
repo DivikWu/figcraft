@@ -94,11 +94,17 @@ export async function setEffectStyleIdAsync(node: SceneNode, styleId: string): P
 
 // ─── Component resolution ───
 
+export interface ResolvedComponent {
+  component: ComponentNode;
+  /** Warning when variantProperties didn't match and defaultVariant was used as fallback. */
+  fallbackWarning?: string;
+}
+
 /** Resolve a ComponentNode from a node that may be a COMPONENT or COMPONENT_SET.
  *  If variantProperties are provided and the node is a COMPONENT_SET, picks the matching variant. */
-export function resolveComponent(node: BaseNode, variantProperties?: Record<string, string>): ComponentNode {
+export function resolveComponent(node: BaseNode, variantProperties?: Record<string, string>): ResolvedComponent {
   if (node.type === 'COMPONENT') {
-    return node as ComponentNode;
+    return { component: node as ComponentNode };
   }
   if (node.type === 'COMPONENT_SET') {
     const set = node as ComponentSetNode;
@@ -109,9 +115,24 @@ export function resolveComponent(node: BaseNode, variantProperties?: Record<stri
         if (!vProps) return false;
         return Object.entries(variantProperties).every(([k, val]) => vProps[k] === val);
       });
-      if (match) return match;
+      if (match) return { component: match };
+      // No matching variant — fall back to default with a warning
+      const fallback = (set.defaultVariant ?? set.children[0]) as ComponentNode;
+      const requested = Object.entries(variantProperties)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(', ');
+      const available = variants
+        .slice(0, 5)
+        .map((v) => v.name)
+        .join(' | ');
+      return {
+        component: fallback,
+        fallbackWarning:
+          `variantProperties {${requested}} did not match any variant in "${set.name}". ` +
+          `Using default variant "${fallback.name}". Available: [${available}${variants.length > 5 ? `, ... (${variants.length} total)` : ''}]`,
+      };
     }
-    return (set.defaultVariant ?? set.children[0]) as ComponentNode;
+    return { component: (set.defaultVariant ?? set.children[0]) as ComponentNode };
   }
   throw new Error(`Node ${node.id} is not a component (type: ${node.type})`);
 }

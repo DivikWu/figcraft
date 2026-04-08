@@ -95,9 +95,14 @@ create_frame(dryRun:true) validates without creating:
 9. Role triggers automatic property defaults: \`role:"screen"\` → VERTICAL + clipsContent:true; \`role:"button"\` → HORIZONTAL + CENTER/CENTER; \`role:"input"\` → HORIZONTAL + CENTER. Explicit params always override role defaults.
 10. If role is omitted for a root-level frame with screen dimensions (402×874 etc.), the system auto-infers \`role:"screen"\` for lint. But always prefer explicit declaration.
 
+## Library Component Instances
+11. In library mode, use \`type:"instance"\` in create_frame children instead of building frame+text manually.
+12. Workflow: \`search_design_system(query)\` → check \`isSet\` field → if \`isSet:true\` use \`componentSetKey\` + \`variantProperties\`, if \`isSet:false\` use \`componentKey\`.
+13. Check \`containingFrame\` in search results to verify component category (e.g., "Forms" vs "Avatars").
+
 ## Validation
-11. dryRun:true for complex or ambiguous parameters — preview Opinion Engine inferences before committing
-12. After the FIRST create_frame failure, review ALL remaining planned payloads for the same pattern before retrying
-13. Check the \`_applied\` field in create_frame responses — it lists all deterministic inferences the Opinion Engine made (e.g., role defaults, sizing inference). Use this to understand what the system auto-filled.
+14. dryRun:true for complex or ambiguous parameters — preview Opinion Engine inferences before committing
+15. After the FIRST create_frame failure, review ALL remaining planned payloads for the same pattern before retrying
+16. Check the \`_applied\` field in create_frame responses — it lists all deterministic inferences the Opinion Engine made (e.g., role defaults, sizing inference). Use this to understand what the system auto-filled.
 `,
 };

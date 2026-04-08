@@ -16,9 +16,10 @@ Before ANY Figma write operation, complete these steps IN ORDER:
 ```
 STEP 0: get_mode                          → verifies connection (built-in ping), inspects page
                                              (built-in pageContext), gets _workflow
-        ├─ always           → load skill: ui-ux-fundamentals
-        ├─ library selected → load skill: design-guardian
-        └─ no library       → load skill: design-creator
+        ├─ always              → load skill: ui-ux-fundamentals
+        ├─ library selected    → load skill: design-guardian
+        ├─ library + components/variables present → load skill: figma-generate-design
+        └─ no library          → load skill: design-creator
 STEP 1: Follow _workflow.designPreflight  → present proposal → ⛔ WAIT for user confirmation
         After platform confirmed → load skill: platform-ios / platform-android / responsive-design
 STEP 2: CLASSIFY TASK SCALE → pick creation method:

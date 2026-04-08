@@ -51,8 +51,10 @@ steps: |
 
   ## Query (library mode with components)
   8. For local components, call components(method: "list_properties") to discover available variants.
-     For library components, get_mode's libraryComponents shows component sets with variantCount and propertyNames (summary only).
+     For library components, get_mode's libraryComponents shows component sets with variantCount, propertyNames, and containingFrame.
+     Use containingFrame to verify component category — property names like "Placeholder"/"Size" appear on many types (Avatar, Input, Card).
      For full variant details, call search_design_system(query) or components(method: "list_properties").
+     When search returns isSet=true, use componentSetKey + variantProperties; when isSet=false, use componentKey.
      Skip this step entirely in Design Creator mode (no library selected).
 
   ## Create
