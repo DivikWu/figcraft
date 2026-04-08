@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { getPreventionChecklist } from '@figcraft/quality-engine';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import type { Bridge } from '../bridge.js';
 import { GUIDES } from './_guides.js';
 import type { UiPattern } from './_templates.js';
 import { UI_PATTERNS } from './_templates.js';
@@ -87,7 +88,11 @@ const OPINION_ENGINE_GUIDE = GUIDES.OPINION_ENGINE;
 
 // REMOVED: UiPattern interface and UI_PATTERNS object (now in _templates.ts)
 // Marker for sed removal:
-function formatUiPattern(uiType: string, pattern: UiPattern): string {
+function formatUiPattern(
+  uiType: string,
+  pattern: UiPattern,
+  libraryDefaults?: Record<string, { name: string } | null> | null,
+): string {
   const lines: string[] = [
     `# UI Pattern: ${uiType}`,
     '',
@@ -118,6 +123,33 @@ function formatUiPattern(uiType: string, pattern: UiPattern): string {
   lines.push('```json');
   lines.push(JSON.stringify(pattern.exampleParams, null, 2));
   lines.push('```');
+
+  // Library mode: inject token mapping from designContext.defaults
+  if (libraryDefaults) {
+    const resolved = Object.entries(libraryDefaults).filter(
+      (entry): entry is [string, { name: string }] => entry[1] !== null,
+    );
+    if (resolved.length > 0) {
+      lines.push('', '## ⛔ Library Token Mapping (auto-generated)', '');
+      lines.push('In library mode, NEVER use hardcoded hex. Use these bindings from designContext.defaults:');
+      lines.push('');
+      lines.push('| Role | Parameter | Variable name |');
+      lines.push('|------|-----------|---------------|');
+      for (const [role, variable] of resolved) {
+        const param =
+          role.startsWith('stroke') || role.startsWith('border') ? 'strokeVariableName' : 'fillVariableName';
+        lines.push(`| ${role} | ${param} | \`"${variable.name}"\` |`);
+      }
+      lines.push('');
+      lines.push(
+        'For colors not in this table, call `search_design_system(query:"<color role>")` to discover additional tokens.',
+      );
+      lines.push(
+        'For Button/Input/Card: check `libraryComponents` from get_mode — use `type:"instance"` + `componentId` instead of frame+text.',
+      );
+    }
+  }
+
   return lines.join('\n');
 }
 
@@ -125,7 +157,7 @@ function formatUiPattern(uiType: string, pattern: UiPattern): string {
 
 const VALID_UI_TYPES = Object.keys(UI_PATTERNS);
 
-export function registerCreationGuide(server: McpServer): void {
+export function registerCreationGuide(server: McpServer, bridge?: Bridge): void {
   server.tool(
     'get_creation_guide',
     'Get structural creation guidance by topic. Returns layout rules, multi-screen architecture, ' +
@@ -210,7 +242,7 @@ export function registerCreationGuide(server: McpServer): void {
             content = `Unknown UI type "${uiType}". Available: ${VALID_UI_TYPES.join(', ')}`;
             break;
           }
-          content = formatUiPattern(uiType, pattern);
+          content = formatUiPattern(uiType, pattern, bridge?.selectedLibrary ? bridge.designContextDefaults : null);
           break;
         }
       }

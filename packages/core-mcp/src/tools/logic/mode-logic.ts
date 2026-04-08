@@ -134,6 +134,13 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
   // Cache selectedLibrary state on bridge (used by search_design_system guard)
   bridge.selectedLibrary = result.selectedLibrary ?? null;
 
+  // Cache designContext.defaults on bridge (used by creation-guide for token mapping injection)
+  const designCtx = result.designContext as Record<string, unknown> | null;
+  bridge.designContextDefaults =
+    designCtx && typeof designCtx.defaults === 'object' && designCtx.defaults !== null
+      ? (designCtx.defaults as Record<string, { name: string } | null>)
+      : null;
+
   // Cache fileKey from plugin response (survives MCP restarts)
   if (result.selectedLibrary && result.libraryFileKey) {
     bridge.setLibraryFileKey(result.selectedLibrary, result.libraryFileKey);
@@ -204,12 +211,15 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
       checklist: {
         purpose: 'What problem does this solve? Who is the audience?',
         platform: 'iOS (402×874) / Android (412×915) / Web? Determines touch targets and conventions.',
-        language: 'What language for UI text? Determines font choice and content.',
+        language:
+          'What language for UI text? Determines font choice and content. ' +
+          'Primary font MUST match language × platform (e.g. Chinese + iOS → PingFang SC, not SF Pro). ' +
+          'Refer to platform skill typography table after platform is confirmed.',
         density: 'Sparse form vs dense dashboard — how much info per screen?',
         tone: 'Minimal ← Elegant ← Warm → Bold → Maximal — pick a clear position.',
       },
       colorRules: hasLibrary
-        ? 'Use library color tokens. Match existing palette. Do not hardcode hex values when tokens are available.'
+        ? '⛔ MANDATORY: Use fillVariableName/strokeVariableName with variable names from designContext.defaults. NEVER pass fill:"#hex" when a matching library token exists. For defaults entries that are null (listed in unresolvedDefaults), call search_design_system to find alternatives.'
         : bridge.designDecisions?.fillsUsed?.length
           ? `Established palette: ${bridge.designDecisions.fillsUsed.join(', ')}. Use these colors for consistency. Add new colors only if design requires it.`
           : '1 dominant + 1 accent, total ≤ 5. Dominant at 60%+. NEVER default to blue/gray without justification.',
@@ -217,7 +227,7 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
         ? 'Use library text styles. Clear heading/body distinction via existing style tiers.'
         : bridge.designDecisions?.fontsUsed?.length
           ? `Established fonts: ${bridge.designDecisions.fontsUsed.join(', ')}. Continue using these. Add new fonts only if justified.`
-          : 'Clear heading/body distinction (different weight or size). ≤ 3 font weights. NEVER use only Inter without justification.',
+          : 'Clear heading/body distinction (different weight or size). ≤ 3 font weights. NEVER use only Inter without justification. Primary font MUST match the language from checklist (e.g. Chinese → PingFang SC on iOS, not SF Pro).',
       contentRules:
         'Realistic, contextually appropriate text. NEVER use "Lorem ipsum", "Text goes here", "Button", "Title".',
       iconRules: hasLibrary
@@ -239,6 +249,17 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
 
     // After user confirms the design proposal:
     creationSteps: [
+      hasLibrary
+        ? '⛔ LIBRARY TOKEN BINDING: Use designContext.defaults for color bindings — pass fillVariableName/strokeVariableName (NOT fill/strokeColor hex). ' +
+          'Example: defaults["bg/primary"] → fillVariableName:"bg/primary". ' +
+          'If a defaults entry is null (listed in unresolvedDefaults), call search_design_system to find the closest token. ' +
+          'Only use hardcoded hex as last resort when no matching token exists anywhere in the library.'
+        : null,
+      hasLibrary
+        ? '⛔ LIBRARY COMPONENT INSTANCES: Check libraryComponents from this response. ' +
+          'When Button/Input/Card components exist, use type:"instance" + componentId in children[] instead of building frame+text manually. ' +
+          'Call search_design_system(query:"button") for component keys and variant properties.'
+        : null,
       'Page context is included above in pageContext (isEmpty, childCount, topFrameNames). If you need deeper detail (node styles, nested tree), call get_current_page(maxDepth=2).',
       'After platform confirmed: load platform-specific rules via get_creation_guide(topic:"platform-ios") / get_creation_guide(topic:"platform-android") / get_creation_guide(topic:"responsive"). These provide safe areas, typography, navigation patterns, and touch targets specific to the target platform.',
       'Classify task scale: single element / single screen / multi-screen (3-5) / large flow (6+).',
@@ -259,7 +280,7 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
       'After the FIRST create_frame failure, review ALL remaining planned payloads for the same pattern before retrying.',
       'Verify each create_frame response: check _children structure. Use export_image(scale:0.5) for visual verification when needed.',
       'lint_fix_all on completed screens (supports dryRun:true to preview). If remaining violations include severity:"error", read the details and fix manually before replying.',
-    ],
+    ].filter(Boolean),
 
     // Key tool behavior rules (full version: get_creation_guide(topic:"tool-behavior"))
     toolBehavior: [
@@ -282,13 +303,13 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
     // How search_design_system behaves in this mode
     searchBehavior: hasLibrary
       ? result.selectedLibrary === '__local__'
-        ? 'search_design_system searches local variables and styles only (no REST API). Use it to find existing local tokens before creating.'
-        : 'search_design_system searches local + library components via REST API. Use it to discover reusable tokens and components.'
+        ? "MANDATORY for token discovery beyond designContext.defaults. search_design_system searches local variables and styles. Call it when defaults doesn't cover all needed colors or when you need component IDs."
+        : 'MANDATORY for token discovery beyond designContext.defaults. search_design_system searches local + library components via REST API. Call it when defaults doesn\'t cover all needed colors or when you need component IDs for type:"instance".'
       : 'search_design_system is disabled (no library selected). Skip it — make intentional design choices directly.',
 
     // What to do RIGHT NOW (next action for AI)
     nextAction: hasLibrary
-      ? 'Reply to user: present design proposal based on available library tokens/components and user request. WAIT for confirmation.'
+      ? 'Reply to user: gather missing preferences (platform, language, density, tone) OR present design proposal based on available library tokens/components if user provided enough detail. WAIT for confirmation.'
       : 'Reply to user: gather missing preferences (platform, style tone, color palette) OR present design proposal if user provided enough detail. WAIT for confirmation.',
   };
 

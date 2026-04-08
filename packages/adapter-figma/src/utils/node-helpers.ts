@@ -419,11 +419,11 @@ export async function applyFill(
           // No variable match either — provide self-correction hints
           const closest = findClosestPaintStyle(fill);
           if (closest) {
-            colorHint = `No exact style for ${fill}. Closest: "${closest.name}" (${closest.hex}). Consider using that instead.`;
+            colorHint = `⛔ No library token match for ${fill} — hardcoded colors violate library mode. Closest: "${closest.name}" (${closest.hex}). Use fillVariableName:"${closest.name}" instead of fill.`;
           } else {
             const available = getAvailablePaintStyleNames(10);
             if (available.length > 0) {
-              colorHint = `No style match for ${fill}. Available paint styles: ${available.join(', ')}`;
+              colorHint = `⛔ No library token match for ${fill} — hardcoded colors violate library mode. Available: ${available.join(', ')}. Use fillVariableName instead of fill.`;
             }
           }
         }

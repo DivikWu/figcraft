@@ -9,10 +9,9 @@
 
 import { createServer, type Server as HttpServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { ChannelId, WireMessage } from '@figcraft/shared';
-import { HEARTBEAT_INTERVAL_MS, isJoinMessage, isPingMessage } from '@figcraft/shared';
+import { HEARTBEAT_INTERVAL_MS, isJoinMessage, isPingMessage, RELAY_PORT_RANGE } from '@figcraft/shared';
 import { WebSocket, WebSocketServer } from 'ws';
 
-const PORT_RANGE = [3055, 3056, 3057, 3058, 3059, 3060];
 const RELAY_HOST = process.env.FIGCRAFT_RELAY_HOST ?? '127.0.0.1';
 
 // When true, allow multiple connections with the same role on a channel (e.g. two IDEs).
@@ -412,7 +411,7 @@ export async function startRelay(
   preferredPort?: number,
 ): Promise<{ wss: WebSocketServer; server: HttpServer; port: number }> {
   const preferred = preferredPort ?? parseInt(process.env.FIGCRAFT_RELAY_PORT ?? '3055', 10);
-  const ports = preferred === 0 ? [0] : [preferred, ...PORT_RANGE.filter((p) => p !== preferred)];
+  const ports = preferred === 0 ? [0] : [preferred, ...RELAY_PORT_RANGE.filter((p) => p !== preferred)];
 
   for (const port of ports) {
     try {
@@ -432,7 +431,7 @@ export async function startRelay(
     }
   }
 
-  throw new Error(`[FigCraft relay] all ports (${PORT_RANGE.join(', ')}) are in use`);
+  throw new Error(`[FigCraft relay] all ports (${RELAY_PORT_RANGE.join(', ')}) are in use`);
 }
 
 import { resolve } from 'node:path';

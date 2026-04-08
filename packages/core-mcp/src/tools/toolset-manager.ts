@@ -235,7 +235,7 @@ export function registerAllTools(server: McpServer, bridge: Bridge): void {
   registerWriteStyleTools(server, bridge);
   registerLintTools(server, bridge);
   registerModeTools(server, bridge);
-  registerCreationGuide(server);
+  registerCreationGuide(server, bridge);
   registerChannelTools(server, bridge);
   registerPrototypeTools(server, bridge);
   registerAuditTools(server, bridge);

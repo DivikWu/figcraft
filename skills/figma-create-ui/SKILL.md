@@ -32,7 +32,7 @@ This SKILL.md is a **lightweight entry point**. The detailed, context-aware crea
 ## Skill Boundaries
 
 - Use this skill to **create new UI** using declarative tools (`create_frame`, `create_text`).
-- If the task requires **importing design system component instances** (via `search_design_system` + `importComponentByKeyAsync`), switch to [figma-generate-design](../figma-generate-design/SKILL.md).
+- In **library mode**: use `search_design_system` for token discovery and `type:"instance"` + `componentId` for simple component instantiation (Button, Input). For **complex multi-step component assembly** (via `importComponentByKeyAsync` scripts), switch to [figma-generate-design](../figma-generate-design/SKILL.md).
 - If the task is **building a design system** (variables, component libraries, theming), switch to [figma-generate-library](../figma-generate-library/SKILL.md).
 - If the task is **reviewing existing designs**, switch to [design-review](../design-review/SKILL.md).
 - If the task is **implementing code from Figma**, switch to [figma-implement-design](../figma-implement-design/SKILL.md).
@@ -42,12 +42,12 @@ This SKILL.md is a **lightweight entry point**. The detailed, context-aware crea
 | Signal | This skill (create-ui) | figma-generate-design |
 |--------|----------------------|----------------------|
 | Tool | `create_frame` (declarative) | `use_figma` (Plugin API scripts) |
-| Design system | Optional — can use token binding via `fillVariableName` | Required — imports components by key |
+| Design system | Token binding via `fillVariableName` + simple `type:"instance"` | Complex multi-step component assembly via scripts |
 | Typical task | "Design a login page", "Build a card" | "Recreate this React page in Figma" |
-| Component reuse | Creates new frames from scratch | Discovers and instantiates existing library components |
+| Component reuse | Simple instances via `type:"instance"` + `componentId` | Complex multi-step assembly via `importComponentByKeyAsync` |
 | Complexity | Single elements to full screens | Full pages with design system component assembly |
 
-**Rule of thumb**: If you need `search_design_system` to find and import component instances, use figma-generate-design. If you're creating UI from scratch (with or without token binding), use this skill.
+**Rule of thumb**: Use `search_design_system` in library mode for token discovery and simple `type:"instance"` component placement within this skill. Switch to figma-generate-design only for complex multi-step component assembly (multiple `importComponentByKeyAsync` calls with variant matching).
 
 ## Opinion Engine
 

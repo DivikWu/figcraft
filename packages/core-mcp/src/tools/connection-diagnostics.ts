@@ -42,7 +42,7 @@ export function diagnosticError(stage: DiagnosticStage, detail?: string): Connec
     case 'plugin_not_connected':
       return {
         connected: false,
-        error: 'Relay is running, but no Figma plugin is connected.',
+        error: 'No Figma plugin found on any relay port (3055-3060).',
         diagnosis: {
           stage: 'plugin_not_open',
           steps: [

@@ -19,6 +19,7 @@ import {
   isResponseMessage,
   isSetApiTokenMessage,
   isSetLibraryFileKeyMessage,
+  RELAY_PORT_RANGE,
   REQUEST_TIMEOUT_MS,
 } from '@figcraft/shared';
 import WebSocket from 'ws';
@@ -61,6 +62,8 @@ export class Bridge {
   private _lastWorkflowHash: string | null = null;
   /** Accumulated design decisions in creator mode (no library) for cross-screen consistency. */
   private _designDecisions: DesignDecisions | null = null;
+  /** Cached designContext.defaults from last get_mode in library mode (role→variable mapping). */
+  private _designContextDefaults: Record<string, { name: string } | null> | null = null;
   private reconnectAttempts = 0;
   private evicted = false;
   private missedPongs = 0;
@@ -482,20 +485,29 @@ export class Bridge {
     return this.evicted;
   }
 
+  /** Default relay host — matches the relay server's RELAY_HOST default. */
+  private static readonly RELAY_HOST = process.env.FIGCRAFT_RELAY_HOST ?? '127.0.0.1';
+
+  /** Extract port number from a relay URL like `ws://127.0.0.1:3055`. */
+  private static extractPort(url: string): number {
+    const match = url.match(/:(\d+)\/?$/);
+    return match ? parseInt(match[1], 10) : 3055;
+  }
+
   /**
-   * Probe relay health via HTTP `/channels` endpoint.
-   * Returns `{ reachable, pluginConnected }` to help diagnose connection issues.
-   * - reachable: relay HTTP server responds
-   * - pluginConnected: at least one plugin member is on a non-control channel
+   * Probe a specific relay port via HTTP `/channels` endpoint.
+   * Static helper used by both `probeRelay()` and `discoverPluginRelay()`.
    */
-  async probeRelay(): Promise<{ reachable: boolean; pluginConnected: boolean }> {
-    const httpUrl = this.relayUrl.replace(/^ws/, 'http');
+  static async probeRelayPort(
+    port: number,
+    timeoutMs = 2000,
+  ): Promise<{ port: number; reachable: boolean; pluginConnected: boolean; pluginChannel?: string }> {
+    const url = `http://${Bridge.RELAY_HOST}:${port}/channels`;
     try {
       const body = await new Promise<string>((resolve, reject) => {
-        const req = http.get(`${httpUrl}/channels`, { timeout: 3000 }, (res) => {
+        const req = http.get(url, { timeout: timeoutMs }, (res) => {
           if (res.statusCode && res.statusCode >= 400) {
-            // Non-OK status — relay may be a different service on this port
-            res.resume(); // drain
+            res.resume();
             reject(new Error(`HTTP ${res.statusCode}`));
             return;
           }
@@ -515,12 +527,60 @@ export class Bridge {
         ok: boolean;
         channels: Array<{ channel: string; roles: string[] }>;
       };
-      if (!json.ok) return { reachable: true, pluginConnected: false };
-      const hasPlugin = (json.channels ?? []).some((ch) => ch.channel !== '__control__' && ch.roles.includes('plugin'));
-      return { reachable: true, pluginConnected: hasPlugin };
+      if (!json.ok) return { port, reachable: true, pluginConnected: false };
+      const pluginCh = (json.channels ?? []).find((ch) => ch.channel !== '__control__' && ch.roles.includes('plugin'));
+      return {
+        port,
+        reachable: true,
+        pluginConnected: !!pluginCh,
+        pluginChannel: pluginCh?.channel,
+      };
     } catch {
-      return { reachable: false, pluginConnected: false };
+      return { port, reachable: false, pluginConnected: false };
     }
+  }
+
+  /**
+   * Probe relay health via HTTP `/channels` endpoint.
+   * Returns `{ reachable, pluginConnected }` to help diagnose connection issues.
+   * - reachable: relay HTTP server responds
+   * - pluginConnected: at least one plugin member is on a non-control channel
+   */
+  async probeRelay(): Promise<{ reachable: boolean; pluginConnected: boolean }> {
+    const result = await Bridge.probeRelayPort(Bridge.extractPort(this.relayUrl));
+    return { reachable: result.reachable, pluginConnected: result.pluginConnected };
+  }
+
+  /**
+   * Probe ALL relay ports to find a relay with an active plugin connection.
+   * If found on a different port than the current relay, disconnect and reconnect.
+   * Returns true if a cross-relay switch was performed.
+   */
+  async discoverPluginRelay(): Promise<boolean> {
+    if (this.evicted) return false;
+
+    const currentPort = Bridge.extractPort(this.relayUrl);
+    const candidates = RELAY_PORT_RANGE.filter((p) => p !== currentPort);
+    if (candidates.length === 0) return false;
+
+    const results = await Promise.allSettled(candidates.map((p) => Bridge.probeRelayPort(p)));
+
+    for (const r of results) {
+      if (r.status === 'fulfilled' && r.value.reachable && r.value.pluginConnected) {
+        const targetPort = r.value.port;
+        console.error(
+          `[FigCraft bridge] cross-relay discovery: plugin found on port ${targetPort}, switching from port ${currentPort}`,
+        );
+        this.disconnect();
+        this.setRelayUrl(`ws://${Bridge.RELAY_HOST}:${targetPort}`);
+        this.intentionalDisconnect = false;
+        await this.connect();
+        await this.discoverPluginChannel();
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /** Update the relay URL (must be called before connect). */
@@ -589,6 +649,7 @@ export class Bridge {
     if (!value) {
       this._lastWorkflowHash = null; // Reset on mode change
       this._designDecisions = null; // Clear accumulated design decisions
+      this._designContextDefaults = null; // Clear library defaults cache
     }
   }
 
@@ -629,6 +690,15 @@ export class Bridge {
   /** Clear design decisions (called on mode change or disconnect). */
   clearDesignDecisions(): void {
     this._designDecisions = null;
+  }
+
+  /** Cached designContext.defaults from last get_mode (library mode only). */
+  get designContextDefaults(): Record<string, { name: string } | null> | null {
+    return this._designContextDefaults;
+  }
+
+  set designContextDefaults(value: Record<string, { name: string } | null> | null) {
+    this._designContextDefaults = value;
   }
 
   /**

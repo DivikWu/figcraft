@@ -45,7 +45,7 @@ function hintKey(h: Hint): string {
  * - `suggest` and `warn` hints are deduplicated by normalized key
  * - Hardcoded color hints are batched into a single summary message
  */
-export function aggregateHints(allHints: Hint[]): string[] {
+export function aggregateHints(allHints: Hint[], context?: { isLibraryMode?: boolean }): string[] {
   const warnings: string[] = [];
   const grouped = new Map<string, { count: number; example: string }>();
   const hardcodedColors = new Set<string>();
@@ -76,7 +76,15 @@ export function aggregateHints(allHints: Hint[]): string[] {
 
   if (hardcodedColors.size > 0) {
     const colors = [...hardcodedColors].join(', ');
-    warnings.push(`Hardcoded colors: [${colors}]. Bind with fillVariableName/strokeVariableName.`);
+    if (context?.isLibraryMode) {
+      warnings.push(
+        `⛔ LIBRARY MODE VIOLATION: Hardcoded colors [${colors}] used instead of library tokens. ` +
+          'MUST replace with fillVariableName/strokeVariableName. ' +
+          'Call search_design_system to find matching variables.',
+      );
+    } else {
+      warnings.push(`Hardcoded colors: [${colors}]. Bind with fillVariableName/strokeVariableName.`);
+    }
   }
 
   return warnings;

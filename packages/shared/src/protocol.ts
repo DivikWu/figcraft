@@ -178,3 +178,6 @@ export const HEAVY_REQUEST_TIMEOUT_MS = 60_000;
 
 /** Heartbeat interval (ms). */
 export const HEARTBEAT_INTERVAL_MS = 30_000;
+
+/** Relay port range for auto-discovery (shared between relay, MCP Server, and plugin). */
+export const RELAY_PORT_RANGE = [3055, 3056, 3057, 3058, 3059, 3060] as const;

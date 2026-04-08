@@ -46,6 +46,18 @@ export function registerPing(server: McpServer, bridge: Bridge): void {
           };
         }
         if (!probe.pluginConnected) {
+          // Try cross-relay discovery: plugin may be on a different relay port
+          const switched = await bridge.discoverPluginRelay();
+          if (switched && bridge.isConnected) {
+            // Successfully switched — retry the ping
+            const start = Date.now();
+            try {
+              const result = (await bridge.request('ping', {})) as Record<string, unknown>;
+              return buildSuccessResponse(result, Date.now() - start, bridge.currentChannel);
+            } catch {
+              // Fall through to diagnostic
+            }
+          }
           return {
             content: [{ type: 'text' as const, text: JSON.stringify(diagnosticError('plugin_not_connected')) }],
           };

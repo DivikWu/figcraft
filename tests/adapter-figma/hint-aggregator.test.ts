@@ -55,6 +55,23 @@ describe('aggregateHints', () => {
     expect(result[0]).toContain('fillVariableName');
   });
 
+  it('upgrades hardcoded color warning in library mode', () => {
+    const hints: Hint[] = [{ type: 'warn', message: 'Hardcoded color #FF0000 on fills' }];
+    const result = aggregateHints(hints, { isLibraryMode: true });
+    expect(result).toHaveLength(1);
+    expect(result[0]).toContain('LIBRARY MODE VIOLATION');
+    expect(result[0]).toContain('#FF0000');
+    expect(result[0]).toContain('search_design_system');
+  });
+
+  it('keeps gentle warning in creator mode (no library context)', () => {
+    const hints: Hint[] = [{ type: 'warn', message: 'Hardcoded color #FF0000 on fills' }];
+    const result = aggregateHints(hints, { isLibraryMode: false });
+    expect(result).toHaveLength(1);
+    expect(result[0]).not.toContain('LIBRARY MODE VIOLATION');
+    expect(result[0]).toContain('fillVariableName');
+  });
+
   it('handles mixed hint types', () => {
     const hints: Hint[] = [
       { type: 'confirm', message: 'inferred layout' },

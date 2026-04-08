@@ -9,7 +9,7 @@
  */
 
 import { startRelay } from '@figcraft/relay';
-import { VERSION } from '@figcraft/shared';
+import { RELAY_PORT_RANGE, VERSION } from '@figcraft/shared';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { setBridgeTokenProvider } from './auth.js';
@@ -23,7 +23,8 @@ import {
   registerToolsetMetaTools,
 } from './tools/toolset-manager.js';
 
-const RELAY_URL = process.env.FIGCRAFT_RELAY_URL ?? 'ws://localhost:3055';
+const RELAY_HOST = process.env.FIGCRAFT_RELAY_HOST ?? '127.0.0.1';
+const RELAY_URL = process.env.FIGCRAFT_RELAY_URL ?? `ws://${RELAY_HOST}:3055`;
 const CHANNEL = process.env.FIGCRAFT_CHANNEL ?? 'figcraft';
 
 interface McpRuntime {
@@ -77,28 +78,49 @@ export async function runMcpServer(): Promise<void> {
     shutdownHandlersInstalled = true;
   }
 
-  // Try connecting to an existing relay; if unavailable, start one in-process
+  // ── Stage 1: Fast path — try the configured relay URL ──
+  let connected = false;
   try {
     await bridge.connect();
     console.error('[FigCraft mcp] connected to existing relay');
+    connected = true;
   } catch {
+    // Fall through to multi-port discovery
+  }
+
+  // ── Stage 2: Multi-port relay discovery ──
+  // Probe all relay ports to find an existing relay (like the plugin does).
+  // This prevents starting a duplicate relay when one already exists on another port.
+  if (!connected) {
+    const results = await Promise.allSettled(RELAY_PORT_RANGE.map((p) => Bridge.probeRelayPort(p)));
+    // Prefer a relay that already has a plugin connected
+    const withPlugin = results.find((r) => r.status === 'fulfilled' && r.value.reachable && r.value.pluginConnected);
+    const anyRelay = results.find((r) => r.status === 'fulfilled' && r.value.reachable);
+    const target = withPlugin ?? anyRelay;
+
+    if (target && target.status === 'fulfilled') {
+      const port = target.value.port;
+      bridge.setRelayUrl(`ws://${RELAY_HOST}:${port}`);
+      try {
+        await bridge.connect();
+        console.error(`[FigCraft mcp] connected to existing relay on port ${port}`);
+        connected = true;
+      } catch {
+        console.error(`[FigCraft mcp] found relay on port ${port} but connection failed`);
+      }
+    }
+  }
+
+  // ── Stage 3: No existing relay found — start embedded relay ──
+  if (!connected) {
     console.error('[FigCraft mcp] no relay found, starting embedded relay...');
     try {
       const { port } = await startRelay();
-      bridge.setRelayUrl(`ws://localhost:${port}`);
+      bridge.setRelayUrl(`ws://${RELAY_HOST}:${port}`);
       await bridge.connect();
       console.error(`[FigCraft mcp] embedded relay started on port ${port}`);
-    } catch (_relayErr) {
-      // Port may be occupied by another relay instance — retry connection
-      console.error('[FigCraft mcp] embedded relay failed, retrying connection...');
-      try {
-        await bridge.connect();
-      } catch (finalErr) {
-        console.error(
-          '[FigCraft mcp] could not connect to relay:',
-          finalErr instanceof Error ? finalErr.message : finalErr,
-        );
-      }
+    } catch (err) {
+      console.error('[FigCraft mcp] could not start relay:', err instanceof Error ? err.message : err);
     }
   }
 
