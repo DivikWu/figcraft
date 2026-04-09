@@ -5,6 +5,7 @@
 import { simplifyNode } from '../adapters/node-simplifier.js';
 import { registerHandler } from '../registry.js';
 import { assertHandler, HandlerError } from '../utils/handler-error.js';
+import type { TokenBindingFailure } from '../utils/node-helpers.js';
 import { applyCornerRadius, applyFill, applyStroke } from '../utils/node-helpers.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
 import { ensureLoaded } from '../utils/style-registry.js';
@@ -26,6 +27,8 @@ async function createShape(
   const useLib = mode === 'library' && !!library;
   if (useLib) await ensureLoaded(library!);
   const libraryBindings: string[] = [];
+  const warnings: string[] = [];
+  const bindingFailures: TokenBindingFailure[] = [];
 
   const node = factory();
   node.name = (params.name as string) ?? defaultName;
@@ -42,19 +45,23 @@ async function createShape(
   if (fillInput != null) {
     const fillResult = await applyFill(node as any, fillInput as any, 'background', useLib, library);
     if (fillResult.autoBound) libraryBindings.push(fillResult.autoBound);
+    if (fillResult.colorHint) warnings.push(fillResult.colorHint);
+    if (fillResult.bindingFailure) bindingFailures.push(fillResult.bindingFailure);
   }
 
   // Stroke with token auto-binding
   const strokeInput = params.strokeVariableName ? { _variable: params.strokeVariableName } : params.strokeColor;
   if (strokeInput != null) {
-    const bound = await applyStroke(
+    const strokeResult = await applyStroke(
       node as any,
       strokeInput as any,
       (params.strokeWeight as number) ?? 1,
       useLib,
       library,
     );
-    if (bound) libraryBindings.push(bound);
+    if (strokeResult.autoBound) libraryBindings.push(strokeResult.autoBound);
+    if (strokeResult.colorHint) warnings.push(strokeResult.colorHint);
+    if (strokeResult.bindingFailure) bindingFailures.push(strokeResult.bindingFailure);
   }
 
   if (params.opacity != null) (node as any).opacity = params.opacity as number;
@@ -72,6 +79,12 @@ async function createShape(
   const result = simplifyNode(node as SceneNode) as unknown as Record<string, unknown>;
   if (libraryBindings.length > 0) {
     result._libraryBindings = libraryBindings;
+  }
+  if (warnings.length > 0) {
+    result._warnings = warnings;
+  }
+  if (bindingFailures.length > 0) {
+    result._tokenBindingFailures = bindingFailures;
   }
   return result;
 }

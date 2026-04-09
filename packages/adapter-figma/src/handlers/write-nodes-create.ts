@@ -897,7 +897,10 @@ async function setupFrame(
 
   // ── Stroke ──
   if (p.strokeColor != null) {
-    await applyStroke(frame, p.strokeColor as any, (p.strokeWeight as number) ?? 1, ctx.useLib, ctx.library);
+    const sr = await applyStroke(frame, p.strokeColor as any, (p.strokeWeight as number) ?? 1, ctx.useLib, ctx.library);
+    if (sr.autoBound) ctx.libraryBindings.push(sr.autoBound);
+    if (sr.colorHint) ctx.warnings.push(sr.colorHint);
+    if (sr.bindingFailure) ctx.tokenBindingFailures.push(sr.bindingFailure);
   } else {
     // No stroke requested — clear Figma's default strokeWeight to prevent phantom borders
     frame.strokeWeight = 0;
@@ -1405,14 +1408,16 @@ async function createShapeChild(
   }
   const strokeInput = child.strokeVariableName ? { _variable: child.strokeVariableName } : child.strokeColor;
   if (strokeInput != null) {
-    const sb = await applyStroke(
+    const sr = await applyStroke(
       node as any,
       strokeInput as any,
       (child.strokeWeight as number) ?? 1,
       ctx.useLib,
       ctx.library,
     );
-    if (sb) ctx.libraryBindings.push(sb);
+    if (sr.autoBound) ctx.libraryBindings.push(sr.autoBound);
+    if (sr.colorHint) ctx.warnings.push(sr.colorHint);
+    if (sr.bindingFailure) ctx.tokenBindingFailures.push(sr.bindingFailure);
   }
   if (opts?.supportsCornerRadius && child.cornerRadius != null) {
     const rb = await applyCornerRadius(node as any, child.cornerRadius as any, ctx.useLib, undefined, ctx.library);

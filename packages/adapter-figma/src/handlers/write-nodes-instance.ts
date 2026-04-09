@@ -416,7 +416,13 @@ export function registerInstanceHandlers(): void {
     const [lineMode, lineLibrary] = await getCachedModeLibrary();
     const useLib = lineMode === 'library' && !!lineLibrary;
     const strokeInput = params.stroke ?? '#000000';
-    await applyStroke(line, strokeInput as any, (params.strokeWeight as number) ?? 1, useLib, lineLibrary);
+    const strokeResult = await applyStroke(
+      line,
+      strokeInput as any,
+      (params.strokeWeight as number) ?? 1,
+      useLib,
+      lineLibrary,
+    );
 
     if (params.parentId) {
       const parent = await findNodeByIdAsync(params.parentId as string);
@@ -425,7 +431,11 @@ export function registerInstanceHandlers(): void {
       }
     }
 
-    return simplifyNode(line);
+    const result = simplifyNode(line) as unknown as Record<string, unknown>;
+    if (strokeResult.autoBound) result._libraryBindings = [strokeResult.autoBound];
+    if (strokeResult.colorHint) result._warnings = [strokeResult.colorHint];
+    if (strokeResult.bindingFailure) result._tokenBindingFailures = [strokeResult.bindingFailure];
+    return result;
   });
 
   registerHandler('create_section', async (params) => {

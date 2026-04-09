@@ -11,6 +11,7 @@ import { registerHandler } from '../registry.js';
 import { registerCache } from '../utils/cache-manager.js';
 import { autoBindTypography } from '../utils/design-context.js';
 import { assertHandler } from '../utils/handler-error.js';
+import type { TokenBindingFailure } from '../utils/node-helpers.js';
 import {
   applyCornerRadius,
   applyFill,
@@ -354,7 +355,14 @@ export function registerWriteNodeHandlers(): void {
     ]);
 
     const strict = params.strict as boolean | undefined;
-    const results: Array<{ nodeId: string; ok: boolean; error?: string; _unknownProps?: string[] }> = [];
+    const results: Array<{
+      nodeId: string;
+      ok: boolean;
+      error?: string;
+      _unknownProps?: string[];
+      _warnings?: string[];
+      _tokenBindingFailures?: TokenBindingFailure[];
+    }> = [];
     const resolvedNodes = await Promise.all(patches.map((p) => findNodeByIdAsync(p.nodeId)));
 
     for (let pi = 0; pi < patches.length; pi++) {
@@ -393,6 +401,9 @@ export function registerWriteNodeHandlers(): void {
 
         const props = patch.props;
         const useLib = patchMode === 'library' && !!patchLibrary;
+        // Per-patch collectors for fill/stroke hints & failures, attached to the per-patch result.
+        const patchWarnings: string[] = [];
+        const patchBindingFailures: TokenBindingFailure[] = [];
         // ── Phase 1: Simple direct props (name, position, visibility, layout params) ──
         // layoutMode is applied here FIRST so subsequent phases see the correct mode.
         for (const key of Object.keys(props)) {
@@ -417,13 +428,22 @@ export function registerWriteNodeHandlers(): void {
         // ── Phase 2: Fill / Stroke / Corner / Effects ──
         if (props.fills != null && 'fills' in node) {
           const fillRole = node.type === 'TEXT' ? 'textColor' : 'background';
-          await applyFill(node as SceneNode & MinimalFillsMixin, props.fills as any, fillRole, useLib, patchLibrary, {
-            stylesPreloaded: true,
-          });
+          const fr = await applyFill(
+            node as SceneNode & MinimalFillsMixin,
+            props.fills as any,
+            fillRole,
+            useLib,
+            patchLibrary,
+            { stylesPreloaded: true },
+          );
+          if (fr.colorHint) patchWarnings.push(fr.colorHint);
+          if (fr.bindingFailure) patchBindingFailures.push(fr.bindingFailure);
         }
         if (props.strokes != null && 'strokes' in node) {
           const existingWeight = 'strokeWeight' in node ? ((node as any).strokeWeight as number) : undefined;
-          await applyStroke(node as any, props.strokes as any, existingWeight, useLib, patchLibrary);
+          const sr = await applyStroke(node as any, props.strokes as any, existingWeight, useLib, patchLibrary);
+          if (sr.colorHint) patchWarnings.push(sr.colorHint);
+          if (sr.bindingFailure) patchBindingFailures.push(sr.bindingFailure);
         }
         if (props.cornerRadius != null && 'cornerRadius' in node) {
           await applyCornerRadius(
@@ -584,8 +604,16 @@ export function registerWriteNodeHandlers(): void {
           }
         }
 
-        const entry: { nodeId: string; ok: boolean; _unknownProps?: string[] } = { nodeId: patch.nodeId, ok: true };
+        const entry: {
+          nodeId: string;
+          ok: boolean;
+          _unknownProps?: string[];
+          _warnings?: string[];
+          _tokenBindingFailures?: TokenBindingFailure[];
+        } = { nodeId: patch.nodeId, ok: true };
         if (unknownProps.length) entry._unknownProps = unknownProps;
+        if (patchWarnings.length) entry._warnings = patchWarnings;
+        if (patchBindingFailures.length) entry._tokenBindingFailures = patchBindingFailures;
         results.push(entry);
       } catch (err) {
         results.push({

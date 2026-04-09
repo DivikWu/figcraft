@@ -259,6 +259,42 @@ export interface ApplyFillResult {
   bindingFailure?: TokenBindingFailure;
 }
 
+/** Stroke application result — mirrors ApplyFillResult for consistency. */
+export interface ApplyStrokeResult {
+  autoBound: string | null;
+  colorHint?: string;
+  bindingFailure?: TokenBindingFailure;
+}
+
+/**
+ * Build a descriptive colorHint from a ScopeMismatchError for agent self-correction.
+ * Role-aware suggestions tell the agent which variable prefix to try instead.
+ * Shared between applyFill and applyStroke to keep the message style identical.
+ */
+function formatScopeMismatchHint(
+  err: ScopeMismatchError,
+  requestedName: string,
+  role: 'background' | 'textColor' | 'border' | 'stroke',
+  requiredScopes: string[],
+): string {
+  const rejected = err.rejected.map((r) => `"${r.name}" (scopes: [${r.scopes.join(', ')}])`).join(', ');
+  const roleHint =
+    role === 'textColor'
+      ? ' For text nodes use a text/* variable (e.g. "text/primary").'
+      : role === 'background'
+        ? ' For frame/shape fills use a surface/*, background/*, or fill/* variable.'
+        : role === 'border' || role === 'stroke'
+          ? ' For strokes use a border/* variable with STROKE_COLOR scope.'
+          : '';
+  const searchQuery =
+    role === 'textColor' ? 'text color' : role === 'border' || role === 'stroke' ? 'border' : 'surface color';
+  return (
+    `⛔ Variable "${requestedName}" exists in library but its scope(s) exclude ${role} ` +
+    `(required: [${requiredScopes.join(', ')}]). Rejected: ${rejected}.${roleHint} ` +
+    `Call search_design_system(query:"${searchQuery}") to discover alternatives.`
+  );
+}
+
 /**
  * Apply a fill to a node: hex color → solid paint, then try to match a Paint Style.
  * If no fill is specified and library mode is active, auto-bind the default color variable.
@@ -395,22 +431,14 @@ export async function applyFill(
         // descriptive hint with the rejected candidates so the agent can self-correct
         // instead of blindly searching for a variable it thinks is missing.
         if (err instanceof ScopeMismatchError) {
-          const rejected = err.rejected.map((r) => `"${r.name}" (scopes: [${r.scopes.join(', ')}])`).join(', ');
-          const roleHint =
-            role === 'textColor'
-              ? ' For text nodes use a text/* variable (e.g. "text/primary").'
-              : role === 'background'
-                ? ' For frame/shape fills use a surface/*, background/*, or fill/* variable.'
-                : role === 'border'
-                  ? ' For strokes use a border/* variable with STROKE_COLOR scope.'
-                  : '';
-          colorHint =
-            `⛔ Variable "${fill}" exists in library but its scope(s) exclude ${role} ` +
-            `(required: [${ROLE_SCOPE_HINTS[role].join(', ')}]). Rejected: ${rejected}.${roleHint} ` +
-            `Call search_design_system(query:"${role === 'textColor' ? 'text color' : role === 'border' ? 'border' : 'surface color'}") to discover alternatives.`;
           return {
             autoBound: null,
-            colorHint,
+            colorHint: formatScopeMismatchHint(
+              err,
+              fill,
+              role as 'background' | 'textColor' | 'border',
+              ROLE_SCOPE_HINTS[role],
+            ),
             bindingFailure: { requested: fill, type: 'variable', action: 'scope-mismatch' },
           };
         }
@@ -514,12 +542,14 @@ export async function applyStroke(
   strokeWeight?: number,
   useLibrary?: boolean,
   library?: string,
-): Promise<string | null> {
+): Promise<ApplyStrokeResult> {
+  const STROKE_SCOPES = ['STROKE_COLOR', 'ALL_SCOPES'];
+
   // Handle Paint[] array — direct assignment
   if (stroke && Array.isArray(stroke)) {
     node.strokes = stroke as Paint[];
     (node as any).strokeWeight = strokeWeight ?? 1;
-    return null;
+    return { autoBound: null };
   }
 
   // Handle { _variableId: "id" } — direct variable binding by ID
@@ -534,20 +564,17 @@ export async function applyStroke(
         node.strokes = strokes;
       }
       (node as any).strokeWeight = strokeWeight ?? 1;
-      return `var:${variable.name}`;
+      return { autoBound: `var:${variable.name}` };
     }
     (node as any).strokeWeight = strokeWeight ?? 1;
-    return null;
+    return { autoBound: null };
   }
 
   // Handle { _variable: "name" } — variable binding with 3-level resolution
   if (stroke && typeof stroke === 'object' && '_variable' in stroke) {
+    const varName = (stroke as { _variable: string })._variable;
     try {
-      const variable = await findColorVariableByName(
-        (stroke as { _variable: string })._variable,
-        ['STROKE_COLOR', 'ALL_SCOPES'],
-        library,
-      );
+      const variable = await findColorVariableByName(varName, STROKE_SCOPES, library);
       if (variable) {
         await clearStrokeStyle(node);
         node.strokes = [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }];
@@ -557,13 +584,22 @@ export async function applyStroke(
           node.strokes = strokes;
         }
         (node as any).strokeWeight = strokeWeight ?? 1;
-        return `var:${variable.name}`;
+        return { autoBound: `var:${variable.name}` };
       }
-    } catch {
-      /* ambiguous variable — fall through */
+    } catch (err) {
+      // Surface scope mismatch so AI can self-correct (mirrors applyFill behavior).
+      if (err instanceof ScopeMismatchError) {
+        (node as any).strokeWeight = strokeWeight ?? 1;
+        return {
+          autoBound: null,
+          colorHint: formatScopeMismatchHint(err, varName, 'stroke', STROKE_SCOPES),
+          bindingFailure: { requested: varName, type: 'variable', action: 'scope-mismatch' },
+        };
+      }
+      /* other lookup failure — fall through */
     }
     (node as any).strokeWeight = strokeWeight ?? 1;
-    return null;
+    return { autoBound: null };
   }
 
   // Handle { _style: "name" } — direct style binding for stroke
@@ -577,7 +613,7 @@ export async function applyStroke(
       }
     }
     (node as any).strokeWeight = strokeWeight ?? 1;
-    return paintMatch ? `stroke:${paintMatch.name}` : null;
+    return { autoBound: paintMatch ? `stroke:${paintMatch.name}` : null };
   }
 
   if (stroke && typeof stroke === 'string') {
@@ -585,7 +621,7 @@ export async function applyStroke(
     if (!isHexColor(stroke)) {
       // Try as variable name first
       try {
-        const variable = await findColorVariableByName(stroke, ['STROKE_COLOR', 'ALL_SCOPES'], library);
+        const variable = await findColorVariableByName(stroke, STROKE_SCOPES, library);
         if (variable) {
           await clearStrokeStyle(node);
           node.strokes = [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }];
@@ -595,10 +631,19 @@ export async function applyStroke(
             node.strokes = strokes;
           }
           (node as any).strokeWeight = strokeWeight ?? 1;
-          return `var:${variable.name}`;
+          return { autoBound: `var:${variable.name}` };
         }
-      } catch {
-        /* variable lookup failed — try style */
+      } catch (err) {
+        // Surface scope mismatch — consistent with applyFill + { _variable } path above.
+        if (err instanceof ScopeMismatchError) {
+          (node as any).strokeWeight = strokeWeight ?? 1;
+          return {
+            autoBound: null,
+            colorHint: formatScopeMismatchHint(err, stroke, 'stroke', STROKE_SCOPES),
+            bindingFailure: { requested: stroke, type: 'variable', action: 'scope-mismatch' },
+          };
+        }
+        /* other lookup failure — try style */
       }
       // Try as style name
       if (useLibrary && library) {
@@ -610,12 +655,12 @@ export async function applyStroke(
             /* skip */
           }
           (node as any).strokeWeight = strokeWeight ?? 1;
-          return `stroke:${paintMatch.name}`;
+          return { autoBound: `stroke:${paintMatch.name}` };
         }
       }
       // Not a hex, not a variable, not a style — set as-is and warn
       (node as any).strokeWeight = strokeWeight ?? 1;
-      return null;
+      return { autoBound: null };
     }
 
     node.strokes = [{ type: 'SOLID', color: hexToFigmaRgb(stroke) }];
@@ -630,7 +675,7 @@ export async function applyStroke(
         }
       }
     }
-    return null;
+    return { autoBound: null };
   } else if (!stroke && strokeWeight != null && useLibrary && library) {
     // strokeWeight specified but no color — auto-bind border variable
     try {
@@ -638,12 +683,12 @@ export async function applyStroke(
       if (bound) {
         (node as any).strokeWeight = strokeWeight;
       }
-      return bound;
+      return { autoBound: bound };
     } catch {
       /* skip — best effort */
     }
   }
-  return null;
+  return { autoBound: null };
 }
 
 // ─── Per-side stroke weights ───
