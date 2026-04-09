@@ -636,16 +636,26 @@ export async function applyStroke(
 
   // Handle { _style: "name" } — direct style binding for stroke
   if (stroke && typeof stroke === 'object' && '_style' in stroke) {
-    const paintMatch = getPaintStyleId(undefined, (stroke as { _style: string })._style);
+    const styleName = (stroke as { _style: string })._style;
+    const paintMatch = getPaintStyleId(undefined, styleName);
+    (node as any).strokeWeight = strokeWeight ?? 1;
     if (paintMatch) {
       try {
         await (node as any).setStrokeStyleIdAsync(paintMatch.id);
-      } catch {
-        /* skip */
+        return { autoBound: `stroke:${paintMatch.name}` };
+      } catch (err) {
+        return {
+          autoBound: null,
+          colorHint: `Stroke style "${styleName}" found but failed to apply: ${err instanceof Error ? err.message : String(err)}`,
+        };
       }
     }
-    (node as any).strokeWeight = strokeWeight ?? 1;
-    return { autoBound: paintMatch ? `stroke:${paintMatch.name}` : null };
+    const available = getAvailablePaintStyleNames(10);
+    return {
+      autoBound: null,
+      colorHint: `Stroke style "${styleName}" not found.${available.length > 0 ? ` Available: ${available.join(', ')}` : ''}`,
+      bindingFailure: { requested: styleName, type: 'style', action: 'skipped' },
+    };
   }
 
   if (stroke && typeof stroke === 'string') {
@@ -689,18 +699,25 @@ export async function applyStroke(
       if (useLibrary && library) {
         const paintMatch = getPaintStyleId(undefined, stroke);
         if (paintMatch) {
+          (node as any).strokeWeight = strokeWeight ?? 1;
           try {
             await (node as any).setStrokeStyleIdAsync(paintMatch.id);
-          } catch {
-            /* skip */
+            return { autoBound: `stroke:${paintMatch.name}` };
+          } catch (err) {
+            return {
+              autoBound: null,
+              colorHint: `Stroke style "${stroke}" found but failed to apply: ${err instanceof Error ? err.message : String(err)}`,
+            };
           }
-          (node as any).strokeWeight = strokeWeight ?? 1;
-          return { autoBound: `stroke:${paintMatch.name}` };
         }
       }
-      // Not a hex, not a variable, not a style — set as-is and warn
+      // Not a hex, not a variable, not a style — surface a hint so the agent
+      // gets the same feedback applyFill emits in the equivalent situation.
       (node as any).strokeWeight = strokeWeight ?? 1;
-      return { autoBound: null };
+      return {
+        autoBound: null,
+        colorHint: `"${stroke}" is not a hex color and no matching stroke variable or style found. Use "#RRGGBB" format or check the name.`,
+      };
     }
 
     node.strokes = [{ type: 'SOLID', color: hexToFigmaRgb(stroke) }];
