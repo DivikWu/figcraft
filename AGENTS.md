@@ -128,7 +128,7 @@ Use `list_toolsets` to see current status. Load multiple: `load_toolset({ names:
 
 ### Context Budget (CRITICAL)
 
-0. **ALWAYS load the skills indicated by STEP 2** — `ui-ux-fundamentals` always, plus `design-guardian` (library) or `design-creator` (no library). Additionally: `figma-generate-library` for building design systems.
+0. **ALWAYS load the skills indicated by STEP 0** — `ui-ux-fundamentals` always, plus `design-guardian` (library) or `design-creator` (no library). Additionally: `figma-generate-library` for building design systems.
 1. After STEP 2 skills are loaded, do NOT call `get_design_guidelines(category:"all")` — the same content is already in context. Use `get_design_guidelines(category:"color")` etc. only when you need to focus on a specific area.
 
 ### Tool Behavior

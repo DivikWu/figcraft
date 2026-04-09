@@ -77,6 +77,16 @@
     Token file contains invalid JSON.
     The file must be a valid DTCG JSON format with $type and $value fields.
 
+- name: create-frame-failure
+  tools: [create_frame]
+  patterns:
+    - "error"
+  errorType: create_frame_failure
+  suggestion: >-
+    create_frame failed. Before retrying, review ALL remaining planned payloads
+    for the same pattern — the same mistake likely affects other calls.
+    Use dryRun:true to preview Opinion Engine inferences before committing.
+
 - name: response-too-large
   tools: ["*"]
   patterns:

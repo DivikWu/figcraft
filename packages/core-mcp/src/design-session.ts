@@ -217,6 +217,12 @@ export class DesignSession {
     return this._unverifiedCreations.map(({ nodeId, name }) => ({ nodeId, name }));
   }
 
+  /** Timestamp of the most recent creation (for grace period in multi-screen flows). */
+  get latestCreationTimestamp(): number | null {
+    if (this._unverifiedCreations.length === 0) return null;
+    return this._unverifiedCreations[this._unverifiedCreations.length - 1].ts;
+  }
+
   // ─── Error Journal ───
 
   /** Tracks recent errors for cross-turn learning. */

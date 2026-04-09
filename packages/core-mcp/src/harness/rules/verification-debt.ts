@@ -92,6 +92,11 @@ export const verificationDebtRemindRule: HarnessRule = {
     if (ctx.session.verificationDebt === 0) return PASS;
     if (EXEMPT_FROM_REMINDERS.has(ctx.bridgeMethod)) return PASS;
 
+    // Grace period: suppress reminders if latest creation was within 90 seconds
+    // (agent is likely still in batch creation mode for multi-screen flows)
+    const latestTs = ctx.session.latestCreationTimestamp;
+    if (latestTs && Date.now() - latestTs < 90_000) return PASS;
+
     const nodes = ctx.session.unverifiedNodes.slice(0, 5);
     return {
       type: 'enrich',

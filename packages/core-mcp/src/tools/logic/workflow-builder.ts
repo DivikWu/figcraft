@@ -105,57 +105,52 @@ export function buildWorkflow(input: WorkflowInput): Record<string, unknown> {
         : {}),
     },
 
+    // Library spec priority (from design-guardian core rules — avoids requiring skill load for common tasks)
+    ...(hasLibrary
+      ? {
+          specPriority: [
+            'MUST use component instances (type:"instance") when a matching component exists in libraryComponents; hand-built frame+text is only acceptable when no match.',
+            'MUST match colors/fonts/spacing to library Variable/Style first; skip binding only when no match exists.',
+            'Check containingFrame to verify component category — property names like "Placeholder"/"Size" appear across unrelated types.',
+          ],
+        }
+      : {}),
+
     // After user confirms the design proposal:
     creationSteps: [
-      // Token binding step (Library + Local with tokens)
+      // Token binding (Library + Local with tokens)
       hasLibrary
-        ? '⛔ TOKEN BINDING: Use designContext.defaults for color bindings — pass fillVariableName/strokeVariableName (NOT fill/strokeColor hex). ' +
-          'Example: defaults["bg/primary"] → fillVariableName:"bg/primary". ' +
-          'If a defaults entry is null (listed in unresolvedDefaults), call search_design_system to find the closest token. ' +
-          'Only use hardcoded hex as last resort when no matching token exists.'
+        ? '⛔ TOKEN BINDING: Use designContext.defaults for color bindings — pass fillVariableName/strokeVariableName. ' +
+          'unresolvedDefaults lists roles with no matching token — call search_design_system for these. ' +
+          'Text nodes auto-bind textColor when no fill specified. Only hardcode hex as last resort.'
         : null,
-      // Component instance step (Library vs Local vs Creator)
+      // Component instances (Library vs Local vs Creator)
       isLocal
         ? '⛔ LOCAL COMPONENT INSTANCES: ' +
-          '1) Check localComponents from this response — it lists all local component sets (id, name, containingFrame, variantCount, propertyOptions) and standalone components. Use this as your starting inventory. ' +
-          '2) Use type:"instance" + componentId (node ID) in children[]. ' +
-          'For component sets: componentId + variantProperties selects a variant (e.g. variantProperties:{Type:"Primary",Size:"Large"}). ' +
-          'properties sets instance overrides AFTER creation (text labels, boolean toggles). ' +
-          '3) search_design_system(query) for on-demand discovery beyond the summary. ' +
-          'DISAMBIGUATION: Check containingFrame to verify component category (e.g., "Forms" vs "Avatars").'
+          'localComponents lists component sets (id, name, containingFrame, propertyOptions with all variant values) and standalone components. ' +
+          'Use type:"instance" + componentId + variantProperties in children[]. ' +
+          'properties sets overrides AFTER creation (text labels, toggles). ' +
+          'search_design_system(query) for on-demand discovery beyond the summary. ' +
+          'DISAMBIGUATION: Check containingFrame to verify category (e.g., "Forms" vs "Avatars").'
         : hasLibrary
-          ? '⛔ LIBRARY COMPONENT INSTANCES: ' +
-            '1) Check libraryComponents from this response — it lists all component sets (name, key, containingFrame, propertyNames) and standalone components. Use this as your starting inventory. ' +
-            '2) For components you plan to use, call search_design_system(query) to get variant details and confirm keys. Build a Component Map before creating: ' +
-            'e.g. Button → key:"abc", variants: Type=Primary/Secondary; Input → setKey:"def", variants: Size=md/lg, State=Default/Error. ' +
-            '3) Use type:"instance" in children[]: ' +
-            'componentSetKey + variantProperties selects a variant from a set (e.g. variantProperties:{Type:"Primary",Size:"Large"}); ' +
-            'componentKey imports a single component; ' +
-            'properties sets instance overrides AFTER creation (text labels, boolean toggles — e.g. properties:{Label:"Sign In"}). ' +
-            'componentId is for local components only (node ID). ' +
-            'DISAMBIGUATION: Property names like "Placeholder" and "Size" appear on MANY component types (Avatar, Input, Card). ' +
-            'Always check containingFrame to verify the component category (e.g., "Forms" vs "Avatars"). ' +
-            'For form inputs, look for State/Error/Focused variants — Avatars never have these.'
+          ? '⛔ COMPONENT INSTANCES: libraryComponents lists component sets with key, containingFrame, and propertyOptions (all variant values). ' +
+            'Use type:"instance" + componentSetKey + variantProperties in children[]. ' +
+            'properties sets overrides AFTER creation (text labels, toggles). ' +
+            'DISAMBIGUATION: Check containingFrame to verify category (e.g., "Forms" vs "Avatars"). ' +
+            'Call search_design_system only for components NOT in libraryComponents.'
           : null,
-      'Page context is included above in pageContext (isEmpty, childCount, topFrameNames). If you need deeper detail (node styles, nested tree), call get_current_page(maxDepth=2).',
-      'After platform confirmed: load platform-specific rules via get_creation_guide(topic:"platform-ios") / get_creation_guide(topic:"platform-android") / get_creation_guide(topic:"responsive"). These provide safe areas, typography (including CJK type scales), navigation patterns, and touch targets specific to the target platform. Also load get_creation_guide(topic:"ux-writing") for UI copy conventions (buttons, forms, errors, empty states) with language-specific rules (Chinese: mixed CJK/Latin spacing, button length limits; English: sentence case, placeholder formats).',
-      'Classify task scale: single element / single screen / multi-screen (3-5) / large flow (6+).',
       'Use create_frame + children (declarative) for all creation. children support optional index field for insertion order. type:"rectangle" for simple shapes (dividers, spacers), type:"frame" for containers with children/auto-layout. For text range styling: text(method:"set_range"). For grouping: group_nodes (requires load_toolset("shapes-vectors")). For complex layouts, call get_creation_guide(topic:"layout") for structural rules.',
       '⚠️ SIZING: Root screen frames MUST include layoutSizingHorizontal:"FIXED" + layoutSizingVertical:"FIXED" explicitly. Without this, Opinion Engine infers HUG and the frame collapses to content size.',
       '⚠️ PLACEHOLDERS: Use type:"frame" (not "rectangle") for any container that needs children later (logos, avatars, chart areas). Rectangles cannot have children. Add layoutMode:"HORIZONTAL", primaryAxisAlignItems:"CENTER", counterAxisAlignItems:"CENTER" to center content inside.',
       hasLibrary
         ? `⚠️ ICONS: Plan all icons before create_frame. Use search_design_system(query:"icon chevron") to find ${isLocal ? 'local' : 'library'} icon components first; fall back to icon_search + icon_create. ` +
-          'ORDERING: icon_create with parentId appends to END by default — use index:0 to place icon BEFORE text (left side in HORIZONTAL layout). children array order = visual order in auto-layout. ' +
-          'NEVER use text characters as icon placeholders (">" for chevron, "..." for more). ' +
-          'MUST call get_creation_guide(topic:"iconography") before placing any icons.'
-        : '⚠️ ICONS: Plan all icons before create_frame (navigation chevrons, social logos, action icons). Call icon_search to find icons, then icon_create with parentId + index to place correctly. ' +
-          'ORDERING: icon_create appends to END by default — use index:0 to place icon BEFORE text (left side in HORIZONTAL layout). children array order = visual order in auto-layout. ' +
-          'NEVER use text characters as icon placeholders (">" for chevron, "..." for more). ' +
-          'MUST call get_creation_guide(topic:"iconography") before placing any icons.',
-      'nodes update: ordered execution (simple props → fills/strokes → layout sizing → resize → text). Supports width/height directly, text properties, layoutPositioning. Safe to send layoutMode + width in same patch.',
-      'For complex or ambiguous parameters, use dryRun:true first to preview Opinion Engine inferences before committing.',
-      'After the FIRST create_frame failure, review ALL remaining planned payloads for the same pattern before retrying.',
-      'System auto-verifies root-level creations: check _qualityScore and _qualityWarning in create_frame response. If score < 80 or errors exist, call verify_design() to fix. System tracks verification debt — persistent _verificationDebt reminders appear in all subsequent responses until verified.',
+          'ORDERING: children array order = visual order in auto-layout. icon_create with parentId appends to END — use index:0 to place icon BEFORE text. ' +
+          'NEVER use text characters as icon placeholders (">" for chevron, "..." for more).'
+        : '⚠️ ICONS: Plan all icons before create_frame. icon_search → icon_create with parentId + index. ' +
+          'ORDERING: children array order = visual order in auto-layout. icon_create appends to END — use index:0 to place icon BEFORE text. ' +
+          'NEVER use text characters as icon placeholders (">" for chevron, "..." for more).',
+      'nodes(method:"update"): ordered execution (simple props → fills/strokes → layout sizing → resize → text). Supports width/height directly, text properties, layoutPositioning.',
+      'System auto-verifies root-level creations: check _qualityScore and _qualityWarning in create_frame response. If score < 80 or errors exist, call verify_design() to fix. System tracks verification debt — _verificationDebt reminders appear until verified.',
       'lint_fix_all clears verification debt for the page (supports dryRun:true to preview). If remaining violations include severity:"error", read the details and fix manually before replying.',
     ].filter(Boolean),
 

@@ -151,9 +151,12 @@ describe('Verification Harness', () => {
   });
 
   describe('verification-debt-remind rule', () => {
-    it('injects reminder when debt > 0', async () => {
+    it('injects reminder when debt > 0 and grace period elapsed', async () => {
       const session = new DesignSession();
       session.recordCreation('1:1', 'Screen');
+      // Simulate grace period elapsed by backdating the creation timestamp
+      const creations = (session as any)._unverifiedCreations as Array<{ ts: number }>;
+      creations[0].ts = Date.now() - 100_000; // 100s ago, past 90s grace period
       const ctx = makeCtx('nodes', {}, { id: '1:1' }, session);
       const action = await verificationDebtRemindRule.execute(ctx);
       expect(action.type).toBe('enrich');
@@ -162,6 +165,14 @@ describe('Verification Harness', () => {
         const debt = action.fields._verificationDebt as Record<string, unknown>;
         expect(debt.unverifiedCount).toBe(1);
       }
+    });
+
+    it('suppresses reminder during grace period (< 90s after creation)', async () => {
+      const session = new DesignSession();
+      session.recordCreation('1:1', 'Screen'); // ts = Date.now(), within grace period
+      const ctx = makeCtx('nodes', {}, { id: '1:1' }, session);
+      const action = await verificationDebtRemindRule.execute(ctx);
+      expect(action.type).toBe('pass'); // suppressed by grace period
     });
 
     it('passes when debt is 0', async () => {

@@ -793,7 +793,16 @@ async function setupFrame(
   }
 
   // ── Fill ──
-  if (p.fill != null) {
+  // Presentational containers (role:"presentation") in library mode:
+  // use the explicit hex color as-is without token auto-binding.
+  // These are display scaffolding (Wrapper, Stage, Flow Row), not actual UI surfaces.
+  const fillStr = typeof p.fill === 'string' ? (p.fill as string) : null;
+  const isHex = fillStr != null && /^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(fillStr);
+  const isPresentation = p.role === 'presentation';
+  const skipTokenBind = ctx.useLib && isHex && isPresentation;
+  if (skipTokenBind) {
+    frame.fills = [{ type: 'SOLID', color: hexToFigmaRgb(fillStr) }];
+  } else if (p.fill != null) {
     const fillResult = await applyFill(frame, p.fill as any, 'background', ctx.useLib, ctx.library, {
       stylesPreloaded: true,
     });
@@ -813,7 +822,7 @@ async function setupFrame(
     // Only auto-bind surface fill to frames with a semantic role (e.g. role:"screen").
     // Structural containers (layout wrappers, rows, groups) should be transparent —
     // AI passes explicit fill/fillVariableName when a background is intended.
-    if (p.role != null) {
+    if (p.role != null && p.role !== 'presentation') {
       const fillResult = await applyFill(frame, undefined, 'background', ctx.useLib, ctx.library, {
         stylesPreloaded: true,
       });
@@ -1191,7 +1200,9 @@ async function setupText(text: TextNode, p: Record<string, unknown>, ctx: Create
       }
     }
   } else if (ctx.useLib) {
-    const fillResult = await applyFill(text, undefined, 'textColor', ctx.useLib, ctx.library, {
+    // Determine text color role from explicit role declaration
+    const textRole = p.role === 'heading' ? 'headingColor' : p.role === 'secondary' ? 'textSecondary' : 'textColor';
+    const fillResult = await applyFill(text, undefined, textRole, ctx.useLib, ctx.library, {
       stylesPreloaded: true,
     });
     if (fillResult.autoBound) ctx.libraryBindings.push(fillResult.autoBound);
