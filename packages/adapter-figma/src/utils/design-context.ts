@@ -542,6 +542,28 @@ export async function autoBindStrokeDefault(
   );
 }
 
+/**
+ * Map an autoBind role name (including text-variants) to the Figma variable
+ * scopes that are semantically acceptable for binding. Used as a safety net in
+ * _autoBindDefaultImpl so a misconfigured DEFAULT_MAPPINGS (or a library whose
+ * `text/primary` variable is mistakenly scoped to `FRAME_FILL`) can't silently
+ * bind a wrong-scope variable to a text node.
+ *
+ * Returns null for roles that have no scope constraint (e.g. `primary`,
+ * `error`), meaning the safety net is a no-op for those.
+ */
+function autoBindRoleScopes(role: string): string[] | null {
+  if (role === 'textColor' || role === 'headingColor' || role === 'textSecondary' || role === 'textDisabled') {
+    return ['ALL_FILLS', 'TEXT_FILL'];
+  }
+  if (role === 'background' || role === 'backgroundSecondary' || role === 'inputBackground') {
+    return ['ALL_FILLS', 'FRAME_FILL', 'SHAPE_FILL'];
+  }
+  if (role === 'border') return ['STROKE_COLOR'];
+  // primary, primaryText, error, success, warning — no scope constraint, caller decides.
+  return null;
+}
+
 async function _autoBindDefaultImpl(
   node: SceneNode & MinimalFillsMixin,
   role: string,
@@ -560,6 +582,22 @@ async function _autoBindDefaultImpl(
         : await cachedImportVariable(defaultVar.key, `importVariable(${defaultVar.name})`);
 
     if (!variable) return null;
+
+    // Safety net: if the role has a defined scope constraint, verify the resolved
+    // variable actually accepts it. Guards against misconfigured DEFAULT_MAPPINGS or
+    // libraries whose semantic names don't match their Figma scope settings.
+    const requiredScopes = autoBindRoleScopes(role);
+    if (requiredScopes) {
+      const scopes = ((variable as any).scopes as string[] | undefined) ?? [];
+      if (!scopesAccept(scopes, requiredScopes)) {
+        console.warn(
+          `[figcraft] autoBindDefault: skipping "${defaultVar.name}" for role "${role}" — ` +
+            `variable scopes [${scopes.join(', ')}] don't accept required [${requiredScopes.join(', ')}]. ` +
+            `Check DEFAULT_MAPPINGS or the library's variable scope configuration.`,
+        );
+        return null;
+      }
+    }
 
     const fills = [...(node.fills as Paint[])];
     if (fills[0]) {
@@ -592,6 +630,18 @@ async function _autoBindStrokeDefaultImpl(
         : await cachedImportVariable(defaultVar.key, `importVariable(${defaultVar.name})`);
 
     if (!variable) return null;
+
+    // Safety net: stroke auto-bind should never apply a variable scoped only to
+    // fills. autoBindStrokeDefault is always stroke-context, so enforce STROKE_COLOR.
+    const scopes = ((variable as any).scopes as string[] | undefined) ?? [];
+    if (!scopesAccept(scopes, ['STROKE_COLOR'])) {
+      console.warn(
+        `[figcraft] autoBindStrokeDefault: skipping "${defaultVar.name}" for role "${role}" — ` +
+          `variable scopes [${scopes.join(', ')}] don't include STROKE_COLOR. ` +
+          `Check DEFAULT_MAPPINGS or the library's variable scope configuration.`,
+      );
+      return null;
+    }
 
     const strokes = [...(node.strokes as Paint[])];
     if (strokes.length > 0 && strokes[0]) {
@@ -649,6 +699,32 @@ export class ScopeMismatchError extends Error {
         `[${requiredScopes.join(', ')}]: ${rejected.map((r) => `"${r.name}" (scopes: [${r.scopes.join(', ')}])`).join(', ')}`,
     );
     this.name = 'ScopeMismatchError';
+  }
+}
+
+/**
+ * Thrown when a partial-name variable lookup matches multiple candidates and
+ * scope filtering can't disambiguate them (either no scope hint was provided,
+ * or several candidates satisfy the hint).
+ *
+ * Distinct from ScopeMismatchError: the candidates are semantically valid for
+ * the binding context, they're just not uniquely identified by the given name.
+ * Callers should surface the candidate list so the agent can re-request with a
+ * fully qualified path (e.g. `"text/primary"` instead of `"primary"`).
+ */
+export class AmbiguousMatchError extends Error {
+  constructor(
+    public readonly requestedName: string,
+    public readonly candidates: string[],
+  ) {
+    super(
+      `Ambiguous variable "${requestedName}": ${candidates.length} matches found ` +
+        `[${candidates
+          .slice(0, 5)
+          .map((n) => `"${n}"`)
+          .join(', ')}]. Specify the full path (e.g. "collection/group/name") or use a variable ID.`,
+    );
+    this.name = 'AmbiguousMatchError';
   }
 }
 
@@ -787,14 +863,11 @@ function resolveVariableByName(
       const pool = preferredScopes ? candidates.filter(scopeOk) : candidates;
       if (pool.length === 1) return pool[0].variable;
       if (pool.length > 1) {
-        // Ambiguity even after scope filtering: throw so the agent can self-correct
-        const names = pool
-          .slice(0, 5)
-          .map((e) => `"${e.variable.name}"`)
-          .join(', ');
-        throw new Error(
-          `Ambiguous variable "${name}": ${pool.length} matches found [${names}]. ` +
-            `Specify the full path (e.g. "collection/group/name") or use a variable ID.`,
+        // Ambiguity even after scope filtering: throw AmbiguousMatchError so the
+        // agent can surface the candidate list and self-correct with a full path.
+        throw new AmbiguousMatchError(
+          name,
+          pool.map((e) => e.variable.name),
         );
       }
     }
@@ -810,14 +883,9 @@ function resolveVariableByName(
     const pool = preferredScopes ? candidates.filter(scopeOk) : candidates;
     if (pool.length === 1) return pool[0].variable;
     if (pool.length > 1) {
-      // Ambiguity: throw error listing candidates so the agent can self-correct
-      const names = pool
-        .slice(0, 5)
-        .map((e) => `"${e.variable.name}"`)
-        .join(', ');
-      throw new Error(
-        `Ambiguous variable "${name}": ${pool.length} matches found [${names}]. ` +
-          `Specify the full path (e.g. "collection/group/name") or use a variable ID.`,
+      throw new AmbiguousMatchError(
+        name,
+        pool.map((e) => e.variable.name),
       );
     }
   }
@@ -850,10 +918,11 @@ export async function findColorVariableByName(
       const variable = await findLibraryVariableByName(name, 'COLOR', libraryName, preferredScopes);
       if (variable) return variable;
     } catch (err) {
-      // ScopeMismatchError is a semantic signal — the name matched but the scope is wrong.
-      // Let it propagate so callers (applyFill) can emit a descriptive hint with candidates,
-      // instead of silently falling back to local lookup and reporting "not found".
-      if (err instanceof ScopeMismatchError) throw err;
+      // ScopeMismatchError / AmbiguousMatchError are semantic signals that the name was
+      // recognized but can't be bound unambiguously. Let them propagate so callers
+      // (applyFill, applyStroke) can emit descriptive hints instead of falling back to
+      // local lookup and reporting "not found".
+      if (err instanceof ScopeMismatchError || err instanceof AmbiguousMatchError) throw err;
       /* other library lookup failure — fall through to local */
     }
   }
@@ -903,6 +972,9 @@ async function findLibraryVariableByName(
   // throw a descriptive ScopeMismatchError at the end if nothing else matched.
   // This distinguishes "not found" from "found but wrong scope" in caller-visible errors.
   const scopeRejected: Array<{ name: string; scopes: string[] }> = [];
+  // Track partial-name candidates that survived scope filtering but left 2+ hits —
+  // AmbiguousMatchError at the end lets the agent re-request with a full path.
+  const ambiguousCandidates: string[] = [];
 
   // Import a candidate and check its scopes against preferredScopes.
   // Returns the imported Variable if accepted, or null if the scope doesn't match.
@@ -957,6 +1029,8 @@ async function findLibraryVariableByName(
         if (partial.length === 1) {
           return cachedImportVariable(partial[0].key, `library:${partial[0].name}`);
         }
+        // 2+ candidates without scope disambiguation: record for end-of-function throw.
+        for (const p of partial) ambiguousCandidates.push(p.name);
         continue;
       }
 
@@ -980,16 +1054,26 @@ async function findLibraryVariableByName(
         }
       }
       if (accepted.length === 1) return accepted[0].imp;
+      if (accepted.length >= 2) {
+        // Multiple candidates survived scope filtering — ambiguous, record all so the
+        // final throw below surfaces the complete list across collections.
+        for (const a of accepted) ambiguousCandidates.push(a.src.name);
+      }
       // 0 accepted → fall through to next collection.
-      // 2+ accepted → still ambiguous, fall through rather than guessing.
     }
   }
 
-  // Nothing was returned. Distinguish "no name match" (return null → caller falls
-  // through to local lookup) from "name matched but all scopes rejected" (throw
-  // ScopeMismatchError → caller surfaces a descriptive hint with candidates).
+  // Nothing was returned. Priority:
+  //   1. Scope mismatch (name matched but all scopes rejected) — ScopeMismatchError
+  //   2. Ambiguous partial match (2+ candidates across collections) — AmbiguousMatchError
+  //   3. No name match at all — return null, caller falls through to local lookup
   if (applyScopeFilter && scopeRejected.length > 0) {
     throw new ScopeMismatchError(name, preferredScopes!, scopeRejected);
+  }
+  if (ambiguousCandidates.length > 1) {
+    // Dedup in case the same name appeared in multiple collections
+    const unique = Array.from(new Set(ambiguousCandidates));
+    if (unique.length > 1) throw new AmbiguousMatchError(name, unique);
   }
   return null;
 }

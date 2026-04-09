@@ -153,7 +153,7 @@ function platformDefaultFont(platform: Platform, content: string): string {
 interface TokenBindingFailure {
   requested: string;
   type: 'variable' | 'style';
-  action: 'skipped' | 'used_fallback' | 'scope-mismatch';
+  action: 'skipped' | 'used_fallback' | 'scope-mismatch' | 'ambiguous';
 }
 
 interface CreateContext {

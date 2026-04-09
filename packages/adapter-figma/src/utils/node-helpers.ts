@@ -8,6 +8,7 @@
 import { registerCache } from './cache-manager.js';
 import { hexToFigmaRgb } from './color.js';
 import {
+  AmbiguousMatchError,
   autoBindDefault,
   autoBindStrokeDefault,
   findColorVariableById,
@@ -248,7 +249,7 @@ async function clearStrokeStyle(node: SceneNode): Promise<void> {
 export interface TokenBindingFailure {
   requested: string;
   type: 'variable' | 'style';
-  action: 'skipped' | 'used_fallback' | 'scope-mismatch';
+  action: 'skipped' | 'used_fallback' | 'scope-mismatch' | 'ambiguous';
 }
 
 export interface ApplyFillResult {
@@ -264,6 +265,24 @@ export interface ApplyStrokeResult {
   autoBound: string | null;
   colorHint?: string;
   bindingFailure?: TokenBindingFailure;
+}
+
+/**
+ * Build a descriptive colorHint from an AmbiguousMatchError for agent self-correction.
+ * Lists the candidate variable names so the agent can re-request with a fully
+ * qualified path (e.g. `"text/primary"` instead of `"primary"`). Shared between
+ * applyFill and applyStroke.
+ */
+function formatAmbiguousMatchHint(err: AmbiguousMatchError, requestedName: string): string {
+  const shown = err.candidates
+    .slice(0, 6)
+    .map((n) => `"${n}"`)
+    .join(', ');
+  const more = err.candidates.length > 6 ? ` (+${err.candidates.length - 6} more)` : '';
+  return (
+    `⛔ Variable name "${requestedName}" is ambiguous: ${err.candidates.length} candidates match ` +
+    `[${shown}]${more}. Re-request with a fully qualified path (e.g. "text/primary" instead of "primary").`
+  );
 }
 
 /**
@@ -426,10 +445,8 @@ export async function applyFill(
           }
         }
       } catch (err) {
-        // Scope mismatch: the variable name resolved to one or more library entries,
-        // but their Figma scopes are incompatible with this binding role. Surface a
-        // descriptive hint with the rejected candidates so the agent can self-correct
-        // instead of blindly searching for a variable it thinks is missing.
+        // Semantic errors from the lookup chain — surface them instead of silently
+        // falling through so the agent can self-correct in one round-trip.
         if (err instanceof ScopeMismatchError) {
           return {
             autoBound: null,
@@ -440,6 +457,13 @@ export async function applyFill(
               ROLE_SCOPE_HINTS[role],
             ),
             bindingFailure: { requested: fill, type: 'variable', action: 'scope-mismatch' },
+          };
+        }
+        if (err instanceof AmbiguousMatchError) {
+          return {
+            autoBound: null,
+            colorHint: formatAmbiguousMatchHint(err, fill),
+            bindingFailure: { requested: fill, type: 'variable', action: 'ambiguous' },
           };
         }
         /* other variable lookup failure — try style */
@@ -587,13 +611,21 @@ export async function applyStroke(
         return { autoBound: `var:${variable.name}` };
       }
     } catch (err) {
-      // Surface scope mismatch so AI can self-correct (mirrors applyFill behavior).
+      // Surface semantic lookup errors so AI can self-correct (mirrors applyFill).
       if (err instanceof ScopeMismatchError) {
         (node as any).strokeWeight = strokeWeight ?? 1;
         return {
           autoBound: null,
           colorHint: formatScopeMismatchHint(err, varName, 'stroke', STROKE_SCOPES),
           bindingFailure: { requested: varName, type: 'variable', action: 'scope-mismatch' },
+        };
+      }
+      if (err instanceof AmbiguousMatchError) {
+        (node as any).strokeWeight = strokeWeight ?? 1;
+        return {
+          autoBound: null,
+          colorHint: formatAmbiguousMatchHint(err, varName),
+          bindingFailure: { requested: varName, type: 'variable', action: 'ambiguous' },
         };
       }
       /* other lookup failure — fall through */
@@ -634,13 +666,21 @@ export async function applyStroke(
           return { autoBound: `var:${variable.name}` };
         }
       } catch (err) {
-        // Surface scope mismatch — consistent with applyFill + { _variable } path above.
+        // Surface semantic lookup errors — consistent with applyFill + { _variable } path above.
         if (err instanceof ScopeMismatchError) {
           (node as any).strokeWeight = strokeWeight ?? 1;
           return {
             autoBound: null,
             colorHint: formatScopeMismatchHint(err, stroke, 'stroke', STROKE_SCOPES),
             bindingFailure: { requested: stroke, type: 'variable', action: 'scope-mismatch' },
+          };
+        }
+        if (err instanceof AmbiguousMatchError) {
+          (node as any).strokeWeight = strokeWeight ?? 1;
+          return {
+            autoBound: null,
+            colorHint: formatAmbiguousMatchHint(err, stroke),
+            bindingFailure: { requested: stroke, type: 'variable', action: 'ambiguous' },
           };
         }
         /* other lookup failure — try style */
