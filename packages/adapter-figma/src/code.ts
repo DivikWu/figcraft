@@ -29,7 +29,7 @@ import { registerScanHandlers } from './handlers/scan.js';
 import { registerSearchDesignSystemHandler } from './handlers/search-design-system.js';
 import { registerSelectionHandlers } from './handlers/selection.js';
 // ─── Staging handlers ───
-import { registerStagingHandlers } from './handlers/staging.js';
+import { clearStagedCache, registerStagingHandlers } from './handlers/staging.js';
 import { registerStorageHandlers } from './handlers/storage.js';
 import { registerStyleHandlers } from './handlers/styles.js';
 import { registerVariableHandlers } from './handlers/variables.js';
@@ -41,10 +41,14 @@ import { registerWriteStyleHandlers } from './handlers/write-styles.js';
 import { registerWriteVariableHandlers } from './handlers/write-variables.js';
 import { handlers, registerHandler } from './registry.js';
 import { clearAllCaches } from './utils/cache-manager.js';
-import { getLibraryDesignContext, getLocalDesignContext } from './utils/design-context.js';
+import {
+  getAvailableLibraryCollectionsCached,
+  getLibraryDesignContext,
+  getLocalDesignContext,
+} from './utils/design-context.js';
 import { HandlerError } from './utils/handler-error.js';
 import { createSerialTaskQueue } from './utils/serial-task-queue.js';
-import { getRegisteredStylesSummary } from './utils/style-registry.js';
+import { ensureLoaded, getRegisteredStylesSummary } from './utils/style-registry.js';
 
 // ─── Register all handlers ───
 registerNodeHandlers();
@@ -70,6 +74,11 @@ registerImageVectorHandlers();
 registerIconSvgHandler();
 registerExecuteJsHandler();
 registerSearchDesignSystemHandler();
+
+// ─── Page change safety: clear staging cache to prevent cross-page leaks ───
+figma.on('currentpagechange', () => {
+  clearStagedCache();
+});
 
 // Show the UI (establishes WebSocket connection to relay)
 figma.showUI(__html__, { visible: true, width: 320, height: 480 });
@@ -110,7 +119,18 @@ async function getLibraryEntries(): Promise<Record<string, LibraryEntry>> {
   return raw as Record<string, LibraryEntry>;
 }
 
+// Dedup: if sendLibraryList is already running, reuse the inflight promise
+let _sendLibraryListInflight: Promise<void> | null = null;
+
 async function sendLibraryList() {
+  if (_sendLibraryListInflight) return _sendLibraryListInflight;
+  _sendLibraryListInflight = _sendLibraryListImpl().finally(() => {
+    _sendLibraryListInflight = null;
+  });
+  return _sendLibraryListInflight;
+}
+
+async function _sendLibraryListImpl() {
   const entries = await getLibraryEntries();
   const libraries = Object.entries(entries).map(([fileKey, entry]) => ({
     name: entry.name,
@@ -135,12 +155,7 @@ async function sendLibraryList() {
   // Wrap with a 8s timeout to prevent blocking the UI message handler
   let inUseLibraries: string[] = [];
   try {
-    const availableCollections = await Promise.race([
-      figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync(),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('getAvailableLibraryVariableCollections timed out')), 8_000),
-      ),
-    ]);
+    const availableCollections = await getAvailableLibraryCollectionsCached();
     const remoteCollectionKeys = new Set(localCollections.filter((c) => c.remote).map((c) => c.key));
     inUseLibraries = [
       ...new Set(availableCollections.filter((c) => remoteCollectionKeys.has(c.key)).map((c) => c.libraryName)),
@@ -370,10 +385,7 @@ figma.ui.on(
         // Resolve the variable API library name — it may differ from the file name
         // (e.g. when a file is duplicated, variables may retain the original library name)
         try {
-          const availCols = await Promise.race([
-            figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync(),
-            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5_000)),
-          ]);
+          const availCols = await getAvailableLibraryCollectionsCached();
           const apiNames = [...new Set(availCols.map((c) => c.libraryName))];
           // 1. Try exact match first
           const exactMatch = apiNames.find((n) => n === name);
@@ -506,6 +518,11 @@ registerHandler('get_mode', async () => {
         }
       }
     }
+  }
+
+  // Fire-and-forget: preheat style registry so first node creation doesn't pay the 0-6s cold start
+  if (mode === 'library' && library) {
+    ensureLoaded(library).catch(() => {});
   }
 
   return { mode, selectedLibrary: library || null, designContext, libraryFileKey };

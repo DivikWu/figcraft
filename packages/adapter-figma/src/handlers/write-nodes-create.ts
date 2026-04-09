@@ -33,7 +33,7 @@ import {
   applyTokenFields,
   setComponentProperties,
 } from '../utils/node-helpers.js';
-import { findNodeByIdAsync } from '../utils/node-lookup.js';
+import { assertOnCurrentPage, findNodeByIdAsync } from '../utils/node-lookup.js';
 import {
   ensureLoaded,
   getAvailableEffectStyleNames,
@@ -533,17 +533,21 @@ function validateChildNode(node: SceneNode, parent: FrameNode, childPath: string
 /** Shape types that only support FIXED and FILL sizing (not HUG). */
 const SHAPE_TYPES = new Set(['RECTANGLE', 'ELLIPSE', 'STAR', 'POLYGON', 'LINE', 'VECTOR']);
 
-/** Mobile screen detection: width 320–440, height 568–932 (iPhone SE → Pro Max, common Android). */
-/** Detect mobile/tablet screen sizes — these should keep FIXED sizing, not HUG. */
+/** Detect screen-sized frames (mobile/tablet/desktop) — these should keep FIXED sizing, not HUG. */
 function isScreenSize(node: SceneNode): boolean {
   if (!('width' in node) || !('height' in node)) return false;
   const w = Math.round((node as any).width);
   const h = Math.round((node as any).height);
-  // Mobile: iPhone SE (320x568) → iPhone 16 Pro Max (430x932), Samsung/Pixel (360-412)
-  const isMobile = w >= 320 && w <= 440 && h >= 568 && h <= 932;
-  // Tablet: iPad mini (768x1024) → iPad Pro 12.9" (1024x1366)
-  const isTablet = w >= 768 && w <= 1024 && h >= 1024 && h <= 1366;
-  return isMobile || isTablet;
+  // Normalize: long = max, short = min (handles landscape orientation)
+  const long = Math.max(w, h);
+  const short = Math.min(w, h);
+  // Mobile: iPhone SE (320×568) → iPhone 16 Pro Max (440×960), Samsung/Pixel (360-412)
+  const isMobile = short >= 320 && short <= 440 && long >= 568 && long <= 960;
+  // Tablet: iPad mini (744×1133) → iPad Pro 12.9" (1024×1366), iPad Pro 11" (834×1194)
+  const isTablet = short >= 744 && short <= 1024 && long >= 1024 && long <= 1366;
+  // Web/Desktop: width ≥ 1024, height ≥ 600 (excludes narrow sidebar-style frames)
+  const isDesktop = w >= 1024 && h >= 600;
+  return isMobile || isTablet || isDesktop;
 }
 
 /** Check if a node is a shape or SVG-generated frame without auto-layout. */
@@ -574,15 +578,15 @@ function inferChildSizing(
   // Root-level frames (direct children of page, no auto-layout parent):
   // Default to HUG/HUG so the frame wraps its content instead of collapsing to Figma's default 100px.
   if (!parent || !('layoutMode' in parent) || (parent as FrameNode).layoutMode === 'NONE') {
-    // Mobile screen dimensions → always FIXED even when root frame (no auto-layout parent)
-    if (isScreenSize(node)) {
+    // Screen dimensions or role='screen' → always FIXED even when root frame (no auto-layout parent)
+    if (isScreenSize(node) || (node as any).getPluginData?.('role') === 'screen') {
       if (!explicitH) {
         setLayoutSizing(node, 'horizontal', 'FIXED');
         hints.push({
           confidence: 'deterministic',
           field: 'layoutSizingHorizontal',
           value: 'FIXED',
-          reason: 'mobile screen dimensions detected — locked to FIXED',
+          reason: 'screen dimensions detected — locked to FIXED',
         });
       }
       if (!explicitV) {
@@ -591,12 +595,12 @@ function inferChildSizing(
           confidence: 'deterministic',
           field: 'layoutSizingVertical',
           value: 'FIXED',
-          reason: 'mobile screen dimensions detected — locked to FIXED',
+          reason: 'screen dimensions detected — locked to FIXED',
         });
       }
       return;
     }
-    if ('layoutMode' in node && (node as FrameNode).layoutMode !== 'NONE') {
+    if ('layoutMode' in node && node.type !== 'INSTANCE' && (node as FrameNode).layoutMode !== 'NONE') {
       if (!explicitH) {
         setLayoutSizing(node, 'horizontal', 'HUG');
         hints.push({
@@ -646,7 +650,7 @@ function inferChildSizing(
   }
 
   const isVertical = parentDir === 'VERTICAL';
-  const isShape = isShapeNode(node);
+  const isShape = isShapeNode(node) || node.type === 'INSTANCE';
 
   // SPACE_BETWEEN + single child → FILL on primary axis (HUG defeats SPACE_BETWEEN)
   if (parentFrame.primaryAxisAlignItems === 'SPACE_BETWEEN' && parentFrame.children.length === 1 && !isShape) {
@@ -670,22 +674,23 @@ function inferChildSizing(
   // - If parent HUGs on cross-axis → child can't FILL (would collapse to 0), use HUG (or FIXED for shapes)
   // - If parent uses CENTER/MAX/BASELINE alignment → FILL would override alignment, use HUG/FIXED
   // - Otherwise → FILL (stretch to fill parent)
+  const fixedLabel = node.type === 'INSTANCE' ? 'instance keeps defined size' : 'shape keeps explicit size';
   function safeCrossDefault(): { sizing: 'FILL' | 'HUG' | 'FIXED'; reason: string } {
     const crossSizing = getLayoutSizing(parentFrame, isVertical ? 'horizontal' : 'vertical');
     if (crossSizing === 'HUG') {
       return isShape
-        ? { sizing: 'FIXED', reason: 'parent HUGs on cross-axis; shape keeps explicit size' }
+        ? { sizing: 'FIXED', reason: `parent HUGs on cross-axis; ${fixedLabel}` }
         : { sizing: 'HUG', reason: 'parent HUGs on cross-axis' };
     }
     const crossAlign = parentFrame.counterAxisAlignItems;
     if (crossAlign === 'CENTER' || crossAlign === 'MAX') {
       return isShape
-        ? { sizing: 'FIXED', reason: `parent aligns children ${crossAlign}; shape keeps explicit size` }
+        ? { sizing: 'FIXED', reason: `parent aligns children ${crossAlign}; ${fixedLabel}` }
         : { sizing: 'HUG', reason: `parent aligns children ${crossAlign} — FILL would override` };
     }
     if ((crossAlign as string) === 'BASELINE') {
       return isShape
-        ? { sizing: 'FIXED', reason: 'parent uses BASELINE alignment; shape keeps explicit size' }
+        ? { sizing: 'FIXED', reason: `parent uses BASELINE alignment; ${fixedLabel}` }
         : { sizing: 'HUG', reason: 'parent uses BASELINE alignment — FILL would override' };
     }
     return { sizing: 'FILL', reason: 'stretch to fill parent' };
@@ -693,9 +698,14 @@ function inferChildSizing(
 
   const cross = safeCrossDefault();
 
-  // Shapes don't support HUG — use FIXED for primary axis instead
+  // Shapes and instances don't support HUG — use FIXED for primary axis instead
+  const isInstance = node.type === 'INSTANCE';
   const primaryDefault = isShape ? 'FIXED' : 'HUG';
-  const primaryReason = isShape ? 'shape keeps explicit size along flow' : 'shrink to content along flow';
+  const primaryReason = isShape
+    ? isInstance
+      ? 'instance preserves component-defined size along flow'
+      : 'shape keeps explicit size along flow'
+    : 'shrink to content along flow';
 
   // Cross-axis → FILL or HUG/FIXED (context-dependent), primary-axis → HUG or FIXED (shapes)
   if (!explicitH) {
@@ -829,6 +839,10 @@ async function setupFrame(
       if (fillResult.autoBound) ctx.libraryBindings.push(fillResult.autoBound);
       if (fillResult.colorHint) ctx.warnings.push(fillResult.colorHint);
       if (fillResult.bindingFailure) ctx.tokenBindingFailures.push(fillResult.bindingFailure);
+    } else if (isPresentation) {
+      // Presentational scaffolding (Wrapper, Stage, Flow Row) needs contrast background.
+      // If AI omitted fill (e.g. due to "no hex" colorRules), apply default light gray.
+      frame.fills = [{ type: 'SOLID', color: hexToFigmaRgb('#F3F4F6') }];
     } else {
       frame.fills = []; // structural container — transparent
     }
@@ -1821,6 +1835,7 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
     let parentNode: BaseNode | null = null;
     if (params.parentId) {
       parentNode = await findNodeByIdAsync(params.parentId as string);
+      if (parentNode) assertOnCurrentPage(parentNode, params.parentId as string);
       if (parentNode && 'appendChild' in parentNode) {
         (parentNode as FrameNode).appendChild(frame);
       }
@@ -1947,6 +1962,7 @@ async function createSingleText(params: Record<string, unknown>): Promise<Record
     let parentNode: BaseNode | null = null;
     if (params.parentId) {
       parentNode = await findNodeByIdAsync(params.parentId as string);
+      if (parentNode) assertOnCurrentPage(parentNode, params.parentId as string);
       if (parentNode && 'appendChild' in parentNode) {
         (parentNode as FrameNode).appendChild(text);
       }

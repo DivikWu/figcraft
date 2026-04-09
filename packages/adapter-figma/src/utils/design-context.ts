@@ -81,6 +81,41 @@ function withTimeoutReject<T>(promise: Promise<T>, ms: number, label?: string): 
 /** Timeout for individual Figma API network calls (import, collection fetch). */
 const API_CALL_TIMEOUT_MS = 8_000;
 
+// ─── Shared library collections fetcher (dedup + TTL cache) ───
+// getAvailableLibraryVariableCollectionsAsync is the single slowest API call (~1-8s).
+// Multiple call sites (sendLibraryList, getCollectionIndex, lint, search) hit it independently.
+// This shared fetcher ensures at most one inflight request + a short TTL cache.
+
+const LIBRARY_COLLECTIONS_TTL_MS = 30_000;
+let _libraryCollectionsCache: { data: LibraryVariableCollection[]; ts: number } | null = null;
+let _libraryCollectionsInflight: Promise<LibraryVariableCollection[]> | null = null;
+
+/** Fetch available library variable collections with dedup + 30s TTL cache. */
+export function getAvailableLibraryCollectionsCached(): Promise<LibraryVariableCollection[]> {
+  if (_libraryCollectionsCache && Date.now() - _libraryCollectionsCache.ts < LIBRARY_COLLECTIONS_TTL_MS) {
+    return Promise.resolve(_libraryCollectionsCache.data);
+  }
+  if (_libraryCollectionsInflight) return _libraryCollectionsInflight;
+
+  _libraryCollectionsInflight = withTimeout(
+    figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync(),
+    API_CALL_TIMEOUT_MS,
+    [],
+    'getAvailableLibraryVariableCollections(cached)',
+  )
+    .then((data) => {
+      _libraryCollectionsCache = { data, ts: Date.now() };
+      _libraryCollectionsInflight = null;
+      return data;
+    })
+    .catch((err) => {
+      _libraryCollectionsInflight = null;
+      throw err;
+    });
+
+  return _libraryCollectionsInflight;
+}
+
 /** Timeout for aggregate auto-bind operations. */
 const AUTO_BIND_TIMEOUT_MS = 6_000;
 
@@ -133,7 +168,7 @@ let typoMapCache: { library: string; map: Map<number, TypographyBinding> } | nul
 const DEFAULT_MAPPINGS: Record<string, string[]> = {
   // Text colors
   textColor: ['text/primary', 'text/default', 'color/text/primary', 'colors/text-primary'],
-  headingColor: ['text/emphasis', 'text/heading', 'color/text/emphasis', 'colors/text-emphasis'],
+  headingColor: ['text/heading', 'text/primary', 'color/text/heading', 'colors/text-heading'],
   textSecondary: ['text/secondary', 'text/muted', 'color/text/secondary', 'colors/text-secondary'],
   textDisabled: ['text/disabled', 'text/tertiary', 'color/text/disabled', 'colors/text-disabled'],
   // Surface / background colors
@@ -221,12 +256,7 @@ async function getCollectionIndex(libraryName: string): Promise<CollectionInfo[]
   // Resolve the actual variable API name (may differ from display name)
   const resolvedName = await resolveVariableLibraryName(libraryName);
 
-  const all = await withTimeout(
-    figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync(),
-    API_CALL_TIMEOUT_MS,
-    [],
-    'getAvailableLibraryVariableCollections',
-  );
+  const all = await getAvailableLibraryCollectionsCached();
   const collections = all
     .filter((c) => c.libraryName === resolvedName)
     .map((c) => ({ key: c.key, name: c.name, libraryName: c.libraryName }));
@@ -471,6 +501,8 @@ export function clearDesignContextCache(): void {
   customMappingsCache = null;
   _variableImportCache.clear();
   _colorVarCache = null;
+  _libraryCollectionsCache = null;
+  _libraryCollectionsInflight = null;
 }
 
 // Register with centralized cache manager

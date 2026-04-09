@@ -30,3 +30,32 @@ export async function findNodeByIdAsync(id: string): Promise<BaseNode | null> {
   // Fallback: walk current page tree
   return walkForNode(figma.currentPage, id);
 }
+
+// ─── Cross-page safety guards ───
+
+/** Walk up the tree to find the containing Page node. */
+export function getContainingPage(node: BaseNode): PageNode | null {
+  let current: BaseNode | null = node;
+  while (current) {
+    if (current.type === 'PAGE') return current as PageNode;
+    current = current.parent;
+  }
+  return null;
+}
+
+/**
+ * Assert that a node belongs to the current page.
+ * Throws with `code: 'CROSS_PAGE'` if the node is on a different page.
+ * Silently passes if the page cannot be determined (e.g. detached nodes).
+ */
+export function assertOnCurrentPage(node: BaseNode, nodeId: string): void {
+  const page = getContainingPage(node);
+  if (page && page.id !== figma.currentPage.id) {
+    throw Object.assign(
+      new Error(
+        `Node ${nodeId} is on page "${page.name}", not current page "${figma.currentPage.name}". Cross-page write refused.`,
+      ),
+      { code: 'CROSS_PAGE' },
+    );
+  }
+}

@@ -5,7 +5,7 @@
 import { simplifyNode } from '../adapters/node-simplifier.js';
 import { handlers, registerHandler } from '../registry.js';
 import { assertHandler, HandlerError } from '../utils/handler-error.js';
-import { findNodeByIdAsync } from '../utils/node-lookup.js';
+import { assertOnCurrentPage, findNodeByIdAsync } from '../utils/node-lookup.js';
 
 export function registerComponentHandlers(): void {
   registerHandler('list_components', async () => {
@@ -174,6 +174,7 @@ export function registerComponentHandlers(): void {
   registerHandler('delete_component', async (params) => {
     const node = await findNodeByIdAsync(params.nodeId as string);
     assertHandler(node && node.type === 'COMPONENT', `Component not found: ${params.nodeId}`, 'NOT_FOUND');
+    assertOnCurrentPage(node, params.nodeId as string);
     node.remove();
     return { ok: true };
   });

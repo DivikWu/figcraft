@@ -7,6 +7,7 @@
  */
 
 import { registerHandler } from '../registry.js';
+import { getAvailableLibraryCollectionsCached } from '../utils/design-context.js';
 import { assertHandler } from '../utils/handler-error.js';
 
 // ─── Fuzzy scoring ───
@@ -77,7 +78,7 @@ export function registerSearchDesignSystemHandler(): void {
     if (types.has('variables')) {
       if (!isLocalOnly) {
         try {
-          let collections = await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync();
+          let collections = await getAvailableLibraryCollectionsCached();
           // Filter to selected library when a specific library is chosen
           if (selectedLibrary) {
             collections = collections.filter((c) => c.libraryName === selectedLibrary);

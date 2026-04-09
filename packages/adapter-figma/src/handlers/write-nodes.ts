@@ -18,7 +18,7 @@ import {
   applyTokenField,
   translateSingleSizing,
 } from '../utils/node-helpers.js';
-import { findNodeByIdAsync } from '../utils/node-lookup.js';
+import { assertOnCurrentPage, findNodeByIdAsync, getContainingPage } from '../utils/node-lookup.js';
 import { ensureLoaded, getTextStyleId } from '../utils/style-registry.js';
 
 const MODE_STORAGE_KEY = STORAGE_KEYS.MODE;
@@ -366,6 +366,14 @@ export function registerWriteNodeHandlers(): void {
           continue;
         }
 
+        // Cross-page warning (non-blocking for patches)
+        const patchPage = getContainingPage(node);
+        if (patchPage && patchPage.id !== figma.currentPage.id) {
+          console.warn(
+            `[FigCraft] patch_nodes: node ${patch.nodeId} is on page "${patchPage.name}", not current page.`,
+          );
+        }
+
         // Collect unknown props upfront
         const unknownProps: string[] = [];
         for (const key of Object.keys(patch.props)) {
@@ -595,6 +603,7 @@ export function registerWriteNodeHandlers(): void {
     const nodeId = params.nodeId as string;
     const node = await findNodeByIdAsync(nodeId);
     assertHandler(node, `Node not found: ${nodeId}`, 'NOT_FOUND');
+    assertOnCurrentPage(node, nodeId);
     node.remove();
     return { ok: true };
   });
@@ -607,8 +616,17 @@ export function registerWriteNodeHandlers(): void {
       if (!node) {
         results.push({ nodeId, ok: false, error: 'Node not found' });
       } else {
-        node.remove();
-        results.push({ nodeId, ok: true });
+        const page = getContainingPage(node);
+        if (page && page.id !== figma.currentPage.id) {
+          results.push({
+            nodeId,
+            ok: false,
+            error: `Node is on page "${page.name}", not current page. Cross-page delete refused.`,
+          });
+        } else {
+          node.remove();
+          results.push({ nodeId, ok: true });
+        }
       }
     }
     return { results };
@@ -622,15 +640,19 @@ export function registerWriteNodeHandlers(): void {
       try {
         const node = await findNodeByIdAsync(item.id);
         assertHandler(node, `Node not found: ${item.id}`, 'NOT_FOUND');
+        assertOnCurrentPage(node, item.id);
+        // Pre-validate parent before cloning to avoid orphaned clones
+        let targetParent: BaseNode | null = null;
+        if (item.parentId) {
+          targetParent = await findNodeByIdAsync(item.parentId);
+          if (targetParent) assertOnCurrentPage(targetParent, item.parentId);
+        }
         const clone = (node as SceneNode).clone();
         if (item.name) clone.name = item.name;
         if (item.x != null) clone.x = item.x;
         if (item.y != null) clone.y = item.y;
-        if (item.parentId) {
-          const parent = await findNodeByIdAsync(item.parentId);
-          if (parent && 'appendChild' in parent) {
-            (parent as FrameNode).appendChild(clone);
-          }
+        if (targetParent && 'appendChild' in targetParent) {
+          (targetParent as FrameNode).appendChild(clone);
         }
         results.push({ id: clone.id, ok: true });
       } catch (err) {
@@ -648,12 +670,14 @@ export function registerWriteNodeHandlers(): void {
       try {
         const node = await findNodeByIdAsync(item.id);
         assertHandler(node, `Node not found: ${item.id}`, 'NOT_FOUND');
+        assertOnCurrentPage(node, item.id);
         const parent = await findNodeByIdAsync(item.parentId);
         assertHandler(
           parent && 'appendChild' in parent,
           `Parent not found or not a container: ${item.parentId}`,
           'NOT_FOUND',
         );
+        assertOnCurrentPage(parent!, item.parentId);
         const container = parent as FrameNode;
         const sceneNode = node as SceneNode;
         const beforeParentId = sceneNode.parent?.id;

@@ -12,13 +12,18 @@
 
 import { registerHandler } from '../registry.js';
 import { assertHandler } from '../utils/handler-error.js';
-import { findNodeByIdAsync } from '../utils/node-lookup.js';
+import { findNodeByIdAsync, getContainingPage } from '../utils/node-lookup.js';
 
 const STAGED_TAG = '[FigCraft:staged]';
 const STAGED_OPACITY = 0.5;
 
 /** In-memory cache of staged node IDs (fast path). */
 const stagedNodeIds = new Set<string>();
+
+/** Clear the in-memory staging cache. Called on page change to prevent cross-page leaks. */
+export function clearStagedCache(): void {
+  stagedNodeIds.clear();
+}
 
 // ─── Helpers ───
 
@@ -86,6 +91,17 @@ export function registerStagingHandlers(): void {
           errors.push({ nodeId: id, error: 'Node not found' });
           continue;
         }
+
+        // Cross-page safety: refuse to stage nodes on other pages
+        const page = getContainingPage(node);
+        if (page && page.id !== figma.currentPage.id) {
+          errors.push({
+            nodeId: id,
+            error: `Node is on page "${page.name}", not current page. Cross-page stage refused.`,
+          });
+          continue;
+        }
+
         const sceneNode = node as SceneNode;
 
         // Idempotency: skip if already staged (prevents corrupting originalOpacity)
@@ -140,6 +156,7 @@ export function registerStagingHandlers(): void {
     let committed = 0;
     const errors: Array<{ nodeId: string; error: string }> = [];
 
+    let skippedCrossPage = 0;
     for (const id of targetIds) {
       try {
         const node = await findNodeByIdAsync(id);
@@ -148,6 +165,14 @@ export function registerStagingHandlers(): void {
           stagedNodeIds.delete(id);
           continue;
         }
+
+        // Cross-page safety: skip nodes on other pages
+        const page = getContainingPage(node);
+        if (page && page.id !== figma.currentPage.id) {
+          skippedCrossPage++;
+          continue;
+        }
+
         const sceneNode = node as SceneNode;
 
         // Restore original opacity from annotation
@@ -175,7 +200,7 @@ export function registerStagingHandlers(): void {
       }
     }
 
-    return { committed, errors, remainingStaged: [...stagedNodeIds] };
+    return { committed, skippedCrossPage, errors, remainingStaged: [...stagedNodeIds] };
   });
 
   registerHandler('discard_changes', async (params) => {
@@ -188,6 +213,7 @@ export function registerStagingHandlers(): void {
     const targetIds = nodeIds && nodeIds.length > 0 ? nodeIds : [...stagedNodeIds];
 
     let discarded = 0;
+    let skippedCrossPage = 0;
     const errors: Array<{ nodeId: string; error: string }> = [];
 
     for (const id of targetIds) {
@@ -198,6 +224,14 @@ export function registerStagingHandlers(): void {
           stagedNodeIds.delete(id);
           continue;
         }
+
+        // Cross-page safety: skip nodes on other pages
+        const page = getContainingPage(node);
+        if (page && page.id !== figma.currentPage.id) {
+          skippedCrossPage++;
+          continue;
+        }
+
         // Remove the node from canvas
         (node as SceneNode).remove();
         stagedNodeIds.delete(id);
@@ -207,7 +241,7 @@ export function registerStagingHandlers(): void {
       }
     }
 
-    return { discarded, errors, remainingStaged: [...stagedNodeIds] };
+    return { discarded, skippedCrossPage, errors, remainingStaged: [...stagedNodeIds] };
   });
 
   registerHandler('list_staged', async () => {

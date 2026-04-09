@@ -6,10 +6,11 @@
  */
 
 import { registerHandler } from '../registry.js';
+import { getAvailableLibraryCollectionsCached } from '../utils/design-context.js';
 
 export function registerLibraryHandlers(): void {
   registerHandler('list_library_collections', async () => {
-    const collections = await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync();
+    const collections = await getAvailableLibraryCollectionsCached();
     return collections.map((c) => ({
       key: c.key,
       name: c.name,

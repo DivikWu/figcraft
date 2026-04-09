@@ -17,6 +17,7 @@ import { simplifyNode } from '../adapters/node-simplifier.js';
 import { LOCAL_LIBRARY } from '../constants.js';
 import { registerHandler } from '../registry.js';
 import { hexToFigmaRgb } from '../utils/color.js';
+import { getAvailableLibraryCollectionsCached } from '../utils/design-context.js';
 import type { DeferredStrategyHandler } from '../utils/fix-applicator.js';
 import { applyFixDescriptor, builtInDeferredStrategies } from '../utils/fix-applicator.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
@@ -214,7 +215,7 @@ export function registerLintHandlers(): void {
         }
       }
     } else {
-      const collections = await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync();
+      const collections = await getAvailableLibraryCollectionsCached();
       const colorCols = collections.filter(
         (c) => c.name.toLowerCase().includes('color') || c.name.toLowerCase().includes('primitives'),
       );
@@ -359,7 +360,7 @@ export function registerLintHandlers(): void {
         }
       }
     } else {
-      const collections = await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync();
+      const collections = await getAvailableLibraryCollectionsCached();
       const radiusCols = collections.filter((c) => {
         const n = c.name.toLowerCase();
         return n.includes('round') || n.includes('radius') || n.includes('corner') || n.includes('border');
@@ -546,7 +547,7 @@ export function registerLintHandlers(): void {
         }
       }
     } else {
-      const collections = await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync();
+      const collections = await getAvailableLibraryCollectionsCached();
       const spacingCols = collections.filter((c) => {
         const n = c.name.toLowerCase();
         return n.includes('spacing') || n.includes('space') || n.includes('gap') || n.includes('padding');
