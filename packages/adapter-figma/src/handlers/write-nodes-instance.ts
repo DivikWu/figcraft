@@ -50,6 +50,152 @@ function deriveTextPropertyName(textNode: TextNode, index: number, total: number
   return name;
 }
 
+// ─── textOverrides: batch inner-text override on instance children ───
+// Figma's `instance.setProperties` only targets component-defined TEXT properties.
+// Library components often do NOT expose every inner text (placeholders, helper text,
+// error copy) as a property, so AI has no way to update them in a single call —
+// it would have to text_scan → per-node set_text_content, which is slow and
+// frequently dropped mid-workflow.
+//
+// This helper walks the instance subtree, resolves each override key against the
+// collected text nodes, batches font loading in parallel, and writes characters
+// synchronously. Returns categorized warnings so the agent can distinguish "node
+// not found" (call text_scan), "font load failed" (env issue), and "write failed"
+// (likely a locked node) without guessing.
+//
+// Key matching order:
+//   1. Path match — key contains "/" → post-order path suffix match
+//   2. Index match — key is a non-negative integer → Nth text node in walk order
+//   3. Name match — plain string → TextNode.name exact match
+//
+// Mixed-font nodes use a "prevail" fallback: statistically dominant font in the
+// existing characters is loaded and applied as a reset before writing. Pattern
+// borrowed from Vibma's plugin/setcharacters.js prevail strategy.
+
+interface TextEntry {
+  node: TextNode;
+  path: string;
+}
+
+async function applyTextOverrides(
+  instance: InstanceNode,
+  overrides: Record<string, string>,
+  warnings: string[],
+): Promise<void> {
+  // Phase 1: collect all text nodes under the instance, carry path for "a/b/c" lookups
+  const textNodes: TextEntry[] = [];
+  function walk(n: BaseNode, path: string): void {
+    if (n.type === 'TEXT') textNodes.push({ node: n as TextNode, path });
+    if ('children' in n) {
+      for (const c of (n as FrameNode).children) {
+        walk(c, path ? `${path}/${c.name}` : c.name);
+      }
+    }
+  }
+  walk(instance, '');
+
+  if (textNodes.length === 0) {
+    warnings.push(`textOverrides: instance "${instance.name}" has no text descendants — nothing to override.`);
+    return;
+  }
+
+  // Phase 2: resolve each key to a target text node
+  const pending: Array<{ target: TextNode; value: string; key: string }> = [];
+  const notFound: string[] = [];
+  for (const [key, value] of Object.entries(overrides)) {
+    let match: TextEntry | undefined;
+    if (key.includes('/')) {
+      // Path match: exact path or suffix match so callers don't need to know the root name
+      match = textNodes.find((e) => e.path === key || e.path.endsWith(`/${key}`));
+    } else if (/^\d+$/.test(key)) {
+      // Index match: numeric string → Nth text node in walk order
+      const idx = parseInt(key, 10);
+      match = textNodes[idx];
+    } else {
+      // Name match: exact TextNode.name
+      match = textNodes.find((e) => e.node.name === key);
+    }
+    if (!match) notFound.push(key);
+    else pending.push({ target: match.node, value, key });
+  }
+
+  if (pending.length === 0) {
+    if (notFound.length > 0) {
+      warnings.push(
+        `textOverrides: no matching text nodes for keys [${notFound.join(', ')}]. ` +
+          `Call text_scan(nodeId:"${instance.id}") to see available text node names.`,
+      );
+    }
+    return;
+  }
+
+  // Phase 3: batch parallel font load (dedup + prevail fallback for figma.mixed)
+  const fontKeys = new Set<string>();
+  const prevailFonts = new Map<TextNode, FontName>();
+  for (const { target } of pending) {
+    if (target.fontName === figma.mixed) {
+      // Mixed-font node: compute the dominant font so we can reset + write
+      const fontCount: Record<string, number> = {};
+      const len = target.characters.length;
+      for (let i = 1; i <= len; i++) {
+        try {
+          const f = target.getRangeFontName(i - 1, i) as FontName;
+          const k = `${f.family}::${f.style}`;
+          fontCount[k] = (fontCount[k] ?? 0) + 1;
+        } catch {
+          /* range probe failed — skip */
+        }
+      }
+      const entries = Object.entries(fontCount).sort((a, b) => b[1] - a[1]);
+      if (entries.length > 0) {
+        const [family, style] = entries[0][0].split('::');
+        const fn: FontName = { family, style };
+        prevailFonts.set(target, fn);
+        fontKeys.add(JSON.stringify(fn));
+      }
+    } else {
+      fontKeys.add(JSON.stringify(target.fontName));
+    }
+  }
+  const loadResults = await Promise.allSettled(
+    [...fontKeys].map((k) => figma.loadFontAsync(JSON.parse(k) as FontName)),
+  );
+  const fontLoadFailed = loadResults.filter((r) => r.status === 'rejected').length;
+
+  // Reset mixed-font nodes to their prevail font (only works if the font loaded)
+  for (const [target, fn] of prevailFonts.entries()) {
+    try {
+      target.fontName = fn;
+    } catch {
+      /* font load failed earlier — write below will throw and be collected */
+    }
+  }
+
+  // Phase 4: synchronous character writes (fonts are loaded)
+  const mutationErrors: string[] = [];
+  for (const { target, value, key } of pending) {
+    try {
+      target.characters = value;
+    } catch (err) {
+      mutationErrors.push(`${key}: ${err instanceof Error ? err.message : 'write failed'}`);
+    }
+  }
+
+  // Phase 5: categorized warnings (never merged — agent needs to distinguish causes)
+  if (notFound.length > 0) {
+    warnings.push(
+      `textOverrides: text node(s) not found: [${notFound.join(', ')}]. ` +
+        `Call text_scan(nodeId:"${instance.id}") to see available text node names.`,
+    );
+  }
+  if (fontLoadFailed > 0) {
+    warnings.push(`textOverrides: ${fontLoadFailed} font load failure(s); affected text may not have updated.`);
+  }
+  if (mutationErrors.length > 0) {
+    warnings.push(`textOverrides write errors: ${mutationErrors.join('; ')}`);
+  }
+}
+
 export function registerInstanceHandlers(): void {
   // ─── Create instance ───
   registerHandler('create_instance', async (params) => {
@@ -87,6 +233,11 @@ export function registerInstanceHandlers(): void {
       if (unmatchedProperties.length > 0) {
         warnings.push(`Unmatched properties (ignored): ${unmatchedProperties.join(', ')}`);
       }
+    }
+
+    // Override inner text (placeholder, helper text, etc.) not exposed as component props
+    if (params.textOverrides && typeof params.textOverrides === 'object') {
+      await applyTextOverrides(instance, params.textOverrides as Record<string, string>, warnings);
     }
 
     // Parent append
@@ -208,6 +359,9 @@ export function registerInstanceHandlers(): void {
           if (unmatchedProperties.length > 0) {
             itemWarnings.push(`Unmatched properties: ${unmatchedProperties.join(', ')}`);
           }
+        }
+        if (item.textOverrides && typeof item.textOverrides === 'object') {
+          await applyTextOverrides(instance, item.textOverrides as Record<string, string>, itemWarnings);
         }
         if (item.parentId) {
           const parent = await findNodeByIdAsync(item.parentId as string);

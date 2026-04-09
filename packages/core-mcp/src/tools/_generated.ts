@@ -432,7 +432,8 @@ export function registerGeneratedTools(
       componentKey: z.string().optional().describe("Library component key (from search_design_system or libraryComponents). Imports the component from the team library. Tries as standalone component first, then as component set."),
       componentSetKey: z.string().optional().describe("Library component set key. Imports the full component set (with all variants) from the team library. Use with variantProperties to pick a specific variant."),
       variantProperties: z.record(z.unknown()).optional().describe("Pick variant e.g. {\"Style\":\"Secondary\",\"Size\":\"Large\"}"),
-      properties: z.record(z.unknown()).optional().describe("Set component properties inline e.g. {\"Label\":\"Click me\",\"ShowIcon\":true}"),
+      properties: z.record(z.unknown()).optional().describe("Set component properties inline e.g. {\"Label\":\"Click me\",\"ShowIcon\":true}. Only matches properties explicitly exposed by the component author (TEXT/BOOLEAN/VARIANT/INSTANCE_SWAP types). For arbitrary inner text nodes (placeholders, helper text, error copy) not exposed as properties, use textOverrides instead."),
+      textOverrides: z.record(z.unknown()).optional().describe("Batch override inner TextNode characters not exposed as component properties. Keys match by: (1) path \"Content/Label\" — suffix path match, (2) numeric string \"0\",\"1\" — Nth text node in walk order, (3) plain string \"Label\" — TextNode.name exact match. Example: {\"Label\":\"Email address\",\"Placeholder\":\"you@example.com\",\"Helper\":\"We never share your email\"}. Mixed-font text nodes use a prevail fallback (dominant font is loaded and applied). Unmatched keys emit a warning pointing to text_scan for discovery."),
       parentId: z.string().optional().describe("Parent node ID"),
       x: z.number().optional().describe("X position"),
       y: z.number().optional().describe("Y position"),
@@ -452,9 +453,9 @@ export function registerGeneratedTools(
   if (shouldRegisterGeneratedTool(include, 'create_instances')) {
     server.tool(
     'create_instances',
-    "Batch create component instances with variant selection, property overrides, and contextual sizing. Pass sizing:\"contextual\" to auto-infer FILL on cross-axis from parent auto-layout.",
+    "Batch create component instances with variant selection, property overrides, and contextual sizing. Pass sizing:\"contextual\" to auto-infer FILL on cross-axis from parent auto-layout. Each item may pass textOverrides to update inner text nodes not exposed as component properties.",
     {
-      items: z.array(z.record(z.unknown())).describe("Array of {componentId, variantProperties?, properties?, parentId?, sizing?, layoutSizingHorizontal?, ...}"),
+      items: z.array(z.record(z.unknown())).describe("Array of {componentId, variantProperties?, properties?, textOverrides?, parentId?, sizing?, layoutSizingHorizontal?, ...}"),
     },
     async (params) => {
       const result = await bridge.request('create_instances', params, undefined, 'create_instances', true);

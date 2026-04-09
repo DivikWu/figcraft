@@ -60,6 +60,8 @@ export function registerSearchDesignSystemHandler(): void {
         description: string;
         isSet: boolean;
         libraryName: string;
+        variants?: Array<{ property: string; options: string[] }>;
+        textProperties?: Array<{ name: string; defaultValue: string }>;
         _score: number;
       }>;
       variables: Array<{
@@ -72,6 +74,39 @@ export function registerSearchDesignSystemHandler(): void {
       }>;
       styles: Array<{ key: string; name: string; styleType: string; _score: number }>;
     } = { components: [], variables: [], styles: [] };
+
+    // Extract variant options and TEXT property metadata from a component / component set.
+    // Enables AI to pick the right component + variant in one round-trip instead of
+    // N follow-up calls to list_component_properties.
+    function extractComponentMetadata(node: ComponentNode | ComponentSetNode): {
+      variants: Array<{ property: string; options: string[] }>;
+      textProperties: Array<{ name: string; defaultValue: string }>;
+    } {
+      const variants: Array<{ property: string; options: string[] }> = [];
+      const textProperties: Array<{ name: string; defaultValue: string }> = [];
+      try {
+        const defs = node.componentPropertyDefinitions;
+        for (const [fullKey, def] of Object.entries(defs)) {
+          // Figma stores property keys as "Name#id" — strip the suffix for readability
+          const displayName = fullKey.includes('#') ? fullKey.slice(0, fullKey.indexOf('#')) : fullKey;
+          if (def.type === 'VARIANT') {
+            const options = (def as ComponentPropertyDefinitions[string] & { variantOptions?: string[] })
+              .variantOptions;
+            if (options && options.length > 0) {
+              variants.push({ property: displayName, options: [...options] });
+            }
+          } else if (def.type === 'TEXT') {
+            textProperties.push({
+              name: displayName,
+              defaultValue: typeof def.defaultValue === 'string' ? def.defaultValue : '',
+            });
+          }
+        }
+      } catch {
+        /* componentPropertyDefinitions may throw on partially-loaded library components */
+      }
+      return { variants, textProperties };
+    }
 
     // ─── Search library variables ───
     // Skip team library search when local-only mode
@@ -176,12 +211,15 @@ export function registerSearchDesignSystemHandler(): void {
           const score = scoreMatch(comp.name, queryTokens);
           if (score > 0 && !seen.has(comp.key)) {
             seen.add(comp.key);
+            const meta = extractComponentMetadata(comp);
             results.components.push({
               key: comp.key,
               name: comp.name,
               description: comp.description || '',
               isSet: node.type === 'COMPONENT_SET',
               libraryName: '(local)',
+              ...(meta.variants.length > 0 ? { variants: meta.variants } : {}),
+              ...(meta.textProperties.length > 0 ? { textProperties: meta.textProperties } : {}),
               _score: score,
             });
           }
@@ -199,12 +237,15 @@ export function registerSearchDesignSystemHandler(): void {
               const score = scoreMatch(target.name, queryTokens);
               if (score > 0 && !seen.has(target.key)) {
                 seen.add(target.key);
+                const meta = extractComponentMetadata(target);
                 results.components.push({
                   key: target.key,
                   name: target.name,
                   description: target.description || '',
                   isSet: !!cs,
                   libraryName: mc.remote ? '(library)' : '(local)',
+                  ...(meta.variants.length > 0 ? { variants: meta.variants } : {}),
+                  ...(meta.textProperties.length > 0 ? { textProperties: meta.textProperties } : {}),
                   _score: score,
                 });
               }
