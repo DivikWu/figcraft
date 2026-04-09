@@ -71,7 +71,8 @@ export function buildWorkflow(input: WorkflowInput): Record<string, unknown> {
           '(Required for screen/flow scale only.)',
       },
       colorRules: hasLibrary
-        ? '⛔ MANDATORY: Use fillVariableName/strokeVariableName with variable names from designContext.defaults. NEVER pass fill:"#hex" when a matching library token exists. For defaults entries that are null (listed in unresolvedDefaults), call search_design_system to find alternatives.' +
+        ? '⛔ MANDATORY: Use fillVariableName/strokeVariableName with variable names from designContext.defaults. NEVER pass fill:"#hex" when a matching library token exists. For defaults entries that are null (listed in unresolvedDefaults), call search_design_system to find alternatives. ' +
+          'EXCEPTION: Presentational scaffolding (role:"presentation" — Wrapper, Stage, Flow Row) MUST use explicit fill:"#hex" (e.g. "#F3F4F6"). These are display containers, not UI surfaces — do NOT bind them to library tokens.' +
           (libraryFallbackDecisions?.fillsUsed?.length
             ? ` (Fallback consistency: prior screens used hardcoded colors ${libraryFallbackDecisions.fillsUsed.join(', ')} where no token matched — reuse these for visual consistency.)`
             : '')
@@ -111,7 +112,9 @@ export function buildWorkflow(input: WorkflowInput): Record<string, unknown> {
           specPriority: [
             'MUST use component instances (type:"instance") when a matching component exists in libraryComponents; hand-built frame+text is only acceptable when no match.',
             'MUST match colors/fonts/spacing to library Variable/Style first; skip binding only when no match exists.',
-            'Check containingFrame to verify component category — property names like "Placeholder"/"Size" appear across unrelated types.',
+            '⛔ MUST pick components from the correct category group in libraryComponents. ' +
+              'Specialized components (e.g., "Credit Card" in Payment) are NOT generic alternatives (e.g., "Input Field" in Forms). ' +
+              'Always prefer the generic component from the matching category.',
           ],
         }
       : {}),
@@ -122,21 +125,28 @@ export function buildWorkflow(input: WorkflowInput): Record<string, unknown> {
       hasLibrary
         ? '⛔ TOKEN BINDING: Use designContext.defaults for color bindings — pass fillVariableName/strokeVariableName. ' +
           'unresolvedDefaults lists roles with no matching token — call search_design_system for these. ' +
-          'Text nodes auto-bind textColor when no fill specified. Only hardcode hex as last resort.'
+          'Text nodes auto-bind textColor when no fill specified. Only hardcode hex as last resort ' +
+          '(exception: role:"presentation" containers like Wrapper/Stage always use hex fills — they are scaffolding, not UI surfaces).'
         : null,
       // Component instances (Library vs Local vs Creator)
       isLocal
         ? '⛔ LOCAL COMPONENT INSTANCES: ' +
           'localComponents lists component sets (id, name, containingFrame, propertyOptions with all variant values) and standalone components. ' +
           'Use type:"instance" + componentId + variantProperties in children[]. ' +
-          'properties sets overrides AFTER creation (text labels, toggles). ' +
+          '⛔ TEXT OVERRIDES: ALWAYS pass properties:{} to replace default placeholder text. ' +
+          'Example: {type:"instance", componentId:"...", variantProperties:{...}, properties:{"Text":"登录","Label":"邮箱"}}. ' +
+          'Components ship with generic defaults ("Action","Label") — leaving them unchanged produces unusable UI. ' +
+          'Use components(method:"list_properties") to discover available text/boolean property names if unsure. ' +
           'search_design_system(query) for on-demand discovery beyond the summary. ' +
-          'DISAMBIGUATION: Check containingFrame to verify category (e.g., "Forms" vs "Avatars").'
+          'DISAMBIGUATION: Pick from the category matching your semantic intent — never cross categories.'
         : hasLibrary
-          ? '⛔ COMPONENT INSTANCES: libraryComponents lists component sets with key, containingFrame, and propertyOptions (all variant values). ' +
+          ? '⛔ COMPONENT INSTANCES: libraryComponents groups component sets by category (containingFrame) with key and propertyOptions (all variant values). ' +
             'Use type:"instance" + componentSetKey + variantProperties in children[]. ' +
-            'properties sets overrides AFTER creation (text labels, toggles). ' +
-            'DISAMBIGUATION: Check containingFrame to verify category (e.g., "Forms" vs "Avatars"). ' +
+            '⛔ TEXT OVERRIDES: ALWAYS pass properties:{} to replace default placeholder text. ' +
+            'Example: {type:"instance", componentSetKey:"...", variantProperties:{...}, properties:{"Text":"登录","Label":"邮箱"}}. ' +
+            'Components ship with generic defaults ("Action","Label") — leaving them unchanged produces unusable UI. ' +
+            'Use components(method:"list_properties") to discover available text/boolean property names if unsure. ' +
+            'DISAMBIGUATION: Pick from the category matching your semantic intent — never cross categories. ' +
             'Call search_design_system only for components NOT in libraryComponents.'
           : null,
       'Use create_frame + children (declarative) for all creation. children support optional index field for insertion order. type:"rectangle" for simple shapes (dividers, spacers), type:"frame" for containers with children/auto-layout. For text range styling: text(method:"set_range"). For grouping: group_nodes (requires load_toolset("shapes-vectors")). For complex layouts, call get_creation_guide(topic:"layout") for structural rules.',

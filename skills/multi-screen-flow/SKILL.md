@@ -17,7 +17,8 @@ Multi-screen flows (login, onboarding, checkout, etc.) MUST use a strict hierarc
 
 ```
 Wrapper (VERTICAL, HUG/HUG, counterAxisAlignItems=MIN, clipsContent=false,
-         cornerRadius=20-40, fill=lightGray, padding=48, itemSpacing=32)
+         cornerRadius=20-40, fill=lightGray, role:"presentation",
+         padding=48, itemSpacing=32)
   ├── Header (VERTICAL, HUG/HUG, itemSpacing=8)
   │     ├── Title (24px, bold)
   │     └── Description (16px, muted)

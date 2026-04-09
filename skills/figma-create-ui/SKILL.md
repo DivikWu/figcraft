@@ -114,7 +114,7 @@ Use `create_frame` with `type:"instance"` in children:
       "layoutMode": "VERTICAL", "itemSpacing": 32,
       "padding": 24, "paddingTop": 80,
       "children": [
-        { "type": "text", "content": "Welcome back", "textStyleName": "display-md", "fontColorVariableName": "text/emphasis" },
+        { "type": "text", "content": "Welcome back", "textStyleName": "display-md", "fontColorVariableName": "text/primary" },
         { "type": "text", "content": "Sign in to your account", "textStyleName": "body-md", "fontColorVariableName": "text/secondary" },
         {
           "type": "instance", "componentKey": "INPUT_KEY",

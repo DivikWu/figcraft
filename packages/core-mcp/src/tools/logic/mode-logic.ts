@@ -173,32 +173,35 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
       // Cache full REST result for search_design_system reuse (60s TTL)
       bridge.setRestComponentCache(fileKey, grouped);
       // Compress for get_mode: summary with variant property options (reduces search_design_system calls)
-      const summary = {
-        componentSets: grouped.componentSets.map((cs) => {
-          // Collect unique values per property across all variants
-          const propertyOptions: Record<string, string[]> = {};
-          for (const variant of cs.variants) {
-            for (const [propName, propValue] of Object.entries(variant.properties)) {
-              if (!propertyOptions[propName]) propertyOptions[propName] = [];
-              if (!propertyOptions[propName].includes(propValue)) {
-                propertyOptions[propName].push(propValue);
-              }
+      // Group by containingFrame so AI sees category context before selecting components
+      // (prevents misselection like "Credit Card" for a generic input field)
+      const byCategory: Record<string, Array<Record<string, unknown>>> = {};
+      for (const cs of grouped.componentSets) {
+        const category = cs.containingFrame || 'Uncategorized';
+        if (!byCategory[category]) byCategory[category] = [];
+        // Collect unique values per property across all variants
+        const propertyOptions: Record<string, string[]> = {};
+        for (const variant of cs.variants) {
+          for (const [propName, propValue] of Object.entries(variant.properties)) {
+            if (!propertyOptions[propName]) propertyOptions[propName] = [];
+            if (!propertyOptions[propName].includes(propValue)) {
+              propertyOptions[propName].push(propValue);
             }
           }
-          return {
-            key: cs.key,
-            name: cs.name,
-            description: cs.description,
-            // Library page/section name — critical for disambiguating components with similar property names
-            // (e.g., Avatar vs Input both have "Placeholder"/"Size" but live in different sections)
-            containingFrame: cs.containingFrame,
-            variantCount: cs.variants.length,
-            // Property names with all possible values — enables direct variant selection without extra search calls
-            propertyOptions,
-          };
-        }),
+        }
+        byCategory[category].push({
+          key: cs.key,
+          name: cs.name,
+          description: cs.description,
+          variantCount: cs.variants.length,
+          propertyOptions,
+        });
+      }
+      const summary = {
+        componentSets: byCategory,
         standalone: grouped.standalone,
         _note:
+          'Components are grouped by containingFrame (library section). Pick from the category matching your semantic intent. ' +
           'Use componentSetKey + variantProperties to instantiate variants. For component details beyond this summary, call components(method:"list_properties").',
       };
       (result as Record<string, unknown>).libraryComponents = summary;

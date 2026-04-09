@@ -17,6 +17,7 @@ export const specBorderRadiusRule: LintRule = {
 
   check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     if (ctx.radiusTokens.size === 0) return [];
+    if (node.role === 'presentation') return [];
     if (node.cornerRadius === undefined) return [];
     if (node.boundVariables?.cornerRadius) return [];
 

@@ -19,6 +19,9 @@ export const specColorRule: LintRule = {
   check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     const violations: LintViolation[] = [];
 
+    // Presentational containers are display scaffolding — skip token checks
+    if (node.role === 'presentation') return violations;
+
     // Skip if already bound to a variable
     if (node.boundVariables && Object.keys(node.boundVariables).length > 0) {
       return violations;

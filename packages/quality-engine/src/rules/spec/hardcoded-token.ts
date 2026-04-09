@@ -25,6 +25,10 @@ export const hardcodedTokenRule: LintRule = {
     // Only active in library mode with a library selected
     if (ctx.mode !== 'library' || !ctx.selectedLibrary) return [];
 
+    // Presentational containers (role:"presentation") are display scaffolding,
+    // not actual UI surfaces — skip token enforcement.
+    if (node.role === 'presentation') return [];
+
     const violations: LintViolation[] = [];
     const bv = node.boundVariables ?? {};
 

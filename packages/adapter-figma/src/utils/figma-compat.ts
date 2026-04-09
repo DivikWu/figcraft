@@ -16,8 +16,26 @@ export function applySizingOverrides(node: SceneNode, params: Record<string, unk
   }
 }
 
-/** Set layout sizing on a node (wraps the untyped Figma property). */
+/** Node types that support layoutSizing properties (inside auto-layout parents). */
+const SIZING_SUPPORTED_TYPES = new Set([
+  'FRAME',
+  'COMPONENT',
+  'COMPONENT_SET',
+  'INSTANCE',
+  'TEXT',
+  'RECTANGLE',
+  'ELLIPSE',
+  'STAR',
+  'POLYGON',
+  'LINE',
+  'VECTOR',
+  'BOOLEAN_OPERATION',
+  'SECTION',
+]);
+
+/** Set layout sizing on a node (wraps the untyped Figma property). Silently skips unsupported types. */
 export function setLayoutSizing(node: SceneNode, axis: 'horizontal' | 'vertical', value: string): void {
+  if (!SIZING_SUPPORTED_TYPES.has(node.type)) return;
   const prop = axis === 'horizontal' ? 'layoutSizingHorizontal' : 'layoutSizingVertical';
   (node as any)[prop] = value;
 }

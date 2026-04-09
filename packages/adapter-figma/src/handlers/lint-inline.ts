@@ -8,6 +8,7 @@
 
 import type { AbstractNode, LintContext, LintOptions, LintViolation } from '@figcraft/quality-engine';
 import { runLint } from '@figcraft/quality-engine';
+import { PLUGIN_DATA_KEYS } from '../constants.js';
 import { registerCache } from '../utils/cache-manager.js';
 import { figmaRgbaToHex } from '../utils/color.js';
 import { applyFixDescriptor, builtInDeferredStrategies } from '../utils/fix-applicator.js';
@@ -44,7 +45,7 @@ export function figmaNodeToAbstract(node: SceneNode): AbstractNode {
 
   // Role from plugin data
   try {
-    const role = node.getPluginData('role');
+    const role = node.getPluginData(PLUGIN_DATA_KEYS.ROLE);
     if (role) result.role = role;
   } catch {
     /* ignore */

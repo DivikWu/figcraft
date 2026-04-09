@@ -26,6 +26,8 @@ Universal design quality rules. Apply regardless of library mode.
 
 - MUST choose colors with intent — define semantic roles (primary action, surface, border, text) before picking hues
 - SHOULD follow 60-30-10 distribution: 60% neutral/surface, 30% secondary, 10% accent/primary
+- MUST use neutral/primary text color for headings and body — hierarchy comes from font size and weight, not color
+- NEVER use accent/emphasis color for heading text — reserve emphasis for inline highlights, error text, or interactive labels
 - MUST ensure neutral palette has sufficient range: at least 3 levels (background, surface, border)
 - NEVER use saturated colors for large surface areas — reserve high saturation for small accent elements
 - SHOULD derive on-surface text color from surface background using contrast ratio (≥ 4.5:1), not guesswork

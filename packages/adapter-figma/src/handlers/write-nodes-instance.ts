@@ -213,11 +213,16 @@ export function registerInstanceHandlers(): void {
           const parent = await findNodeByIdAsync(item.parentId as string);
           if (parent && 'appendChild' in parent) (parent as FrameNode).appendChild(instance);
         }
-        // Contextual sizing
+        // Contextual sizing: cross-axis FILL + primary-axis FIXED (preserve component height)
         if (item.sizing === 'contextual' && instance.parent && 'layoutMode' in instance.parent) {
           const dir = (instance.parent as FrameNode).layoutMode;
-          if (dir === 'VERTICAL') setLayoutSizing(instance, 'horizontal', 'FILL');
-          else if (dir === 'HORIZONTAL') setLayoutSizing(instance, 'vertical', 'FILL');
+          if (dir === 'VERTICAL') {
+            setLayoutSizing(instance, 'horizontal', 'FILL');
+            setLayoutSizing(instance, 'vertical', 'FIXED');
+          } else if (dir === 'HORIZONTAL') {
+            setLayoutSizing(instance, 'vertical', 'FILL');
+            setLayoutSizing(instance, 'horizontal', 'FIXED');
+          }
         }
         applySizingOverrides(instance, item);
 

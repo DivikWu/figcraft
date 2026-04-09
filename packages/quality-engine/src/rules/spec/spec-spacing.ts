@@ -17,6 +17,7 @@ export const specSpacingRule: LintRule = {
 
   check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     if (ctx.spacingTokens.size === 0) return [];
+    if (node.role === 'presentation') return [];
 
     const violations: LintViolation[] = [];
 
