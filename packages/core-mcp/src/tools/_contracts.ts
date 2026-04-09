@@ -28,13 +28,16 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
       selectedLibrary: z.string().optional(),
       designContext: z.record(z.unknown()).optional(),
       libraryComponents: z.object({
-        componentSets: z.record(z.array(z.object({
+        componentSets: z.array(z.object({
           key: z.string(),
           name: z.string(),
-          description: z.string().optional(),
-          variantCount: z.number().optional(),
-          propertyOptions: z.record(z.array(z.string())).optional(),
-        }))).optional(),
+          description: z.string(),
+          variants: z.array(z.object({
+          key: z.string(),
+          name: z.string(),
+          properties: z.record(z.string()).optional(),
+        })).optional(),
+        })).optional(),
         standalone: z.array(z.object({
           key: z.string(),
           name: z.string(),
@@ -820,21 +823,24 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
         ]
       },
       "libraryComponents": {
-        "componentSets": {
-          "Actions": [
-            {
-              "key": "component-set-key",
-              "name": "Button",
-              "description": "Primary CTA button",
-              "variantCount": 12,
-              "propertyOptions": {
-                "Type": ["Primary", "Secondary"],
-                "Size": ["Small", "Medium", "Large"],
-                "State": ["Default", "Hover"]
+        "componentSets": [
+          {
+            "key": "component-set-key",
+            "name": "Button",
+            "description": "Primary CTA button",
+            "variants": [
+              {
+                "key": "variant-key-1",
+                "name": "Type=Primary, Size=Medium, State=Default",
+                "properties": {
+                  "Type": "Primary",
+                  "Size": "Medium",
+                  "State": "Default"
+                }
               }
-            }
-          ]
-        },
+            ]
+          }
+        ],
         "standalone": [
           {
             "key": "standalone-key",
