@@ -615,6 +615,43 @@ const ROLE_TO_SCOPES: Record<string, string[]> = {
   border: ['STROKE_COLOR', 'ALL_SCOPES'],
 };
 
+/**
+ * Check whether a variable's scopes are compatible with the acceptable scopes for a role.
+ * Returns true when:
+ * - The variable has no scope restriction (empty array)
+ * - The variable explicitly opts into ALL_SCOPES
+ * - Any of the variable's scopes is in the acceptable list
+ */
+export function scopesAccept(scopes: string[] | undefined, acceptable: string[]): boolean {
+  if (!scopes || scopes.length === 0) return true;
+  if (scopes.includes('ALL_SCOPES')) return true;
+  return scopes.some((s) => acceptable.includes(s));
+}
+
+/**
+ * Thrown when a name-based variable lookup found one or more name matches in the
+ * library, but ALL of them were rejected because their Figma variable scopes are
+ * incompatible with the binding role (e.g. `fill/primary` scoped to `FRAME_FILL`
+ * being bound to a text node which needs `TEXT_FILL`).
+ *
+ * This is distinct from "variable not found" (no name match at all) — callers
+ * should catch it and surface a descriptive error with the rejected candidates
+ * so the agent can self-correct (e.g. "use text/primary instead").
+ */
+export class ScopeMismatchError extends Error {
+  constructor(
+    public readonly requestedName: string,
+    public readonly requiredScopes: string[],
+    public readonly rejected: Array<{ name: string; scopes: string[] }>,
+  ) {
+    super(
+      `Variable "${requestedName}" matches library entries but their scopes exclude ` +
+        `[${requiredScopes.join(', ')}]: ${rejected.map((r) => `"${r.name}" (scopes: [${r.scopes.join(', ')}])`).join(', ')}`,
+    );
+    this.name = 'ScopeMismatchError';
+  }
+}
+
 /** Cache for local COLOR variables with resolved values. */
 let _colorVarCache: {
   vars: Array<{ variable: Variable; hex: string; scopes: string[] }>;
@@ -726,9 +763,17 @@ function resolveVariableByName(
 ): Variable | null {
   const lower = name.toLowerCase();
 
-  // Level 1: exact case-insensitive match
+  // When preferredScopes is provided, filter entries so scope-incompatible
+  // variables are never returned (even via exact name match).
+  const scopeOk = (entry: { variable: Variable; scopes?: string[] }): boolean => {
+    if (!preferredScopes) return true;
+    const scopes: string[] = entry.scopes ?? ((entry.variable as any).scopes as string[] | undefined) ?? [];
+    return scopesAccept(scopes, preferredScopes);
+  };
+
+  // Level 1: exact case-insensitive match (scope-filtered)
   for (const entry of vars) {
-    if (entry.variable.name.toLowerCase() === lower) return entry.variable;
+    if (entry.variable.name.toLowerCase() === lower && scopeOk(entry)) return entry.variable;
   }
 
   // Level 2: slash-path match — "CollectionName/VarName" or partial path
@@ -738,25 +783,17 @@ function resolveVariableByName(
     for (let drop = 1; drop < segments.length; drop++) {
       const suffix = segments.slice(drop).join('/');
       const candidates = vars.filter((e) => e.variable.name.toLowerCase().endsWith(suffix));
-      if (candidates.length === 1) return candidates[0].variable;
-      if (candidates.length > 1 && preferredScopes) {
-        // Level 3: scope disambiguation among candidates
-        const scopeMatch = candidates.find((e) => {
-          const scopes: string[] = e.scopes ?? (e.variable as any).scopes ?? [];
-          return (
-            scopes.length === 0 || scopes.includes('ALL_SCOPES') || scopes.some((s) => preferredScopes.includes(s))
-          );
-        });
-        if (scopeMatch) return scopeMatch.variable;
-      }
-      if (candidates.length > 1) {
-        // Ambiguity: throw error listing candidates so the agent can self-correct
-        const names = candidates
+      // When preferredScopes provided, narrow to scope-accepted candidates first
+      const pool = preferredScopes ? candidates.filter(scopeOk) : candidates;
+      if (pool.length === 1) return pool[0].variable;
+      if (pool.length > 1) {
+        // Ambiguity even after scope filtering: throw so the agent can self-correct
+        const names = pool
           .slice(0, 5)
           .map((e) => `"${e.variable.name}"`)
           .join(', ');
         throw new Error(
-          `Ambiguous variable "${name}": ${candidates.length} matches found [${names}]. ` +
+          `Ambiguous variable "${name}": ${pool.length} matches found [${names}]. ` +
             `Specify the full path (e.g. "collection/group/name") or use a variable ID.`,
         );
       }
@@ -770,23 +807,16 @@ function resolveVariableByName(
       const parts = e.variable.name.toLowerCase().split('/');
       return parts[parts.length - 1] === lower;
     });
-    if (candidates.length === 1) return candidates[0].variable;
-    if (candidates.length > 1 && preferredScopes) {
-      // Level 3: scope disambiguation
-      const scopeMatch = candidates.find((e) => {
-        const scopes: string[] = e.scopes ?? (e.variable as any).scopes ?? [];
-        return scopes.length === 0 || scopes.includes('ALL_SCOPES') || scopes.some((s) => preferredScopes.includes(s));
-      });
-      if (scopeMatch) return scopeMatch.variable;
-    }
-    if (candidates.length > 1) {
+    const pool = preferredScopes ? candidates.filter(scopeOk) : candidates;
+    if (pool.length === 1) return pool[0].variable;
+    if (pool.length > 1) {
       // Ambiguity: throw error listing candidates so the agent can self-correct
-      const names = candidates
+      const names = pool
         .slice(0, 5)
         .map((e) => `"${e.variable.name}"`)
         .join(', ');
       throw new Error(
-        `Ambiguous variable "${name}": ${candidates.length} matches found [${names}]. ` +
+        `Ambiguous variable "${name}": ${pool.length} matches found [${names}]. ` +
           `Specify the full path (e.g. "collection/group/name") or use a variable ID.`,
       );
     }
@@ -817,10 +847,14 @@ export async function findColorVariableByName(
   // This avoids the case where a local variable with the same name shadows the intended library token.
   if (libraryName) {
     try {
-      const variable = await findLibraryVariableByName(name, 'COLOR', libraryName);
+      const variable = await findLibraryVariableByName(name, 'COLOR', libraryName, preferredScopes);
       if (variable) return variable;
-    } catch {
-      /* library lookup failed — fall through to local */
+    } catch (err) {
+      // ScopeMismatchError is a semantic signal — the name matched but the scope is wrong.
+      // Let it propagate so callers (applyFill) can emit a descriptive hint with candidates,
+      // instead of silently falling back to local lookup and reporting "not found".
+      if (err instanceof ScopeMismatchError) throw err;
+      /* other library lookup failure — fall through to local */
     }
   }
 
@@ -839,20 +873,48 @@ export async function findColorVariableByName(
  * This function searches the library's collections, finds the matching key,
  * and imports the variable via cachedImportVariable.
  *
+ * When `preferredScopes` is provided and resolvedType is 'COLOR', candidates are
+ * imported and filtered by Variable.scopes. A variable whose scopes don't accept
+ * the target context (e.g. `fill/primary` with `['ALL_FILLS','FRAME_FILL']` bound
+ * against a text node's `['ALL_FILLS','TEXT_FILL']`) is rejected and the search
+ * continues instead of returning a semantically wrong match.
+ *
  * @param name - Variable name to search for
  * @param resolvedType - 'COLOR' or 'FLOAT' to filter collections
  * @param libraryName - The library to search in
+ * @param preferredScopes - Optional scope hints for scope-aware filtering (COLOR only)
  * @returns The imported Variable or null
  */
 async function findLibraryVariableByName(
   name: string,
   resolvedType: 'COLOR' | 'FLOAT',
   libraryName: string,
+  preferredScopes?: string[],
 ): Promise<Variable | null> {
   const collections = await getCollectionIndex(libraryName);
   if (collections.length === 0) return null;
 
   const lower = name.toLowerCase();
+  // Only apply scope filtering for COLOR — FLOAT scopes are orthogonal (GAP, RADIUS, etc.)
+  // and the current scope hint tables are color-only.
+  const applyScopeFilter = resolvedType === 'COLOR' && preferredScopes && preferredScopes.length > 0;
+
+  // Track variables that matched by name but failed scope filtering, so we can
+  // throw a descriptive ScopeMismatchError at the end if nothing else matched.
+  // This distinguishes "not found" from "found but wrong scope" in caller-visible errors.
+  const scopeRejected: Array<{ name: string; scopes: string[] }> = [];
+
+  // Import a candidate and check its scopes against preferredScopes.
+  // Returns the imported Variable if accepted, or null if the scope doesn't match.
+  // Records rejections into scopeRejected so we can surface them upstream.
+  const importIfScopeAccepted = async (dv: DesignVariable): Promise<Variable | null> => {
+    const imported = await cachedImportVariable(dv.key, `library:${dv.name}`);
+    if (!applyScopeFilter) return imported;
+    const scopes = ((imported as any).scopes as string[] | undefined) ?? [];
+    if (scopesAccept(scopes, preferredScopes!)) return imported;
+    scopeRejected.push({ name: dv.name, scopes });
+    return null;
+  };
 
   // Filter collections by type heuristic:
   // COLOR → collections with "color", "semantic", "theme" in name
@@ -877,7 +939,9 @@ async function findLibraryVariableByName(
     // Level 1: exact name match (case-insensitive)
     const exact = filtered.find((v) => v.name.toLowerCase() === lower);
     if (exact) {
-      return cachedImportVariable(exact.key, `library:${exact.name}`);
+      const accepted = await importIfScopeAccepted(exact);
+      if (accepted) return accepted;
+      // Scope-mismatched exact match: fall through and keep searching other collections.
     }
 
     // Level 2: partial path match (input "primary" matches "text/primary")
@@ -886,12 +950,47 @@ async function findLibraryVariableByName(
         const parts = v.name.toLowerCase().split('/');
         return parts[parts.length - 1] === lower;
       });
-      if (partial.length === 1) {
-        return cachedImportVariable(partial[0].key, `library:${partial[0].name}`);
+      if (partial.length === 0) continue;
+
+      if (!applyScopeFilter) {
+        // Original behavior: only return when there's exactly one candidate.
+        if (partial.length === 1) {
+          return cachedImportVariable(partial[0].key, `library:${partial[0].name}`);
+        }
+        continue;
       }
+
+      // Scope-aware mode: import all candidates in parallel, keep only scope-accepted ones.
+      const imported = await Promise.all(
+        partial.map((v) =>
+          cachedImportVariable(v.key, `library:${v.name}`).then(
+            (imp) => ({ imp, src: v }),
+            () => null,
+          ),
+        ),
+      );
+      const accepted: Array<{ imp: Variable; src: DesignVariable }> = [];
+      for (const r of imported) {
+        if (r === null) continue;
+        const scopes = ((r.imp as any).scopes as string[] | undefined) ?? [];
+        if (scopesAccept(scopes, preferredScopes!)) {
+          accepted.push(r);
+        } else {
+          scopeRejected.push({ name: r.src.name, scopes });
+        }
+      }
+      if (accepted.length === 1) return accepted[0].imp;
+      // 0 accepted → fall through to next collection.
+      // 2+ accepted → still ambiguous, fall through rather than guessing.
     }
   }
 
+  // Nothing was returned. Distinguish "no name match" (return null → caller falls
+  // through to local lookup) from "name matched but all scopes rejected" (throw
+  // ScopeMismatchError → caller surfaces a descriptive hint with candidates).
+  if (applyScopeFilter && scopeRejected.length > 0) {
+    throw new ScopeMismatchError(name, preferredScopes!, scopeRejected);
+  }
   return null;
 }
 
@@ -916,7 +1015,9 @@ export async function findFloatVariableByName(
   // In library mode, search library first
   if (libraryName) {
     try {
-      const variable = await findLibraryVariableByName(name, 'FLOAT', libraryName);
+      // FLOAT scope filtering is a no-op inside findLibraryVariableByName today
+      // (the role hint tables are color-only); pass through for signature consistency.
+      const variable = await findLibraryVariableByName(name, 'FLOAT', libraryName, preferredScopes);
       if (variable) return variable;
     } catch {
       /* library lookup failed — fall through to local */

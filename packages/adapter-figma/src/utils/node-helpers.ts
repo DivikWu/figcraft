@@ -13,6 +13,7 @@ import {
   findColorVariableById,
   findColorVariableByName,
   findFloatVariableByName,
+  ScopeMismatchError,
   suggestColorVariable,
 } from './design-context.js';
 import { ensureLoaded, findClosestPaintStyle, getAvailablePaintStyleNames, getPaintStyleId } from './style-registry.js';
@@ -247,7 +248,7 @@ async function clearStrokeStyle(node: SceneNode): Promise<void> {
 export interface TokenBindingFailure {
   requested: string;
   type: 'variable' | 'style';
-  action: 'skipped' | 'used_fallback';
+  action: 'skipped' | 'used_fallback' | 'scope-mismatch';
 }
 
 export interface ApplyFillResult {
@@ -388,8 +389,32 @@ export async function applyFill(
             return { autoBound: `var:${variable.name}` };
           }
         }
-      } catch {
-        /* variable lookup failed — try style */
+      } catch (err) {
+        // Scope mismatch: the variable name resolved to one or more library entries,
+        // but their Figma scopes are incompatible with this binding role. Surface a
+        // descriptive hint with the rejected candidates so the agent can self-correct
+        // instead of blindly searching for a variable it thinks is missing.
+        if (err instanceof ScopeMismatchError) {
+          const rejected = err.rejected.map((r) => `"${r.name}" (scopes: [${r.scopes.join(', ')}])`).join(', ');
+          const roleHint =
+            role === 'textColor'
+              ? ' For text nodes use a text/* variable (e.g. "text/primary").'
+              : role === 'background'
+                ? ' For frame/shape fills use a surface/*, background/*, or fill/* variable.'
+                : role === 'border'
+                  ? ' For strokes use a border/* variable with STROKE_COLOR scope.'
+                  : '';
+          colorHint =
+            `⛔ Variable "${fill}" exists in library but its scope(s) exclude ${role} ` +
+            `(required: [${ROLE_SCOPE_HINTS[role].join(', ')}]). Rejected: ${rejected}.${roleHint} ` +
+            `Call search_design_system(query:"${role === 'textColor' ? 'text color' : role === 'border' ? 'border' : 'surface color'}") to discover alternatives.`;
+          return {
+            autoBound: null,
+            colorHint,
+            bindingFailure: { requested: fill, type: 'variable', action: 'scope-mismatch' },
+          };
+        }
+        /* other variable lookup failure — try style */
       }
       // Try as style name
       if (useLibrary && library) {
