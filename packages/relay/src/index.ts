@@ -9,7 +9,13 @@
 
 import { createServer, type Server as HttpServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { ChannelId, WireMessage } from '@figcraft/shared';
-import { HEARTBEAT_INTERVAL_MS, isJoinMessage, isPingMessage, RELAY_PORT_RANGE } from '@figcraft/shared';
+import {
+  CONTROL_CHANNEL,
+  HEARTBEAT_INTERVAL_MS,
+  isJoinMessage,
+  isPingMessage,
+  RELAY_PORT_RANGE,
+} from '@figcraft/shared';
 import { WebSocket, WebSocketServer } from 'ws';
 
 const RELAY_HOST = process.env.FIGCRAFT_RELAY_HOST ?? '127.0.0.1';
@@ -227,7 +233,23 @@ function setupRelay(wss: WebSocketServer, state: RelayState): void {
           channels.set(msg.channel, members);
         }
 
-        if (!ALLOW_MULTI) {
+        // Fix: deduplicate same-socket re-joins (e.g. channel switch or reconnect
+        // on the same WebSocket). Without this, the Set accumulates duplicate
+        // ChannelMember objects because each `new ChannelMember` is a distinct ref.
+        for (const existing of members) {
+          if (existing.ws === ws) {
+            members.delete(existing);
+            // Also clean up the corresponding memberRef so ws.close cleanup stays accurate
+            const refIdx = memberRefs.findIndex((r) => r.channel === msg.channel && r.member === existing);
+            if (refIdx !== -1) memberRefs.splice(refIdx, 1);
+            break;
+          }
+        }
+
+        // Same-role eviction: kick stale connections from *different* sockets.
+        // Skip for the control channel — it's a coordination bus that legitimately
+        // hosts multiple plugins (one per open Figma document).
+        if (!ALLOW_MULTI && msg.channel !== CONTROL_CHANNEL) {
           for (const existing of members) {
             if (existing.role === msg.role && existing.ws !== ws) {
               state.stats.sameRoleEvictions++;
