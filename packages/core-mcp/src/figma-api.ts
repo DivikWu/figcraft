@@ -171,7 +171,10 @@ export interface FigmaComponentMeta {
   key: string;
   name: string;
   description: string;
-  containing_frame: { name: string; containingComponentSet?: string } | null;
+  containing_frame: {
+    name: string;
+    containingComponentSet?: { nodeId: string; name: string } | null;
+  } | null;
 }
 
 export async function fetchLibraryComponents(fileKey: string, token: string): Promise<FigmaComponentMeta[]> {
@@ -238,7 +241,7 @@ export function groupComponentsBySet(
   const standalone: FigmaComponentMeta[] = [];
 
   for (const comp of components) {
-    const setNodeId = comp.containing_frame?.containingComponentSet;
+    const setNodeId = comp.containing_frame?.containingComponentSet?.nodeId;
     if (setNodeId && setByNodeId.has(setNodeId)) {
       if (!setComponents.has(setNodeId)) setComponents.set(setNodeId, []);
       setComponents.get(setNodeId)!.push(comp);

@@ -177,6 +177,7 @@ export function registerSearchDesignSystemTool(server: McpServer, bridge: Bridge
                 key: string;
                 description?: string;
                 containingFrame?: string;
+                variants: Array<{ name: string; properties: Record<string, string> }>;
               }>) {
                 if (pluginComponentKeys.has(cs.key)) continue;
                 const score = scoreMatchWithContext(
@@ -186,6 +187,15 @@ export function registerSearchDesignSystemTool(server: McpServer, bridge: Bridge
                   queryTokens,
                 );
                 if (score > 0) {
+                  // Extract propertyOptions from variants so AI can instantiate
+                  // without an extra list_properties round-trip
+                  const propertyOptions: Record<string, string[]> = {};
+                  for (const v of cs.variants) {
+                    for (const [prop, val] of Object.entries(v.properties)) {
+                      if (!propertyOptions[prop]) propertyOptions[prop] = [];
+                      if (!propertyOptions[prop].includes(val)) propertyOptions[prop].push(val);
+                    }
+                  }
                   restComponents.push({
                     key: cs.key,
                     name: cs.name,
@@ -193,6 +203,8 @@ export function registerSearchDesignSystemTool(server: McpServer, bridge: Bridge
                     containingFrame: cs.containingFrame || '',
                     isSet: true,
                     libraryName: '(library)',
+                    variantCount: cs.variants.length,
+                    propertyOptions,
                     _score: score,
                   });
                 }

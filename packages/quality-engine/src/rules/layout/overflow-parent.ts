@@ -10,6 +10,34 @@
 
 import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
 
+/** Leaf types that should never be STRETCH-ed — they have intrinsic dimensions. */
+const VECTOR_TYPES = new Set(['VECTOR', 'LINE', 'ELLIPSE', 'STAR', 'POLYGON', 'BOOLEAN_OPERATION', 'GROUP']);
+
+/** Max dimension (px) for a child to be considered icon-like. */
+const ICON_MAX_SIZE = 48;
+
+/**
+ * Detect children that are icons or vector graphics and should keep fixed size.
+ * These nodes must NOT be auto-fixed with layoutAlign: STRETCH — stretching
+ * distorts their aspect ratio.
+ */
+function looksLikeIcon(child: AbstractNode): boolean {
+  // Direct vector/group nodes are always fixed-size
+  if (VECTOR_TYPES.has(child.type)) return true;
+  // Small frames containing vectors (icon wrappers from icon_create)
+  if (
+    child.type === 'FRAME' &&
+    child.width != null &&
+    child.width <= ICON_MAX_SIZE &&
+    child.height != null &&
+    child.height <= ICON_MAX_SIZE &&
+    child.children?.some((c) => VECTOR_TYPES.has(c.type))
+  ) {
+    return true;
+  }
+  return false;
+}
+
 function getInnerWidth(node: AbstractNode): number | null {
   if (node.width == null) return null;
   const pl = node.paddingLeft ?? 0;
@@ -52,6 +80,8 @@ export const overflowParentRule: LintRule = {
       if (child.width == null || child.height == null) continue;
       // Skip absolute-positioned children
       if (child.layoutPositioning === 'ABSOLUTE') continue;
+      // Skip icon/vector children — they must keep fixed dimensions
+      if (looksLikeIcon(child)) continue;
 
       // Cross-axis overflow check
       // In VERTICAL layout, cross-axis is width; in HORIZONTAL, cross-axis is height

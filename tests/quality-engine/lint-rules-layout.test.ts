@@ -104,6 +104,62 @@ describe('overflow-parent', () => {
     // Inner width = 400 - 40 - 40 = 320, child is 330 > 321
     expect(v).toHaveLength(1);
   });
+
+  it('skips icon frame children (small frame with vector children)', () => {
+    const node = makeNode({
+      layoutMode: 'HORIZONTAL',
+      height: 48,
+      paddingTop: 16,
+      paddingBottom: 16,
+      children: [
+        makeNode({
+          id: '2:1',
+          name: 'lucide:mail',
+          type: 'FRAME',
+          width: 20,
+          height: 20,
+          children: [makeNode({ id: '3:1', name: 'Vector', type: 'VECTOR', width: 16, height: 13 })],
+        }),
+      ],
+    });
+    const v = overflowParentRule.check(node, emptyCtx);
+    // Icon is 20px tall, inner height is 16px — would overflow, but should be skipped
+    expect(v).toHaveLength(0);
+  });
+
+  it('skips direct vector children', () => {
+    const node = makeNode({
+      layoutMode: 'HORIZONTAL',
+      height: 48,
+      paddingTop: 16,
+      paddingBottom: 16,
+      children: [makeNode({ id: '2:1', name: 'Divider', type: 'VECTOR', width: 300, height: 20 })],
+    });
+    const v = overflowParentRule.check(node, emptyCtx);
+    expect(v).toHaveLength(0);
+  });
+
+  it('still flags large non-icon frames that overflow', () => {
+    const node = makeNode({
+      layoutMode: 'HORIZONTAL',
+      height: 48,
+      paddingTop: 16,
+      paddingBottom: 16,
+      children: [
+        makeNode({
+          id: '2:1',
+          name: 'Content Card',
+          type: 'FRAME',
+          width: 200,
+          height: 120,
+          children: [makeNode({ id: '3:1', name: 'Text', type: 'TEXT' })],
+        }),
+      ],
+    });
+    const v = overflowParentRule.check(node, emptyCtx);
+    // 120px > 16px inner height, and it's a large frame with text — should still flag
+    expect(v).toHaveLength(1);
+  });
 });
 
 // ─── unbounded-hug ───
