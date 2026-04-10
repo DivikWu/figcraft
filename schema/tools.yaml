@@ -794,8 +794,8 @@ create_frame:
     # ── Layout ──
     layoutMode:
       type: enum
-      values: [HORIZONTAL, VERTICAL]
-      description: "Auto-layout direction. Smart default: auto-inferred as VERTICAL when padding/spacing/alignment params are present."
+      values: [HORIZONTAL, VERTICAL, GRID]
+      description: "Auto-layout direction. GRID enables CSS Grid-like layout with rows and columns. Smart default: auto-inferred as VERTICAL when padding/spacing/alignment params are present."
     itemSpacing:
       type: number
       description: Spacing between children
@@ -855,6 +855,19 @@ create_frame:
     counterAxisSpacing:
       type: number
       description: "Gap between wrapped rows (requires layoutWrap: WRAP)"
+    # ── Grid layout (layoutMode: GRID) ──
+    gridRowCount:
+      type: number
+      description: "Number of rows in the grid (only when layoutMode: GRID)"
+    gridColumnCount:
+      type: number
+      description: "Number of columns in the grid (only when layoutMode: GRID)"
+    gridRowGap:
+      type: number
+      description: "Gap between rows in the grid (only when layoutMode: GRID)"
+    gridColumnGap:
+      type: number
+      description: "Gap between columns in the grid (only when layoutMode: GRID)"
     # ── Appearance ──
     opacity:
       type: number
@@ -1671,6 +1684,8 @@ search_design_system:
     subscribed team libraries by keyword. Returns matching results ranked by
     relevance. Use this to discover reusable design tokens, components, and
     styles before creating UI elements.
+    Component results include full property metadata: variants, textProperties,
+    booleanProperties, instanceSwapProperties (with preferredValues), and slotProperties.
   toolset: core
   write: false
   handler: custom
@@ -2613,8 +2628,8 @@ create_component:
     # ── Layout ──
     layoutMode:
       type: enum
-      values: [HORIZONTAL, VERTICAL]
-      description: "Auto-layout direction (auto-inferred from padding/spacing/children)"
+      values: [HORIZONTAL, VERTICAL, GRID]
+      description: "Auto-layout direction. GRID enables CSS Grid-like layout (auto-inferred from padding/spacing/children)"
     itemSpacing:
       type: number
       description: "Spacing between children"
@@ -2926,6 +2941,139 @@ create_component_from_node:
       name:
         type: string
 
+layout_component_set:
+  description: >-
+    Auto-layout variants in a grid after combineAsVariants. Parses variant names
+    ("Size=Small, Style=Primary, State=Default") to determine grid position.
+    Automatically calculates adaptive column widths and row heights, then resizes
+    the ComponentSet frame to fit.
+  toolset: components-advanced
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: ComponentSet node ID
+    gap:
+      type: number
+      description: 'Gap between variants in px (default: 20)'
+    padding:
+      type: number
+      description: 'Padding inside ComponentSet frame (default: 40)'
+    columnAxis:
+      type: string
+      description: >-
+        Which variant property to use as columns (default: last property in variant name).
+        Typically "State" — the axis designers scan horizontally.
+    rowAxes:
+      type: array
+      items: string
+      description: >-
+        Which variant properties to use as rows (default: all except columnAxis).
+        Order matters — first axis varies slowest.
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      componentSetId:
+        type: string
+        required: true
+      positioned:
+        type: number
+        required: true
+      grid:
+        type: object
+        fields:
+          columns:
+            type: number
+          rows:
+            type: number
+          columnAxis:
+            type: string
+          rowAxes:
+            type: array
+            items: string
+      size:
+        type: object
+        fields:
+          width:
+            type: number
+          height:
+            type: number
+  examples:
+    - ok: true
+      componentSetId: "81:1"
+      positioned: 18
+      grid:
+        columns: 3
+        rows: 6
+        columnAxis: "State"
+        rowAxes: ["Size", "Style"]
+      size:
+        width: 560
+        height: 480
+
+bind_component_property:
+  description: >-
+    Wire a component property to child nodes across all variants.
+    Finds child nodes by name and sets componentPropertyReferences.
+    Works on both Component and ComponentSet (iterates all variants).
+  toolset: components-advanced
+  write: true
+  access: edit
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: Component or ComponentSet node ID
+    propertyName:
+      type: string
+      required: true
+      description: 'Component property name (e.g. "Label", "Show Icon")'
+    targetNodeSelector:
+      type: string
+      required: true
+      description: 'Child node name to match via recursive search (e.g. "label", "icon")'
+    nodeProperty:
+      type: enum
+      values: [characters, visible, mainComponent]
+      required: true
+      description: >-
+        Which node property to bind:
+        characters → TEXT property (text nodes),
+        visible → BOOLEAN property (any node),
+        mainComponent → INSTANCE_SWAP property (instance nodes)
+  response:
+    type: object
+    fields:
+      ok:
+        type: boolean
+        required: true
+      bound:
+        type: number
+        required: true
+      notFound:
+        type: number
+        required: true
+      errors:
+        type: array
+        items:
+          type: object
+          fields:
+            variantName:
+              type: string
+            error:
+              type: string
+  examples:
+    - ok: true
+      bound: 18
+      notFound: 0
+
 swap_instance:
   description: Swap an existing instance to a different component.
   toolset: components-advanced
@@ -3109,7 +3257,7 @@ set_instance_overrides:
 add_component_property:
   description: >-
     Add a new property to a component or component set.
-    Supported types: BOOLEAN, TEXT, INSTANCE_SWAP, VARIANT.
+    Supported types: BOOLEAN, TEXT, INSTANCE_SWAP, VARIANT, SLOT.
   toolset: components-advanced
   write: true
   access: create
@@ -3125,19 +3273,29 @@ add_component_property:
       description: Property name
     type:
       type: enum
-      values: [BOOLEAN, TEXT, INSTANCE_SWAP, VARIANT]
+      values: [BOOLEAN, TEXT, INSTANCE_SWAP, VARIANT, SLOT]
       required: true
       description: Property type
     defaultValue:
       type: unknown
       required: true
-      description: Default value
+      description: 'Default value. String or boolean for most types. Can be a VariableAlias object ({ type: "VARIABLE_ALIAS", id: "..." }) to bind to a variable.'
+    preferredValues:
+      type: array
+      items: object
+      description: 'Preferred values for INSTANCE_SWAP and SLOT properties. Array of {type: "COMPONENT"|"COMPONENT_SET", key: string}.'
+    description:
+      type: string
+      description: 'Property description (only supported for SLOT properties)'
   response:
     type: object
     fields:
       ok:
         type: boolean
         required: true
+      key:
+        type: string
+        description: 'The property key with Figma suffix (e.g. "Label#0:1"). Use this key for componentPropertyReferences.'
       properties:
         type: array
         items: string
@@ -3145,10 +3303,14 @@ add_component_property:
         type: string
   examples:
     - ok: true
-      properties: ["State", "Label"]
+      key: "Label#0:1"
+      properties: ["State", "Label#0:1"]
 
 update_component_property:
-  description: Update an existing component property (rename or change default value).
+  description: >-
+    Update an existing component property (rename, change default value, preferred values, or description).
+    preferredValues is supported for INSTANCE_SWAP and SLOT properties.
+    description is supported for SLOT properties only.
   toolset: components-advanced
   write: true
   access: edit
@@ -3168,6 +3330,14 @@ update_component_property:
     defaultValue:
       type: unknown
       description: New default value
+    preferredValues:
+      type: array
+      items:
+        type: object
+      description: "Preferred values for INSTANCE_SWAP or SLOT properties. Array of {type: 'COMPONENT'|'COMPONENT_SET', key: string}."
+    description:
+      type: string
+      description: Description for SLOT properties only
   response:
     type: object
     fields:
@@ -5235,7 +5405,7 @@ nodes:
     update:
       description: >-
         Update properties on one or more nodes. Uses 5-phase ordered execution:
-        (1) simple props (name, x, y, opacity, visible, layoutMode, padding, itemSpacing, alignment, clipsContent, layoutPositioning)
+        (1) simple props (name, x, y, opacity, visible, layoutMode, padding, itemSpacing, alignment, clipsContent, layoutPositioning, gridRowCount, gridColumnCount, gridRowGap, gridColumnGap)
         → (2) fills/strokes/corners/effects
         → (3) layout sizing (layoutSizingHorizontal/Vertical)
         → (4) resize (width/height)
@@ -6101,6 +6271,214 @@ variables_ep:
       params:
         collectionId:
           type: string
+    set_code_syntax:
+      description: Set code syntax on a variable for Dev Mode (WEB/ANDROID/iOS)
+      maps_to: set_variable_code_syntax
+      write: true
+      access: edit
+      response:
+        type: object
+        fields:
+          ok:
+            type: boolean
+            required: true
+          variableId:
+            type: string
+            required: true
+          variableName:
+            type: string
+            required: true
+          applied:
+            type: array
+            items: string
+      examples:
+        - ok: true
+          variableId: "VariableID:1:30"
+          variableName: "color/bg/primary"
+          applied: ["WEB", "iOS"]
+      params:
+        variableId:
+          type: string
+          required: true
+        syntax:
+          type: record
+          required: true
+          valueType: string
+    batch_bind:
+      description: Bind variables to multiple node properties in one call
+      maps_to: batch_set_variable_binding
+      write: true
+      access: edit
+      response:
+        type: object
+        fields:
+          succeeded:
+            type: number
+            required: true
+          failed:
+            type: number
+            required: true
+          total:
+            type: number
+            required: true
+          errors:
+            type: array
+            items: object
+      examples:
+        - succeeded: 108
+          failed: 0
+          total: 108
+      params:
+        bindings:
+          type: array
+          required: true
+          items: object
+    set_values_multi_mode:
+      description: Set a variable's value across multiple modes in one call
+      maps_to: set_variable_values_multi_mode
+      write: true
+      access: edit
+      response:
+        type: object
+        fields:
+          ok:
+            type: boolean
+            required: true
+          variableId:
+            type: string
+            required: true
+          variableName:
+            type: string
+            required: true
+          set:
+            type: number
+            required: true
+          total:
+            type: number
+            required: true
+          errors:
+            type: array
+            items: object
+      examples:
+        - ok: true
+          variableId: "VariableID:1:30"
+          variableName: "color/bg/primary"
+          set: 2
+          total: 2
+      params:
+        variableId:
+          type: string
+          required: true
+        valuesByMode:
+          type: record
+          required: true
+          valueType: unknown
+    extend_collection:
+      description: >-
+        Create an extended variable collection for multi-brand theming (Enterprise only).
+        The extension inherits all modes and variables from the parent collection.
+        Override variable values in the extension to create brand-specific themes.
+      maps_to: extend_collection
+      write: true
+      access: create
+      response:
+        type: object
+        fields:
+          id:
+            type: string
+            required: true
+          name:
+            type: string
+            required: true
+          isExtension:
+            type: boolean
+            required: true
+          rootVariableCollectionId:
+            type: string
+            required: true
+          modes:
+            type: array
+            required: true
+            items: object
+          variableCount:
+            type: number
+            required: true
+      examples:
+        - id: "VariableCollectionId:2:1"
+          name: "Brand A"
+          isExtension: true
+          rootVariableCollectionId: "VariableCollectionId:1:1"
+          modes:
+            - modeId: "2:0"
+              name: "Light"
+          variableCount: 50
+      params:
+        collectionId:
+          type: string
+          description: 'Local collection ID to extend (use for local collections)'
+        collectionKey:
+          type: string
+          description: 'Collection key to extend (use for library collections)'
+        name:
+          type: string
+          required: true
+          description: 'Name for the extended collection'
+    get_overrides:
+      description: Get all variable overrides in an extended collection
+      maps_to: get_collection_overrides
+      write: false
+      response:
+        type: object
+        fields:
+          collectionId:
+            type: string
+            required: true
+          collectionName:
+            type: string
+            required: true
+          rootVariableCollectionId:
+            type: string
+            required: true
+          overrideCount:
+            type: number
+            required: true
+          overrides:
+            type: array
+            required: true
+            items: object
+      examples:
+        - collectionId: "VariableCollectionId:2:1"
+          collectionName: "Brand A"
+          rootVariableCollectionId: "VariableCollectionId:1:1"
+          overrideCount: 5
+          overrides: []
+      params:
+        collectionId:
+          type: string
+          required: true
+          description: 'Extended collection ID'
+    remove_override:
+      description: Remove all overrides for a variable in an extended collection
+      maps_to: remove_collection_override
+      write: true
+      access: edit
+      response:
+        type: object
+        fields:
+          ok:
+            type: boolean
+            required: true
+      examples:
+        - ok: true
+      params:
+        collectionId:
+          type: string
+          required: true
+          description: 'Extended collection ID'
+        variableId:
+          type: string
+          required: true
+          description: 'Variable ID to remove overrides for'
 
 styles_ep:
   description: >-
@@ -6414,6 +6792,75 @@ styles_ep:
           failures: []
       params:
         tokens:
+          type: array
+          required: true
+          items: object
+    create_text:
+      description: Create a new text style
+      maps_to: create_text_style
+      write: true
+      access: create
+      response:
+        type: object
+        fields:
+          id:
+            type: string
+            required: true
+          name:
+            type: string
+            required: true
+          fontSize:
+            type: number
+          alreadyExists:
+            type: boolean
+      examples:
+        - id: "S:style1"
+          name: "Text/Heading/L"
+          fontSize: 32
+      params:
+        name:
+          type: string
+          required: true
+        fontFamily:
+          type: string
+        fontStyle:
+          type: string
+        fontWeight:
+          type: number
+        fontSize:
+          type: number
+        lineHeight:
+          type: unknown
+        letterSpacing:
+          type: unknown
+        description:
+          type: string
+    create_effect:
+      description: Create a new effect style (shadow, blur)
+      maps_to: create_effect_style
+      write: true
+      access: create
+      response:
+        type: object
+        fields:
+          id:
+            type: string
+            required: true
+          name:
+            type: string
+            required: true
+          alreadyExists:
+            type: boolean
+      examples:
+        - id: "S:effect1"
+          name: "Shadow/Card/Default"
+      params:
+        name:
+          type: string
+          required: true
+        description:
+          type: string
+        effects:
           type: array
           required: true
           items: object

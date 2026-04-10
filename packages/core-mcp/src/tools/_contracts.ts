@@ -441,6 +441,30 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
       id: z.string(),
       name: z.string().optional(),
     }),
+  'layout_component_set': z.object({
+      ok: z.boolean(),
+      componentSetId: z.string(),
+      positioned: z.number(),
+      grid: z.object({
+        columns: z.number().optional(),
+        rows: z.number().optional(),
+        columnAxis: z.string().optional(),
+        rowAxes: z.array(z.string()).optional(),
+      }).optional(),
+      size: z.object({
+        width: z.number().optional(),
+        height: z.number().optional(),
+      }).optional(),
+    }),
+  'bind_component_property': z.object({
+      ok: z.boolean(),
+      bound: z.number(),
+      notFound: z.number(),
+      errors: z.array(z.object({
+          variantName: z.string().optional(),
+          error: z.string().optional(),
+        })).optional(),
+    }),
   'swap_instance': z.object({
       id: z.string(),
       name: z.string(),
@@ -477,6 +501,7 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
     }),
   'add_component_property': z.object({
       ok: z.boolean(),
+      key: z.string().optional().describe("The property key with Figma suffix (e.g. \"Label#0:1\"). Use this key for componentPropertyReferences."),
       properties: z.array(z.string()).optional(),
       error: z.string().optional(),
     }),
@@ -1394,6 +1419,33 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
   ],
   'create_instances': [],
   'create_component_from_node': [],
+  'layout_component_set': [
+    {
+      "ok": true,
+      "componentSetId": "81:1",
+      "positioned": 18,
+      "grid": {
+        "columns": 3,
+        "rows": 6,
+        "columnAxis": "State",
+        "rowAxes": [
+          "Size",
+          "Style"
+        ]
+      },
+      "size": {
+        "width": 560,
+        "height": 480
+      }
+    }
+  ],
+  'bind_component_property': [
+    {
+      "ok": true,
+      "bound": 18,
+      "notFound": 0
+    }
+  ],
   'swap_instance': [
     {
       "id": "82:1",
@@ -1441,9 +1493,10 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
   'add_component_property': [
     {
       "ok": true,
+      "key": "Label#0:1",
       "properties": [
         "State",
-        "Label"
+        "Label#0:1"
       ]
     }
   ],
@@ -2152,6 +2205,44 @@ export const GENERATED_ENDPOINT_METHOD_RESPONSE_SCHEMAS: Record<string, Record<s
           aliasOf: z.record(z.string()).optional(),
         })),
     }),
+    'set_code_syntax': z.object({
+      ok: z.boolean(),
+      variableId: z.string(),
+      variableName: z.string(),
+      applied: z.array(z.string()).optional(),
+    }),
+    'batch_bind': z.object({
+      succeeded: z.number(),
+      failed: z.number(),
+      total: z.number(),
+      errors: z.array(z.record(z.unknown())).optional(),
+    }),
+    'set_values_multi_mode': z.object({
+      ok: z.boolean(),
+      variableId: z.string(),
+      variableName: z.string(),
+      set: z.number(),
+      total: z.number(),
+      errors: z.array(z.record(z.unknown())).optional(),
+    }),
+    'extend_collection': z.object({
+      id: z.string(),
+      name: z.string(),
+      isExtension: z.boolean(),
+      rootVariableCollectionId: z.string(),
+      modes: z.array(z.record(z.unknown())),
+      variableCount: z.number(),
+    }),
+    'get_overrides': z.object({
+      collectionId: z.string(),
+      collectionName: z.string(),
+      rootVariableCollectionId: z.string(),
+      overrideCount: z.number(),
+      overrides: z.array(z.record(z.unknown())),
+    }),
+    'remove_override': z.object({
+      ok: z.boolean(),
+    }),
   },
   'styles_ep': {
     'list': z.object({
@@ -2219,6 +2310,17 @@ export const GENERATED_ENDPOINT_METHOD_RESPONSE_SCHEMAS: Record<string, Record<s
           path: z.string(),
           error: z.string(),
         })),
+    }),
+    'create_text': z.object({
+      id: z.string(),
+      name: z.string(),
+      fontSize: z.number().optional(),
+      alreadyExists: z.boolean().optional(),
+    }),
+    'create_effect': z.object({
+      id: z.string(),
+      name: z.string(),
+      alreadyExists: z.boolean().optional(),
     }),
   },
 };
@@ -2510,6 +2612,62 @@ export const GENERATED_ENDPOINT_METHOD_RESPONSE_EXAMPLES: Record<string, Record<
         ]
       }
     ],
+    'set_code_syntax': [
+      {
+        "ok": true,
+        "variableId": "VariableID:1:30",
+        "variableName": "color/bg/primary",
+        "applied": [
+          "WEB",
+          "iOS"
+        ]
+      }
+    ],
+    'batch_bind': [
+      {
+        "succeeded": 108,
+        "failed": 0,
+        "total": 108
+      }
+    ],
+    'set_values_multi_mode': [
+      {
+        "ok": true,
+        "variableId": "VariableID:1:30",
+        "variableName": "color/bg/primary",
+        "set": 2,
+        "total": 2
+      }
+    ],
+    'extend_collection': [
+      {
+        "id": "VariableCollectionId:2:1",
+        "name": "Brand A",
+        "isExtension": true,
+        "rootVariableCollectionId": "VariableCollectionId:1:1",
+        "modes": [
+          {
+            "modeId": "2:0",
+            "name": "Light"
+          }
+        ],
+        "variableCount": 50
+      }
+    ],
+    'get_overrides': [
+      {
+        "collectionId": "VariableCollectionId:2:1",
+        "collectionName": "Brand A",
+        "rootVariableCollectionId": "VariableCollectionId:1:1",
+        "overrideCount": 5,
+        "overrides": []
+      }
+    ],
+    'remove_override': [
+      {
+        "ok": true
+      }
+    ],
   },
   'styles_ep': {
     'list': [
@@ -2596,6 +2754,19 @@ export const GENERATED_ENDPOINT_METHOD_RESPONSE_EXAMPLES: Record<string, Record<
         "skipped": 0,
         "failed": 0,
         "failures": []
+      }
+    ],
+    'create_text': [
+      {
+        "id": "S:style1",
+        "name": "Text/Heading/L",
+        "fontSize": 32
+      }
+    ],
+    'create_effect': [
+      {
+        "id": "S:effect1",
+        "name": "Shadow/Card/Default"
       }
     ],
   },

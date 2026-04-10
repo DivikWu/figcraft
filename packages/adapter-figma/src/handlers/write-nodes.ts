@@ -308,6 +308,10 @@ export function registerWriteNodeHandlers(): void {
       maxWidth: 'maxWidth',
       maxHeight: 'maxHeight',
       counterAxisSpacing: 'counterAxisSpacing',
+      gridRowCount: 'gridRowCount',
+      gridColumnCount: 'gridColumnCount',
+      gridRowGap: 'gridRowGap',
+      gridColumnGap: 'gridColumnGap',
     };
 
     /** Text-specific direct props — require loadFont first, only valid on TEXT nodes. */

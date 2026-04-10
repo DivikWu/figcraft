@@ -116,7 +116,7 @@ export function simplifyNode(
     if ('layoutMode' in node) {
       const frame = node as FrameNode;
       if (frame.layoutMode !== 'NONE') {
-        base.layoutMode = frame.layoutMode as 'HORIZONTAL' | 'VERTICAL';
+        base.layoutMode = frame.layoutMode as 'HORIZONTAL' | 'VERTICAL' | 'GRID';
       }
     }
     // Text content in summary (characters only, no font details)
@@ -171,7 +171,7 @@ export function simplifyNode(
   if ('layoutMode' in node) {
     const frame = node as FrameNode;
     if (frame.layoutMode !== 'NONE') {
-      base.layoutMode = frame.layoutMode as 'HORIZONTAL' | 'VERTICAL';
+      base.layoutMode = frame.layoutMode as 'HORIZONTAL' | 'VERTICAL' | 'GRID';
       base.itemSpacing = frame.itemSpacing;
       base.paddingLeft = frame.paddingLeft;
       base.paddingRight = frame.paddingRight;
@@ -179,6 +179,13 @@ export function simplifyNode(
       base.paddingBottom = frame.paddingBottom;
       if (frame.primaryAxisAlignItems) base.primaryAxisAlignItems = frame.primaryAxisAlignItems;
       if (frame.counterAxisAlignItems) base.counterAxisAlignItems = frame.counterAxisAlignItems;
+      // GRID-specific properties
+      if (frame.layoutMode === 'GRID') {
+        base.gridRowCount = frame.gridRowCount;
+        base.gridColumnCount = frame.gridColumnCount;
+        base.gridRowGap = frame.gridRowGap;
+        base.gridColumnGap = frame.gridColumnGap;
+      }
     }
   }
 

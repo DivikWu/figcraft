@@ -145,6 +145,10 @@ const FRAME_PARAMS = new Set([
   'noPreview',
   'parentId',
   'items',
+  'gridRowCount',
+  'gridColumnCount',
+  'gridRowGap',
+  'gridColumnGap',
 ]);
 
 const TEXT_PARAMS = new Set([

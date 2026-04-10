@@ -155,7 +155,14 @@ export function registerComponentHandlers(): void {
     const instanceId = params.instanceId as string;
     const node = await findNodeByIdAsync(instanceId);
     assertHandler(node && node.type === 'INSTANCE', `Instance not found: ${instanceId}`, 'NOT_FOUND');
-    (node as InstanceNode).resetOverrides();
+    // removeOverrides replaces the deprecated resetOverrides (Plugin API Update 120)
+    const instance = node as InstanceNode;
+    if ('removeOverrides' in instance) {
+      (instance as any).removeOverrides();
+    } else {
+      // Fallback for older Plugin API versions
+      instance.resetOverrides();
+    }
     return { ok: true };
   });
 
@@ -354,8 +361,8 @@ export function registerComponentHandlers(): void {
   registerHandler('add_component_property', async (params) => {
     const nodeId = params.nodeId as string;
     const propertyName = params.propertyName as string;
-    const propertyType = params.type as 'BOOLEAN' | 'TEXT' | 'INSTANCE_SWAP' | 'VARIANT';
-    const defaultValue = params.defaultValue as string | boolean;
+    const propertyType = params.type as 'BOOLEAN' | 'TEXT' | 'INSTANCE_SWAP' | 'VARIANT' | 'SLOT';
+    const defaultValue = params.defaultValue as string | boolean | VariableAlias;
 
     const node = await findNodeByIdAsync(nodeId);
     assertHandler(
@@ -365,21 +372,22 @@ export function registerComponentHandlers(): void {
     );
     const comp = node as ComponentNode | ComponentSetNode;
 
-    const options: {
-      type: string;
-      defaultValue: string | boolean;
-      preferredValues?: Array<{ type: string; key: string }>;
-    } = {
-      type: propertyType,
-      defaultValue,
-    };
+    const options: ComponentPropertyOptions = {};
     if (params.preferredValues) {
-      options.preferredValues = params.preferredValues as Array<{ type: string; key: string }>;
+      options.preferredValues = params.preferredValues as InstanceSwapPreferredValue[];
+    }
+    if (params.description && propertyType === 'SLOT') {
+      options.description = params.description as string;
     }
 
-    comp.addComponentProperty(propertyName, options.type as ComponentPropertyType, options.defaultValue);
+    const key = comp.addComponentProperty(
+      propertyName,
+      propertyType as ComponentPropertyType,
+      defaultValue,
+      Object.keys(options).length > 0 ? options : undefined,
+    );
 
-    return { ok: true, properties: Object.keys(comp.componentPropertyDefinitions) };
+    return { ok: true, key, properties: Object.keys(comp.componentPropertyDefinitions) };
   });
 
   registerHandler('update_component_property', async (params) => {
@@ -399,12 +407,28 @@ export function registerComponentHandlers(): void {
       `Property "${propertyName}" not found on component`,
     );
 
-    if (params.newName != null) {
-      comp.editComponentProperty(propertyName, { name: params.newName as string });
+    // Build a single edit payload — Figma's editComponentProperty accepts partial fields
+    const edits: Record<string, unknown> = {};
+    if (params.newName != null) edits.name = params.newName as string;
+    if (params.defaultValue != null) edits.defaultValue = params.defaultValue as string | boolean;
+    if (params.preferredValues != null) edits.preferredValues = params.preferredValues as InstanceSwapPreferredValue[];
+    if (params.description != null) edits.description = params.description as string;
+
+    // Apply name first (changes the key), then remaining fields on the new key
+    let currentName = propertyName;
+    if (edits.name) {
+      currentName = comp.editComponentProperty(propertyName, { name: edits.name as string });
+      delete edits.name;
     }
-    if (params.defaultValue != null) {
-      const targetName = (params.newName as string) ?? propertyName;
-      comp.editComponentProperty(targetName, { defaultValue: params.defaultValue as string | boolean });
+    if (Object.keys(edits).length > 0) {
+      comp.editComponentProperty(
+        currentName,
+        edits as {
+          defaultValue?: string | boolean;
+          preferredValues?: InstanceSwapPreferredValue[];
+          description?: string;
+        },
+      );
     }
 
     return { ok: true, properties: Object.keys(comp.componentPropertyDefinitions) };

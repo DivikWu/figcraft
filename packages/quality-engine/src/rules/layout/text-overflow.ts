@@ -15,7 +15,8 @@ import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation 
 function pickFixResize(node: AbstractNode): string {
   // If parent has auto-layout, width is managed by the layout engine.
   // Only expand height so text wraps within the allocated width.
-  const parentHasAL = node.parentLayoutMode === 'HORIZONTAL' || node.parentLayoutMode === 'VERTICAL';
+  const parentHasAL =
+    node.parentLayoutMode === 'HORIZONTAL' || node.parentLayoutMode === 'VERTICAL' || node.parentLayoutMode === 'GRID';
   return parentHasAL ? 'HEIGHT' : 'WIDTH_AND_HEIGHT';
 }
 

@@ -4,7 +4,7 @@ This document is generated from `schema/tools.yaml`, `packages/core-mcp/src/tool
 
 ## Tool Response Coverage
 
-Covered flat/custom tools: 106
+Covered flat/custom tools: 108
 
 ### `add_collection_mode`
 
@@ -25,9 +25,10 @@ Covered flat/custom tools: 106
 ```json
 {
   "ok": true,
+  "key": "Label#0:1",
   "properties": [
     "State",
-    "Label"
+    "Label#0:1"
   ]
 }
 ```
@@ -109,6 +110,18 @@ Covered flat/custom tools: 106
   "violations": [],
   "structuralNotes": [],
   "recommendation": "Fix 1 auto-fixable warning, then review the remaining warning manually."
+}
+```
+
+### `bind_component_property`
+
+- Example payloads: 1
+
+```json
+{
+  "ok": true,
+  "bound": 18,
+  "notFound": 0
 }
 ```
 
@@ -967,6 +980,31 @@ Covered flat/custom tools: 106
 }
 ```
 
+### `layout_component_set`
+
+- Example payloads: 1
+
+```json
+{
+  "ok": true,
+  "componentSetId": "81:1",
+  "positioned": 18,
+  "grid": {
+    "columns": 3,
+    "rows": 6,
+    "columnAxis": "State",
+    "rowAxes": [
+      "Size",
+      "Style"
+    ]
+  },
+  "size": {
+    "width": 560,
+    "height": 480
+  }
+}
+```
+
 ### `lint_check`
 
 - Example payloads: 1
@@ -1633,7 +1671,7 @@ Covered flat/custom tools: 106
 
 ## Endpoint Response Coverage
 
-Covered endpoint methods: 33
+Covered endpoint methods: 41
 
 ### `components.get`
 
@@ -1816,6 +1854,17 @@ Covered endpoint methods: 33
 }
 ```
 
+### `styles_ep.create_effect`
+
+- Example payloads: 1
+
+```json
+{
+  "id": "S:effect1",
+  "name": "Shadow/Card/Default"
+}
+```
+
 ### `styles_ep.create_paint`
 
 - Example payloads: 1
@@ -1824,6 +1873,18 @@ Covered endpoint methods: 33
 {
   "id": "Style:10",
   "name": "Color/Brand/Primary"
+}
+```
+
+### `styles_ep.create_text`
+
+- Example payloads: 1
+
+```json
+{
+  "id": "S:style1",
+  "name": "Text/Heading/L",
+  "fontSize": 32
 }
 ```
 
@@ -1969,6 +2030,18 @@ Covered endpoint methods: 33
 }
 ```
 
+### `variables_ep.batch_bind`
+
+- Example payloads: 1
+
+```json
+{
+  "succeeded": 108,
+  "failed": 0,
+  "total": 108
+}
+```
+
 ### `variables_ep.batch_create`
 
 - Example payloads: 1
@@ -2055,6 +2128,26 @@ Covered endpoint methods: 33
 }
 ```
 
+### `variables_ep.extend_collection`
+
+- Example payloads: 1
+
+```json
+{
+  "id": "VariableCollectionId:2:1",
+  "name": "Brand A",
+  "isExtension": true,
+  "rootVariableCollectionId": "VariableCollectionId:1:1",
+  "modes": [
+    {
+      "modeId": "2:0",
+      "name": "Light"
+    }
+  ],
+  "variableCount": 50
+}
+```
+
 ### `variables_ep.get`
 
 - Example payloads: 1
@@ -2095,6 +2188,20 @@ Covered endpoint methods: 33
       }
     ]
   }
+}
+```
+
+### `variables_ep.get_overrides`
+
+- Example payloads: 1
+
+```json
+{
+  "collectionId": "VariableCollectionId:2:1",
+  "collectionName": "Brand A",
+  "rootVariableCollectionId": "VariableCollectionId:1:1",
+  "overrideCount": 5,
+  "overrides": []
 }
 ```
 
@@ -2144,6 +2251,16 @@ Covered endpoint methods: 33
 ]
 ```
 
+### `variables_ep.remove_override`
+
+- Example payloads: 1
+
+```json
+{
+  "ok": true
+}
+```
+
 ### `variables_ep.set_binding`
 
 - Example payloads: 1
@@ -2151,6 +2268,36 @@ Covered endpoint methods: 33
 ```json
 {
   "ok": true
+}
+```
+
+### `variables_ep.set_code_syntax`
+
+- Example payloads: 1
+
+```json
+{
+  "ok": true,
+  "variableId": "VariableID:1:30",
+  "variableName": "color/bg/primary",
+  "applied": [
+    "WEB",
+    "iOS"
+  ]
+}
+```
+
+### `variables_ep.set_values_multi_mode`
+
+- Example payloads: 1
+
+```json
+{
+  "ok": true,
+  "variableId": "VariableID:1:30",
+  "variableName": "color/bg/primary",
+  "set": 2,
+  "total": 2
 }
 ```
 
@@ -2167,20 +2314,25 @@ Covered endpoint methods: 33
 
 ## Flat To Endpoint Migration Map
 
-Mapped flat tools: 33
+Mapped flat tools: 41
 
 | Flat Tool | Replacement | Toolset | Write | Access |
 | --- | --- | --- | --- | --- |
 | `batch_create_variables` | `variables_ep(method: "batch_create")` | `variables` | `true` | `create` |
+| `batch_set_variable_binding` | `variables_ep(method: "batch_bind")` | `variables` | `true` | `edit` |
 | `clone_nodes` | `nodes(method: "clone")` | `core` | `true` | `create` |
 | `create_collection` | `variables_ep(method: "create_collection")` | `variables` | `true` | `create` |
+| `create_effect_style` | `styles_ep(method: "create_effect")` | `styles` | `true` | `create` |
 | `create_paint_style` | `styles_ep(method: "create_paint")` | `styles` | `true` | `create` |
+| `create_text_style` | `styles_ep(method: "create_text")` | `styles` | `true` | `create` |
 | `create_variable` | `variables_ep(method: "create")` | `variables` | `true` | `create` |
 | `delete_collection` | `variables_ep(method: "delete_collection")` | `variables` | `true` | `edit` |
 | `delete_nodes` | `nodes(method: "delete")` | `core` | `true` | `edit` |
 | `delete_style` | `styles_ep(method: "delete")` | `styles` | `true` | `edit` |
 | `delete_variable` | `variables_ep(method: "delete")` | `variables` | `true` | `edit` |
 | `export_variables` | `variables_ep(method: "export")` | `variables` | `false` | `read` |
+| `extend_collection` | `variables_ep(method: "extend_collection")` | `variables` | `true` | `create` |
+| `get_collection_overrides` | `variables_ep(method: "get_overrides")` | `variables` | `false` | `read` |
 | `get_component` | `components(method: "get")` | `core` | `false` | `read` |
 | `get_node_info` | `nodes(method: "get")` | `core` | `false` | `read` |
 | `get_node_info_batch` | `nodes(method: "get_batch")` | `core` | `false` | `read` |
@@ -2194,11 +2346,14 @@ Mapped flat tools: 33
 | `list_styles` | `styles_ep(method: "list")` | `styles` | `false` | `read` |
 | `list_variables` | `variables_ep(method: "list")` | `variables` | `false` | `read` |
 | `patch_nodes` | `nodes(method: "update")` | `core` | `true` | `edit` |
+| `remove_collection_override` | `variables_ep(method: "remove_override")` | `variables` | `true` | `edit` |
 | `reparent_nodes` | `nodes(method: "reparent")` | `core` | `true` | `edit` |
 | `search_nodes` | `nodes(method: "list")` | `core` | `false` | `read` |
 | `set_text_content` | `text(method: "set_content")` | `core` | `true` | `edit` |
 | `set_text_range` | `text(method: "set_range")` | `core` | `true` | `edit` |
 | `set_variable_binding` | `variables_ep(method: "set_binding")` | `variables` | `true` | `edit` |
+| `set_variable_code_syntax` | `variables_ep(method: "set_code_syntax")` | `variables` | `true` | `edit` |
+| `set_variable_values_multi_mode` | `variables_ep(method: "set_values_multi_mode")` | `variables` | `true` | `edit` |
 | `sync_styles` | `styles_ep(method: "sync")` | `styles` | `true` | `create` |
 | `update_effect_style` | `styles_ep(method: "update_effect")` | `styles` | `true` | `edit` |
 | `update_paint_style` | `styles_ep(method: "update_paint")` | `styles` | `true` | `edit` |

@@ -62,6 +62,9 @@ export function registerSearchDesignSystemHandler(): void {
         libraryName: string;
         variants?: Array<{ property: string; options: string[] }>;
         textProperties?: Array<{ name: string; defaultValue: string }>;
+        booleanProperties?: Array<{ name: string; defaultValue: boolean }>;
+        instanceSwapProperties?: Array<{ name: string; preferredValues?: Array<{ type: string; key: string }> }>;
+        slotProperties?: Array<{ name: string; description?: string }>;
         _score: number;
       }>;
       variables: Array<{
@@ -75,15 +78,22 @@ export function registerSearchDesignSystemHandler(): void {
       styles: Array<{ key: string; name: string; styleType: string; _score: number }>;
     } = { components: [], variables: [], styles: [] };
 
-    // Extract variant options and TEXT property metadata from a component / component set.
-    // Enables AI to pick the right component + variant in one round-trip instead of
-    // N follow-up calls to list_component_properties.
+    // Extract all property metadata from a component / component set.
+    // Enables AI to pick the right component + variant + properties in one round-trip
+    // instead of N follow-up calls to list_component_properties.
     function extractComponentMetadata(node: ComponentNode | ComponentSetNode): {
       variants: Array<{ property: string; options: string[] }>;
       textProperties: Array<{ name: string; defaultValue: string }>;
+      booleanProperties: Array<{ name: string; defaultValue: boolean }>;
+      instanceSwapProperties: Array<{ name: string; preferredValues?: Array<{ type: string; key: string }> }>;
+      slotProperties: Array<{ name: string; description?: string }>;
     } {
       const variants: Array<{ property: string; options: string[] }> = [];
       const textProperties: Array<{ name: string; defaultValue: string }> = [];
+      const booleanProperties: Array<{ name: string; defaultValue: boolean }> = [];
+      const instanceSwapProperties: Array<{ name: string; preferredValues?: Array<{ type: string; key: string }> }> =
+        [];
+      const slotProperties: Array<{ name: string; description?: string }> = [];
       try {
         const defs = node.componentPropertyDefinitions;
         for (const [fullKey, def] of Object.entries(defs)) {
@@ -100,12 +110,33 @@ export function registerSearchDesignSystemHandler(): void {
               name: displayName,
               defaultValue: typeof def.defaultValue === 'string' ? def.defaultValue : '',
             });
+          } else if (def.type === 'BOOLEAN') {
+            booleanProperties.push({
+              name: displayName,
+              defaultValue: typeof def.defaultValue === 'boolean' ? def.defaultValue : false,
+            });
+          } else if (def.type === 'INSTANCE_SWAP') {
+            const entry: { name: string; preferredValues?: Array<{ type: string; key: string }> } = {
+              name: displayName,
+            };
+            const preferred = (
+              def as ComponentPropertyDefinitions[string] & { preferredValues?: InstanceSwapPreferredValue[] }
+            ).preferredValues;
+            if (preferred && preferred.length > 0) {
+              entry.preferredValues = preferred.map((pv) => ({ type: pv.type, key: pv.key }));
+            }
+            instanceSwapProperties.push(entry);
+          } else if ((def as { type: string }).type === 'SLOT') {
+            const entry: { name: string; description?: string } = { name: displayName };
+            const desc = (def as { description?: string }).description;
+            if (desc) entry.description = desc;
+            slotProperties.push(entry);
           }
         }
       } catch {
         /* componentPropertyDefinitions may throw on partially-loaded library components */
       }
-      return { variants, textProperties };
+      return { variants, textProperties, booleanProperties, instanceSwapProperties, slotProperties };
     }
 
     // ─── Search library variables ───
@@ -220,6 +251,11 @@ export function registerSearchDesignSystemHandler(): void {
               libraryName: '(local)',
               ...(meta.variants.length > 0 ? { variants: meta.variants } : {}),
               ...(meta.textProperties.length > 0 ? { textProperties: meta.textProperties } : {}),
+              ...(meta.booleanProperties.length > 0 ? { booleanProperties: meta.booleanProperties } : {}),
+              ...(meta.instanceSwapProperties.length > 0
+                ? { instanceSwapProperties: meta.instanceSwapProperties }
+                : {}),
+              ...(meta.slotProperties.length > 0 ? { slotProperties: meta.slotProperties } : {}),
               _score: score,
             });
           }
@@ -246,6 +282,11 @@ export function registerSearchDesignSystemHandler(): void {
                   libraryName: mc.remote ? '(library)' : '(local)',
                   ...(meta.variants.length > 0 ? { variants: meta.variants } : {}),
                   ...(meta.textProperties.length > 0 ? { textProperties: meta.textProperties } : {}),
+                  ...(meta.booleanProperties.length > 0 ? { booleanProperties: meta.booleanProperties } : {}),
+                  ...(meta.instanceSwapProperties.length > 0
+                    ? { instanceSwapProperties: meta.instanceSwapProperties }
+                    : {}),
+                  ...(meta.slotProperties.length > 0 ? { slotProperties: meta.slotProperties } : {}),
                   _score: score,
                 });
               }

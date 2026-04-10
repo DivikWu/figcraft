@@ -626,6 +626,41 @@ function inferChildSizing(
   const parentDir = parentFrame.layoutMode;
   if (parentDir === 'NONE') return;
 
+  // GRID layout: children default to FILL on both axes (fill their grid cell),
+  // or FIXED when explicit dimensions are provided.
+  if (parentDir === 'GRID') {
+    const isShape = isShapeNode(node) || node.type === 'INSTANCE';
+    if (!explicitH) {
+      const val = hasExplicitWidth ? 'FIXED' : isShape ? 'FIXED' : 'FILL';
+      setLayoutSizing(node, 'horizontal', val);
+      hints.push({
+        confidence: 'deterministic',
+        field: 'layoutSizingHorizontal',
+        value: val,
+        reason: hasExplicitWidth
+          ? 'explicit width in GRID cell — FIXED'
+          : isShape
+            ? 'shape in GRID cell — FIXED'
+            : 'GRID child — FILL to fill cell',
+      });
+    }
+    if (!explicitV) {
+      const val = hasExplicitHeight ? 'FIXED' : isShape ? 'FIXED' : 'FILL';
+      setLayoutSizing(node, 'vertical', val);
+      hints.push({
+        confidence: 'deterministic',
+        field: 'layoutSizingVertical',
+        value: val,
+        reason: hasExplicitHeight
+          ? 'explicit height in GRID cell — FIXED'
+          : isShape
+            ? 'shape in GRID cell — FIXED'
+            : 'GRID child — FILL to fill cell',
+      });
+    }
+    return;
+  }
+
   // Mobile screen dimensions → always FIXED on both axes (never HUG/FILL)
   if (isScreenSize(node)) {
     if (!explicitH) {
@@ -914,7 +949,14 @@ async function setupFrame(
 
   // ── Layout mode ──
   if (effectiveLayoutMode) {
-    frame.layoutMode = effectiveLayoutMode as 'HORIZONTAL' | 'VERTICAL';
+    frame.layoutMode = effectiveLayoutMode as 'HORIZONTAL' | 'VERTICAL' | 'GRID';
+    // ── GRID-specific properties ──
+    if (effectiveLayoutMode === 'GRID') {
+      if (p.gridRowCount != null) frame.gridRowCount = p.gridRowCount as number;
+      if (p.gridColumnCount != null) frame.gridColumnCount = p.gridColumnCount as number;
+      if (p.gridRowGap != null) frame.gridRowGap = p.gridRowGap as number;
+      if (p.gridColumnGap != null) frame.gridColumnGap = p.gridColumnGap as number;
+    }
     // When dimensions are explicitly provided with auto-layout, ensure FIXED sizing
     // (layoutMode assignment resets sizing to HUG by default, which would override resize)
     if (p.width != null && !p.layoutSizingHorizontal) {

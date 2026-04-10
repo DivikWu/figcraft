@@ -354,7 +354,7 @@ export function registerGeneratedTools(
       width: z.number().optional().describe("Width in px"),
       height: z.number().optional().describe("Height in px"),
       description: z.string().optional().describe("Component description"),
-      layoutMode: z.enum(['HORIZONTAL', 'VERTICAL']).optional().describe("Auto-layout direction (auto-inferred from padding/spacing/children)"),
+      layoutMode: z.enum(['HORIZONTAL', 'VERTICAL', 'GRID']).optional().describe("Auto-layout direction. GRID enables CSS Grid-like layout (auto-inferred from padding/spacing/children)"),
       itemSpacing: z.number().optional().describe("Spacing between children"),
       padding: z.number().optional().describe("Shorthand — sets all 4 padding edges"),
       paddingTop: z.number().optional(),
@@ -480,6 +480,41 @@ export function registerGeneratedTools(
   );
   }
 
+  if (shouldRegisterGeneratedTool(include, 'layout_component_set')) {
+    server.tool(
+    'layout_component_set',
+    "Auto-layout variants in a grid after combineAsVariants. Parses variant names (\"Size=Small, Style=Primary, State=Default\") to determine grid position. Automatically calculates adaptive column widths and row heights, then resizes the ComponentSet frame to fit.",
+    {
+      nodeId: z.string().describe("ComponentSet node ID"),
+      gap: z.number().optional().describe("Gap between variants in px (default: 20)"),
+      padding: z.number().optional().describe("Padding inside ComponentSet frame (default: 40)"),
+      columnAxis: z.string().optional().describe("Which variant property to use as columns (default: last property in variant name). Typically \"State\" — the axis designers scan horizontally."),
+      rowAxes: z.array(z.string()).optional().describe("Which variant properties to use as rows (default: all except columnAxis). Order matters — first axis varies slowest."),
+    },
+    async (params) => {
+      const result = await bridge.request('layout_component_set', params, undefined, 'layout_component_set', true);
+      return jsonResponse(result);
+    },
+  );
+  }
+
+  if (shouldRegisterGeneratedTool(include, 'bind_component_property')) {
+    server.tool(
+    'bind_component_property',
+    "Wire a component property to child nodes across all variants. Finds child nodes by name and sets componentPropertyReferences. Works on both Component and ComponentSet (iterates all variants).",
+    {
+      nodeId: z.string().describe("Component or ComponentSet node ID"),
+      propertyName: z.string().describe("Component property name (e.g. \"Label\", \"Show Icon\")"),
+      targetNodeSelector: z.string().describe("Child node name to match via recursive search (e.g. \"label\", \"icon\")"),
+      nodeProperty: z.enum(['characters', 'visible', 'mainComponent']).describe("Which node property to bind: characters → TEXT property (text nodes), visible → BOOLEAN property (any node), mainComponent → INSTANCE_SWAP property (instance nodes)"),
+    },
+    async ({ nodeId, propertyName, targetNodeSelector, nodeProperty }) => {
+      const result = await bridge.request('bind_component_property', { nodeId, propertyName, targetNodeSelector, nodeProperty }, undefined, 'bind_component_property', true);
+      return jsonResponse(result);
+    },
+  );
+  }
+
   if (shouldRegisterGeneratedTool(include, 'swap_instance')) {
     server.tool(
     'swap_instance',
@@ -555,15 +590,17 @@ export function registerGeneratedTools(
   if (shouldRegisterGeneratedTool(include, 'add_component_property')) {
     server.tool(
     'add_component_property',
-    "Add a new property to a component or component set. Supported types: BOOLEAN, TEXT, INSTANCE_SWAP, VARIANT.",
+    "Add a new property to a component or component set. Supported types: BOOLEAN, TEXT, INSTANCE_SWAP, VARIANT, SLOT.",
     {
       nodeId: z.string().describe("Component or ComponentSet node ID"),
       propertyName: z.string().describe("Property name"),
-      type: z.enum(['BOOLEAN', 'TEXT', 'INSTANCE_SWAP', 'VARIANT']).describe("Property type"),
-      defaultValue: z.unknown().describe("Default value"),
+      type: z.enum(['BOOLEAN', 'TEXT', 'INSTANCE_SWAP', 'VARIANT', 'SLOT']).describe("Property type"),
+      defaultValue: z.unknown().describe("Default value. String or boolean for most types. Can be a VariableAlias object ({ type: \"VARIABLE_ALIAS\", id: \"...\" }) to bind to a variable."),
+      preferredValues: z.array(z.record(z.unknown())).optional().describe("Preferred values for INSTANCE_SWAP and SLOT properties. Array of {type: \"COMPONENT\"|\"COMPONENT_SET\", key: string}."),
+      description: z.string().optional().describe("Property description (only supported for SLOT properties)"),
     },
-    async ({ nodeId, propertyName, type, defaultValue }) => {
-      const result = await bridge.request('add_component_property', { nodeId, propertyName, type, defaultValue }, undefined, 'add_component_property', true);
+    async (params) => {
+      const result = await bridge.request('add_component_property', params, undefined, 'add_component_property', true);
       return jsonResponse(result);
     },
   );
@@ -572,15 +609,17 @@ export function registerGeneratedTools(
   if (shouldRegisterGeneratedTool(include, 'update_component_property')) {
     server.tool(
     'update_component_property',
-    "Update an existing component property (rename or change default value).",
+    "Update an existing component property (rename, change default value, preferred values, or description). preferredValues is supported for INSTANCE_SWAP and SLOT properties. description is supported for SLOT properties only.",
     {
       nodeId: z.string().describe("Component or ComponentSet node ID"),
       propertyName: z.string().describe("Current property name"),
       newName: z.string().optional().describe("New property name"),
       defaultValue: z.unknown().optional().describe("New default value"),
+      preferredValues: z.array(z.record(z.unknown())).optional().describe("Preferred values for INSTANCE_SWAP or SLOT properties. Array of {type: 'COMPONENT'|'COMPONENT_SET', key: string}."),
+      description: z.string().optional().describe("Description for SLOT properties only"),
     },
-    async ({ nodeId, propertyName, newName, defaultValue }) => {
-      const result = await bridge.request('update_component_property', { nodeId, propertyName, newName, defaultValue }, undefined, 'update_component_property', true);
+    async (params) => {
+      const result = await bridge.request('update_component_property', params, undefined, 'update_component_property', true);
       return jsonResponse(result);
     },
   );
@@ -1106,13 +1145,13 @@ export const componentsEndpointSchema = {
     };
 
 export const variables_epEndpointSchema = {
-      method: z.enum(['list', 'get', 'list_collections', 'get_bindings', 'set_binding', 'create', 'update', 'delete', 'create_collection', 'delete_collection', 'batch_create', 'export']).describe('Method to invoke on this endpoint'),
+      method: z.enum(['list', 'get', 'list_collections', 'get_bindings', 'set_binding', 'create', 'update', 'delete', 'create_collection', 'delete_collection', 'batch_create', 'export', 'set_code_syntax', 'batch_bind', 'set_values_multi_mode', 'extend_collection', 'get_overrides', 'remove_override']).describe('Method to invoke on this endpoint'),
       collectionId: z.string().optional().describe("Filter by collection ID"),
       type: z.string().optional().describe("Filter by type: COLOR, FLOAT, STRING, BOOLEAN"),
-      variableId: z.string().optional(),
+      variableId: z.string().optional().describe("Variable ID to remove overrides for"),
       nodeId: z.string().optional(),
       field: z.string().optional(),
-      name: z.string().optional(),
+      name: z.string().optional().describe("Name for the extended collection"),
       resolvedType: z.enum(['COLOR', 'FLOAT', 'STRING', 'BOOLEAN']).optional(),
       value: z.unknown().optional(),
       modeId: z.string().optional(),
@@ -1121,10 +1160,14 @@ export const variables_epEndpointSchema = {
       collectionName: z.string().optional(),
       modeName: z.string().optional(),
       variables: z.array(z.record(z.unknown())).optional(),
+      syntax: z.record(z.string()).optional(),
+      bindings: z.array(z.record(z.unknown())).optional(),
+      valuesByMode: z.record(z.unknown()).optional(),
+      collectionKey: z.string().optional().describe("Collection key to extend (use for library collections)"),
     };
 
 export const styles_epEndpointSchema = {
-      method: z.enum(['list', 'get', 'create_paint', 'update_paint', 'update_text', 'update_effect', 'delete', 'sync']).describe('Method to invoke on this endpoint'),
+      method: z.enum(['list', 'get', 'create_paint', 'update_paint', 'update_text', 'update_effect', 'delete', 'sync', 'create_text', 'create_effect']).describe('Method to invoke on this endpoint'),
       type: z.string().optional().describe("Filter by style type: PAINT, TEXT, EFFECT, GRID"),
       styleId: z.string().optional(),
       name: z.string().optional(),
@@ -1135,7 +1178,8 @@ export const styles_epEndpointSchema = {
       fontSize: z.number().optional(),
       lineHeight: z.unknown().optional(),
       letterSpacing: z.unknown().optional(),
-      effects: z.array(z.record(z.unknown())).optional(),
+      effects: z.union([z.array(z.record(z.unknown())), z.array(z.record(z.unknown()))]).optional(),
       tokens: z.array(z.record(z.unknown())).optional(),
+      fontWeight: z.number().optional(),
     };
 
