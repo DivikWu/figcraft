@@ -30,7 +30,7 @@ export const errorJournalRule: HarnessRule = {
     if (!ctx.error) return PASS;
 
     const errorType = classifyError(ctx.error.message);
-    const detail = ctx.error.message.length > 120 ? ctx.error.message.slice(0, 120) + '…' : ctx.error.message;
+    const detail = ctx.error.message.length > 120 ? `${ctx.error.message.slice(0, 120)}…` : ctx.error.message;
 
     ctx.session.recordError(ctx.toolName, errorType, detail);
     return PASS;

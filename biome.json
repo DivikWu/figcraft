@@ -42,6 +42,7 @@
     "includes": [
       "**",
       "!dist",
+      "!**/dist",
       "!packages/core-mcp/src/tools/_generated.ts",
       "!packages/core-mcp/src/tools/_registry.ts",
       "!packages/core-mcp/src/tools/_contracts.ts",

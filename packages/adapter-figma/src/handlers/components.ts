@@ -165,13 +165,24 @@ export function registerComponentHandlers(): void {
     const instanceId = params.instanceId as string;
     const node = await findNodeByIdAsync(instanceId);
     assertNodeType(node, 'INSTANCE', `instanceId="${instanceId}"`, 'Only INSTANCE nodes have overrides to reset.');
-    // removeOverrides replaces the deprecated resetOverrides (Plugin API Update 120)
+    // Plugin API ≥ v120 renamed resetOverrides → removeOverrides. Current typings
+    // only expose the new name. The older name is kept as a runtime fallback
+    // (via untyped lookup) for hosts that still ship the legacy API.
     const instance = node as InstanceNode;
-    if ('removeOverrides' in instance) {
-      (instance as any).removeOverrides();
+    const withOverrideMethods = instance as unknown as {
+      removeOverrides?: () => void;
+      resetOverrides?: () => void;
+    };
+    if (typeof withOverrideMethods.removeOverrides === 'function') {
+      withOverrideMethods.removeOverrides();
+    } else if (typeof withOverrideMethods.resetOverrides === 'function') {
+      withOverrideMethods.resetOverrides();
     } else {
-      // Fallback for older Plugin API versions
-      instance.resetOverrides();
+      throw new HandlerError(
+        'Instance override reset is unavailable: neither removeOverrides nor resetOverrides exists on this instance. ' +
+          'Upgrade Figma to a Plugin API version ≥ 120.',
+        'API_UNAVAILABLE',
+      );
     }
     return { ok: true };
   });

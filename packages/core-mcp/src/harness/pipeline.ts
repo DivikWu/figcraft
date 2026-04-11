@@ -78,7 +78,7 @@ export class HarnessPipeline {
 
       // Re-throw with recovery suggestions appended
       if (recoveries.length > 0) {
-        const enriched = new Error(ctx.error.message + '\n_recovery: ' + recoveries.join('\n_recovery: '));
+        const enriched = new Error(`${ctx.error.message}\n_recovery: ${recoveries.join('\n_recovery: ')}`);
         enriched.stack = ctx.error.stack;
         throw enriched;
       }

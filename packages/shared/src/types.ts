@@ -59,7 +59,7 @@ export interface CompressedNode {
   cornerRadius?: number | number[];
   opacity?: number;
   // Layout
-  layoutMode?: 'HORIZONTAL' | 'VERTICAL' | 'NONE';
+  layoutMode?: 'HORIZONTAL' | 'VERTICAL' | 'GRID' | 'NONE';
   layoutPositioning?: 'ABSOLUTE';
   itemSpacing?: number;
   paddingLeft?: number;
@@ -71,6 +71,11 @@ export interface CompressedNode {
   clipsContent?: boolean;
   strokeWeight?: number;
   layoutAlign?: string;
+  // GRID layout (layoutMode === 'GRID')
+  gridRowCount?: number;
+  gridColumnCount?: number;
+  gridRowGap?: number;
+  gridColumnGap?: number;
   // Text
   characters?: string;
   fontSize?: number;

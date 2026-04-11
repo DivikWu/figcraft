@@ -62,7 +62,7 @@ function collectWarnings(node: Record<string, unknown>, path: string, out: Conte
         out.push({
           type: 'placeholder-text',
           path: nodePath,
-          content: trimmed.length > 40 ? trimmed.slice(0, 40) + '…' : trimmed,
+          content: trimmed.length > 40 ? `${trimmed.slice(0, 40)}…` : trimmed,
           message: `"${nodePath}" contains Lorem ipsum placeholder — use realistic, contextually appropriate text`,
         });
         break;
