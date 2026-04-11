@@ -104,20 +104,24 @@ export function registerNodeHandlers(): void {
     walkLive(node as SceneNode);
 
     // Resolve mainComponent for every collected instance via the async API
-    // (in parallel — independent calls). Surface both the variant and its
-    // parent COMPONENT_SET so the calling LLM sees the variant group, not
-    // just one variant.
+    // (in parallel — independent calls). When the mainComponent is a VARIANT
+    // inside a COMPONENT_SET, surface ONLY the parent set — reading
+    // `componentPropertyDefinitions` on a variant throws in the Figma Plugin
+    // API ("Can only get component property definitions of a component set
+    // or non-variant component"). The parent set's propDefs already carry
+    // the full variant axis information.
     await Promise.all(
       instanceNodes.map(async (inst) => {
         try {
           const main = await inst.getMainComponentAsync();
           if (!main) return;
-          if (main.key) componentKeys.add(main.key);
-          componentIds.add(main.id);
           if (main.parent?.type === 'COMPONENT_SET') {
             const set = main.parent as ComponentSetNode;
             if (set.key) componentKeys.add(set.key);
             componentIds.add(set.id);
+          } else {
+            if (main.key) componentKeys.add(main.key);
+            componentIds.add(main.id);
           }
         } catch {
           /* skip unresolvable instance */
@@ -170,12 +174,24 @@ export function registerNodeHandlers(): void {
       if (!comp) continue;
       if (comp.type !== 'COMPONENT' && comp.type !== 'COMPONENT_SET') continue;
       const c = comp as ComponentNode | ComponentSetNode;
-      const propDefs = c.componentPropertyDefinitions;
+
+      // Defensive fallback: if somehow a variant landed in componentIds,
+      // read its parent set's propDefs instead of its own (the Plugin API
+      // throws on variant.componentPropertyDefinitions).
+      const propDefSource: ComponentNode | ComponentSetNode =
+        c.type === 'COMPONENT' && c.parent?.type === 'COMPONENT_SET' ? (c.parent as ComponentSetNode) : c;
+
       const compactDefs: Record<string, { type: string; defaultValue?: unknown }> = {};
-      for (const [k, def] of Object.entries(propDefs)) {
-        const bareName = k.indexOf('#') >= 0 ? k.slice(0, k.indexOf('#')) : k;
-        compactDefs[bareName] = { type: def.type, defaultValue: def.defaultValue };
+      try {
+        const propDefs = propDefSource.componentPropertyDefinitions;
+        for (const [k, def] of Object.entries(propDefs)) {
+          const bareName = k.indexOf('#') >= 0 ? k.slice(0, k.indexOf('#')) : k;
+          compactDefs[bareName] = { type: def.type, defaultValue: def.defaultValue };
+        }
+      } catch {
+        /* leave compactDefs empty — non-fatal; consumers can still read `tree` */
       }
+
       components.push({
         id: c.id,
         key: c.key || undefined,

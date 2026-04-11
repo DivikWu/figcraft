@@ -245,11 +245,14 @@ export function registerComponentHandlers(): void {
     assertHandler(components.length > 0, 'No valid components found');
 
     // ── Variant matrix guardrail (P0-4) ──
-    // Enforce the 30-variant cap from figma-generate-library SKILL at the code level.
+    // Enforce a soft variant cap from figma-generate-library SKILL at the code level.
     // SKILL rules as warnings are weaker than runtime enforcement — see memory
-    // feedback_ai_guidance_layers (Layer 1 > Layer 5).
-    const VARIANT_LIMIT = 30;
-    if (components.length > VARIANT_LIMIT) {
+    // feedback_ai_guidance_layers (Layer 1 > Layer 5). Default is 30, but real
+    // production libraries sometimes legitimately exceed this (e.g. 4 size × 3
+    // style × 4 state = 48 for a core button), so the limit is overridable via
+    // `variantLimit` param. Pass 0 to disable entirely.
+    const VARIANT_LIMIT = typeof params.variantLimit === 'number' ? (params.variantLimit as number) : 30;
+    if (VARIANT_LIMIT > 0 && components.length > VARIANT_LIMIT) {
       // Parse variant names like "Size=Small, Style=Primary, State=Default"
       // to show which axes are blowing up the matrix.
       const axisValues = new Map<string, Set<string>>();

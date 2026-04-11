@@ -2832,7 +2832,12 @@ create_component:
       visible: true
 
 create_component_set:
-  description: Combine multiple existing components into a variant set (ComponentSet).
+  description: >-
+    Combine multiple existing components into a variant set (ComponentSet).
+    Enforces a soft variant cap (default 30) at the code level to catch matrices
+    that are blowing up due to missing INSTANCE_SWAP/SLOT extraction. Real
+    production libraries sometimes legitimately exceed 30 (e.g. 4 size × 3 style
+    × 4 state = 48), so the limit is overridable via `variantLimit`.
   toolset: components-advanced
   write: true
   access: create
@@ -2846,6 +2851,12 @@ create_component_set:
     name:
       type: string
       description: Name for the variant set
+    variantLimit:
+      type: number
+      description: >-
+        Maximum number of variants allowed. Default: 30. Pass 0 to disable the
+        check entirely. Override only when you have a deliberate reason to exceed
+        30 (e.g. a core button with size × style × state axes legitimately at 48).
   response:
     type: object
     fields:

@@ -394,10 +394,11 @@ export function registerGeneratedTools(
   if (shouldRegisterGeneratedTool(include, 'create_component_set')) {
     server.tool(
     'create_component_set',
-    "Combine multiple existing components into a variant set (ComponentSet).",
+    "Combine multiple existing components into a variant set (ComponentSet). Enforces a soft variant cap (default 30) at the code level to catch matrices that are blowing up due to missing INSTANCE_SWAP/SLOT extraction. Real production libraries sometimes legitimately exceed 30 (e.g. 4 size × 3 style × 4 state = 48), so the limit is overridable via `variantLimit`.",
     {
       componentIds: z.array(z.string()).describe("Component node IDs to combine into a variant set"),
       name: z.string().optional().describe("Name for the variant set"),
+      variantLimit: z.number().optional().describe("Maximum number of variants allowed. Default: 30. Pass 0 to disable the check entirely. Override only when you have a deliberate reason to exceed 30 (e.g. a core button with size × style × state axes legitimately at 48)."),
     },
     async (params) => {
       const result = await bridge.request('create_component_set', params, undefined, 'create_component_set', true);
