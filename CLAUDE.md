@@ -253,26 +253,78 @@ PEXELS_API_KEY=xxx                        # Pexels API key (optional, for image_
 
 ## Running
 
+### Strategic Principle: Self-Built First, Official Tools As Complement
+
+figcraft is the **complete MCP toolkit** for Figma Design — built around the Figma **Plugin API**, with WebSocket relay + Plugin sandbox architecture. It self-builds every capability where the Plugin API gives a structural advantage, and defers to official Figma tools for ecosystem-standard or REST-native features.
+
+**What figcraft actually differentiates on** — and what it does NOT:
+
+figcraft and the official Figma MCP (Desktop or Remote) are **not replacements for each other**. They occupy different architectural positions and have different limitations. Be honest about both.
+
+| Axis | figcraft (Plugin-first) | Figma Desktop MCP | Figma Remote MCP |
+|---|---|---|---|
+| **Authoring writes** (create_frame, nodes, variables, styles) | ✅ Full, via Plugin API | ⚠️ Limited (REST has write restrictions by plan) | ⚠️ Limited (REST) |
+| **Opinion Engine** (sizing inference, FILL ordering, conflict detection, token auto-binding) | ✅ Unique to figcraft | ❌ | ❌ |
+| **Reading node / variable / style / component data** | ✅ Via Plugin API, zero REST rate limits | ✅ Via local endpoint | ✅ Via REST |
+| **Zero Figma-plan gating** | ✅ Plugin API is available on every Figma plan | ⚠️ Dev Mode requires Organization+ | ⚠️ Remote MCP requires Organization+ |
+| **Zero OAuth / API-token setup** | ✅ Plugin installs directly | ⚠️ Needs Dev Mode enabled | ❌ Requires OAuth / API token |
+| **In-session context** (data is fresh the instant a figcraft write finishes) | ✅ Same MCP, same session | ❌ Must re-fetch via REST | ❌ Must re-fetch via REST |
+| **Code Connect template file generation** | ❌ Not self-built — deferred to `figma connect create` CLI | ⚠️ Some support via `get_code_connect_suggestions` | ⚠️ Some support |
+| **Code Connect publish** | ❌ Not self-built — deferred to `figma connect publish` CLI | N/A | N/A |
+| **FigJam** | ❌ Not supported | ✅ | ⚠️ |
+| **Local connectivity required** | ⚠️ **Yes** — Plugin + relay run against a local Figma client (Desktop or Web). The default relay binds `localhost:3055`. | ⚠️ Yes — requires local Figma Desktop at `127.0.0.1:3845` | ✅ No — HTTPS endpoint, reachable from cloud agents |
+| **Remote / cloud-agent friendly without extra config** | ❌ **Same local-binding constraint as Desktop MCP.** Remote agents need a tunnel or a local MCP-server proxy. | ❌ | ✅ |
+
+**What figcraft actually owns** (where it is clearly the right tool):
+- Design-to-code context extraction → `get_design_context` (P0-5) — in-session, no REST rate limits, carries figcraft's own semantic metadata (role plugin data, `#id` suffixes, preferredValues)
+- Screenshot / export → `export_image` — Plugin-side, no REST round trip
+- Variable / style / component CRUD → `variables_ep`, `styles_ep`, `components_advanced` toolset — Plugin API writes that REST cannot do on non-Enterprise plans
+- Design system search → `search_design_system` (dual-source: plugin + REST, richer than either alone)
+- Library publish preflight → `preflight_library_publish` (P0-1) — composes figcraft's own scan results
+- Variant matrix guardrail → built into `create_component_set` (P0-4) — runtime enforcement of the 30-variant cap
+- Component property batch binding → `bind_component_property` accepts arrays (P0-3) — cuts agent tool-call count
+- Self-correcting error messages → `assertNodeType` helper across handlers (P0-2) — Plugin-side candidate lists
+
+**4 scenarios where official Figma tools are the right choice** (and why):
+1. **FigJam** — figcraft only supports Figma Design; FigJam has its own Plugin API surface
+2. **Code Connect template generation + publish** — `figma connect create` and `figma connect publish` are the ecosystem standard. They hit the Figma REST API directly (no Desktop required), support every framework Code Connect supports, and are maintained by Figma. figcraft provides `get_code_connect_metadata` for in-session agent data — NOT template file generation
+3. **Dev Mode UI association** — Figma's native sidebar UI for component ↔ source linking
+4. **Tokens Studio dialect import** — see "spec mode" docs for figcraft's DTCG-only stance
+5. **Fully cloud agent with no local Figma client** — if the agent has zero reach to a local machine running Figma, neither figcraft nor figma-desktop MCP works. **Figma Remote MCP server** (`https://...figma.com/mcp` — see [official docs](https://developers.figma.com/docs/figma-mcp-server/remote-server-installation/)) is the right tool for this case, via OAuth
+
+**Honest local-connectivity note**: figcraft's Plugin + relay architecture, like figma-desktop MCP, assumes a local Figma client (Desktop app or Figma Web open in the user's browser) reachable from wherever the MCP server runs. For remote / cloud-agent / claude.ai-web scenarios, users need either:
+- A tunnel exposing the local relay port to the remote agent, OR
+- The agent running in a place that can dial the user's local `localhost:3055`, OR
+- Fall back to Figma Remote MCP (above) for pure-cloud scenarios
+
+figcraft is **not** a magic cloud solution. It is a better **local-plugin-first toolkit** — stronger at authoring, Opinion Engine, zero-config, and zero-plan-gating than the official Figma MCPs, but subject to the same local-connectivity trade-off as figma-desktop MCP.
+
 ### User Usage (after npm package published)
 
 ```bash
-# Configure MCP Server in IDE (no need to clone source):
+# Default: figcraft alone is enough.
 # {
 #   "mcpServers": {
-#     "figma-desktop": {
-#       "url": "http://127.0.0.1:3845/mcp",
-#       "type": "http"
-#     },
 #     "figcraft": {
 #       "command": "npx",
 #       "args": ["figcraft-design"]
 #     }
 #   }
 # }
-# figma-desktop: Figma official desktop MCP (design-to-code, Code Connect, screenshots)
-#   Requires: Figma desktop app → Shift+D (Dev Mode) → Enable MCP Server
-# figcraft: FigCraft (declarative creation, lint, token sync, audit)
-#   Requires: FigCraft plugin loaded in Figma
+#
+# Optional: add figma-desktop MCP only if you need FigJam, Code Connect publish,
+# or Dev Mode UI features (see "Strategic Principle" above):
+# {
+#   "mcpServers": {
+#     "figcraft": { "command": "npx", "args": ["figcraft-design"] },
+#     "figma-desktop": {
+#       "url": "http://127.0.0.1:3845/mcp",
+#       "type": "http"
+#     }
+#   }
+# }
+# figma-desktop requires Figma desktop app → Shift+D (Dev Mode) → Enable MCP Server.
+# figcraft requires the FigCraft plugin loaded in Figma.
 ```
 
 ### Development
@@ -285,15 +337,12 @@ PEXELS_API_KEY=xxx                        # Pexels API key (optional, for image_
 # 2. Configure MCP Server in IDE (no need to manually start Relay, MCP Server auto-embeds it):
 # {
 #   "mcpServers": {
-#     "figma-desktop": {
-#       "url": "http://127.0.0.1:3845/mcp",
-#       "type": "http"
-#     },
 #     "figcraft": {
 #       "command": "npx",
 #       "args": ["tsx", "packages/figcraft-design/src/index.ts"],
 #       "cwd": "/path/to/figcraft"
 #     }
+#     // Add figma-desktop only if you need FigJam / Code Connect publish / Dev Mode UI.
 #   }
 # }
 

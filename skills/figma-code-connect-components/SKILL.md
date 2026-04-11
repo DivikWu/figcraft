@@ -8,9 +8,80 @@ disable-model-invocation: false
 
 ## Overview
 
-Create Code Connect template files (`.figma.ts`) that map Figma components to code snippets. Given a Figma URL, follow the steps below to create a template.
+Create Code Connect mappings that link Figma components to code snippets. There are **three valid workflows** — pick the one that matches what the user is doing.
 
-> **Note:** This project may also contain parser-based `.figma.tsx` files (using `figma.connect()`, published via CLI). This skill covers **templates files only** — `.figma.ts` files that use the MCP tools to fetch component context from Figma.
+## Workflow Selection
+
+| Workflow | Use when | Tool chain | Environment limits |
+|---|---|---|---|
+| **A. Parser-based `.figma.tsx` via official CLI** *(default — recommended, most portable)* | User wants a new template file written to their repo, in any Code Connect–supported framework (React, React Native, HTML, Web Components, SwiftUI, Jetpack Compose) | `npx figma connect create "<url>" --token <T>` → generates boilerplate file → user customizes → `npx figma connect publish` | ✅ Works everywhere a shell can reach the internet: Claude Code, Cursor, Kiro, Antigravity, Codex, CI, cloud IDEs. Only needs an API token. **The most portable option.** |
+| **C. figcraft metadata → LLM-generated template** *(best quality for existing projects)* | User has an existing project code style to match (shadcn, custom wrapper, forwardRef, cva variants) and wants the `.figma.tsx` aligned to the project's actual component API | `get_code_connect_metadata(nodeId)` → LLM reads project source (Glob/Read Button.tsx) → LLM generates aligned `.figma.tsx` → user runs `npx figma connect publish` | ⚠️ Needs figcraft plugin + local relay reachable from the agent. Works in every local desktop IDE (Kiro desktop, Cursor desktop, Claude Code local). For remote / cloud-agent scenarios it has the same local-binding trade-off as figma-desktop MCP — the relay must be tunneled or the MCP server proxied. Not a magic cloud solution. |
+| **B. MCP template files `.figma.ts`** *(local-desktop only, legacy)* | User explicitly needs the non-parser `.figma.ts` template format AND is running in a local desktop environment | `get_code_connect_suggestions` / `send_code_connect_mappings` (Figma Desktop MCP tools) — continue with Steps 1-6 below | ⚠️ **Local desktop only.** Requires Figma Desktop app running on the same machine as the agent, reachable at `127.0.0.1:3845`. **Does NOT work in**: Kiro cloud / Codex cloud / CI / SSH / claude.ai web / any remote-agent scenario where the agent process is not on the user's desktop. |
+
+**How to choose:**
+
+1. **First ask**: does the user have a strong preference for `.figma.ts` template format? (Usually no — most projects use `.figma.tsx` parser-based.)
+2. **If no**: pick Workflow A (official CLI) for fresh files, or Workflow C (figcraft metadata + LLM) if the project has opinionated code style to match. Both work in every IDE figcraft supports.
+3. **If yes**: check whether the agent is running in a local desktop environment with the Figma Desktop app open.
+   - **Local desktop** (Claude Code on laptop, Cursor desktop, Kiro desktop, etc.) → Workflow B is viable
+   - **Remote / cloud / CI** (Kiro cloud, Codex cloud, claude.ai web, CI runners, SSH sessions) → Workflow B is **technically impossible** (cannot reach `127.0.0.1:3845`). Use Workflow A or C instead, even if that means using `.figma.tsx` format.
+4. **Agent just modified a component in the same figcraft session** and needs fresh metadata → Workflow C (figcraft's in-session data source, no shell roundtrip, no file re-fetch via REST).
+
+> **Environment check**: Before proposing Workflow B, verify the `get_code_connect_suggestions` MCP tool is actually available in the current session. If it is not, the agent is running somewhere the Figma Desktop MCP cannot reach — fall back to Workflow A or C without further prompting.
+
+### Workflow A — Official CLI (Parser-based .figma.tsx)
+
+For the standard flow:
+
+```bash
+# 1. Generate boilerplate
+npx figma connect create "https://figma.com/design/<fileKey>/<name>?node-id=<id>" \
+  --token <FIGMA_ACCESS_TOKEN>
+
+# 2. Customize the generated .figma.tsx to match your component's actual API
+# 3. Publish
+npx figma connect publish --token <FIGMA_ACCESS_TOKEN>
+```
+
+Supports every framework Code Connect supports. Hits Figma REST API directly (no Desktop required). This is the de-facto standard.
+
+### Workflow C — figcraft metadata + project alignment
+
+Best template quality when the project already has opinionated code style. figcraft provides the in-session metadata; the LLM does the alignment work.
+
+```
+1. Call: get_code_connect_metadata(nodeId: "<componentId>", fileKey: "<fileKey>")
+   → Returns componentName, figmaUrl, properties[], variantOptions, slots, etc.
+2. Glob: find project source candidates (**/Button.{tsx,ts,vue,swift,kt})
+3. Read: open the project source to learn actual prop names, variant enum values, import path
+4. Align: LLM maps Figma properties to project API:
+   - Figma "Label" (TEXT) → project uses `children` → figma.string("Label") mapped to children
+   - Figma "Style" variants ["Primary","Secondary"] → project cva has ["default","secondary"] → enum map
+   - Import path from tsconfig paths (e.g. "@/components/ui/button")
+5. Write: the aligned .figma.tsx to the repo
+6. Publish: `npx figma connect publish`
+```
+
+**Why figcraft's metadata beats `figma connect create`'s default boilerplate here**: figcraft holds property definitions with the original `#id` suffix, INSTANCE_SWAP `preferredValues`, and slot content as a zero-cost byproduct of being the component author. When an agent has just modified a component via `add_component_property` / `bind_component_property`, `get_code_connect_metadata` returns the up-to-date shape without a shell roundtrip and without re-fetching from the REST API.
+
+**What figcraft does NOT do**: figcraft does NOT generate template file content. Template file generation is the job of `figma connect create` (Workflow A) or an LLM using metadata (Workflow C). Per CLAUDE.md "Strategic Principle", figcraft owns what has structural advantage; template generation belongs to the official CLI because it's the ecosystem standard.
+
+---
+
+## Workflow B — MCP Template Files (.figma.ts, local-desktop only)
+
+> ⚠️ **Environment limit**: Workflow B only works when the agent can reach `127.0.0.1:3845` (the Figma Desktop MCP endpoint). This means **local desktop IDEs where the Figma desktop app is running on the same machine as the agent**. It does NOT work in:
+> - Kiro running in a cloud / remote agent backend
+> - Codex cloud agent
+> - claude.ai web sessions
+> - CI runners / SSH sessions / remote workspaces
+> - Any environment where the agent process is not on the user's desktop
+>
+> If the `get_code_connect_suggestions` MCP tool is not present in the session, **do not proceed with Workflow B** — fall back to Workflow A (official CLI) or Workflow C (figcraft metadata), both of which work everywhere.
+
+The rest of this document is the original Workflow B — use it when Workflow B's environment limits are satisfied AND the user explicitly wants the `.figma.ts` template-based format.
+
+> **Note:** This project may also contain parser-based `.figma.tsx` files (using `figma.connect()`, published via CLI). This SKILL section covers **.figma.ts template files** — files that use the Figma Desktop MCP tools to fetch component context from Figma.
 
 ## Prerequisites
 

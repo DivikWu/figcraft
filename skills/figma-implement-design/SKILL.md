@@ -8,7 +8,7 @@ disable-model-invocation: false
 
 ## Overview
 
-This skill provides a structured workflow for translating Figma designs into production-ready code with pixel-perfect accuracy. It ensures consistent integration with the Figma MCP server, proper use of design tokens, and 1:1 visual parity with designs.
+This skill provides a structured workflow for translating Figma designs into production-ready code with pixel-perfect accuracy. **Default tool: figcraft's `get_design_context`** — figcraft's self-built design-to-code context extraction runs against the Figma Plugin API and returns in-session metadata that the component's author (figcraft itself) produced.
 
 ## Skill Boundaries
 
@@ -18,13 +18,34 @@ This skill provides a structured workflow for translating Figma designs into pro
 - If the user asks only for Code Connect mappings, switch to [figma-code-connect-components](../figma-code-connect-components/SKILL.md).
 - If the user asks to author reusable agent rules (`CLAUDE.md`/`AGENTS.md`), switch to [figma-create-design-system-rules](../figma-create-design-system-rules/SKILL.md).
 
+## Tool Choice: figcraft First, Official Figma MCPs When They Fit
+
+**Default — use figcraft** for all design-to-code work:
+- `get_design_context(nodeId, framework?)` — structured node tree + resolved variables/styles/components
+- `export_image(nodeId)` — visual reference (returns base64)
+- `get_node_info(nodeId, detail)` — full node properties when you need a single deep dive
+- `get_current_page(maxDepth)` — page-level overview
+
+**Why figcraft is the default** (honest differentiation):
+- **In-session freshness** — figcraft is a single MCP session: if the agent just edited a component via figcraft writes, `get_design_context` returns the new shape immediately. figma-desktop MCP / Figma Remote MCP would have to re-fetch via REST.
+- **Zero OAuth / API-token setup** — the figcraft plugin installs directly. Figma Remote MCP requires OAuth + Organization plan.
+- **Zero Figma-plan gating** — Plugin API is available on every Figma plan. Figma Remote MCP requires Organization or Enterprise.
+- **Richer metadata** — figcraft owns component property keys with `#id` suffixes, INSTANCE_SWAP `preferredValues`, role plugin data. These are figcraft's own authoring artifacts; the official MCPs reverse-engineer them from the REST representation.
+- **No REST rate limits** — Plugin-side reads do not consume REST quota.
+
+**Where figcraft is NOT magic** (honest limits):
+- figcraft plugin + relay assume a local Figma client (Desktop app or Figma Web in the user's browser) reachable from wherever the MCP server runs. For remote / cloud / claude.ai-web scenarios, figcraft **has the same local-connectivity trade-off as figma-desktop MCP** and needs a tunnel or a local MCP-server proxy.
+- For pure cloud agents with zero reach to a local Figma client, **Figma Remote MCP server** (`https://...figma.com/mcp`, OAuth-based) is the right tool.
+
+**Fall back to the official Figma MCPs when**:
+- User needs Code Connect publish-side helpers (`get_code_connect_suggestions` / `send_code_connect_mappings`) — Figma Desktop MCP only
+- User needs Dev Mode UI's existing source-link metadata — Figma Desktop MCP only
+- The agent runs in a fully cloud environment with no reach to the user's local Figma / figcraft plugin — Figma Remote MCP with OAuth
+
 ## Prerequisites
 
-- Figma MCP server must be connected and accessible
-- User must provide a Figma URL in the format: `https://figma.com/design/:fileKey/:fileName?node-id=1-2`
-  - `:fileKey` is the file key
-  - `1-2` is the node ID (the specific component or frame to implement)
-- **OR** when using `figma-desktop` MCP: User can select a node directly in the Figma desktop app (no URL required)
+- figcraft plugin connected to the target Figma file (call `ping` or `get_mode` to verify)
+- A target node ID — either from a Figma URL the user provided, from `get_selection`, or from `get_current_page`
 - Project should have an established design system or component library (preferred)
 
 ## Required Workflow
@@ -35,109 +56,117 @@ This skill provides a structured workflow for translating Figma designs into pro
 
 #### Option A: Parse from Figma URL
 
-When the user provides a Figma URL, extract the file key and node ID to pass as arguments to MCP tools.
+When the user provides a Figma URL, extract the node ID. figcraft connects to the **currently open Figma file** through its plugin, so a fileKey is not needed for figcraft tool calls — only the nodeId.
 
-**URL format:** `https://figma.com/design/:fileKey/:fileName?node-id=1-2`
+**URL format:** `https://figma.com/design/:fileKey/:fileName?node-id=42-15`
 
 **Extract:**
+- **Node ID:** the value of the `node-id` query parameter (e.g. `42-15`, normalized to `42:15` internally)
 
-- **File key:** `:fileKey` (the segment after `/design/`)
-- **Node ID:** `1-2` (the value of the `node-id` query parameter)
+If the URL points to a different file than the one open in Figma, ask the user to switch the Figma file first — figcraft does not perform cross-file reads.
 
-**Note:** When using the local desktop MCP (`figma-desktop`), `fileKey` is not passed as a parameter to tool calls. The server automatically uses the currently open file, so only `nodeId` is needed.
+#### Option B: Use Current Selection
 
-**Example:**
+When the user has selected a node in Figma, call `get_selection` to retrieve its id.
 
-- URL: `https://figma.com/design/kL9xQn2VwM8pYrTb4ZcHjF/DesignSystem?node-id=42-15`
-- File key: `kL9xQn2VwM8pYrTb4ZcHjF`
-- Node ID: `42-15`
+```
+get_selection() → returns { count, nodes: [{ id, name, type, ... }] }
+```
 
-#### Option B: Use Current Selection from Figma Desktop App (figma-desktop MCP only)
+#### Option C: Browse the Page
 
-When using the `figma-desktop` MCP and the user has NOT provided a URL, the tools automatically use the currently selected node from the open Figma file in the desktop app.
-
-**Note:** Selection-based prompting only works with the `figma-desktop` MCP server. The remote server requires a link to a frame or layer to extract context. The user must have the Figma desktop app open with a node selected.
+When the user describes the target without an id, call `get_current_page(maxDepth: 1)` for a fast overview, then drill into specific frames with `get_node_info(nodeId, detail: "standard")`.
 
 ### Step 2: Fetch Design Context
 
-Run `get_design_context` with the extracted file key and node ID.
+Run `get_design_context` with the nodeId. Optionally pass `framework` to get a tailored hint string.
 
 ```
-get_design_context(fileKey=":fileKey", nodeId="1-2")
+get_design_context(nodeId: "42:15", framework: "react")
 ```
 
-This provides the structured data including:
+This returns:
+- **`tree`** — full compressed node hierarchy with `boundVariables` and `styleId` references preserved
+- **`variables`** — every variable referenced in the tree, resolved to `{ id, name, type, collection }` (e.g. `color/bg/primary` → COLOR in collection `Color`)
+- **`styles`** — every paint/text/effect style referenced, resolved to `{ id, name, type }`
+- **`components`** — every component the tree's instances point to, resolved to `{ name, key, isSet, remote, propertyDefinitions }`
+- **`frameworkHint`** — short guidance string the LLM uses to map Figma constructs to the target framework (Flexbox / HStack / Modifier / etc.)
+- **`summary`** — counts of textNodes, imageNodes, variablesUsed, stylesUsed, componentsUsed
 
-- Layout properties (Auto Layout, constraints, sizing)
-- Typography specifications
-- Color values and design tokens
-- Component structure and variants
-- Spacing and padding values
+**framework values**: `react` | `vue` | `swiftui` | `compose` | `tailwind` | `unspecified` (default).
 
-**If the response is too large or truncated:**
-
-1. Run `get_metadata(fileKey=":fileKey", nodeId="1-2")` to get the high-level node map
-2. Identify the specific child nodes needed from the metadata
-3. Fetch individual child nodes with `get_design_context(fileKey=":fileKey", nodeId=":childNodeId")`
+**If the response is too large**:
+1. Call `get_current_page(maxDepth: 2)` for a high-level node map
+2. Identify the specific child nodes worth zooming in on
+3. Call `get_design_context(nodeId: "<childId>")` for each child individually
 
 ### Step 3: Capture Visual Reference
 
-Run `get_screenshot` with the same file key and node ID for a visual reference.
+Run `export_image` for a visual reference.
 
 ```
-get_screenshot(fileKey=":fileKey", nodeId="1-2")
+export_image(nodeId: "42:15", format: "PNG", scale: 2)
 ```
 
-This screenshot serves as the source of truth for visual validation. Keep it accessible throughout implementation.
+This returns base64-encoded image data. Keep it accessible throughout implementation as the source of truth for visual validation.
 
-### Step 4: Download Required Assets
+### Step 4: Resolve Asset References
 
-Download any assets (images, icons, SVGs) returned by the Figma MCP server.
+The `tree` from Step 2 contains image fill references. For each `IMAGE` paint:
+- The `imageHash` identifies the image inside the Figma file
+- Call `export_image` on the specific node containing the image fill to get its rasterized version
+- Save the exported image to the project's asset directory
 
-**IMPORTANT:** Follow these asset rules:
-
-- If the Figma MCP server returns a `localhost` source for an image or SVG, use that source directly
-- DO NOT import or add new icon packages - all assets should come from the Figma payload
-- DO NOT use or create placeholders if a `localhost` source is provided
-- Assets are served through the Figma MCP server's built-in assets endpoint
+For SVG/icon nodes (vector nodes with no children):
+- Call `export_image(nodeId, format: "SVG")` to get clean SVG markup
+- DO NOT add new icon packages — assets should come from the Figma export
 
 ### Step 5: Translate to Project Conventions
 
-Translate the Figma output into this project's framework, styles, and conventions.
+Translate the Figma context into the target framework, styles, and conventions.
 
-**Key principles:**
+**Use the resolved arrays from Step 2 directly**:
+- `variables[].name` → map slash-separated names to your CSS variables / theme tokens (e.g. `color/bg/primary` → `var(--color-bg-primary)` for web, `Color.bgPrimary` for SwiftUI)
+- `styles[].name` → map to text style classes / typography utilities
+- `components[]` → if `remote: true`, the component lives in a published library; if `key` is set, it's importable. Match by name to existing project components first.
 
-- Treat the Figma MCP output (typically React + Tailwind) as a representation of design and behavior, not as final code style
-- Replace Tailwind utility classes with the project's preferred utilities or design system tokens
-- Reuse existing components (buttons, inputs, typography, icon wrappers) instead of duplicating functionality
-- Use the project's color system, typography scale, and spacing tokens consistently
-- Respect existing routing, state management, and data-fetch patterns
+**Framework-specific mappings (driven by `frameworkHint`)**:
+| Figma | React/Tailwind | SwiftUI | Compose |
+|---|---|---|---|
+| `layoutMode: HORIZONTAL` | `flex flex-row` | `HStack { ... }` | `Row { ... }` |
+| `layoutMode: VERTICAL` | `flex flex-col` | `VStack { ... }` | `Column { ... }` |
+| `itemSpacing: 16` | `gap-4` | `spacing: 16` | `Arrangement.spacedBy(16.dp)` |
+| `padding: 24` | `p-6` | `.padding(24)` | `Modifier.padding(24.dp)` |
+| Variable bound fill | `bg-[var(--color-bg-primary)]` or matched token | `Color.bgPrimary` | `MaterialTheme.colors.primary` |
+
+**Reuse over recreation**: Always check for existing components before creating new ones. Use `search_design_system(query: "<component name>")` if the project also has a Figma library, to confirm the design system component is published.
 
 ### Step 6: Achieve 1:1 Visual Parity
 
 Strive for pixel-perfect visual parity with the Figma design.
 
 **Guidelines:**
-
 - Prioritize Figma fidelity to match designs exactly
-- Avoid hardcoded values - use design tokens from Figma where available
-- When conflicts arise between design system tokens and Figma specs, prefer design system tokens but adjust spacing or sizes minimally to match visuals
+- Avoid hardcoded values — use the `variables`/`styles` arrays from Step 2 to drive every color, spacing, radius, and font
+- When project tokens diverge from Figma, prefer project tokens but adjust spacing/sizes minimally to preserve visuals
 - Follow WCAG requirements for accessibility
 - Add component documentation as needed
 
 ### Step 7: Validate Against Figma
 
-Before marking complete, validate the final UI against the Figma screenshot.
+Before marking complete, validate the final UI against the Step 3 screenshot.
 
 **Validation checklist:**
 
 - [ ] Layout matches (spacing, alignment, sizing)
 - [ ] Typography matches (font, size, weight, line height)
-- [ ] Colors match exactly
+- [ ] Colors match exactly — every color comes from the resolved variables, not eyeballed
 - [ ] Interactive states work as designed (hover, active, disabled)
 - [ ] Responsive behavior follows Figma constraints
 - [ ] Assets render correctly
 - [ ] Accessibility standards met
+
+For an automated structural check on the result you implemented in Figma, call `audit_node(nodeId)` or `verify_design(nodeId)`.
 
 ## Implementation Rules
 
@@ -150,13 +179,13 @@ Before marking complete, validate the final UI against the Figma screenshot.
 ### Design System Integration
 
 - ALWAYS use components from the project's design system when possible
-- Map Figma design tokens to project design tokens
+- Map Figma design tokens (from `get_design_context.variables`) to project design tokens by **name match**, not by raw value
 - When a matching component exists, extend it rather than creating a new one
 - Document any new components added to the design system
 
 ### Code Quality
 
-- Avoid hardcoded values - extract to constants or design tokens
+- Avoid hardcoded values — extract to constants or design tokens
 - Keep components composable and reusable
 - Add TypeScript types for component props
 - Include JSDoc comments for exported components
@@ -169,14 +198,13 @@ User says: "Implement this Figma button component: https://figma.com/design/kL9x
 
 **Actions:**
 
-1. Parse URL to extract fileKey=`kL9xQn2VwM8pYrTb4ZcHjF` and nodeId=`42-15`
-2. Run `get_design_context(fileKey="kL9xQn2VwM8pYrTb4ZcHjF", nodeId="42-15")`
-3. Run `get_screenshot(fileKey="kL9xQn2VwM8pYrTb4ZcHjF", nodeId="42-15")` for visual reference
-4. Download any button icons from the assets endpoint
-5. Check if project has existing button component
-6. If yes, extend it with new variant; if no, create new component using project conventions
-7. Map Figma colors to project design tokens (e.g., `primary-500`, `primary-hover`)
-8. Validate against screenshot for padding, border radius, typography
+1. Parse URL → `nodeId = "42:15"`. Confirm the file is currently open in Figma (figcraft only reads the live file).
+2. Run `get_design_context(nodeId: "42:15", framework: "react")` — returns the button tree, the `color/text/inverse` variable, the `Button/Primary` component metadata, and the React framework hint.
+3. Run `export_image(nodeId: "42:15", format: "PNG", scale: 2)` for the screenshot.
+4. From the `components` array: the button is a remote library component with property definitions `{ Label: TEXT, Icon: INSTANCE_SWAP, State: VARIANT }`.
+5. Check if project has an existing button component with matching API. If yes, extend it; if no, create new component using project conventions.
+6. Map Figma variables to project tokens by name: `color/bg/primary` → `var(--color-bg-primary)`.
+7. Validate against the Step 3 screenshot for padding, border radius, typography.
 
 **Result:** Button component matching Figma design, integrated with project design system.
 
@@ -186,15 +214,14 @@ User says: "Build this dashboard: https://figma.com/design/pR8mNv5KqXzGwY2JtCfL4
 
 **Actions:**
 
-1. Parse URL to extract fileKey=`pR8mNv5KqXzGwY2JtCfL4D` and nodeId=`10-5`
-2. Run `get_metadata(fileKey="pR8mNv5KqXzGwY2JtCfL4D", nodeId="10-5")` to understand the page structure
-3. Identify main sections from metadata (header, sidebar, content area, cards) and their child node IDs
-4. Run `get_design_context(fileKey="pR8mNv5KqXzGwY2JtCfL4D", nodeId=":childNodeId")` for each major section
-5. Run `get_screenshot(fileKey="pR8mNv5KqXzGwY2JtCfL4D", nodeId="10-5")` for the full page
-6. Download all assets (logos, icons, charts)
-7. Build layout using project's layout primitives
-8. Implement each section using existing components where possible
-9. Validate responsive behavior against Figma constraints
+1. Parse URL → `nodeId = "10:5"`. Confirm the dashboard file is open in Figma.
+2. Run `get_current_page(maxDepth: 2)` to understand the page structure (header, sidebar, content area, cards).
+3. Run `get_design_context(nodeId: "10:5", framework: "react")` for the full dashboard. If the response is too large, switch to per-section calls using the child nodeIds from Step 2.
+4. Run `export_image(nodeId: "10:5", format: "PNG", scale: 2)` for a full-page reference.
+5. Export logos and chart assets via `export_image(nodeId: "<assetId>", format: "SVG")` per asset.
+6. Build layout using the project's layout primitives, driven by the `tree.layoutMode` and `tree.itemSpacing` values from Step 3.
+7. Implement each section using existing components where possible, matching by name from `components[]`.
+8. Validate responsive behavior against Figma constraints in the screenshot.
 
 **Result:** Complete dashboard matching Figma design with responsive layout.
 
@@ -202,7 +229,7 @@ User says: "Build this dashboard: https://figma.com/design/pR8mNv5KqXzGwY2JtCfL4
 
 ### Always Start with Context
 
-Never implement based on assumptions. Always fetch `get_design_context` and `get_screenshot` first.
+Never implement based on assumptions. Always run `get_design_context` and `export_image` first.
 
 ### Incremental Validation
 
@@ -220,27 +247,31 @@ Always check for existing components before creating new ones. Consistency acros
 
 When in doubt, prefer the project's design system patterns over literal Figma translation.
 
+### Token-Driven Styling
+
+Every color, spacing, radius, and font in the generated code should map to a name from `get_design_context.variables` or `get_design_context.styles`. If you find yourself writing a raw hex or px value, stop and check if a token exists.
+
 ## Common Issues and Solutions
 
-### Issue: Figma output is truncated
+### Issue: Response too large from get_design_context
 
-**Cause:** The design is too complex or has too many nested layers to return in a single response.
-**Solution:** Use `get_metadata` to get the node structure, then fetch specific nodes individually with `get_design_context`.
+**Cause:** The target node has too many descendants to return in a single call.
+**Solution:** Call `get_current_page(maxDepth: 2)` to find logical sub-frames, then `get_design_context` on each child individually.
 
 ### Issue: Design doesn't match after implementation
 
 **Cause:** Visual discrepancies between the implemented code and the original Figma design.
-**Solution:** Compare side-by-side with the screenshot from Step 3. Check spacing, colors, and typography values in the design context data.
+**Solution:** Compare side-by-side with the screenshot from Step 3. Cross-check color/spacing values against the `variables` array — if a value didn't come from a token, that's the likely source of drift.
 
-### Issue: Assets not loading
+### Issue: Variable names don't match project tokens
 
-**Cause:** The Figma MCP server's assets endpoint is not accessible or the URLs are being modified.
-**Solution:** Verify the Figma MCP server's assets endpoint is accessible. The server serves assets at `localhost` URLs. Use these directly without modification.
+**Cause:** The Figma library uses different naming conventions than the project's CSS / theme tokens.
+**Solution:** Maintain a one-time naming map in the project (e.g. `color/bg/primary` → `--color-bg-primary`). If a Figma variable has no project equivalent, propose adding it to the project's design system rather than hardcoding.
 
-### Issue: Design token values differ from Figma
+### Issue: Component with `remote: true` not found in code
 
-**Cause:** The project's design system tokens have different values than those specified in the Figma design.
-**Solution:** When project tokens differ from Figma values, prefer project tokens for consistency but adjust spacing/sizing to maintain visual fidelity.
+**Cause:** The Figma instance points to a published library component that doesn't have a matching code component yet.
+**Solution:** Confirm with the user whether to create the missing component or detach the instance and inline the design.
 
 ## Understanding Design Implementation
 
@@ -254,6 +285,5 @@ By following this workflow, you ensure that every Figma design is implemented wi
 
 ## Additional Resources
 
-- [Figma MCP Server Documentation](https://developers.figma.com/docs/figma-mcp-server/)
-- [Figma MCP Server Tools and Prompts](https://developers.figma.com/docs/figma-mcp-server/tools-and-prompts/)
+- figcraft tool reference: call `list_toolsets` and `get_creation_guide(topic: "tool-behavior")`
 - [Figma Variables and Design Tokens](https://help.figma.com/hc/en-us/articles/15339657135383-Guide-to-variables-in-Figma)
