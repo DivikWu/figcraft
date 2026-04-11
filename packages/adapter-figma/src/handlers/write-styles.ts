@@ -7,7 +7,7 @@ import { syncShadowToStyle, syncTypographyToStyle } from '../adapters/style-mapp
 import { registerHandler } from '../registry.js';
 import { processBatch } from '../utils/batch.js';
 import { hexToFigmaRgba } from '../utils/color.js';
-import { assertHandler } from '../utils/handler-error.js';
+import { assertHandler, assertNodeType } from '../utils/handler-error.js';
 
 export function registerWriteStyleHandlers(): void {
   registerHandler('sync_styles', async (params) => {
@@ -112,7 +112,12 @@ export function registerWriteStyleHandlers(): void {
   registerHandler('update_paint_style', async (params) => {
     const styleId = params.styleId as string;
     const style = figma.getStyleById(styleId);
-    assertHandler(style && style.type === 'PAINT', `Paint style not found: ${styleId}`, 'NOT_FOUND');
+    assertNodeType(
+      style,
+      'PAINT',
+      `styleId="${styleId}"`,
+      'For TEXT styles use update_text_style; for EFFECT styles use update_effect_style. Use styles_ep(method:"list") to see all local styles with their types.',
+    );
     const ps = style as PaintStyle;
     if (params.name) ps.name = params.name as string;
     if (params.description !== undefined) ps.description = params.description as string;
@@ -125,7 +130,12 @@ export function registerWriteStyleHandlers(): void {
   registerHandler('update_text_style', async (params) => {
     const styleId = params.styleId as string;
     const style = figma.getStyleById(styleId);
-    assertHandler(style && style.type === 'TEXT', `Text style not found: ${styleId}`, 'NOT_FOUND');
+    assertNodeType(
+      style,
+      'TEXT',
+      `styleId="${styleId}"`,
+      'For PAINT styles use update_paint_style; for EFFECT styles use update_effect_style. Use styles_ep(method:"list") to see all local styles with their types.',
+    );
     const ts = style as TextStyle;
     if (params.name) ts.name = params.name as string;
     if (params.description !== undefined) ts.description = params.description as string;
@@ -160,7 +170,12 @@ export function registerWriteStyleHandlers(): void {
   registerHandler('update_effect_style', async (params) => {
     const styleId = params.styleId as string;
     const style = figma.getStyleById(styleId);
-    assertHandler(style && style.type === 'EFFECT', `Effect style not found: ${styleId}`, 'NOT_FOUND');
+    assertNodeType(
+      style,
+      'EFFECT',
+      `styleId="${styleId}"`,
+      'For PAINT styles use update_paint_style; for TEXT styles use update_text_style. Use styles_ep(method:"list") to see all local styles with their types.',
+    );
     const es = style as EffectStyle;
     if (params.name) es.name = params.name as string;
     if (params.description !== undefined) es.description = params.description as string;

@@ -21,6 +21,213 @@ export function registerNodeHandlers(): void {
     return simplifyNode(node as SceneNode, 0, undefined, createContext(undefined, undefined, detail));
   });
 
+  // ─── Design-to-Code Context (P0-5) ───
+  // Self-built `get_design_context` for code generation. Returns the node tree
+  // PLUS resolved metadata about every variable, style, and component the tree
+  // references. Doesn't generate code itself — that's the calling LLM's job.
+  // Replaces dependency on Figma Desktop MCP's get_design_context for the
+  // remote-agent / cloud-IDE / claude.ai web case where Desktop MCP is unavailable.
+  registerHandler('get_design_context', async (params) => {
+    const nodeId = params.nodeId as string;
+    const framework = (params.framework as string | undefined) ?? 'unspecified';
+
+    const node = await findNodeByIdAsync(nodeId);
+    assertHandler(
+      node && 'type' in node && node.type !== 'PAGE' && node.type !== 'DOCUMENT',
+      `Node not found: ${nodeId}`,
+      'NOT_FOUND',
+    );
+
+    // Gather node tree at full detail (so boundVariables / styleIds are present).
+    const tree = simplifyNode(node as SceneNode, 0, undefined, createContext(undefined, undefined, 'full'));
+
+    // Walk the live node to collect referenced asset IDs (faster than re-walking
+    // the simplified tree, since live nodes already expose Plugin API surface).
+    const variableIds = new Set<string>();
+    const styleIds = new Set<string>();
+    const componentKeys = new Set<string>();
+    const componentIds = new Set<string>();
+    const instanceNodes: InstanceNode[] = [];
+    let imageHashCount = 0;
+    let textNodeCount = 0;
+
+    const walkLive = (n: SceneNode) => {
+      // Bound variables (color, spacing, radius, font-size, etc.)
+      if ('boundVariables' in n) {
+        const bv = (n as SceneNode & { boundVariables?: Record<string, unknown> }).boundVariables;
+        if (bv) {
+          for (const value of Object.values(bv)) {
+            if (Array.isArray(value)) {
+              for (const v of value as Array<{ id?: string }>) if (v?.id) variableIds.add(v.id);
+            } else if (value && typeof value === 'object' && (value as { id?: string }).id) {
+              variableIds.add((value as { id: string }).id);
+            }
+          }
+        }
+      }
+      // Paint / text / effect styles
+      if ('fillStyleId' in n) {
+        const fid = (n as GeometryMixin).fillStyleId;
+        if (typeof fid === 'string' && fid) styleIds.add(fid);
+      }
+      if ('strokeStyleId' in n) {
+        const sid = (n as GeometryMixin).strokeStyleId;
+        if (typeof sid === 'string' && sid) styleIds.add(sid);
+      }
+      if (n.type === 'TEXT') {
+        textNodeCount++;
+        const t = n as TextNode;
+        if (typeof t.textStyleId === 'string' && t.textStyleId) styleIds.add(t.textStyleId);
+      }
+      if ('effectStyleId' in n) {
+        const eid = (n as BlendMixin & { effectStyleId?: string }).effectStyleId;
+        if (typeof eid === 'string' && eid) styleIds.add(eid);
+      }
+      // Image fills
+      if ('fills' in n) {
+        const fills = (n as GeometryMixin).fills;
+        if (Array.isArray(fills)) {
+          for (const f of fills) {
+            if (f && typeof f === 'object' && (f as Paint).type === 'IMAGE') imageHashCount++;
+          }
+        }
+      }
+      // Defer component instance resolution to async pass below — getMainComponentAsync
+      // is the non-deprecated path and works for hidden / not-yet-loaded instances too.
+      if (n.type === 'INSTANCE') {
+        instanceNodes.push(n as InstanceNode);
+      }
+      if ('children' in n) {
+        for (const c of (n as ChildrenMixin).children) walkLive(c as SceneNode);
+      }
+    };
+    walkLive(node as SceneNode);
+
+    // Resolve mainComponent for every collected instance via the async API
+    // (in parallel — independent calls). Surface both the variant and its
+    // parent COMPONENT_SET so the calling LLM sees the variant group, not
+    // just one variant.
+    await Promise.all(
+      instanceNodes.map(async (inst) => {
+        try {
+          const main = await inst.getMainComponentAsync();
+          if (!main) return;
+          if (main.key) componentKeys.add(main.key);
+          componentIds.add(main.id);
+          if (main.parent?.type === 'COMPONENT_SET') {
+            const set = main.parent as ComponentSetNode;
+            if (set.key) componentKeys.add(set.key);
+            componentIds.add(set.id);
+          }
+        } catch {
+          /* skip unresolvable instance */
+        }
+      }),
+    );
+
+    // Resolve referenced variables to {name, type, valuesByMode summary}
+    const variables: Array<{ id: string; name: string; type: string; collection?: string }> = [];
+    for (const vid of variableIds) {
+      try {
+        const variable = await figma.variables.getVariableByIdAsync(vid);
+        if (!variable) continue;
+        const collection = await figma.variables.getVariableCollectionByIdAsync(variable.variableCollectionId);
+        variables.push({
+          id: variable.id,
+          name: variable.name,
+          type: variable.resolvedType,
+          collection: collection?.name,
+        });
+      } catch {
+        /* skip unresolvable */
+      }
+    }
+
+    // Resolve referenced styles to {name, type}
+    const styles: Array<{ id: string; name: string; type: string }> = [];
+    for (const sid of styleIds) {
+      try {
+        const style = await figma.getStyleByIdAsync(sid);
+        if (!style) continue;
+        styles.push({ id: style.id, name: style.name, type: style.type });
+      } catch {
+        /* skip unresolvable */
+      }
+    }
+
+    // Resolve referenced components to {name, key, isSet, properties}
+    const components: Array<{
+      id: string;
+      key?: string;
+      name: string;
+      isSet: boolean;
+      remote: boolean;
+      description?: string;
+      propertyDefinitions?: Record<string, { type: string; defaultValue?: unknown }>;
+    }> = [];
+    for (const cid of componentIds) {
+      const comp = await findNodeByIdAsync(cid);
+      if (!comp) continue;
+      if (comp.type !== 'COMPONENT' && comp.type !== 'COMPONENT_SET') continue;
+      const c = comp as ComponentNode | ComponentSetNode;
+      const propDefs = c.componentPropertyDefinitions;
+      const compactDefs: Record<string, { type: string; defaultValue?: unknown }> = {};
+      for (const [k, def] of Object.entries(propDefs)) {
+        const bareName = k.indexOf('#') >= 0 ? k.slice(0, k.indexOf('#')) : k;
+        compactDefs[bareName] = { type: def.type, defaultValue: def.defaultValue };
+      }
+      components.push({
+        id: c.id,
+        key: c.key || undefined,
+        name: c.name,
+        isSet: c.type === 'COMPONENT_SET',
+        remote:
+          'remote' in c ? Boolean((c as (ComponentNode | ComponentSetNode) & { remote?: boolean }).remote) : false,
+        description: c.description || undefined,
+        propertyDefinitions: Object.keys(compactDefs).length > 0 ? compactDefs : undefined,
+      });
+    }
+
+    // Framework hint — short string the calling LLM can lean on.
+    const frameworkHint = (() => {
+      switch (framework) {
+        case 'react':
+          return 'React + TypeScript. Map auto-layout → Flexbox. Variables → CSS custom properties (e.g. var(--color-bg-primary)). Components → React components, INSTANCE_SWAP → children/icon prop.';
+        case 'vue':
+          return 'Vue 3 SFC. Map auto-layout → Flexbox. Variables → CSS custom properties. Components → Vue components.';
+        case 'swiftui':
+          return 'SwiftUI. Map HORIZONTAL → HStack, VERTICAL → VStack. Variables → Color/CGFloat tokens (no var() wrapper). Auto-layout padding → .padding() modifiers.';
+        case 'compose':
+          return 'Jetpack Compose. Map HORIZONTAL → Row, VERTICAL → Column. Variables → MaterialTheme tokens. Auto-layout padding → Modifier.padding().';
+        case 'tailwind':
+          return 'Tailwind CSS classes. Map auto-layout → flex/grid utilities. Variables → matched design tokens (theme colors/spacing).';
+        default:
+          return 'Framework unspecified. Use the variables/styles/components arrays to map design tokens to your target language.';
+      }
+    })();
+
+    return {
+      framework,
+      frameworkHint,
+      tree,
+      summary: {
+        textNodes: textNodeCount,
+        imageNodes: imageHashCount,
+        variablesUsed: variables.length,
+        stylesUsed: styles.length,
+        componentsUsed: components.length,
+      },
+      variables,
+      styles,
+      components,
+      _note:
+        'tree contains the full node hierarchy with boundVariables/styleIds. ' +
+        'variables/styles/components arrays resolve every reference to a name + type — ' +
+        'use them to translate the tree into your target framework. ' +
+        'For local components without keys, see Figma Dev Mode for cross-file imports.',
+    };
+  });
+
   registerHandler('get_node_info_batch', async (params) => {
     const nodeIds = params.nodeIds as string[];
     const detail = (params.detail as SimplifyDetail | undefined) ?? 'standard';

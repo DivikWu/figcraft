@@ -7,7 +7,7 @@
  * Re-generate: npm run schema
  */
 
-/** Core tools: always enabled (~31) */
+/** Core tools: always enabled (~32) */
 export const GENERATED_CORE_TOOLS = new Set([
   'ping',
   'get_mode',
@@ -18,6 +18,7 @@ export const GENERATED_CORE_TOOLS = new Set([
   'join_channel',
   'get_channel',
   'get_current_page',
+  'get_design_context',
   'get_document_info',
   'get_selection',
   'list_fonts',
@@ -44,6 +45,7 @@ export const GENERATED_CORE_TOOLS = new Set([
 
 /** Bridge-backed flat tools compiled into _generated.ts registrations. */
 export const GENERATED_BRIDGE_TOOLS = new Set([
+  'get_design_context',
   'get_selection',
   'list_fonts',
   'create_text',
@@ -82,6 +84,8 @@ export const GENERATED_BRIDGE_TOOLS = new Set([
   'update_component_property',
   'delete_component_property',
   'audit_components',
+  'get_code_connect_metadata',
+  'preflight_library_publish',
   'list_library_collections',
   'list_library_variables',
   'import_library_variable',
@@ -363,6 +367,8 @@ export const GENERATED_TOOLSETS: Record<string, { description: string; tools: st
       'update_component_property',
       'delete_component_property',
       'audit_components',
+      'get_code_connect_metadata',
+      'preflight_library_publish',
     ],
   },
   'library-import': {

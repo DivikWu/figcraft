@@ -580,6 +580,140 @@ get_current_page:
           name: "Settings"
           type: "FRAME"
 
+get_design_context:
+  description: >-
+    Extract structured design-to-code context from a node: full node tree PLUS resolved
+    metadata for every variable, style, and component the tree references. The calling
+    LLM uses this context to generate framework code. Does NOT generate code itself —
+    that decoupling lets you target any framework while figcraft handles the Figma side.
+    Self-built (does not require Figma Desktop MCP), so it works in remote agents,
+    cloud IDEs, and claude.ai web sessions where Desktop MCP is unavailable.
+  toolset: core
+  write: false
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: Root node to extract context from
+    framework:
+      type: enum
+      values: [react, vue, swiftui, compose, tailwind, unspecified]
+      description: "Optional framework hint — adjusts frameworkHint string in response"
+  response:
+    type: object
+    fields:
+      framework:
+        type: string
+        required: true
+      frameworkHint:
+        type: string
+        required: true
+        description: "Short guidance string the calling LLM can lean on while generating code"
+      tree:
+        type: object
+        required: true
+        description: "Full node tree (boundVariables/styleIds preserved)"
+      summary:
+        type: object
+        required: true
+        fields:
+          textNodes:
+            type: number
+            required: true
+          imageNodes:
+            type: number
+            required: true
+          variablesUsed:
+            type: number
+            required: true
+          stylesUsed:
+            type: number
+            required: true
+          componentsUsed:
+            type: number
+            required: true
+      variables:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            id:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            type:
+              type: string
+              required: true
+            collection:
+              type: string
+      styles:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            id:
+              type: string
+              required: true
+            name:
+              type: string
+              required: true
+            type:
+              type: string
+              required: true
+      components:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            id:
+              type: string
+              required: true
+            key:
+              type: string
+            name:
+              type: string
+              required: true
+            isSet:
+              type: boolean
+              required: true
+            remote:
+              type: boolean
+              required: true
+            description:
+              type: string
+            propertyDefinitions:
+              type: object
+  examples:
+    - framework: "react"
+      frameworkHint: "React + TypeScript. Map auto-layout → Flexbox..."
+      summary:
+        textNodes: 3
+        imageNodes: 1
+        variablesUsed: 6
+        stylesUsed: 2
+        componentsUsed: 1
+      variables:
+        - id: "VariableID:1:30"
+          name: "color/bg/primary"
+          type: "COLOR"
+          collection: "Color"
+      styles:
+        - id: "S:abc123"
+          name: "Heading/Large"
+          type: "TEXT"
+      components:
+        - id: "80:1"
+          key: "abc..."
+          name: "Button"
+          isSet: true
+          remote: true
+
 get_document_info:
   description: >-
     Get document overview: name, current page, and list of all pages.
@@ -3019,9 +3153,13 @@ layout_component_set:
 
 bind_component_property:
   description: >-
-    Wire a component property to child nodes across all variants.
+    Wire one or more component properties to child nodes across all variants in a single call.
     Finds child nodes by name and sets componentPropertyReferences.
     Works on both Component and ComponentSet (iterates all variants).
+    PREFERRED: pass `bindings` as an array to wire multiple properties in one call —
+    a typical Button has 4-6 properties (Label / Icon / ShowIcon / State / ...) and
+    batching them cuts round-trips.
+    Legacy: omit `bindings` and pass `propertyName + targetNodeSelector + nodeProperty` for a single binding.
   toolset: components-advanced
   write: true
   access: edit
@@ -3031,20 +3169,35 @@ bind_component_property:
       type: string
       required: true
       description: Component or ComponentSet node ID
+    bindings:
+      type: array
+      description: >-
+        Array of bindings (preferred). Each item has {propertyName, targetNodeSelector, nodeProperty}.
+        When provided, propertyName/targetNodeSelector/nodeProperty at the top level are ignored.
+      items:
+        type: object
+        fields:
+          propertyName:
+            type: string
+            required: true
+          targetNodeSelector:
+            type: string
+            required: true
+          nodeProperty:
+            type: enum
+            values: [characters, visible, mainComponent]
+            required: true
     propertyName:
       type: string
-      required: true
-      description: 'Component property name (e.g. "Label", "Show Icon")'
+      description: '(Legacy single binding) Component property name (e.g. "Label", "Show Icon")'
     targetNodeSelector:
       type: string
-      required: true
-      description: 'Child node name to match via recursive search (e.g. "label", "icon")'
+      description: '(Legacy single binding) Child node name to match via recursive search'
     nodeProperty:
       type: enum
       values: [characters, visible, mainComponent]
-      required: true
       description: >-
-        Which node property to bind:
+        (Legacy single binding) Which node property to bind:
         characters → TEXT property (text nodes),
         visible → BOOLEAN property (any node),
         mainComponent → INSTANCE_SWAP property (instance nodes)
@@ -3054,12 +3207,33 @@ bind_component_property:
       ok:
         type: boolean
         required: true
-      bound:
+      bindingsProcessed:
         type: number
         required: true
-      notFound:
+      variantsTargeted:
         type: number
         required: true
+      totalBound:
+        type: number
+        required: true
+      totalNotFound:
+        type: number
+        required: true
+      results:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            propertyName:
+              type: string
+              required: true
+            bound:
+              type: number
+              required: true
+            notFound:
+              type: number
+              required: true
       errors:
         type: array
         items:
@@ -3067,12 +3241,23 @@ bind_component_property:
           fields:
             variantName:
               type: string
+            propertyName:
+              type: string
             error:
               type: string
   examples:
     - ok: true
-      bound: 18
-      notFound: 0
+      bindingsProcessed: 4
+      variantsTargeted: 6
+      totalBound: 24
+      totalNotFound: 0
+      results:
+        - propertyName: "Label"
+          bound: 6
+          notFound: 0
+        - propertyName: "ShowIcon"
+          bound: 6
+          notFound: 0
 
 swap_instance:
   description: Swap an existing instance to a different component.
@@ -3440,6 +3625,272 @@ audit_components:
         - nodeId: "80:1"
           name: "Button / Primary"
           issue: "Missing description"
+
+get_code_connect_metadata:
+  description: >-
+    Return structured Code Connect metadata for a COMPONENT or COMPONENT_SET.
+    Does NOT generate template files — Figma's official `figma connect create` CLI is the
+    de-facto standard for that (supports React, React Native, HTML, Web Components, SwiftUI,
+    Jetpack Compose, hits REST API directly, no Desktop required).
+
+    What figcraft adds: in-session structured metadata (properties with bare names stripped
+    of Figma's #id suffix, variant option lists, INSTANCE_SWAP preferredValues, slot info)
+    that agents can consume WITHOUT shelling out to the CLI — useful when an agent has just
+    modified the component in the same session. The returned metadata is also a great input
+    for an LLM that will read project source files to generate a template aligned to the
+    project's actual component API.
+
+    Workflow:
+      1. Users wanting a template file: run `npx figma connect create "<figmaUrl>" --token <T>`
+      2. Agents needing fresh data after figcraft edits: call this tool
+      3. LLMs generating project-aligned templates: feed the metadata + read project source
+  toolset: components-advanced
+  write: false
+  handler: bridge
+  params:
+    nodeId:
+      type: string
+      required: true
+      description: COMPONENT or COMPONENT_SET node id
+    fileKey:
+      type: string
+      description: "Optional Figma file key — when provided, figmaUrl is fully populated; otherwise <FILE_KEY> placeholder is emitted"
+  response:
+    type: object
+    fields:
+      componentName:
+        type: string
+        required: true
+      nodeId:
+        type: string
+        required: true
+      isComponentSet:
+        type: boolean
+        required: true
+      remote:
+        type: boolean
+        required: true
+      description:
+        type: string
+      figmaUrl:
+        type: string
+        required: true
+      properties:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            bareName:
+              type: string
+              required: true
+              description: "Property name with #id suffix stripped — use this in Code Connect files"
+            figmaKey:
+              type: string
+              required: true
+            type:
+              type: string
+              required: true
+            defaultValue:
+              type: string
+            variantOptions:
+              type: array
+              items: string
+      slots:
+        type: object
+        required: true
+        fields:
+          textSlots:
+            type: array
+            required: true
+            items:
+              type: object
+              fields:
+                name:
+                  type: string
+                  required: true
+                characters:
+                  type: string
+                  required: true
+          instanceSlots:
+            type: array
+            required: true
+            items:
+              type: object
+              fields:
+                name:
+                  type: string
+                  required: true
+                mainComponentName:
+                  type: string
+      summary:
+        type: object
+        required: true
+        fields:
+          propertyCount:
+            type: number
+            required: true
+          textProperties:
+            type: number
+            required: true
+          booleanProperties:
+            type: number
+            required: true
+          instanceSwapProperties:
+            type: number
+            required: true
+          variantProperties:
+            type: number
+            required: true
+          slotProperties:
+            type: number
+            required: true
+          textSlotCount:
+            type: number
+            required: true
+          instanceSlotCount:
+            type: number
+            required: true
+  examples:
+    - componentName: "Button"
+      nodeId: "80:1"
+      isComponentSet: true
+      remote: false
+      figmaUrl: "https://figma.com/design/abc/Button?node-id=80-1"
+      properties:
+        - bareName: "Label"
+          figmaKey: "Label#42:0"
+          type: "TEXT"
+          defaultValue: "Button"
+        - bareName: "Style"
+          figmaKey: "Style"
+          type: "VARIANT"
+          variantOptions: ["Primary", "Secondary", "Ghost"]
+      slots:
+        textSlots:
+          - name: "label"
+            characters: "Button"
+        instanceSlots: []
+      summary:
+        propertyCount: 2
+        textProperties: 1
+        booleanProperties: 0
+        instanceSwapProperties: 0
+        variantProperties: 1
+        slotProperties: 0
+        textSlotCount: 1
+        instanceSlotCount: 0
+
+preflight_library_publish:
+  description: >-
+    Pre-publish health check: scan all components, variables, and styles in a single pass,
+    return structured blockers + warnings with fix suggestions. Run this before manually
+    publishing a library in Figma. Complements lint_fix_all — this tool focuses on
+    structural readiness (descriptions, scopes, code syntax), while lint_fix_all handles
+    token compliance and contrast. Publishing itself must be triggered manually via
+    the Figma Assets panel (Plugin API does not expose publish).
+  toolset: components-advanced
+  write: false
+  handler: bridge
+  params:
+    checkComponents:
+      type: boolean
+      description: "Check components and component sets (default: true)"
+    checkVariables:
+      type: boolean
+      description: "Check local variables for scopes and code syntax (default: true)"
+    checkStyles:
+      type: boolean
+      description: "Check local paint/text/effect styles for descriptions (default: true)"
+  response:
+    type: object
+    fields:
+      ready:
+        type: boolean
+        required: true
+        description: "True when there are no blockers (warnings are OK)"
+      summary:
+        type: object
+        required: true
+        fields:
+          components:
+            type: number
+            required: true
+          componentSets:
+            type: number
+            required: true
+          variables:
+            type: number
+            required: true
+          styles:
+            type: number
+            required: true
+          blockerCount:
+            type: number
+            required: true
+          warningCount:
+            type: number
+            required: true
+      blockers:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            severity:
+              type: string
+              required: true
+            category:
+              type: string
+              required: true
+            target:
+              type: string
+              required: true
+            nodeId:
+              type: string
+            message:
+              type: string
+              required: true
+            suggestion:
+              type: string
+      warnings:
+        type: array
+        required: true
+        items:
+          type: object
+          fields:
+            severity:
+              type: string
+              required: true
+            category:
+              type: string
+              required: true
+            target:
+              type: string
+              required: true
+            nodeId:
+              type: string
+            message:
+              type: string
+              required: true
+            suggestion:
+              type: string
+  examples:
+    - ready: false
+      summary:
+        components: 12
+        componentSets: 3
+        variables: 48
+        styles: 6
+        blockerCount: 2
+        warningCount: 5
+      blockers:
+        - severity: "blocker"
+          category: "component"
+          target: "Button"
+          nodeId: "80:1"
+          message: "Component set missing description"
+          suggestion: 'update_component(nodeId:"80:1", description:"...")'
 
 # ═══════════════════════════════════════════════════════════════
 # TOOLSET: library (7 tools)

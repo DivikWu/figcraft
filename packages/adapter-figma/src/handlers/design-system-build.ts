@@ -16,7 +16,7 @@
 import { registerHandler } from '../registry.js';
 import { hexToFigmaRgba } from '../utils/color.js';
 import { resolveWeight } from '../utils/font-weight.js';
-import { assertHandler } from '../utils/handler-error.js';
+import { assertHandler, HandlerError } from '../utils/handler-error.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
 import { isVariableAlias } from '../utils/type-guards.js';
 import { resolveFontAsync } from './write-nodes.js';
@@ -330,20 +330,41 @@ export function registerDesignSystemBuildHandlers(): void {
 
   registerHandler('bind_component_property', async (params) => {
     const nodeId = params.nodeId as string;
-    const propertyName = params.propertyName as string;
-    const targetNodeSelector = params.targetNodeSelector as string;
-    const nodeProperty = params.nodeProperty as 'characters' | 'visible' | 'mainComponent';
-
     assertHandler(nodeId, 'nodeId is required (Component or ComponentSet)');
-    assertHandler(propertyName, 'propertyName is required');
-    assertHandler(targetNodeSelector, 'targetNodeSelector is required (child node name to match)');
-    assertHandler(nodeProperty, 'nodeProperty is required (characters | visible | mainComponent)');
 
-    const validProps = ['characters', 'visible', 'mainComponent'];
+    // ── Accept both single binding (legacy) and array of bindings (P0-3) ──
+    // The array form is the preferred shape — wiring a typical Button takes
+    // 4-6 properties and a single call saves 4-6 round-trips through the model.
+    type BindingSpec = {
+      propertyName: string;
+      targetNodeSelector: string;
+      nodeProperty: 'characters' | 'visible' | 'mainComponent';
+    };
+    const rawBindings = params.bindings as BindingSpec[] | undefined;
+    const bindings: BindingSpec[] =
+      rawBindings && Array.isArray(rawBindings)
+        ? rawBindings
+        : [
+            {
+              propertyName: params.propertyName as string,
+              targetNodeSelector: params.targetNodeSelector as string,
+              nodeProperty: params.nodeProperty as 'characters' | 'visible' | 'mainComponent',
+            },
+          ];
+
     assertHandler(
-      validProps.includes(nodeProperty),
-      `Invalid nodeProperty "${nodeProperty}". Must be one of: ${validProps.join(', ')}`,
+      bindings.length > 0,
+      'bindings array (or single propertyName/targetNodeSelector/nodeProperty) is required',
     );
+    const validProps = ['characters', 'visible', 'mainComponent'];
+    for (const b of bindings) {
+      assertHandler(b.propertyName, 'propertyName is required for each binding');
+      assertHandler(b.targetNodeSelector, 'targetNodeSelector is required for each binding (child node name to match)');
+      assertHandler(
+        b.nodeProperty && validProps.includes(b.nodeProperty),
+        `Invalid nodeProperty "${b.nodeProperty}" on binding for "${b.propertyName}". Must be one of: ${validProps.join(', ')}`,
+      );
+    }
 
     const node = await findNodeByIdAsync(nodeId);
     assertHandler(
@@ -352,64 +373,141 @@ export function registerDesignSystemBuildHandlers(): void {
       'NOT_FOUND',
     );
     const comp = node as ComponentNode | ComponentSetNode;
-
-    // Find the property key (Figma appends #id:id suffix)
     const defs = comp.componentPropertyDefinitions;
-    const propKey = Object.keys(defs).find((k) => k === propertyName || k.startsWith(`${propertyName}#`));
-    assertHandler(
-      propKey,
-      `Property "${propertyName}" not found on component. Available: ${Object.keys(defs).join(', ')}`,
-    );
+    const availableProps = Object.keys(defs);
+
+    // Pre-resolve each binding's actual property key (with Figma's #id:id suffix).
+    const resolved: Array<{ spec: BindingSpec; propKey: string }> = [];
+    for (const b of bindings) {
+      const propKey = availableProps.find((k) => k === b.propertyName || k.startsWith(`${b.propertyName}#`));
+      if (!propKey) {
+        throw new HandlerError(
+          `Property "${b.propertyName}" not found on component. Available: [${availableProps.join(', ')}]`,
+          'PROPERTY_NOT_FOUND',
+        );
+      }
+      resolved.push({ spec: b, propKey });
+    }
 
     // Walk all variant children (for ComponentSet) or the component itself
     const targets: SceneNode[] =
       comp.type === 'COMPONENT_SET' ? (comp.children.filter((c) => c.type === 'COMPONENT') as SceneNode[]) : [comp];
 
-    let bound = 0;
-    let notFound = 0;
-    const errors: Array<{ variantName: string; error: string }> = [];
+    type BindingResult = { propertyName: string; bound: number; notFound: number };
+    const perBinding = new Map<string, BindingResult>();
+    for (const { spec } of resolved) {
+      perBinding.set(spec.propertyName, { propertyName: spec.propertyName, bound: 0, notFound: 0 });
+    }
+    const errors: Array<{ variantName: string; propertyName: string; error: string }> = [];
+
+    // ── Self-correcting error context (P0-2) ──
+    // When a binding fails because targetNodeSelector matches no node, agents
+    // currently re-list nodes via a separate call. Pre-walk every target ONCE
+    // and emit a candidate list (name + type + id) so the next call can fix
+    // itself. See memory: feedback_self_correcting_errors.
+    const allChildNamesByVariant = new Map<string, Array<{ name: string; type: string; id: string }>>();
+    for (const target of targets) {
+      const candidates: Array<{ name: string; type: string; id: string }> = [];
+      const walk = (n: SceneNode) => {
+        if (n !== target) candidates.push({ name: n.name, type: n.type, id: n.id });
+        if ('children' in n) {
+          for (const c of (n as ChildrenMixin).children) walk(c as SceneNode);
+        }
+      };
+      walk(target);
+      allChildNamesByVariant.set(target.id, candidates);
+    }
 
     for (const target of targets) {
-      try {
-        // Find the child node by name (recursive search)
-        const childNode = (target as FrameNode).findOne((n) => n.name === targetNodeSelector);
-        if (!childNode) {
-          notFound++;
-          continue;
-        }
-
-        // Validate node type matches property type
-        if (nodeProperty === 'characters' && childNode.type !== 'TEXT') {
+      for (const { spec, propKey } of resolved) {
+        const result = perBinding.get(spec.propertyName)!;
+        try {
+          const childNode = (target as FrameNode).findOne((n) => n.name === spec.targetNodeSelector);
+          if (!childNode) {
+            result.notFound++;
+            continue;
+          }
+          if (spec.nodeProperty === 'characters' && childNode.type !== 'TEXT') {
+            errors.push({
+              variantName: target.name,
+              propertyName: spec.propertyName,
+              error: `Node "${spec.targetNodeSelector}" is ${childNode.type}, not TEXT`,
+            });
+            continue;
+          }
+          if (spec.nodeProperty === 'mainComponent' && childNode.type !== 'INSTANCE') {
+            errors.push({
+              variantName: target.name,
+              propertyName: spec.propertyName,
+              error: `Node "${spec.targetNodeSelector}" is ${childNode.type}, not INSTANCE`,
+            });
+            continue;
+          }
+          const existing =
+            (childNode as unknown as { componentPropertyReferences?: Record<string, string> })
+              .componentPropertyReferences ?? {};
+          (
+            childNode as unknown as { componentPropertyReferences: Record<string, string> }
+          ).componentPropertyReferences = {
+            ...existing,
+            [spec.nodeProperty]: propKey,
+          };
+          result.bound++;
+        } catch (err) {
           errors.push({
             variantName: target.name,
-            error: `Node "${targetNodeSelector}" is ${childNode.type}, not TEXT`,
+            propertyName: spec.propertyName,
+            error: err instanceof Error ? err.message : String(err),
           });
-          continue;
         }
-        if (nodeProperty === 'mainComponent' && childNode.type !== 'INSTANCE') {
-          errors.push({
-            variantName: target.name,
-            error: `Node "${targetNodeSelector}" is ${childNode.type}, not INSTANCE`,
-          });
-          continue;
-        }
-
-        // Set the reference
-        const existing = (childNode as any).componentPropertyReferences ?? {};
-        (childNode as any).componentPropertyReferences = {
-          ...existing,
-          [nodeProperty]: propKey,
-        };
-        bound++;
-      } catch (err) {
-        errors.push({
-          variantName: target.name,
-          error: err instanceof Error ? err.message : String(err),
-        });
       }
     }
 
-    return { ok: true, bound, notFound, errors: errors.length > 0 ? errors : undefined };
+    const results = Array.from(perBinding.values());
+    const totalBound = results.reduce((s, r) => s + r.bound, 0);
+    const totalNotFound = results.reduce((s, r) => s + r.notFound, 0);
+
+    // Build self-correcting hint when ALL variants couldn't find a selector.
+    // Picking the first variant's child list is enough — variants share structure.
+    let notFoundHint:
+      | undefined
+      | {
+          missingSelectors: string[];
+          availableChildren: Array<{ name: string; type: string }>;
+          suggestion: string;
+        };
+    if (totalNotFound > 0 && targets.length > 0) {
+      const missingSelectors = resolved
+        .filter(({ spec }) => {
+          const r = perBinding.get(spec.propertyName)!;
+          return r.notFound > 0 && r.bound === 0;
+        })
+        .map(({ spec }) => spec.targetNodeSelector);
+      if (missingSelectors.length > 0) {
+        const firstVariantChildren = allChildNamesByVariant.get(targets[0].id) || [];
+        const dedupedChildren = Array.from(
+          new Map(firstVariantChildren.map((c) => [`${c.name}::${c.type}`, { name: c.name, type: c.type }])).values(),
+        );
+        notFoundHint = {
+          missingSelectors,
+          availableChildren: dedupedChildren,
+          suggestion:
+            `targetNodeSelector matches a child node by exact name. Pick one from availableChildren above and retry. ` +
+            `Example: { propertyName: "Label", targetNodeSelector: "${dedupedChildren.find((c) => c.type === 'TEXT')?.name || 'label'}", nodeProperty: "characters" }`,
+        };
+      }
+    }
+
+    return {
+      ok: errors.length === 0 && totalNotFound === 0,
+      bindingsProcessed: bindings.length,
+      variantsTargeted: targets.length,
+      totalBound,
+      totalNotFound,
+      results,
+      errors: errors.length > 0 ? errors : undefined,
+      notFoundHint,
+    };
   });
 
   // ═══════════════════════════════════════════════════════════════

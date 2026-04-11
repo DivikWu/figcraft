@@ -4,7 +4,7 @@
 
 import { simplifyNode } from '../adapters/node-simplifier.js';
 import { handlers, registerHandler } from '../registry.js';
-import { assertHandler, HandlerError } from '../utils/handler-error.js';
+import { assertHandler, assertNodeType, HandlerError } from '../utils/handler-error.js';
 import { assertOnCurrentPage, findNodeByIdAsync } from '../utils/node-lookup.js';
 
 export function registerComponentHandlers(): void {
@@ -135,7 +135,12 @@ export function registerComponentHandlers(): void {
     const newComponentKey = params.componentKey as string;
 
     const node = await findNodeByIdAsync(instanceId);
-    assertHandler(node && node.type === 'INSTANCE', `Instance not found: ${instanceId}`, 'NOT_FOUND');
+    assertNodeType(
+      node,
+      'INSTANCE',
+      `instanceId="${instanceId}"`,
+      'Only INSTANCE nodes can be swapped. To create one, use create_instance with a componentId or componentKey.',
+    );
 
     const newComponent = await figma.importComponentByKeyAsync(newComponentKey);
     (node as InstanceNode).swapComponent(newComponent);
@@ -146,7 +151,12 @@ export function registerComponentHandlers(): void {
   registerHandler('detach_instance', async (params) => {
     const instanceId = params.instanceId as string;
     const node = await findNodeByIdAsync(instanceId);
-    assertHandler(node && node.type === 'INSTANCE', `Instance not found: ${instanceId}`, 'NOT_FOUND');
+    assertNodeType(
+      node,
+      'INSTANCE',
+      `instanceId="${instanceId}"`,
+      'Only INSTANCE nodes can be detached. A FRAME or COMPONENT is already standalone — no detach needed.',
+    );
     const frame = (node as InstanceNode).detachInstance();
     return simplifyNode(frame);
   });
@@ -154,7 +164,7 @@ export function registerComponentHandlers(): void {
   registerHandler('reset_instance_overrides', async (params) => {
     const instanceId = params.instanceId as string;
     const node = await findNodeByIdAsync(instanceId);
-    assertHandler(node && node.type === 'INSTANCE', `Instance not found: ${instanceId}`, 'NOT_FOUND');
+    assertNodeType(node, 'INSTANCE', `instanceId="${instanceId}"`, 'Only INSTANCE nodes have overrides to reset.');
     // removeOverrides replaces the deprecated resetOverrides (Plugin API Update 120)
     const instance = node as InstanceNode;
     if ('removeOverrides' in instance) {
@@ -168,7 +178,12 @@ export function registerComponentHandlers(): void {
 
   registerHandler('update_component', async (params) => {
     const node = await findNodeByIdAsync(params.nodeId as string);
-    assertHandler(node && node.type === 'COMPONENT', `Component not found: ${params.nodeId}`, 'NOT_FOUND');
+    assertNodeType(
+      node,
+      'COMPONENT',
+      `nodeId="${params.nodeId}"`,
+      'For a COMPONENT_SET, pass the id of a specific variant (use list_local_components to enumerate variants). For a FRAME, convert it first via create_component_from_node.',
+    );
     const comp = node as ComponentNode;
     if (params.name != null) comp.name = params.name as string;
     if (params.description != null) comp.description = params.description as string;
@@ -180,7 +195,12 @@ export function registerComponentHandlers(): void {
 
   registerHandler('delete_component', async (params) => {
     const node = await findNodeByIdAsync(params.nodeId as string);
-    assertHandler(node && node.type === 'COMPONENT', `Component not found: ${params.nodeId}`, 'NOT_FOUND');
+    assertNodeType(
+      node,
+      'COMPONENT',
+      `nodeId="${params.nodeId}"`,
+      'For a COMPONENT_SET, delete the whole set via nodes(method:"delete"). For a FRAME, also use nodes(method:"delete").',
+    );
     assertOnCurrentPage(node, params.nodeId as string);
     node.remove();
     return { ok: true };
@@ -212,6 +232,46 @@ export function registerComponentHandlers(): void {
     const nodes = await Promise.all(ids.map((id) => findNodeByIdAsync(id)));
     const components = nodes.filter((n): n is ComponentNode => n?.type === 'COMPONENT');
     assertHandler(components.length > 0, 'No valid components found');
+
+    // ── Variant matrix guardrail (P0-4) ──
+    // Enforce the 30-variant cap from figma-generate-library SKILL at the code level.
+    // SKILL rules as warnings are weaker than runtime enforcement — see memory
+    // feedback_ai_guidance_layers (Layer 1 > Layer 5).
+    const VARIANT_LIMIT = 30;
+    if (components.length > VARIANT_LIMIT) {
+      // Parse variant names like "Size=Small, Style=Primary, State=Default"
+      // to show which axes are blowing up the matrix.
+      const axisValues = new Map<string, Set<string>>();
+      for (const c of components) {
+        for (const pair of c.name.split(',')) {
+          const eq = pair.indexOf('=');
+          if (eq < 0) continue;
+          const key = pair.slice(0, eq).trim();
+          const val = pair.slice(eq + 1).trim();
+          if (!key || !val) continue;
+          if (!axisValues.has(key)) axisValues.set(key, new Set());
+          axisValues.get(key)!.add(val);
+        }
+      }
+      const axes = Array.from(axisValues.entries())
+        .map(([name, values]) => ({ name, count: values.size }))
+        .sort((a, b) => b.count - a.count);
+      const axesSummary =
+        axes.length > 0 ? axes.map((a) => `${a.name}(${a.count})`).join(' × ') : 'unparseable variant names';
+      const biggestAxis = axes[0]?.name;
+
+      throw new HandlerError(
+        `Variant matrix too large: ${components.length} variants exceeds cap of ${VARIANT_LIMIT}. ` +
+          `Axes: ${axesSummary}. ` +
+          `Fix: extract a high-cardinality axis into a component property instead of a variant. ` +
+          (biggestAxis
+            ? `Suggestion — the "${biggestAxis}" axis has the most values; if it's an icon or nested content, ` +
+              `replace it with add_component_property(type:"INSTANCE_SWAP") or type:"SLOT" and remove those variants.`
+            : 'Consider splitting into multiple component sets or using INSTANCE_SWAP for icon variants.'),
+        'VARIANT_MATRIX_TOO_LARGE',
+      );
+    }
+
     const set = figma.combineAsVariants(components, figma.currentPage);
     if (params.name != null) set.name = params.name as string;
     return simplifyNode(set);
@@ -219,7 +279,12 @@ export function registerComponentHandlers(): void {
 
   registerHandler('get_instance_overrides', async (params) => {
     const node = await findNodeByIdAsync(params.nodeId as string);
-    assertHandler(node && node.type === 'INSTANCE', `Instance not found: ${params.nodeId}`, 'NOT_FOUND');
+    assertNodeType(
+      node,
+      'INSTANCE',
+      `nodeId="${params.nodeId}"`,
+      'Only INSTANCE nodes have overrides. For a COMPONENT, use components(method:"get") + list_component_properties.',
+    );
     const instance = node as InstanceNode;
     const props = instance.componentProperties;
     return {
@@ -235,7 +300,12 @@ export function registerComponentHandlers(): void {
 
   registerHandler('set_instance_overrides', async (params) => {
     const source = await findNodeByIdAsync(params.sourceId as string);
-    assertHandler(source && source.type === 'INSTANCE', `Source instance not found: ${params.sourceId}`, 'NOT_FOUND');
+    assertNodeType(
+      source,
+      'INSTANCE',
+      `sourceId="${params.sourceId}"`,
+      'set_instance_overrides copies properties from a source INSTANCE to other instances. The source must be an INSTANCE node.',
+    );
     const sourceProps = (source as InstanceNode).componentProperties;
     const propValues = Object.fromEntries(Object.entries(sourceProps).map(([k, v]) => [k, v.value]));
 
@@ -243,7 +313,12 @@ export function registerComponentHandlers(): void {
     const results = await Promise.allSettled(
       targetIds.map(async (id) => {
         const target = await findNodeByIdAsync(id);
-        if (!target || target.type !== 'INSTANCE') throw new HandlerError(`Instance ${id} not found`, 'NOT_FOUND');
+        assertNodeType(
+          target,
+          'INSTANCE',
+          `targetIds entry "${id}"`,
+          'Each target must be an INSTANCE node — overrides cannot be applied to FRAMEs or COMPONENTs.',
+        );
         (target as InstanceNode).setProperties(propValues as Record<string, string | boolean>);
         return { nodeId: id, ok: true };
       }),
@@ -364,6 +439,15 @@ export function registerComponentHandlers(): void {
     const propertyType = params.type as 'BOOLEAN' | 'TEXT' | 'INSTANCE_SWAP' | 'VARIANT' | 'SLOT';
     const defaultValue = params.defaultValue as string | boolean | VariableAlias;
 
+    const validTypes = ['BOOLEAN', 'TEXT', 'INSTANCE_SWAP', 'VARIANT', 'SLOT'];
+    if (!propertyType || !validTypes.includes(propertyType)) {
+      throw new HandlerError(
+        `Invalid property type "${propertyType}". Must be one of: [${validTypes.join(', ')}]. ` +
+          `Note: VARIANT is auto-managed by combineAsVariants — pass BOOLEAN/TEXT/INSTANCE_SWAP/SLOT instead.`,
+        'INVALID_PROPERTY_TYPE',
+      );
+    }
+
     const node = await findNodeByIdAsync(nodeId);
     assertHandler(
       node && (node.type === 'COMPONENT' || node.type === 'COMPONENT_SET'),
@@ -372,22 +456,42 @@ export function registerComponentHandlers(): void {
     );
     const comp = node as ComponentNode | ComponentSetNode;
 
+    // INSTANCE_SWAP requires preferredValues to be useful (otherwise the picker is empty)
+    if (propertyType === 'INSTANCE_SWAP' && !params.preferredValues) {
+      throw new HandlerError(
+        `INSTANCE_SWAP property "${propertyName}" requires preferredValues. ` +
+          `Pass an array like: preferredValues:[{type:"COMPONENT",key:"<componentKey>"}]. ` +
+          `Use search_design_system to find component keys for icons or other swap targets.`,
+        'MISSING_PREFERRED_VALUES',
+      );
+    }
+
     const options: ComponentPropertyOptions = {};
     if (params.preferredValues) {
       options.preferredValues = params.preferredValues as InstanceSwapPreferredValue[];
     }
     if (params.description && propertyType === 'SLOT') {
-      options.description = params.description as string;
+      (options as ComponentPropertyOptions & { description?: string }).description = params.description as string;
     }
 
-    const key = comp.addComponentProperty(
-      propertyName,
-      propertyType as ComponentPropertyType,
-      defaultValue,
-      Object.keys(options).length > 0 ? options : undefined,
-    );
-
-    return { ok: true, key, properties: Object.keys(comp.componentPropertyDefinitions) };
+    try {
+      const key = comp.addComponentProperty(
+        propertyName,
+        propertyType as ComponentPropertyType,
+        defaultValue,
+        Object.keys(options).length > 0 ? options : undefined,
+      );
+      return { ok: true, key, properties: Object.keys(comp.componentPropertyDefinitions) };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // Surface Figma's plugin-API errors with our suggestion attached
+      throw new HandlerError(
+        `addComponentProperty failed for "${propertyName}" (${propertyType}): ${msg}. ` +
+          `Common causes: defaultValue type mismatch (BOOLEAN needs true/false, TEXT needs string), ` +
+          `or property name conflict with existing: [${Object.keys(comp.componentPropertyDefinitions).join(', ')}].`,
+        'ADD_PROPERTY_FAILED',
+      );
+    }
   });
 
   registerHandler('update_component_property', async (params) => {
@@ -402,10 +506,21 @@ export function registerComponentHandlers(): void {
     );
     const comp = node as ComponentNode | ComponentSetNode;
 
-    assertHandler(
-      propertyName in comp.componentPropertyDefinitions,
-      `Property "${propertyName}" not found on component`,
-    );
+    if (!(propertyName in comp.componentPropertyDefinitions)) {
+      const available = Object.keys(comp.componentPropertyDefinitions);
+      // Strip Figma's #id:id suffix when suggesting (since users typically write
+      // the bare name and bind_component_property already accepts that form).
+      const bareNames = available.map((k) => {
+        const hash = k.indexOf('#');
+        return hash >= 0 ? k.slice(0, hash) : k;
+      });
+      throw new HandlerError(
+        `Property "${propertyName}" not found on component "${comp.name}". ` +
+          `Available properties: [${bareNames.join(', ')}]. ` +
+          `Tip: pass the bare name without the "#id" suffix.`,
+        'PROPERTY_NOT_FOUND',
+      );
+    }
 
     // Build a single edit payload — Figma's editComponentProperty accepts partial fields
     const edits: Record<string, unknown> = {};
@@ -446,10 +561,17 @@ export function registerComponentHandlers(): void {
     );
     const comp = node as ComponentNode | ComponentSetNode;
 
-    assertHandler(
-      propertyName in comp.componentPropertyDefinitions,
-      `Property "${propertyName}" not found on component`,
-    );
+    if (!(propertyName in comp.componentPropertyDefinitions)) {
+      const available = Object.keys(comp.componentPropertyDefinitions);
+      const bareNames = available.map((k) => {
+        const hash = k.indexOf('#');
+        return hash >= 0 ? k.slice(0, hash) : k;
+      });
+      throw new HandlerError(
+        `Property "${propertyName}" not found on component "${comp.name}". ` + `Available: [${bareNames.join(', ')}].`,
+        'PROPERTY_NOT_FOUND',
+      );
+    }
 
     comp.deleteComponentProperty(propertyName);
     return { ok: true, properties: Object.keys(comp.componentPropertyDefinitions) };
@@ -551,6 +673,193 @@ export function registerComponentHandlers(): void {
       _note:
         'Use componentId (node ID) to create instances of local components. ' +
         'For component sets, use componentId + variantProperties to select a variant.',
+    };
+  });
+
+  // ─── Publish Preflight (P0-1) ───
+  // Aggregate health check before publishing a library: scan components, variables,
+  // and styles in a single pass, surface blockers/warnings with structured fixes.
+  registerHandler('preflight_library_publish', async (params) => {
+    const opts = (params || {}) as {
+      checkComponents?: boolean;
+      checkVariables?: boolean;
+      checkStyles?: boolean;
+    };
+    const checkComponents = opts.checkComponents !== false;
+    const checkVariables = opts.checkVariables !== false;
+    const checkStyles = opts.checkStyles !== false;
+
+    type Issue = {
+      severity: 'blocker' | 'warning';
+      category: 'component' | 'variable' | 'style';
+      target: string;
+      nodeId?: string;
+      message: string;
+      suggestion?: string;
+    };
+    const issues: Issue[] = [];
+
+    let componentCount = 0;
+    let componentSetCount = 0;
+
+    const inspectComponent = (comp: ComponentNode, inSet: boolean) => {
+      if (!inSet && !comp.description.trim()) {
+        issues.push({
+          severity: 'blocker',
+          category: 'component',
+          target: comp.name,
+          nodeId: comp.id,
+          message: 'Component missing description',
+          suggestion: `update_component(nodeId:"${comp.id}", description:"...")`,
+        });
+      }
+      const textCount = countTextNodes(comp);
+      const propDefs = comp.componentPropertyDefinitions;
+      const textProps = Object.values(propDefs).filter((d) => d.type === 'TEXT').length;
+      if (textCount > 0 && textProps === 0) {
+        issues.push({
+          severity: 'warning',
+          category: 'component',
+          target: comp.name,
+          nodeId: comp.id,
+          message: `${textCount} text node(s) but no TEXT properties exposed`,
+          suggestion: `add_component_property(nodeId:"${comp.id}", propertyName:"label", type:"TEXT")`,
+        });
+      }
+      if (countDescendants(comp) === 0) {
+        issues.push({
+          severity: 'warning',
+          category: 'component',
+          target: comp.name,
+          nodeId: comp.id,
+          message: 'Empty component (no children)',
+        });
+      }
+    };
+
+    if (checkComponents) {
+      const walk = (node: SceneNode) => {
+        if (node.type === 'COMPONENT_SET') {
+          componentSetCount++;
+          const set = node as ComponentSetNode;
+          const variants = set.children.filter((c) => c.type === 'COMPONENT') as ComponentNode[];
+          if (!set.description.trim()) {
+            issues.push({
+              severity: 'blocker',
+              category: 'component',
+              target: set.name,
+              nodeId: set.id,
+              message: 'Component set missing description',
+              suggestion: `update_component(nodeId:"${set.id}", description:"...")`,
+            });
+          }
+          if (variants.length === 1) {
+            issues.push({
+              severity: 'warning',
+              category: 'component',
+              target: set.name,
+              nodeId: set.id,
+              message: 'Component set has only 1 variant — consider converting to standalone component',
+            });
+          }
+          for (const v of variants) {
+            componentCount++;
+            inspectComponent(v, true);
+          }
+          return;
+        }
+        if (node.type === 'COMPONENT') {
+          componentCount++;
+          inspectComponent(node as ComponentNode, false);
+        }
+        if ('children' in node) {
+          for (const child of (node as ChildrenMixin).children) walk(child);
+        }
+      };
+      for (const page of figma.root.children) {
+        for (const child of page.children) walk(child);
+      }
+    }
+
+    let variableCount = 0;
+    if (checkVariables) {
+      const collections = await figma.variables.getLocalVariableCollectionsAsync();
+      for (const collection of collections) {
+        // Primitives (Raw) collections often intentionally have no scopes — exempt them.
+        const isPrimitive = /primitive|raw|base/i.test(collection.name);
+        for (const varId of collection.variableIds) {
+          const variable = await figma.variables.getVariableByIdAsync(varId);
+          if (!variable) continue;
+          variableCount++;
+
+          if (!isPrimitive) {
+            const scopes = variable.scopes || [];
+            if (scopes.length === 0 || scopes.includes('ALL_SCOPES')) {
+              issues.push({
+                severity: 'blocker',
+                category: 'variable',
+                target: `${collection.name}/${variable.name}`,
+                message: 'Semantic variable has no explicit scopes (or uses ALL_SCOPES)',
+                suggestion: `variables_ep(method:"update", variableId:"${variable.id}", scopes:["ALL_FILLS"])`,
+              });
+            }
+          }
+
+          const codeSyntaxKeys = Object.keys(variable.codeSyntax || {});
+          if (codeSyntaxKeys.length === 0) {
+            issues.push({
+              severity: 'warning',
+              category: 'variable',
+              target: `${collection.name}/${variable.name}`,
+              message: 'Variable missing code syntax (blocks Dev Mode expression)',
+              suggestion: `variables_ep(method:"set_code_syntax", variableId:"${variable.id}", syntax:{WEB:"var(--...)"})`,
+            });
+          }
+        }
+      }
+    }
+
+    let styleCount = 0;
+    if (checkStyles) {
+      const [paintStyles, textStyles, effectStyles] = await Promise.all([
+        figma.getLocalPaintStylesAsync(),
+        figma.getLocalTextStylesAsync(),
+        figma.getLocalEffectStylesAsync(),
+      ]);
+      for (const style of [...paintStyles, ...textStyles, ...effectStyles]) {
+        styleCount++;
+        if (!style.description?.trim()) {
+          issues.push({
+            severity: 'warning',
+            category: 'style',
+            target: `${style.type}:${style.name}`,
+            message: 'Style missing description',
+          });
+        }
+      }
+    }
+
+    const blockers = issues.filter((i) => i.severity === 'blocker');
+    const warnings = issues.filter((i) => i.severity === 'warning');
+
+    return {
+      ready: blockers.length === 0,
+      summary: {
+        components: componentCount,
+        componentSets: componentSetCount,
+        variables: variableCount,
+        styles: styleCount,
+        blockerCount: blockers.length,
+        warningCount: warnings.length,
+      },
+      blockers,
+      warnings,
+      _note:
+        blockers.length > 0
+          ? 'Fix blockers before publishing. Also run lint_fix_all for token/contrast issues.'
+          : warnings.length > 0
+            ? 'Ready to publish with warnings. Recommended: run lint_fix_all first, then publish via Figma Assets panel → Publish.'
+            : 'All structural checks passed. Run lint_fix_all for final token/contrast polish, then publish via Figma Assets panel → Publish.',
     };
   });
 } // registerComponentHandlers

@@ -27,6 +27,21 @@ export function registerGeneratedTools(
   options: GeneratedToolRegistrationOptions = {},
 ): void {
   const include = options.include;
+  if (shouldRegisterGeneratedTool(include, 'get_design_context')) {
+    server.tool(
+    'get_design_context',
+    "Extract structured design-to-code context from a node: full node tree PLUS resolved metadata for every variable, style, and component the tree references. The calling LLM uses this context to generate framework code. Does NOT generate code itself — that decoupling lets you target any framework while figcraft handles the Figma side. Self-built (does not require Figma Desktop MCP), so it works in remote agents, cloud IDEs, and claude.ai web sessions where Desktop MCP is unavailable.",
+    {
+      nodeId: z.string().describe("Root node to extract context from"),
+      framework: z.enum(['react', 'vue', 'swiftui', 'compose', 'tailwind', 'unspecified']).optional().describe("Optional framework hint — adjusts frameworkHint string in response"),
+    },
+    async ({ nodeId, framework }) => {
+      const result = await bridge.request('get_design_context', { nodeId, framework }, undefined, 'get_design_context', false);
+      return jsonResponse(result);
+    },
+  );
+  }
+
   if (shouldRegisterGeneratedTool(include, 'get_selection')) {
     server.tool(
     'get_selection',
@@ -501,15 +516,20 @@ export function registerGeneratedTools(
   if (shouldRegisterGeneratedTool(include, 'bind_component_property')) {
     server.tool(
     'bind_component_property',
-    "Wire a component property to child nodes across all variants. Finds child nodes by name and sets componentPropertyReferences. Works on both Component and ComponentSet (iterates all variants).",
+    "Wire one or more component properties to child nodes across all variants in a single call. Finds child nodes by name and sets componentPropertyReferences. Works on both Component and ComponentSet (iterates all variants). PREFERRED: pass `bindings` as an array to wire multiple properties in one call — a typical Button has 4-6 properties (Label / Icon / ShowIcon / State / ...) and batching them cuts round-trips. Legacy: omit `bindings` and pass `propertyName + targetNodeSelector + nodeProperty` for a single binding.",
     {
       nodeId: z.string().describe("Component or ComponentSet node ID"),
-      propertyName: z.string().describe("Component property name (e.g. \"Label\", \"Show Icon\")"),
-      targetNodeSelector: z.string().describe("Child node name to match via recursive search (e.g. \"label\", \"icon\")"),
-      nodeProperty: z.enum(['characters', 'visible', 'mainComponent']).describe("Which node property to bind: characters → TEXT property (text nodes), visible → BOOLEAN property (any node), mainComponent → INSTANCE_SWAP property (instance nodes)"),
+      bindings: z.array(z.object({
+          propertyName: z.string(),
+          targetNodeSelector: z.string(),
+          nodeProperty: z.enum(['characters', 'visible', 'mainComponent']),
+        })).optional().describe("Array of bindings (preferred). Each item has {propertyName, targetNodeSelector, nodeProperty}. When provided, propertyName/targetNodeSelector/nodeProperty at the top level are ignored."),
+      propertyName: z.string().optional().describe("(Legacy single binding) Component property name (e.g. \"Label\", \"Show Icon\")"),
+      targetNodeSelector: z.string().optional().describe("(Legacy single binding) Child node name to match via recursive search"),
+      nodeProperty: z.enum(['characters', 'visible', 'mainComponent']).optional().describe("(Legacy single binding) Which node property to bind: characters → TEXT property (text nodes), visible → BOOLEAN property (any node), mainComponent → INSTANCE_SWAP property (instance nodes)"),
     },
-    async ({ nodeId, propertyName, targetNodeSelector, nodeProperty }) => {
-      const result = await bridge.request('bind_component_property', { nodeId, propertyName, targetNodeSelector, nodeProperty }, undefined, 'bind_component_property', true);
+    async (params) => {
+      const result = await bridge.request('bind_component_property', params, undefined, 'bind_component_property', true);
       return jsonResponse(result);
     },
   );
@@ -649,6 +669,37 @@ export function registerGeneratedTools(
     },
     async (params) => {
       const result = await bridge.request('audit_components', params, undefined, 'audit_components', false);
+      return jsonResponse(result);
+    },
+  );
+  }
+
+  if (shouldRegisterGeneratedTool(include, 'get_code_connect_metadata')) {
+    server.tool(
+    'get_code_connect_metadata',
+    "Return structured Code Connect metadata for a COMPONENT or COMPONENT_SET. Does NOT generate template files — Figma's official `figma connect create` CLI is the de-facto standard for that (supports React, React Native, HTML, Web Components, SwiftUI, Jetpack Compose, hits REST API directly, no Desktop required).\nWhat figcraft adds: in-session structured metadata (properties with bare names stripped of Figma's #id suffix, variant option lists, INSTANCE_SWAP preferredValues, slot info) that agents can consume WITHOUT shelling out to the CLI — useful when an agent has just modified the component in the same session. The returned metadata is also a great input for an LLM that will read project source files to generate a template aligned to the project's actual component API.\nWorkflow:\n  1. Users wanting a template file: run `npx figma connect create \"<figmaUrl>\" --token <T>`\n  2. Agents needing fresh data after figcraft edits: call this tool\n  3. LLMs generating project-aligned templates: feed the metadata + read project source",
+    {
+      nodeId: z.string().describe("COMPONENT or COMPONENT_SET node id"),
+      fileKey: z.string().optional().describe("Optional Figma file key — when provided, figmaUrl is fully populated; otherwise <FILE_KEY> placeholder is emitted"),
+    },
+    async ({ nodeId, fileKey }) => {
+      const result = await bridge.request('get_code_connect_metadata', { nodeId, fileKey }, undefined, 'get_code_connect_metadata', false);
+      return jsonResponse(result);
+    },
+  );
+  }
+
+  if (shouldRegisterGeneratedTool(include, 'preflight_library_publish')) {
+    server.tool(
+    'preflight_library_publish',
+    "Pre-publish health check: scan all components, variables, and styles in a single pass, return structured blockers + warnings with fix suggestions. Run this before manually publishing a library in Figma. Complements lint_fix_all — this tool focuses on structural readiness (descriptions, scopes, code syntax), while lint_fix_all handles token compliance and contrast. Publishing itself must be triggered manually via the Figma Assets panel (Plugin API does not expose publish).",
+    {
+      checkComponents: z.boolean().optional().describe("Check components and component sets (default: true)"),
+      checkVariables: z.boolean().optional().describe("Check local variables for scopes and code syntax (default: true)"),
+      checkStyles: z.boolean().optional().describe("Check local paint/text/effect styles for descriptions (default: true)"),
+    },
+    async ({ checkComponents, checkVariables, checkStyles }) => {
+      const result = await bridge.request('preflight_library_publish', { checkComponents, checkVariables, checkStyles }, undefined, 'preflight_library_publish', false);
       return jsonResponse(result);
     },
   );

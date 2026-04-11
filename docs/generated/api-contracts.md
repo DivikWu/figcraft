@@ -4,7 +4,7 @@ This document is generated from `schema/tools.yaml`, `packages/core-mcp/src/tool
 
 ## Tool Response Coverage
 
-Covered flat/custom tools: 108
+Covered flat/custom tools: 111
 
 ### `add_collection_mode`
 
@@ -120,8 +120,22 @@ Covered flat/custom tools: 108
 ```json
 {
   "ok": true,
-  "bound": 18,
-  "notFound": 0
+  "bindingsProcessed": 4,
+  "variantsTargeted": 6,
+  "totalBound": 24,
+  "totalNotFound": 0,
+  "results": [
+    {
+      "propertyName": "Label",
+      "bound": 6,
+      "notFound": 0
+    },
+    {
+      "propertyName": "ShowIcon",
+      "bound": 6,
+      "notFound": 0
+    }
+  ]
 }
 ```
 
@@ -655,6 +669,57 @@ Covered flat/custom tools: 108
 }
 ```
 
+### `get_code_connect_metadata`
+
+- Example payloads: 1
+
+```json
+{
+  "componentName": "Button",
+  "nodeId": "80:1",
+  "isComponentSet": true,
+  "remote": false,
+  "figmaUrl": "https://figma.com/design/abc/Button?node-id=80-1",
+  "properties": [
+    {
+      "bareName": "Label",
+      "figmaKey": "Label#42:0",
+      "type": "TEXT",
+      "defaultValue": "Button"
+    },
+    {
+      "bareName": "Style",
+      "figmaKey": "Style",
+      "type": "VARIANT",
+      "variantOptions": [
+        "Primary",
+        "Secondary",
+        "Ghost"
+      ]
+    }
+  ],
+  "slots": {
+    "textSlots": [
+      {
+        "name": "label",
+        "characters": "Button"
+      }
+    ],
+    "instanceSlots": []
+  },
+  "summary": {
+    "propertyCount": 2,
+    "textProperties": 1,
+    "booleanProperties": 0,
+    "instanceSwapProperties": 0,
+    "variantProperties": 1,
+    "slotProperties": 0,
+    "textSlotCount": 1,
+    "instanceSlotCount": 0
+  }
+}
+```
+
 ### `get_creation_guide`
 
 - Example payloads: 2
@@ -687,6 +752,48 @@ Covered flat/custom tools: 108
       "id": "1:20",
       "name": "Settings",
       "type": "FRAME"
+    }
+  ]
+}
+```
+
+### `get_design_context`
+
+- Example payloads: 1
+
+```json
+{
+  "framework": "react",
+  "frameworkHint": "React + TypeScript. Map auto-layout → Flexbox...",
+  "summary": {
+    "textNodes": 3,
+    "imageNodes": 1,
+    "variablesUsed": 6,
+    "stylesUsed": 2,
+    "componentsUsed": 1
+  },
+  "variables": [
+    {
+      "id": "VariableID:1:30",
+      "name": "color/bg/primary",
+      "type": "COLOR",
+      "collection": "Color"
+    }
+  ],
+  "styles": [
+    {
+      "id": "S:abc123",
+      "name": "Heading/Large",
+      "type": "TEXT"
+    }
+  ],
+  "components": [
+    {
+      "id": "80:1",
+      "key": "abc...",
+      "name": "Button",
+      "isSet": true,
+      "remote": true
     }
   ]
 }
@@ -1238,6 +1345,34 @@ Covered flat/custom tools: 108
     "ok": true,
     "channel": "design-1"
   }
+}
+```
+
+### `preflight_library_publish`
+
+- Example payloads: 1
+
+```json
+{
+  "ready": false,
+  "summary": {
+    "components": 12,
+    "componentSets": 3,
+    "variables": 48,
+    "styles": 6,
+    "blockerCount": 2,
+    "warningCount": 5
+  },
+  "blockers": [
+    {
+      "severity": "blocker",
+      "category": "component",
+      "target": "Button",
+      "nodeId": "80:1",
+      "message": "Component set missing description",
+      "suggestion": "update_component(nodeId:\"80:1\", description:\"...\")"
+    }
+  ]
 }
 ```
 

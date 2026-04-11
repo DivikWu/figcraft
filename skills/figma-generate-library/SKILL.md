@@ -116,10 +116,14 @@ Phase 4: INTEGRATION + QA (final pass)
 | Clone for variants | `nodes(method:"clone", items:[{id, name:"Size=Small, Style=Primary"}])` |
 | Adjust variant bindings | `variables_ep(method:"batch_bind", bindings:[{nodeId, field, variableId}])` — after combineAsVariants |
 | Combine as variants | `create_component_set(componentIds:[...], name:"Button")` |
+| **Add a single variant to existing set** *(see note below)* | `nodes(method:"clone", items:[{id:"<existingVariantId>", name:"Size=XL, Style=Primary", parentId:"<componentSetId>"}])` then `layout_component_set(nodeId:"<componentSetId>")` |
 | Grid layout | `layout_component_set(nodeId, columnAxis:"State", gap:20)` |
 | Add properties | `add_component_property(nodeId, propertyName:"Label", type:"TEXT", defaultValue:"Button")` |
-| Wire to children | `bind_component_property(nodeId, propertyName:"Label", targetNodeSelector:"label", nodeProperty:"characters")` |
+| Wire to children | `bind_component_property(nodeId, propertyName:"Label", targetNodeSelector:"label", nodeProperty:"characters")` — accepts `bindings:[]` array to wire multiple properties in one call |
 | Update description | `update_component(nodeId, description:"...")` |
+| Pre-publish health check | `preflight_library_publish()` — scans components, variables, styles; returns blockers/warnings with fix suggestions |
+
+> **Incremental variant addition**: There is no dedicated `add_variant_to_set` handler — use `nodes(method:"clone")` with `parentId` set to the ComponentSet's id. The clone is automatically reparented into the set, Figma re-derives the variant axes from the new variant's name (which MUST follow `Property=Value, Property=Value` format), then `layout_component_set` re-grids everything. Works because `ComponentSetNode` extends `BaseFrameMixin → ChildrenMixin` so it accepts `appendChild` directly.
 
 ---
 

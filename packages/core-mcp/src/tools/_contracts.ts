@@ -105,6 +105,38 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
       hints: z.array(z.string()).optional(),
       _previewHint: z.string().optional(),
     }),
+  'get_design_context': z.object({
+      framework: z.string(),
+      frameworkHint: z.string().describe("Short guidance string the calling LLM can lean on while generating code"),
+      tree: z.record(z.unknown()).describe("Full node tree (boundVariables/styleIds preserved)"),
+      summary: z.object({
+        textNodes: z.number(),
+        imageNodes: z.number(),
+        variablesUsed: z.number(),
+        stylesUsed: z.number(),
+        componentsUsed: z.number(),
+      }),
+      variables: z.array(z.object({
+          id: z.string(),
+          name: z.string(),
+          type: z.string(),
+          collection: z.string().optional(),
+        })),
+      styles: z.array(z.object({
+          id: z.string(),
+          name: z.string(),
+          type: z.string(),
+        })),
+      components: z.array(z.object({
+          id: z.string(),
+          key: z.string().optional(),
+          name: z.string(),
+          isSet: z.boolean(),
+          remote: z.boolean(),
+          description: z.string().optional(),
+          propertyDefinitions: z.record(z.unknown()).optional(),
+        })),
+    }),
   'get_document_info': z.object({
       name: z.string(),
       currentPage: z.string(),
@@ -458,10 +490,18 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
     }),
   'bind_component_property': z.object({
       ok: z.boolean(),
-      bound: z.number(),
-      notFound: z.number(),
+      bindingsProcessed: z.number(),
+      variantsTargeted: z.number(),
+      totalBound: z.number(),
+      totalNotFound: z.number(),
+      results: z.array(z.object({
+          propertyName: z.string(),
+          bound: z.number(),
+          notFound: z.number(),
+        })),
       errors: z.array(z.object({
           variantName: z.string().optional(),
+          propertyName: z.string().optional(),
           error: z.string().optional(),
         })).optional(),
     }),
@@ -525,6 +565,68 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
           nodeId: z.string(),
           name: z.string(),
           issue: z.string(),
+        })),
+    }),
+  'get_code_connect_metadata': z.object({
+      componentName: z.string(),
+      nodeId: z.string(),
+      isComponentSet: z.boolean(),
+      remote: z.boolean(),
+      description: z.string().optional(),
+      figmaUrl: z.string(),
+      properties: z.array(z.object({
+          bareName: z.string().describe("Property name with #id suffix stripped — use this in Code Connect files"),
+          figmaKey: z.string(),
+          type: z.string(),
+          defaultValue: z.string().optional(),
+          variantOptions: z.array(z.string()).optional(),
+        })),
+      slots: z.object({
+        textSlots: z.array(z.object({
+          name: z.string(),
+          characters: z.string(),
+        })),
+        instanceSlots: z.array(z.object({
+          name: z.string(),
+          mainComponentName: z.string().optional(),
+        })),
+      }),
+      summary: z.object({
+        propertyCount: z.number(),
+        textProperties: z.number(),
+        booleanProperties: z.number(),
+        instanceSwapProperties: z.number(),
+        variantProperties: z.number(),
+        slotProperties: z.number(),
+        textSlotCount: z.number(),
+        instanceSlotCount: z.number(),
+      }),
+    }),
+  'preflight_library_publish': z.object({
+      ready: z.boolean().describe("True when there are no blockers (warnings are OK)"),
+      summary: z.object({
+        components: z.number(),
+        componentSets: z.number(),
+        variables: z.number(),
+        styles: z.number(),
+        blockerCount: z.number(),
+        warningCount: z.number(),
+      }),
+      blockers: z.array(z.object({
+          severity: z.string(),
+          category: z.string(),
+          target: z.string(),
+          nodeId: z.string().optional(),
+          message: z.string(),
+          suggestion: z.string().optional(),
+        })),
+      warnings: z.array(z.object({
+          severity: z.string(),
+          category: z.string(),
+          target: z.string(),
+          nodeId: z.string().optional(),
+          message: z.string(),
+          suggestion: z.string().optional(),
         })),
     }),
   'list_library_collections': z.array(z.object({
@@ -961,6 +1063,43 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
           "id": "1:20",
           "name": "Settings",
           "type": "FRAME"
+        }
+      ]
+    }
+  ],
+  'get_design_context': [
+    {
+      "framework": "react",
+      "frameworkHint": "React + TypeScript. Map auto-layout → Flexbox...",
+      "summary": {
+        "textNodes": 3,
+        "imageNodes": 1,
+        "variablesUsed": 6,
+        "stylesUsed": 2,
+        "componentsUsed": 1
+      },
+      "variables": [
+        {
+          "id": "VariableID:1:30",
+          "name": "color/bg/primary",
+          "type": "COLOR",
+          "collection": "Color"
+        }
+      ],
+      "styles": [
+        {
+          "id": "S:abc123",
+          "name": "Heading/Large",
+          "type": "TEXT"
+        }
+      ],
+      "components": [
+        {
+          "id": "80:1",
+          "key": "abc...",
+          "name": "Button",
+          "isSet": true,
+          "remote": true
         }
       ]
     }
@@ -1442,8 +1581,22 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
   'bind_component_property': [
     {
       "ok": true,
-      "bound": 18,
-      "notFound": 0
+      "bindingsProcessed": 4,
+      "variantsTargeted": 6,
+      "totalBound": 24,
+      "totalNotFound": 0,
+      "results": [
+        {
+          "propertyName": "Label",
+          "bound": 6,
+          "notFound": 0
+        },
+        {
+          "propertyName": "ShowIcon",
+          "bound": 6,
+          "notFound": 0
+        }
+      ]
     }
   ],
   'swap_instance': [
@@ -1535,6 +1688,75 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
           "nodeId": "80:1",
           "name": "Button / Primary",
           "issue": "Missing description"
+        }
+      ]
+    }
+  ],
+  'get_code_connect_metadata': [
+    {
+      "componentName": "Button",
+      "nodeId": "80:1",
+      "isComponentSet": true,
+      "remote": false,
+      "figmaUrl": "https://figma.com/design/abc/Button?node-id=80-1",
+      "properties": [
+        {
+          "bareName": "Label",
+          "figmaKey": "Label#42:0",
+          "type": "TEXT",
+          "defaultValue": "Button"
+        },
+        {
+          "bareName": "Style",
+          "figmaKey": "Style",
+          "type": "VARIANT",
+          "variantOptions": [
+            "Primary",
+            "Secondary",
+            "Ghost"
+          ]
+        }
+      ],
+      "slots": {
+        "textSlots": [
+          {
+            "name": "label",
+            "characters": "Button"
+          }
+        ],
+        "instanceSlots": []
+      },
+      "summary": {
+        "propertyCount": 2,
+        "textProperties": 1,
+        "booleanProperties": 0,
+        "instanceSwapProperties": 0,
+        "variantProperties": 1,
+        "slotProperties": 0,
+        "textSlotCount": 1,
+        "instanceSlotCount": 0
+      }
+    }
+  ],
+  'preflight_library_publish': [
+    {
+      "ready": false,
+      "summary": {
+        "components": 12,
+        "componentSets": 3,
+        "variables": 48,
+        "styles": 6,
+        "blockerCount": 2,
+        "warningCount": 5
+      },
+      "blockers": [
+        {
+          "severity": "blocker",
+          "category": "component",
+          "target": "Button",
+          "nodeId": "80:1",
+          "message": "Component set missing description",
+          "suggestion": "update_component(nodeId:\"80:1\", description:\"...\")"
         }
       ]
     }

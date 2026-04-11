@@ -168,7 +168,16 @@ export async function importAndResolveComponent(spec: {
   }
 
   if (!node) {
-    throw new Error(`Component not found: ${componentSetKey || componentKey || componentId}`);
+    const tried: string[] = [];
+    if (componentSetKey) tried.push(`componentSetKey="${componentSetKey}"`);
+    if (componentKey) tried.push(`componentKey="${componentKey}"`);
+    if (componentId) tried.push(`componentId="${componentId}"`);
+    throw new Error(
+      `Component not found (tried: ${tried.join(', ')}). ` +
+        `Common fixes: (1) verify the key/id is current — library components can be re-published with a new key; ` +
+        `(2) call search_design_system({query:"<component name>"}) to find the current key; ` +
+        `(3) for local components, use components({method:"list"}) to enumerate node IDs.`,
+    );
   }
 
   return resolveComponent(node, variantProperties);
@@ -190,20 +199,31 @@ export function resolveComponent(node: BaseNode, variantProperties?: Record<stri
         return Object.entries(variantProperties).every(([k, val]) => vProps[k] === val);
       });
       if (match) return { component: match };
-      // No matching variant — fall back to default with a warning
+      // No matching variant — fall back to default with a structured warning
+      // that lists every axis and its valid values, so the next call can fix itself.
       const fallback = (set.defaultVariant ?? set.children[0]) as ComponentNode;
       const requested = Object.entries(variantProperties)
         .map(([k, v]) => `${k}=${v}`)
         .join(', ');
-      const available = variants
-        .slice(0, 5)
-        .map((v) => v.name)
-        .join(' | ');
+      const axisValues = new Map<string, Set<string>>();
+      for (const v of variants) {
+        const vp = v.variantProperties;
+        if (!vp) continue;
+        for (const [k, val] of Object.entries(vp)) {
+          if (!axisValues.has(k)) axisValues.set(k, new Set());
+          axisValues.get(k)!.add(val);
+        }
+      }
+      const axisDescription = Array.from(axisValues.entries())
+        .map(([k, vals]) => `${k}: [${Array.from(vals).join(', ')}]`)
+        .join('; ');
       return {
         component: fallback,
         fallbackWarning:
           `variantProperties {${requested}} did not match any variant in "${set.name}". ` +
-          `Using default variant "${fallback.name}". Available: [${available}${variants.length > 5 ? `, ... (${variants.length} total)` : ''}]`,
+          `Using default variant "${fallback.name}". ` +
+          `Valid axes — ${axisDescription}. ` +
+          `Retry with variantProperties matching one value from each axis.`,
       };
     }
     return { component: (set.defaultVariant ?? set.children[0]) as ComponentNode };
