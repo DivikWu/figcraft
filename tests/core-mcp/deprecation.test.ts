@@ -211,8 +211,8 @@ describe('registry structure', () => {
     expect(Object.keys(GENERATED_DEPRECATED_TOOLS).length).toBe(0);
   });
 
-  it('GENERATED_REMOVED_TOOLS contains 33 removed flat tools (Phase 3)', () => {
-    expect(Object.keys(GENERATED_REMOVED_TOOLS).length).toBe(33);
+  it('GENERATED_REMOVED_TOOLS contains 41 removed flat tools (Phase 3)', () => {
+    expect(Object.keys(GENERATED_REMOVED_TOOLS).length).toBe(41);
   });
 });
 

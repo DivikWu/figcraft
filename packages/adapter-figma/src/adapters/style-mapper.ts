@@ -6,6 +6,7 @@
 
 import type { DesignToken } from '@figcraft/shared';
 import { hexToFigmaRgba } from '../utils/color.js';
+import { resolveWeight } from '../utils/font-weight.js';
 
 interface TypographyValue {
   fontFamily?: string;
@@ -132,21 +133,6 @@ export async function syncShadowToStyle(
 }
 
 // ─── Helpers ───
-
-function resolveWeight(weight: number | string | undefined): string {
-  if (!weight) return 'Regular';
-  const w = typeof weight === 'string' ? parseInt(weight, 10) : weight;
-  if (Number.isNaN(w)) return String(weight);
-  if (w <= 100) return 'Thin';
-  if (w <= 200) return 'ExtraLight';
-  if (w <= 300) return 'Light';
-  if (w <= 400) return 'Regular';
-  if (w <= 500) return 'Medium';
-  if (w <= 600) return 'SemiBold';
-  if (w <= 700) return 'Bold';
-  if (w <= 800) return 'ExtraBold';
-  return 'Black';
-}
 
 function resolveLineHeight(lh: number | string): LineHeight {
   if (typeof lh === 'string' && lh.endsWith('%')) {

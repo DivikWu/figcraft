@@ -262,6 +262,35 @@ export function registerEndpointTools(server: McpServer, bridge: Bridge): void {
             variables: p.variables,
           }),
         export: (b, p) => bridgeRequestLogic(b, 'export_variables', { collectionId: p.collectionId }),
+        set_code_syntax: (b, p) =>
+          bridgeRequestLogic(b, 'set_variable_code_syntax', {
+            variableId: p.variableId,
+            syntax: p.syntax,
+          }),
+        batch_bind: (b, p) =>
+          bridgeRequestLogic(b, 'batch_set_variable_binding', {
+            bindings: p.bindings,
+          }),
+        set_values_multi_mode: (b, p) =>
+          bridgeRequestLogic(b, 'set_variable_values_multi_mode', {
+            variableId: p.variableId,
+            valuesByMode: p.valuesByMode,
+          }),
+        extend_collection: (b, p) =>
+          bridgeRequestLogic(b, 'extend_collection', {
+            collectionId: p.collectionId,
+            collectionKey: p.collectionKey,
+            name: p.name,
+          }),
+        get_overrides: (b, p) =>
+          bridgeRequestLogic(b, 'get_collection_overrides', {
+            collectionId: p.collectionId,
+          }),
+        remove_override: (b, p) =>
+          bridgeRequestLogic(b, 'remove_collection_override', {
+            collectionId: p.collectionId,
+            variableId: p.variableId,
+          }),
       },
     },
     bridge,
@@ -317,6 +346,23 @@ export function registerEndpointTools(server: McpServer, bridge: Bridge): void {
           }),
         delete: (b, p) => bridgeRequestLogic(b, 'delete_style', { styleId: p.styleId }),
         sync: (b, p) => bridgeRequestLogic(b, 'sync_styles', { tokens: p.tokens }),
+        create_text: (b, p) =>
+          bridgeRequestLogic(b, 'create_text_style', {
+            name: p.name,
+            fontFamily: p.fontFamily,
+            fontStyle: p.fontStyle,
+            fontWeight: p.fontWeight,
+            fontSize: p.fontSize,
+            lineHeight: p.lineHeight,
+            letterSpacing: p.letterSpacing,
+            description: p.description,
+          }),
+        create_effect: (b, p) =>
+          bridgeRequestLogic(b, 'create_effect_style', {
+            name: p.name,
+            description: p.description,
+            effects: p.effects,
+          }),
       },
     },
     bridge,

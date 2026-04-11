@@ -8,6 +8,8 @@
 import { LOCAL_LIBRARY, PLUGIN_VERSION, STORAGE_KEYS } from './constants.js';
 import { registerAnnotationHandlers } from './handlers/annotations.js';
 import { registerComponentHandlers } from './handlers/components.js';
+// ─── P9 handlers (design system build) ───
+import { registerDesignSystemBuildHandlers } from './handlers/design-system-build.js';
 // ─── P7 handlers (execute JS) ───
 import { registerExecuteJsHandler } from './handlers/execute-js.js';
 import { registerExportHandlers } from './handlers/export.js';
@@ -74,6 +76,7 @@ registerImageVectorHandlers();
 registerIconSvgHandler();
 registerExecuteJsHandler();
 registerSearchDesignSystemHandler();
+registerDesignSystemBuildHandlers();
 
 // ─── Page change safety: clear staging cache to prevent cross-page leaks ───
 figma.on('currentpagechange', () => {
