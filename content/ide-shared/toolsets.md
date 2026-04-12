@@ -2,9 +2,9 @@ Core tools are always enabled. Load additional toolsets as needed via `load_tool
 
 | Toolset | When to load |
 |---------|-------------|
-| `variables` | Managing Figma variables, collections, modes |
+| `variables` | Write operations on variables (rename, alias, modes). Note: `variables_ep` read/write methods are always available as core — no toolset needed for list, get, export, batch_update |
 | `tokens` | Syncing DTCG design tokens |
-| `styles` | Managing paint/text/effect styles |
+| `styles` | Write operations on styles (create, update, sync). Note: `styles_ep` read methods are always available as core — no toolset needed for list, get |
 | `components-advanced` | Building component libraries, managing variants |
 | `library-import` | Importing library variables, styles, and components into local file (design system authoring, NOT for UI creation in library mode) |
 | `shapes-vectors` | Stars, polygons, sections, boolean ops, flatten |
