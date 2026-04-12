@@ -5860,7 +5860,14 @@ nodes:
         types:
           type: array
           items: string
-          description: Filter by node types
+          description: >-
+            Filter by SceneNode type (FRAME, TEXT, RECTANGLE, COMPONENT, INSTANCE,
+            COMPONENT_SET, GROUP, VECTOR, ELLIPSE, LINE, STAR, POLYGON,
+            BOOLEAN_OPERATION, SECTION, SLICE). NOT for VARIABLE / STYLE / library
+            components — those live on other endpoints:
+            variables_ep({method:"list"}) for variables,
+            styles_ep({method:"list"}) for paint/text/effect styles,
+            components({method:"list_library"}) for imported library components.
         limit:
           type: number
           description: Max results (default 50)

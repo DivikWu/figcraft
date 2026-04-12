@@ -11,7 +11,10 @@ import { PASS } from '../types.js';
 
 /** Extract a short error type from an error message. */
 function classifyError(message: string): string {
-  if (/not connected|timed out/i.test(message)) return 'connection_lost';
+  // Request-level timeouts are NOT connection losses — see recovery-patterns.yaml.
+  if (/^request .* timed out after|timed out after .* \(progress was received\)/i.test(message))
+    return 'request_timeout';
+  if (/not connected|connection closed|websocket.*closed|connection.*refused/i.test(message)) return 'connection_lost';
   if (/not found|does not exist/i.test(message)) return 'not_found';
   if (/ENOENT|no such file/i.test(message)) return 'file_not_found';
   if (/json.*parse|syntax.*error/i.test(message)) return 'parse_error';

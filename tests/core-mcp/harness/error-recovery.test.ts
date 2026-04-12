@@ -19,7 +19,7 @@ describe('Data-driven Error Recovery Rules', () => {
 
   it('generates rules from compiled YAML', () => {
     expect(rules.length).toBe(RECOVERY_PATTERNS.length);
-    expect(rules.length).toBeGreaterThanOrEqual(6);
+    expect(rules.length).toBeGreaterThanOrEqual(7);
   });
 
   it('all rules have correct phase', () => {
@@ -28,12 +28,15 @@ describe('Data-driven Error Recovery Rules', () => {
     }
   });
 
-  it('connection-lost has higher priority', () => {
+  it('transport-level rules have higher priority than domain rules', () => {
     const connectionRule = rules.find((r) => r.name === 'recovery-connection-lost');
+    const timeoutRule = rules.find((r) => r.name === 'recovery-request-timeout');
     const tokenRule = rules.find((r) => r.name === 'recovery-token-not-found');
     expect(connectionRule).toBeDefined();
+    expect(timeoutRule).toBeDefined();
     expect(tokenRule).toBeDefined();
     expect(connectionRule!.priority).toBeLessThan(tokenRule!.priority!);
+    expect(timeoutRule!.priority).toBeLessThan(tokenRule!.priority!);
   });
 
   describe('connection-lost', () => {
@@ -48,14 +51,46 @@ describe('Data-driven Error Recovery Rules', () => {
       }
     });
 
-    it('matches timeout errors', async () => {
-      const ctx = makeErrorCtx('nodes', 'Request create_frame timed out after 30000ms');
+    it('matches "Connection closed"', async () => {
+      const ctx = makeErrorCtx('create_frame', 'Connection closed');
       const action = await rule.execute(ctx);
       expect(action.type).toBe('recover');
     });
 
+    it('does NOT match request-level timeouts (those are request_timeout)', async () => {
+      const ctx = makeErrorCtx('nodes', 'Request search_nodes timed out after 30000ms');
+      const action = await rule.execute(ctx);
+      expect(action.type).toBe('pass');
+    });
+
     it('passes on unrelated errors', async () => {
       const ctx = makeErrorCtx('nodes', 'Some other error');
+      const action = await rule.execute(ctx);
+      expect(action.type).toBe('pass');
+    });
+  });
+
+  describe('request-timeout', () => {
+    const rule = rules.find((r) => r.name === 'recovery-request-timeout')!;
+
+    it('matches "Request search_nodes timed out after 30000ms"', async () => {
+      const ctx = makeErrorCtx('nodes', 'Request search_nodes timed out after 30000ms');
+      const action = await rule.execute(ctx);
+      expect(action.type).toBe('recover');
+      if (action.type === 'recover') {
+        expect(action.recovery.errorType).toBe('request_timeout');
+        expect(action.recovery.suggestion).toContain('NOT help');
+      }
+    });
+
+    it('matches timeouts after progress was received', async () => {
+      const ctx = makeErrorCtx('nodes', 'Request timed out after 30000ms (progress was received)');
+      const action = await rule.execute(ctx);
+      expect(action.type).toBe('recover');
+    });
+
+    it('does NOT match "Bridge not connected"', async () => {
+      const ctx = makeErrorCtx('create_frame', 'Bridge not connected');
       const action = await rule.execute(ctx);
       expect(action.type).toBe('pass');
     });

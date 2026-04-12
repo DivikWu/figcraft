@@ -10,8 +10,8 @@ import { RECOVERY_PATTERNS } from '../_harness.js';
 import type { HarnessAction, HarnessRule } from '../types.js';
 import { PASS } from '../types.js';
 
-/** Connection-lost gets higher priority (most common error). */
-const HIGH_PRIORITY_RULES = new Set(['connection-lost']);
+/** Transport-level errors get higher priority (most common + most user-facing). */
+const HIGH_PRIORITY_RULES = new Set(['connection-lost', 'request-timeout']);
 
 /** Generate recovery rules from compiled YAML patterns. */
 export function createRecoveryRules(): HarnessRule[] {

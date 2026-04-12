@@ -5,8 +5,63 @@
 import type { SimplifyDetail } from '../adapters/node-simplifier.js';
 import { createContext, simplifyNode, simplifyPage } from '../adapters/node-simplifier.js';
 import { registerHandler } from '../registry.js';
-import { assertHandler } from '../utils/handler-error.js';
+import { assertHandler, HandlerError } from '../utils/handler-error.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
+
+// Valid SceneNode / BaseNode types accepted by search_nodes.
+// Sourced from @figma/plugin-typings NodeType (= BaseNode['type']) — full 36-entry
+// set of `readonly type: 'XXX'` literals starting at plugin-api.d.ts:8958.
+// Keep in sync with the Figma Plugin API.
+const VALID_NODE_TYPES = new Set<string>([
+  'DOCUMENT',
+  'PAGE',
+  'FRAME',
+  'GROUP',
+  'TRANSFORM_GROUP',
+  'SLICE',
+  'RECTANGLE',
+  'LINE',
+  'ELLIPSE',
+  'POLYGON',
+  'STAR',
+  'VECTOR',
+  'TEXT',
+  'TEXT_PATH',
+  'COMPONENT_SET',
+  'COMPONENT',
+  'INSTANCE',
+  'BOOLEAN_OPERATION',
+  'STICKY',
+  'STAMP',
+  'TABLE',
+  'TABLE_CELL',
+  'HIGHLIGHT',
+  'WASHI_TAPE',
+  'SHAPE_WITH_TEXT',
+  'CODE_BLOCK',
+  'CONNECTOR',
+  'WIDGET',
+  'EMBED',
+  'LINK_UNFURL',
+  'MEDIA',
+  'SECTION',
+  'SLIDE',
+  'SLIDE_ROW',
+  'SLIDE_GRID',
+  'INTERACTIVE_SLIDE_ELEMENT',
+]);
+
+// Self-correcting error routing: agents commonly pass these "wrong-bucket"
+// values to search_nodes; map each to the endpoint that actually owns them.
+const WRONG_BUCKET: Record<string, string> = {
+  VARIABLE: 'variables_ep({method:"list"}) — requires load_toolset("variables")',
+  VARIABLE_COLLECTION: 'variables_ep({method:"list_collections"}) — requires load_toolset("variables")',
+  PAINT_STYLE: 'styles_ep({method:"list", type:"PAINT"}) — requires load_toolset("styles")',
+  TEXT_STYLE: 'styles_ep({method:"list", type:"TEXT"}) — requires load_toolset("styles")',
+  EFFECT_STYLE: 'styles_ep({method:"list", type:"EFFECT"}) — requires load_toolset("styles")',
+  GRID_STYLE: 'styles_ep({method:"list", type:"GRID"}) — requires load_toolset("styles")',
+  STYLE: 'styles_ep({method:"list"}) — requires load_toolset("styles")',
+};
 
 export function registerNodeHandlers(): void {
   registerHandler('get_node_info', async (params) => {
@@ -313,6 +368,26 @@ export function registerNodeHandlers(): void {
     const limit = (params.limit as number) ?? 50;
     const detail = (params.detail as SimplifyDetail | undefined) ?? 'summary';
     const _ctx = createContext(undefined, undefined, detail);
+
+    // Guard: reject non-SceneNode types up front so agents don't silently hit
+    // a full-document walk where matchesType is always false (which looks like
+    // a connection timeout after 30s). See plan: groovy-prancing-melody.md.
+    if (types && types.length > 0) {
+      for (const t of types) {
+        if (VALID_NODE_TYPES.has(t)) continue;
+        const redirect = WRONG_BUCKET[t];
+        if (redirect) {
+          throw new HandlerError(
+            `search_nodes: "${t}" is not a scene node type — it lives on a different endpoint. Call ${redirect} instead.`,
+            'WRONG_NODE_TYPE',
+          );
+        }
+        throw new HandlerError(
+          `search_nodes: "${t}" is not a valid node type. Valid types: ${[...VALID_NODE_TYPES].sort().join(', ')}.`,
+          'WRONG_NODE_TYPE',
+        );
+      }
+    }
 
     const results: ReturnType<typeof simplifyNode>[] = [];
 

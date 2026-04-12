@@ -17,13 +17,32 @@
   tools: ["*"]
   patterns:
     - "bridge not connected"
-    - "timed out"
+    - "connection closed"
+    - "connection to relay timed out"
     - "websocket.*closed"
     - "connection.*refused"
   errorType: connection_lost
   suggestion: >-
     Lost connection to Figma plugin.
     Check that the FigCraft plugin is running in Figma. Try calling ping to verify connection.
+
+# Split from connection-lost (2026-04-11): handler-request timeouts are NOT
+# connection failures — they mean the handler did too much work inside 30s
+# (e.g. unbounded tree walk, full enumeration). Suggesting "restart the plugin"
+# for these was actively misleading. See bridge.ts:388 for the message format.
+- name: request-timeout
+  tools: ["*"]
+  patterns:
+    - "^request .* timed out after"
+    - "request timed out after .* \\(progress was received\\)"
+  errorType: request_timeout
+  suggestion: >-
+    The request exceeded the 30s bridge timeout. This usually means the handler
+    did too much work — not a connection problem. Narrow the scope: pass a
+    specific nodeId instead of walking the whole page, tighten types/query
+    filters, lower maxDepth, or use a more targeted endpoint
+    (variables_ep for variables, styles_ep for styles, search_design_system
+    for library components). Restarting the plugin will NOT help.
 
 - name: token-not-found
   tools: [create_frame, create_text, create_svg, create_rectangle, create_ellipse, variables_ep]

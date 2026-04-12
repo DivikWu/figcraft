@@ -15,10 +15,24 @@ export const RECOVERY_PATTERNS: RecoveryPattern[] = [
   {
     name: 'connection-lost',
     tools: ['*'],
-    patterns: [/bridge not connected/i, /timed out/i, /websocket.*closed/i, /connection.*refused/i],
+    patterns: [
+      /bridge not connected/i,
+      /connection closed/i,
+      /connection to relay timed out/i,
+      /websocket.*closed/i,
+      /connection.*refused/i,
+    ],
     errorType: 'connection_lost',
     suggestion:
       'Lost connection to Figma plugin. Check that the FigCraft plugin is running in Figma. Try calling ping to verify connection.',
+  },
+  {
+    name: 'request-timeout',
+    tools: ['*'],
+    patterns: [/^request .* timed out after/i, /request timed out after .* \(progress was received\)/i],
+    errorType: 'request_timeout',
+    suggestion:
+      'The request exceeded the 30s bridge timeout. This usually means the handler did too much work — not a connection problem. Narrow the scope: pass a specific nodeId instead of walking the whole page, tighten types/query filters, lower maxDepth, or use a more targeted endpoint (variables_ep for variables, styles_ep for styles, search_design_system for library components). Restarting the plugin will NOT help.',
   },
   {
     name: 'token-not-found',

@@ -1158,7 +1158,7 @@ export const nodesEndpointSchema = {
       nodeIds: z.array(z.string()).optional().describe("Array of node IDs to fetch"),
       detail: z.enum(['summary', 'standard', 'full']).optional().describe("Detail level (default: standard)"),
       query: z.string().optional().describe("Search query"),
-      types: z.array(z.string()).optional().describe("Filter by node types"),
+      types: z.array(z.string()).optional().describe("Filter by SceneNode type (FRAME, TEXT, RECTANGLE, COMPONENT, INSTANCE, COMPONENT_SET, GROUP, VECTOR, ELLIPSE, LINE, STAR, POLYGON, BOOLEAN_OPERATION, SECTION, SLICE). NOT for VARIABLE / STYLE / library components — those live on other endpoints: variables_ep({method:\"list\"}) for variables, styles_ep({method:\"list\"}) for paint/text/effect styles, components({method:\"list_library\"}) for imported library components."),
       limit: z.number().optional().describe("Max results (default 50)"),
       patches: z.array(z.object({
           nodeId: z.string(),
