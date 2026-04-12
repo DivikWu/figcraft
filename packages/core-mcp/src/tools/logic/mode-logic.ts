@@ -253,7 +253,7 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
     response._assetAccess = {
       _rule:
         'IMPORTANT: Use figcraft tools below for ALL variable/style/component operations. Do NOT use figma-desktop MCP (get_variable_defs, etc.) — figcraft already has full coverage via Plugin API.',
-      variables: `${collections.length} variable collections detected. variables_ep(method: "list_collections") to browse, variables_ep(method: "list") to list all, variables_ep(method: "export") to export as DTCG. No toolset loading needed.`,
+      variables: `${collections.length} variable collections detected. variables_ep(method: "list") returns all fields (codeSyntax, scopes, description, valuesByMode) — no need to get individually. variables_ep(method: "batch_update", updates: [...]) for bulk changes (supports codeSyntax). No toolset loading needed.`,
       styles:
         'styles_ep(method: "list") to browse all styles. Or search_design_system(query: "heading", includeStyles: true). No toolset loading needed.',
       components:

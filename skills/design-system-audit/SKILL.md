@@ -1,6 +1,6 @@
 ---
 name: design-system-audit
-description: "Audit design system health — token coverage, component consistency, unused variables, naming compliance. Use when: audit/health check/coverage + design system/library/tokens, or when assessing design system quality before publishing."
+description: "Audit design system health — token coverage, component consistency, unused variables, naming compliance, codeSyntax/scope coverage. Use when: audit/health check/coverage + design system/library/tokens, check/fix/repair + codeSyntax/code syntax/scope/description + variables, batch update/fix + variables, or when assessing design system quality before publishing."
 ---
 
 # Design System Audit — Health & Coverage Check
@@ -20,11 +20,11 @@ Comprehensive audit of a Figma design system's health: token coverage, component
 ### Step 1: Connect and Load Tools
 
 ```
-ping                                          → verify plugin connection
+get_mode                                      → verify connection + get designContext
 load_toolset("components-advanced")           → component audit tools
-load_toolset("variables")                     → variable inspection tools
-load_toolset("tokens")                        → token export/scan tools
 ```
+
+Note: `variables_ep` and `styles_ep` are core tools — always available, no toolset loading needed.
 
 ### Step 2: Inventory — What Exists
 
@@ -78,12 +78,31 @@ Calculate token binding rate: `(bound properties / total bindable properties) ×
 
 ### Step 5: Variable Quality Audit
 
+**Efficient pattern**: Use `variables_ep(method: "list")` — returns ALL fields (name, scopes, codeSyntax, description, valuesByMode) in one call. Do NOT call `get` on each variable individually.
+
+```
+variables_ep(method: "list", collectionId: "<id>")   → all variables with full details
+```
+
 For each variable, check:
 - ⚠️ `ALL_SCOPES` — variables without specific scopes pollute property pickers
-- ⚠️ Missing code syntax — breaks Dev Mode round-tripping
+- ⚠️ Missing code syntax — breaks Dev Mode round-tripping (check `codeSyntax` field)
+- ⚠️ Missing description — undocumented variables
 - ⚠️ Duplicate raw values in semantic layer — should alias primitives instead
 - ⚠️ Orphan variables — variables not bound to any node
 - ⚠️ Naming inconsistency — mixed casing or naming conventions
+
+**Bulk fix**: Use `variables_ep(method: "batch_update")` to fix multiple issues in one call:
+
+```
+variables_ep(method: "batch_update", updates: [
+  { variableId: "...", scopes: ["FONT_FAMILY"], codeSyntax: { WEB: "var(--font-family-brand)" } },
+  { variableId: "...", description: "Primary background color" },
+  ...up to all variables that need fixing
+])
+```
+
+This reduces N individual update/set_code_syntax calls to 1 batch call.
 
 ### Step 6: Naming Audit
 

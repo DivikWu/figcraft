@@ -1209,7 +1209,7 @@ export const variables_epEndpointSchema = {
       modeId: z.string().optional(),
       description: z.string().optional(),
       scopes: z.array(z.string()).optional(),
-      updates: z.array(z.unknown()).optional().describe("Array of variable updates. Each: { variableId (required), name?, description?, scopes?, value?, modeId? }"),
+      updates: z.array(z.unknown()).optional().describe("Array of variable updates. Each: { variableId (required), name?, description?, scopes?, value?, modeId?, codeSyntax?: {WEB?, ANDROID?, iOS?} }"),
       collectionName: z.string().optional(),
       modeName: z.string().optional(),
       variables: z.array(z.record(z.unknown())).optional(),

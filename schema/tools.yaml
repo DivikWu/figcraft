@@ -6293,6 +6293,8 @@ components:
 variables_ep:
   description: >-
     Variable operations — list, get, create, update, delete variables, collections, and modes.
+    Efficient patterns: list returns all fields (name, scopes, codeSyntax, valuesByMode) — avoid individual get calls.
+    Use batch_update to modify multiple variables in one call (supports name, description, scopes, codeSyntax).
   toolset: core
   handler: endpoint
   methods:
@@ -6333,6 +6335,9 @@ variables_ep:
                   type: array
                   required: true
                   items: string
+                codeSyntax:
+                  type: object
+                  description: 'Code syntax per platform {WEB, ANDROID, iOS}. Present only when set.'
                 valuesByMode:
                   type: record
                   required: true
@@ -6600,7 +6605,7 @@ variables_ep:
           type: array
           required: true
           description: >-
-            Array of variable updates. Each: { variableId (required), name?, description?, scopes?, value?, modeId? }
+            Array of variable updates. Each: { variableId (required), name?, description?, scopes?, value?, modeId?, codeSyntax?: {WEB?, ANDROID?, iOS?} }
     delete:
       description: Delete a variable by ID
       maps_to: delete_variable

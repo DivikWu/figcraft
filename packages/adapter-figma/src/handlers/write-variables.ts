@@ -114,6 +114,7 @@ export function registerWriteVariableHandlers(): void {
   });
 
   registerHandler('batch_update_variables', async (params) => {
+    const validPlatforms = new Set(['WEB', 'ANDROID', 'iOS']);
     const updates = params.updates as Array<{
       variableId: string;
       name?: string;
@@ -121,6 +122,7 @@ export function registerWriteVariableHandlers(): void {
       scopes?: VariableScope[];
       value?: VariableValue;
       modeId?: string;
+      codeSyntax?: Record<string, string>;
     }>;
     const results: Array<{ variableId: string; ok: boolean; error?: string }> = [];
     for (const u of updates) {
@@ -135,6 +137,13 @@ export function registerWriteVariableHandlers(): void {
         if (u.scopes !== undefined) variable.scopes = u.scopes;
         if (u.value !== undefined && u.modeId) {
           variable.setValueForMode(u.modeId, u.value);
+        }
+        if (u.codeSyntax) {
+          for (const [platform, value] of Object.entries(u.codeSyntax)) {
+            if (validPlatforms.has(platform)) {
+              variable.setVariableCodeSyntax(platform as 'WEB' | 'ANDROID' | 'iOS', value);
+            }
+          }
         }
         results.push({ variableId: u.variableId, ok: true });
       } catch (err) {

@@ -2346,6 +2346,7 @@ export const GENERATED_ENDPOINT_METHOD_RESPONSE_SCHEMAS: Record<string, Record<s
           collectionId: z.string(),
           collectionName: z.string(),
           scopes: z.array(z.string()),
+          codeSyntax: z.record(z.unknown()).optional().describe("Code syntax per platform {WEB, ANDROID, iOS}. Present only when set."),
           valuesByMode: z.record(z.unknown()),
         })),
     }),
