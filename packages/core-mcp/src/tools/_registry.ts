@@ -7,7 +7,7 @@
  * Re-generate: npm run schema
  */
 
-/** Core tools: always enabled (~32) */
+/** Core tools: always enabled (~34) */
 export const GENERATED_CORE_TOOLS = new Set([
   'ping',
   'get_mode',
@@ -41,6 +41,8 @@ export const GENERATED_CORE_TOOLS = new Set([
   'nodes',
   'text',
   'components',
+  'variables_ep',
+  'styles_ep',
 ]);
 
 /** Bridge-backed flat tools compiled into _generated.ts registrations. */
@@ -319,7 +321,6 @@ export const GENERATED_TOOLSETS: Record<string, { description: string; tools: st
       'rename_collection_mode',
       'remove_collection_mode',
       'create_variable_alias',
-      'variables_ep',
     ],
   },
   'tokens': {
@@ -343,7 +344,6 @@ export const GENERATED_TOOLSETS: Record<string, { description: string; tools: st
     tools: [
       'register_library_styles',
       'get_registered_styles',
-      'styles_ep',
     ],
   },
   'components-advanced': {
@@ -472,6 +472,14 @@ export const GENERATED_TOOLSET_DESCRIPTIONS: Record<string, string> = {
   'debug': "Debug tools — execute arbitrary JS in the Plugin sandbox. Not available by default; use load_toolset('debug') to enable.",
 };
 
+/** Quick-start hints appended to load_toolset responses */
+export const GENERATED_TOOLSET_QUICKSTART: Record<string, string> = {
+  'variables': "Write tools enabled. variables_ep is already available (core) — use variables_ep(method: \"list_collections\") to browse, variables_ep(method: \"list\") to list all. This toolset adds write operations: rename_collection, create_variable_alias, etc.",
+  'tokens': "sync_tokens({ filePath: \"path/to/tokens.json\" }) to sync DTCG tokens to Figma.",
+  'styles': "Write tools enabled. styles_ep is already available (core) — use styles_ep(method: \"list\") to browse. This toolset adds write operations: register_library_styles, etc.",
+  'components-advanced': "components(method: \"list\") to list local components.",
+};
+
 /** Endpoint method-level access control mapping */
 export const GENERATED_ENDPOINT_METHOD_ACCESS: Record<
   string,
@@ -566,34 +574,34 @@ export const GENERATED_FLAT_TOOL_MIGRATIONS: Record<
   'list_library_components': { endpoint: 'components', method: 'list_library', toolset: 'core', write: false },
   'get_component': { endpoint: 'components', method: 'get', toolset: 'core', write: false },
   'list_component_properties': { endpoint: 'components', method: 'list_properties', toolset: 'core', write: false },
-  'list_variables': { endpoint: 'variables_ep', method: 'list', toolset: 'variables', write: false },
-  'get_variable': { endpoint: 'variables_ep', method: 'get', toolset: 'variables', write: false },
-  'list_collections': { endpoint: 'variables_ep', method: 'list_collections', toolset: 'variables', write: false },
-  'get_node_variables': { endpoint: 'variables_ep', method: 'get_bindings', toolset: 'variables', write: false },
-  'set_variable_binding': { endpoint: 'variables_ep', method: 'set_binding', toolset: 'variables', write: true, access: 'edit' },
-  'create_variable': { endpoint: 'variables_ep', method: 'create', toolset: 'variables', write: true, access: 'create' },
-  'update_variable': { endpoint: 'variables_ep', method: 'update', toolset: 'variables', write: true, access: 'edit' },
-  'delete_variable': { endpoint: 'variables_ep', method: 'delete', toolset: 'variables', write: true, access: 'edit' },
-  'create_collection': { endpoint: 'variables_ep', method: 'create_collection', toolset: 'variables', write: true, access: 'create' },
-  'delete_collection': { endpoint: 'variables_ep', method: 'delete_collection', toolset: 'variables', write: true, access: 'edit' },
-  'batch_create_variables': { endpoint: 'variables_ep', method: 'batch_create', toolset: 'variables', write: true, access: 'create' },
-  'export_variables': { endpoint: 'variables_ep', method: 'export', toolset: 'variables', write: false },
-  'set_variable_code_syntax': { endpoint: 'variables_ep', method: 'set_code_syntax', toolset: 'variables', write: true, access: 'edit' },
-  'batch_set_variable_binding': { endpoint: 'variables_ep', method: 'batch_bind', toolset: 'variables', write: true, access: 'edit' },
-  'set_variable_values_multi_mode': { endpoint: 'variables_ep', method: 'set_values_multi_mode', toolset: 'variables', write: true, access: 'edit' },
-  'extend_collection': { endpoint: 'variables_ep', method: 'extend_collection', toolset: 'variables', write: true, access: 'create' },
-  'get_collection_overrides': { endpoint: 'variables_ep', method: 'get_overrides', toolset: 'variables', write: false },
-  'remove_collection_override': { endpoint: 'variables_ep', method: 'remove_override', toolset: 'variables', write: true, access: 'edit' },
-  'list_styles': { endpoint: 'styles_ep', method: 'list', toolset: 'styles', write: false },
-  'get_style': { endpoint: 'styles_ep', method: 'get', toolset: 'styles', write: false },
-  'create_paint_style': { endpoint: 'styles_ep', method: 'create_paint', toolset: 'styles', write: true, access: 'create' },
-  'update_paint_style': { endpoint: 'styles_ep', method: 'update_paint', toolset: 'styles', write: true, access: 'edit' },
-  'update_text_style': { endpoint: 'styles_ep', method: 'update_text', toolset: 'styles', write: true, access: 'edit' },
-  'update_effect_style': { endpoint: 'styles_ep', method: 'update_effect', toolset: 'styles', write: true, access: 'edit' },
-  'delete_style': { endpoint: 'styles_ep', method: 'delete', toolset: 'styles', write: true, access: 'edit' },
-  'sync_styles': { endpoint: 'styles_ep', method: 'sync', toolset: 'styles', write: true, access: 'create' },
-  'create_text_style': { endpoint: 'styles_ep', method: 'create_text', toolset: 'styles', write: true, access: 'create' },
-  'create_effect_style': { endpoint: 'styles_ep', method: 'create_effect', toolset: 'styles', write: true, access: 'create' },
+  'list_variables': { endpoint: 'variables_ep', method: 'list', toolset: 'core', write: false },
+  'get_variable': { endpoint: 'variables_ep', method: 'get', toolset: 'core', write: false },
+  'list_collections': { endpoint: 'variables_ep', method: 'list_collections', toolset: 'core', write: false },
+  'get_node_variables': { endpoint: 'variables_ep', method: 'get_bindings', toolset: 'core', write: false },
+  'set_variable_binding': { endpoint: 'variables_ep', method: 'set_binding', toolset: 'core', write: true, access: 'edit' },
+  'create_variable': { endpoint: 'variables_ep', method: 'create', toolset: 'core', write: true, access: 'create' },
+  'update_variable': { endpoint: 'variables_ep', method: 'update', toolset: 'core', write: true, access: 'edit' },
+  'delete_variable': { endpoint: 'variables_ep', method: 'delete', toolset: 'core', write: true, access: 'edit' },
+  'create_collection': { endpoint: 'variables_ep', method: 'create_collection', toolset: 'core', write: true, access: 'create' },
+  'delete_collection': { endpoint: 'variables_ep', method: 'delete_collection', toolset: 'core', write: true, access: 'edit' },
+  'batch_create_variables': { endpoint: 'variables_ep', method: 'batch_create', toolset: 'core', write: true, access: 'create' },
+  'export_variables': { endpoint: 'variables_ep', method: 'export', toolset: 'core', write: false },
+  'set_variable_code_syntax': { endpoint: 'variables_ep', method: 'set_code_syntax', toolset: 'core', write: true, access: 'edit' },
+  'batch_set_variable_binding': { endpoint: 'variables_ep', method: 'batch_bind', toolset: 'core', write: true, access: 'edit' },
+  'set_variable_values_multi_mode': { endpoint: 'variables_ep', method: 'set_values_multi_mode', toolset: 'core', write: true, access: 'edit' },
+  'extend_collection': { endpoint: 'variables_ep', method: 'extend_collection', toolset: 'core', write: true, access: 'create' },
+  'get_collection_overrides': { endpoint: 'variables_ep', method: 'get_overrides', toolset: 'core', write: false },
+  'remove_collection_override': { endpoint: 'variables_ep', method: 'remove_override', toolset: 'core', write: true, access: 'edit' },
+  'list_styles': { endpoint: 'styles_ep', method: 'list', toolset: 'core', write: false },
+  'get_style': { endpoint: 'styles_ep', method: 'get', toolset: 'core', write: false },
+  'create_paint_style': { endpoint: 'styles_ep', method: 'create_paint', toolset: 'core', write: true, access: 'create' },
+  'update_paint_style': { endpoint: 'styles_ep', method: 'update_paint', toolset: 'core', write: true, access: 'edit' },
+  'update_text_style': { endpoint: 'styles_ep', method: 'update_text', toolset: 'core', write: true, access: 'edit' },
+  'update_effect_style': { endpoint: 'styles_ep', method: 'update_effect', toolset: 'core', write: true, access: 'edit' },
+  'delete_style': { endpoint: 'styles_ep', method: 'delete', toolset: 'core', write: true, access: 'edit' },
+  'sync_styles': { endpoint: 'styles_ep', method: 'sync', toolset: 'core', write: true, access: 'create' },
+  'create_text_style': { endpoint: 'styles_ep', method: 'create_text', toolset: 'core', write: true, access: 'create' },
+  'create_effect_style': { endpoint: 'styles_ep', method: 'create_effect', toolset: 'core', write: true, access: 'create' },
 };
 
 /** Deprecated tools → replacement endpoint.method */

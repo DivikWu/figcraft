@@ -26,6 +26,7 @@ import {
   GENERATED_ENDPOINT_REPLACES,
   GENERATED_ENDPOINT_TOOLS,
   GENERATED_REMOVED_TOOLS,
+  GENERATED_TOOLSET_QUICKSTART,
   GENERATED_TOOLSETS,
   GENERATED_WRITE_TOOLS,
 } from './_registry.js';
@@ -559,6 +560,10 @@ function enableToolset(server: McpServer, name: string): string {
   }
   if (skippedReplaced.length > 0) {
     msg += `\n⚠️ Endpoint mode: ${skippedReplaced.length} replaced flat tools skipped: ${skippedReplaced.join(', ')}`;
+  }
+  const quickStart = GENERATED_TOOLSET_QUICKSTART[name];
+  if (quickStart) {
+    msg += `\n⚡ Quick start: ${quickStart}`;
   }
   return msg;
 }

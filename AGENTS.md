@@ -90,10 +90,10 @@ Resource-oriented endpoints with method dispatch:
 | `nodes` | `get`, `get_batch`, `list`, `update`, `delete`, `clone`, `reparent` |
 | `text` | `set_content`, `set_range` |
 | `components` | `list`, `list_library`, `get`, `list_properties` |
-| `variables_ep` | `list`, `get`, `list_collections`, `get_bindings`, `set_binding`, `create`, `update`, `delete`, `create_collection`, `delete_collection`, `batch_create`, `export` (requires `load_toolset("variables")`) |
-| `styles_ep` | `list`, `get`, `create_paint`, `update_paint`, `update_text`, `update_effect`, `delete`, `sync` (requires `load_toolset("styles")`) |
+| `variables_ep` | `list`, `get`, `list_collections`, `get_bindings`, `export` (always available); `set_binding`, `create`, `update`, `delete`, `create_collection`, `delete_collection`, `batch_create` (write methods — `load_toolset("variables")` to enable write tools) |
+| `styles_ep` | `list`, `get` (always available); `create_paint`, `update_paint`, `update_text`, `update_effect`, `delete`, `sync` (write methods — `load_toolset("styles")` to enable write tools) |
 
-Call syntax: `nodes({ method: "get", nodeId: "1:23" })`
+Call syntax: `nodes({ method: "get", nodeId: "1:23" })`, `variables_ep({ method: "list_collections" })`, `styles_ep({ method: "list" })`
 <!-- @inject-end -->
 
 Standalone tools (not grouped into endpoints): `ping`, `get_mode`, `set_mode`, `join_channel`, `get_channel`, `export_image`, `lint_fix_all`, `set_current_page`, `save_version_history`, `set_selection`, `get_selection`, `get_current_page`, `get_document_info`, `list_fonts`, `audit_node`, `get_design_guidelines`

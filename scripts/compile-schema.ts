@@ -117,12 +117,15 @@ if (existsSync(TOOLS_DIR)) {
 const toolDefs: Record<string, ToolDef> = {};
 const endpointDefs: Record<string, EndpointToolDef> = {};
 const toolsetDescriptions: Record<string, string> = {};
+const toolsetQuickstart: Record<string, string> = {};
 const paramDefinitions: Record<string, ParamDef> = {};
 
 for (const [key, value] of Object.entries(schema)) {
   if (key === '_mixins') {
   } else if (key === '_toolset_descriptions') {
     Object.assign(toolsetDescriptions, value);
+  } else if (key === '_toolset_quickstart') {
+    Object.assign(toolsetQuickstart, value);
   } else if (key === '_param_definitions') {
     Object.assign(paramDefinitions, value);
   } else if (value && typeof value === 'object' && 'handler' in value) {
@@ -783,6 +786,13 @@ regCode += `};
 /** Toolset descriptions for display */
 export const GENERATED_TOOLSET_DESCRIPTIONS: Record<string, string> = {
 ${Object.entries(toolsetDescriptions)
+  .map(([k, v]) => `  '${k}': ${JSON.stringify(v)},`)
+  .join('\n')}
+};
+
+/** Quick-start hints appended to load_toolset responses */
+export const GENERATED_TOOLSET_QUICKSTART: Record<string, string> = {
+${Object.entries(toolsetQuickstart)
   .map(([k, v]) => `  '${k}': ${JSON.stringify(v)},`)
   .join('\n')}
 };

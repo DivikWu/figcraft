@@ -6293,7 +6293,7 @@ components:
 variables_ep:
   description: >-
     Variable operations — list, get, create, update, delete variables, collections, and modes.
-  toolset: variables
+  toolset: core
   handler: endpoint
   methods:
     list:
@@ -6952,7 +6952,7 @@ variables_ep:
 styles_ep:
   description: >-
     Style operations — list, get, create, update, delete, and sync styles.
-  toolset: styles
+  toolset: core
   handler: endpoint
   methods:
     list:
@@ -7352,4 +7352,12 @@ _toolset_descriptions:
   pages: "Page management — create and rename pages."
   staging: "Staged workflow — preview changes before finalizing. Stage, commit, discard, and list staged nodes."
   debug: "Debug tools — execute arbitrary JS in the Plugin sandbox. Not available by default; use load_toolset('debug') to enable."
+
+# Quick-start hints appended to load_toolset responses.
+# Guides agents toward the correct endpoint + method after loading a toolset.
+_toolset_quickstart:
+  variables: 'Write tools enabled. variables_ep is already available (core) — use variables_ep(method: "list_collections") to browse, variables_ep(method: "list") to list all. This toolset adds write operations: rename_collection, create_variable_alias, etc.'
+  tokens: 'sync_tokens({ filePath: "path/to/tokens.json" }) to sync DTCG tokens to Figma.'
+  styles: 'Write tools enabled. styles_ep is already available (core) — use styles_ep(method: "list") to browse. This toolset adds write operations: register_library_styles, etc.'
+  components-advanced: 'components(method: "list") to list local components.'
 

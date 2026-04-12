@@ -149,14 +149,21 @@ describe('standalone tools are never disabled', () => {
 // ─── load_toolset awareness ───
 
 describe('load_toolset endpoint awareness', () => {
-  it('variables toolset: enables variables_ep endpoint tool', () => {
-    const { enabled } = simulateLoadToolset('variables');
-    expect(enabled).toContain('variables_ep');
+  it('variables_ep and styles_ep are core tools (always enabled, no toolset needed)', () => {
+    expect(GENERATED_CORE_TOOLS.has('variables_ep')).toBe(true);
+    expect(GENERATED_CORE_TOOLS.has('styles_ep')).toBe(true);
   });
 
-  it('styles toolset: enables styles_ep endpoint tool', () => {
+  it('variables toolset enables write-only tools (not variables_ep)', () => {
+    const { enabled } = simulateLoadToolset('variables');
+    expect(enabled.length).toBeGreaterThan(0);
+    expect(enabled).not.toContain('variables_ep'); // already core
+  });
+
+  it('styles toolset enables write-only tools (not styles_ep)', () => {
     const { enabled } = simulateLoadToolset('styles');
-    expect(enabled).toContain('styles_ep');
+    expect(enabled.length).toBeGreaterThan(0);
+    expect(enabled).not.toContain('styles_ep'); // already core
   });
 
   it('toolsets without replaced tools are unaffected', () => {
@@ -224,9 +231,11 @@ describe('API mode registry consistency', () => {
     }
   });
 
-  it('toolset endpoint tools are in their respective toolset', () => {
-    expect(GENERATED_TOOLSETS.variables.tools).toContain('variables_ep');
-    expect(GENERATED_TOOLSETS.styles.tools).toContain('styles_ep');
+  it('variables_ep and styles_ep are core (not in toolsets)', () => {
+    expect(GENERATED_TOOLSETS.variables.tools).not.toContain('variables_ep');
+    expect(GENERATED_TOOLSETS.styles.tools).not.toContain('styles_ep');
+    expect(GENERATED_CORE_TOOLS.has('variables_ep')).toBe(true);
+    expect(GENERATED_CORE_TOOLS.has('styles_ep')).toBe(true);
   });
 });
 
