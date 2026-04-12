@@ -363,7 +363,8 @@ export function registerNodeHandlers(): void {
   });
 
   registerHandler('search_nodes', async (params) => {
-    const query = (params.query as string).toLowerCase();
+    const rawQuery = params.query as string | undefined;
+    const query = rawQuery ? rawQuery.toLowerCase() : undefined;
     const types = params.types as string[] | undefined;
     const limit = (params.limit as number) ?? 50;
     const detail = (params.detail as SimplifyDetail | undefined) ?? 'summary';
@@ -395,7 +396,7 @@ export function registerNodeHandlers(): void {
       if (results.length >= limit) return true;
 
       const matchesType = !types || types.includes(node.type);
-      const matchesName = node.name.toLowerCase().includes(query);
+      const matchesName = !query || node.name.toLowerCase().includes(query);
 
       if (matchesType && matchesName) {
         results.push(simplifyNode(node, 0, undefined, createContext(undefined, undefined, detail)));

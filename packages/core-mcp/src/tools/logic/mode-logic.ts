@@ -150,7 +150,7 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
   // Enrich with local components for __local__ mode (mirrors libraryComponents for library mode)
   if (result.selectedLibrary === '__local__') {
     try {
-      const localComps = (await bridge.request('list_local_components', {})) as Record<string, unknown>;
+      const localComps = (await bridge.request('list_local_components', {}, 10_000)) as Record<string, unknown>;
       (result as Record<string, unknown>).localComponents = localComps;
     } catch (err) {
       console.warn('[FigCraft] Failed to enumerate local components:', err);
@@ -243,6 +243,23 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
     ...(pageContext ? { pageContext } : {}),
     ...(result as Record<string, unknown>),
   };
+
+  // ── Asset access hints — tell agents HOW to access detected assets ──
+  // This is the single most effective guidance layer: all IDEs receive get_mode
+  // responses identically, so hints here work for Kiro, Cursor, Claude Code, etc.
+  const dc = result.designContext as Record<string, unknown> | null;
+  const collections = dc?.collections as Array<{ name: string }> | undefined;
+  if (collections && collections.length > 0) {
+    response._assetAccess = {
+      _rule:
+        'IMPORTANT: Use figcraft tools below for ALL variable/style/component operations. Do NOT use figma-desktop MCP (get_variable_defs, etc.) — figcraft already has full coverage via Plugin API.',
+      variables: `${collections.length} variable collections detected. variables_ep(method: "list_collections") to browse, variables_ep(method: "list") to list all, variables_ep(method: "export") to export as DTCG. No toolset loading needed.`,
+      styles:
+        'styles_ep(method: "list") to browse all styles. Or search_design_system(query: "heading", includeStyles: true). No toolset loading needed.',
+      components:
+        'To search: search_design_system(query: "button", includeComponents: true). To list local: components(method: "list").',
+    };
+  }
 
   // ── Inject recent errors from error journal (cross-turn learning) ──
   const recentErrors = bridge.session.getRecentErrors();

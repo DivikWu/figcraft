@@ -150,6 +150,53 @@ describe('createSerialTaskQueue', () => {
     expect(events).toContain('start:second');
     expect(events).toContain('result:second:done:second');
   });
+
+  it('force-drains queue when timed-out handler never settles (settle timeout)', async () => {
+    vi.useFakeTimers();
+
+    const events: string[] = [];
+
+    const queue = createSerialTaskQueue<string, string>({
+      onStart(item) {
+        events.push(`start:${item}`);
+      },
+      run(item) {
+        if (item === 'stuck') {
+          // Promise that NEVER resolves — simulates a hung Figma API call
+          return new Promise<string>(() => {});
+        }
+        return Promise.resolve(`done:${item}`);
+      },
+      getTimeoutMs() {
+        return 100;
+      },
+      settleTimeoutMs: 200,
+      onResult(item, result) {
+        events.push(`result:${item}:${result}`);
+      },
+      onError(item, error) {
+        events.push(`error:${item}:${String(error)}`);
+      },
+      onTimeout(item) {
+        events.push(`timeout:${item}`);
+      },
+    });
+
+    queue.enqueue('stuck');
+    queue.enqueue('waiting');
+
+    // Task timeout fires at 100ms
+    await vi.advanceTimersByTimeAsync(100);
+    await flushMicrotasks();
+    expect(events).toContain('timeout:stuck');
+    expect(events).not.toContain('start:waiting');
+
+    // Settle timeout fires at 100+200=300ms — force-drains queue
+    await vi.advanceTimersByTimeAsync(200);
+    await flushMicrotasks();
+    expect(events).toContain('start:waiting');
+    expect(events).toContain('result:waiting:done:waiting');
+  });
 });
 
 describe('priority queue', () => {

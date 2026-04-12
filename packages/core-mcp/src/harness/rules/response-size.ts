@@ -39,13 +39,26 @@ export const responseSizeGuardRule: HarnessRule = {
     // Structural truncation still too large — replace with error
     const sizeKB = Math.round(json.length / 1024);
     const limitKB = Math.round(MAX_RESPONSE_CHARS / 1024);
+
+    // Method-specific hints so agents know how to narrow scope
+    const methodHints: Record<string, string[]> = {
+      export_variables: [
+        'Pass collectionId to export one collection at a time: variables_ep(method: "export", collectionId: "<id>")',
+        'Use variables_ep(method: "list_collections") first to get collection IDs',
+      ],
+      list_variables: [
+        'Pass collectionId to list variables from one collection: variables_ep(method: "list", collectionId: "<id>")',
+        'Use type parameter to filter by type: variables_ep(method: "list", type: "COLOR")',
+      ],
+    };
+
     ctx.result = {
       _error: 'response_too_large',
       _sizeKB: sizeKB,
       _limitKB: limitKB,
       method: ctx.bridgeMethod,
       warning: `Response is ${sizeKB}KB, exceeding the ${limitKB}KB limit. The data was truncated to prevent context overflow.`,
-      hints: [
+      hints: methodHints[ctx.bridgeMethod] ?? [
         'Use maxDepth=1 or maxDepth=2 to limit tree depth',
         'Use detail="summary" for tree browsing, detail="standard" for inspection',
         'Use nodes(method: "get") on specific nodes instead of fetching the full tree',

@@ -2,6 +2,13 @@ export interface SerialTaskQueueCallbacks<TItem, TResult> {
   onStart?: (item: TItem, queuedCount: number) => void | Promise<void>;
   run: (item: TItem) => Promise<TResult>;
   getTimeoutMs?: (item: TItem) => number | undefined;
+  /**
+   * Maximum time (ms) to wait for a timed-out handler to settle before
+   * force-releasing the processing lock.  Prevents the queue from being
+   * permanently blocked when a Figma API call never resolves.
+   * Default: 5 000 ms.
+   */
+  settleTimeoutMs?: number;
   /** Return true if the item should be placed in the high-priority lane. */
   isHighPriority?: (item: TItem) => boolean;
   onResult: (item: TItem, result: TResult) => void | Promise<void>;
@@ -16,12 +23,15 @@ export interface SerialTaskQueue<TItem> {
   isProcessing: () => boolean;
 }
 
+const DEFAULT_SETTLE_TIMEOUT_MS = 5_000;
+
 export function createSerialTaskQueue<TItem, TResult>(
   callbacks: SerialTaskQueueCallbacks<TItem, TResult>,
 ): SerialTaskQueue<TItem> {
   const highQueue: TItem[] = [];
   const normalQueue: TItem[] = [];
   let processing = false;
+  const settleMs = callbacks.settleTimeoutMs ?? DEFAULT_SETTLE_TIMEOUT_MS;
 
   async function invokeSafely(fn: () => void | Promise<void>, label: string): Promise<void> {
     try {
@@ -78,16 +88,36 @@ export function createSerialTaskQueue<TItem, TResult>(
       }
 
       if (outcome.kind === 'timeout') {
+        // Force-drain safety net: if the handler never settles (e.g. a Figma
+        // API call that hangs indefinitely), release the processing lock after
+        // settleMs so the queue isn't permanently blocked.
+        let settled = false;
+        const settleTimer = setTimeout(() => {
+          if (!settled) {
+            settled = true;
+            console.warn(
+              `[figcraft] serial-task-queue: timed-out handler did not settle within ${settleMs}ms — force-draining queue`,
+            );
+            processing = false;
+            void processNext();
+          }
+        }, settleMs);
+
         taskOutcome
-          .then(async (settled) => {
-            if (settled.kind === 'error') {
-              await invokeSafely(() => callbacks.onLateError?.(item, settled.error), 'onLateError');
+          .then(async (s) => {
+            if (s.kind === 'error') {
+              await invokeSafely(() => callbacks.onLateError?.(item, s.error), 'onLateError');
             }
           })
           .finally(() => {
-            processing = false;
-            void processNext();
+            if (!settled) {
+              settled = true;
+              clearTimeout(settleTimer);
+              processing = false;
+              void processNext();
+            }
           });
+
         await invokeSafely(() => callbacks.onTimeout(item, timeoutMs!), 'onTimeout');
         return;
       }

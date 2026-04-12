@@ -385,7 +385,13 @@ export class Bridge {
         this.pending.delete(id);
         const elapsed = Date.now() - startTime;
         console.error(`[FigCraft bridge] ✗ ${method} timed out after ${elapsed}ms (id=${id.slice(0, 8)})`);
-        reject(new Error(`Request ${method} timed out after ${timeout}ms`));
+        reject(
+          new Error(
+            `Request ${method} timed out after ${timeout}ms. ` +
+              `This usually means the plugin's task queue is blocked by a previous long-running command. ` +
+              `Try calling ping to verify the connection, then retry.`,
+          ),
+        );
       }, timeout);
 
       this.pending.set(id, {
