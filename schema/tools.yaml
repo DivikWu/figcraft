@@ -6572,6 +6572,35 @@ variables_ep:
           type: unknown
         modeId:
           type: string
+    batch_update:
+      description: >-
+        Update multiple variables in one call. Each item can set name, description, scopes, and/or value.
+        Single-item failures do not block the batch.
+      maps_to: batch_update_variables
+      write: true
+      access: edit
+      response:
+        type: object
+        fields:
+          updated:
+            type: number
+            required: true
+          total:
+            type: number
+            required: true
+          results:
+            type: array
+            required: true
+      examples:
+        - updated: 3
+          total: 3
+          results: [{ variableId: "VariableID:1:30", ok: true }]
+      params:
+        updates:
+          type: array
+          required: true
+          description: >-
+            Array of variable updates. Each: { variableId (required), name?, description?, scopes?, value?, modeId? }
     delete:
       description: Delete a variable by ID
       maps_to: delete_variable

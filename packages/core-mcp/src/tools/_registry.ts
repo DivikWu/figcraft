@@ -512,6 +512,7 @@ export const GENERATED_ENDPOINT_METHOD_ACCESS: Record<
     'set_binding': { write: true, access: 'edit' },
     'create': { write: true, access: 'create' },
     'update': { write: true, access: 'edit' },
+    'batch_update': { write: true, access: 'edit' },
     'delete': { write: true, access: 'edit' },
     'create_collection': { write: true, access: 'create' },
     'delete_collection': { write: true, access: 'edit' },
@@ -552,7 +553,7 @@ export const GENERATED_ENDPOINT_REPLACES: Record<string, string[]> = {
   'nodes': ['get_node_info', 'get_node_info_batch', 'search_nodes', 'patch_nodes', 'delete_nodes', 'clone_nodes', 'reparent_nodes'],
   'text': ['set_text_content', 'set_text_range'],
   'components': ['list_components', 'list_library_components', 'get_component', 'list_component_properties'],
-  'variables_ep': ['list_variables', 'get_variable', 'list_collections', 'get_node_variables', 'set_variable_binding', 'create_variable', 'update_variable', 'delete_variable', 'create_collection', 'delete_collection', 'batch_create_variables', 'export_variables', 'set_variable_code_syntax', 'batch_set_variable_binding', 'set_variable_values_multi_mode', 'extend_collection', 'get_collection_overrides', 'remove_collection_override'],
+  'variables_ep': ['list_variables', 'get_variable', 'list_collections', 'get_node_variables', 'set_variable_binding', 'create_variable', 'update_variable', 'batch_update_variables', 'delete_variable', 'create_collection', 'delete_collection', 'batch_create_variables', 'export_variables', 'set_variable_code_syntax', 'batch_set_variable_binding', 'set_variable_values_multi_mode', 'extend_collection', 'get_collection_overrides', 'remove_collection_override'],
   'styles_ep': ['list_styles', 'get_style', 'create_paint_style', 'update_paint_style', 'update_text_style', 'update_effect_style', 'delete_style', 'sync_styles', 'create_text_style', 'create_effect_style'],
 };
 
@@ -581,6 +582,7 @@ export const GENERATED_FLAT_TOOL_MIGRATIONS: Record<
   'set_variable_binding': { endpoint: 'variables_ep', method: 'set_binding', toolset: 'core', write: true, access: 'edit' },
   'create_variable': { endpoint: 'variables_ep', method: 'create', toolset: 'core', write: true, access: 'create' },
   'update_variable': { endpoint: 'variables_ep', method: 'update', toolset: 'core', write: true, access: 'edit' },
+  'batch_update_variables': { endpoint: 'variables_ep', method: 'batch_update', toolset: 'core', write: true, access: 'edit' },
   'delete_variable': { endpoint: 'variables_ep', method: 'delete', toolset: 'core', write: true, access: 'edit' },
   'create_collection': { endpoint: 'variables_ep', method: 'create_collection', toolset: 'core', write: true, access: 'create' },
   'delete_collection': { endpoint: 'variables_ep', method: 'delete_collection', toolset: 'core', write: true, access: 'edit' },
@@ -630,6 +632,7 @@ export const GENERATED_REMOVED_TOOLS: Record<string, { endpoint: string; method:
   'set_variable_binding': { endpoint: 'variables_ep', method: 'set_binding' },
   'create_variable': { endpoint: 'variables_ep', method: 'create' },
   'update_variable': { endpoint: 'variables_ep', method: 'update' },
+  'batch_update_variables': { endpoint: 'variables_ep', method: 'batch_update' },
   'delete_variable': { endpoint: 'variables_ep', method: 'delete' },
   'create_collection': { endpoint: 'variables_ep', method: 'create_collection' },
   'delete_collection': { endpoint: 'variables_ep', method: 'delete_collection' },

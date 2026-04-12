@@ -1806,7 +1806,7 @@ Covered flat/custom tools: 111
 
 ## Endpoint Response Coverage
 
-Covered endpoint methods: 41
+Covered endpoint methods: 42
 
 ### `components.get`
 
@@ -2191,6 +2191,23 @@ Covered endpoint methods: 41
 }
 ```
 
+### `variables_ep.batch_update`
+
+- Example payloads: 1
+
+```json
+{
+  "updated": 3,
+  "total": 3,
+  "results": [
+    {
+      "variableId": "VariableID:1:30",
+      "ok": true
+    }
+  ]
+}
+```
+
 ### `variables_ep.create`
 
 - Example payloads: 1
@@ -2449,48 +2466,49 @@ Covered endpoint methods: 41
 
 ## Flat To Endpoint Migration Map
 
-Mapped flat tools: 41
+Mapped flat tools: 42
 
 | Flat Tool | Replacement | Toolset | Write | Access |
 | --- | --- | --- | --- | --- |
-| `batch_create_variables` | `variables_ep(method: "batch_create")` | `variables` | `true` | `create` |
-| `batch_set_variable_binding` | `variables_ep(method: "batch_bind")` | `variables` | `true` | `edit` |
+| `batch_create_variables` | `variables_ep(method: "batch_create")` | `core` | `true` | `create` |
+| `batch_set_variable_binding` | `variables_ep(method: "batch_bind")` | `core` | `true` | `edit` |
+| `batch_update_variables` | `variables_ep(method: "batch_update")` | `core` | `true` | `edit` |
 | `clone_nodes` | `nodes(method: "clone")` | `core` | `true` | `create` |
-| `create_collection` | `variables_ep(method: "create_collection")` | `variables` | `true` | `create` |
-| `create_effect_style` | `styles_ep(method: "create_effect")` | `styles` | `true` | `create` |
-| `create_paint_style` | `styles_ep(method: "create_paint")` | `styles` | `true` | `create` |
-| `create_text_style` | `styles_ep(method: "create_text")` | `styles` | `true` | `create` |
-| `create_variable` | `variables_ep(method: "create")` | `variables` | `true` | `create` |
-| `delete_collection` | `variables_ep(method: "delete_collection")` | `variables` | `true` | `edit` |
+| `create_collection` | `variables_ep(method: "create_collection")` | `core` | `true` | `create` |
+| `create_effect_style` | `styles_ep(method: "create_effect")` | `core` | `true` | `create` |
+| `create_paint_style` | `styles_ep(method: "create_paint")` | `core` | `true` | `create` |
+| `create_text_style` | `styles_ep(method: "create_text")` | `core` | `true` | `create` |
+| `create_variable` | `variables_ep(method: "create")` | `core` | `true` | `create` |
+| `delete_collection` | `variables_ep(method: "delete_collection")` | `core` | `true` | `edit` |
 | `delete_nodes` | `nodes(method: "delete")` | `core` | `true` | `edit` |
-| `delete_style` | `styles_ep(method: "delete")` | `styles` | `true` | `edit` |
-| `delete_variable` | `variables_ep(method: "delete")` | `variables` | `true` | `edit` |
-| `export_variables` | `variables_ep(method: "export")` | `variables` | `false` | `read` |
-| `extend_collection` | `variables_ep(method: "extend_collection")` | `variables` | `true` | `create` |
-| `get_collection_overrides` | `variables_ep(method: "get_overrides")` | `variables` | `false` | `read` |
+| `delete_style` | `styles_ep(method: "delete")` | `core` | `true` | `edit` |
+| `delete_variable` | `variables_ep(method: "delete")` | `core` | `true` | `edit` |
+| `export_variables` | `variables_ep(method: "export")` | `core` | `false` | `read` |
+| `extend_collection` | `variables_ep(method: "extend_collection")` | `core` | `true` | `create` |
+| `get_collection_overrides` | `variables_ep(method: "get_overrides")` | `core` | `false` | `read` |
 | `get_component` | `components(method: "get")` | `core` | `false` | `read` |
 | `get_node_info` | `nodes(method: "get")` | `core` | `false` | `read` |
 | `get_node_info_batch` | `nodes(method: "get_batch")` | `core` | `false` | `read` |
-| `get_node_variables` | `variables_ep(method: "get_bindings")` | `variables` | `false` | `read` |
-| `get_style` | `styles_ep(method: "get")` | `styles` | `false` | `read` |
-| `get_variable` | `variables_ep(method: "get")` | `variables` | `false` | `read` |
-| `list_collections` | `variables_ep(method: "list_collections")` | `variables` | `false` | `read` |
+| `get_node_variables` | `variables_ep(method: "get_bindings")` | `core` | `false` | `read` |
+| `get_style` | `styles_ep(method: "get")` | `core` | `false` | `read` |
+| `get_variable` | `variables_ep(method: "get")` | `core` | `false` | `read` |
+| `list_collections` | `variables_ep(method: "list_collections")` | `core` | `false` | `read` |
 | `list_component_properties` | `components(method: "list_properties")` | `core` | `false` | `read` |
 | `list_components` | `components(method: "list")` | `core` | `false` | `read` |
 | `list_library_components` | `components(method: "list_library")` | `core` | `false` | `read` |
-| `list_styles` | `styles_ep(method: "list")` | `styles` | `false` | `read` |
-| `list_variables` | `variables_ep(method: "list")` | `variables` | `false` | `read` |
+| `list_styles` | `styles_ep(method: "list")` | `core` | `false` | `read` |
+| `list_variables` | `variables_ep(method: "list")` | `core` | `false` | `read` |
 | `patch_nodes` | `nodes(method: "update")` | `core` | `true` | `edit` |
-| `remove_collection_override` | `variables_ep(method: "remove_override")` | `variables` | `true` | `edit` |
+| `remove_collection_override` | `variables_ep(method: "remove_override")` | `core` | `true` | `edit` |
 | `reparent_nodes` | `nodes(method: "reparent")` | `core` | `true` | `edit` |
 | `search_nodes` | `nodes(method: "list")` | `core` | `false` | `read` |
 | `set_text_content` | `text(method: "set_content")` | `core` | `true` | `edit` |
 | `set_text_range` | `text(method: "set_range")` | `core` | `true` | `edit` |
-| `set_variable_binding` | `variables_ep(method: "set_binding")` | `variables` | `true` | `edit` |
-| `set_variable_code_syntax` | `variables_ep(method: "set_code_syntax")` | `variables` | `true` | `edit` |
-| `set_variable_values_multi_mode` | `variables_ep(method: "set_values_multi_mode")` | `variables` | `true` | `edit` |
-| `sync_styles` | `styles_ep(method: "sync")` | `styles` | `true` | `create` |
-| `update_effect_style` | `styles_ep(method: "update_effect")` | `styles` | `true` | `edit` |
-| `update_paint_style` | `styles_ep(method: "update_paint")` | `styles` | `true` | `edit` |
-| `update_text_style` | `styles_ep(method: "update_text")` | `styles` | `true` | `edit` |
-| `update_variable` | `variables_ep(method: "update")` | `variables` | `true` | `edit` |
+| `set_variable_binding` | `variables_ep(method: "set_binding")` | `core` | `true` | `edit` |
+| `set_variable_code_syntax` | `variables_ep(method: "set_code_syntax")` | `core` | `true` | `edit` |
+| `set_variable_values_multi_mode` | `variables_ep(method: "set_values_multi_mode")` | `core` | `true` | `edit` |
+| `sync_styles` | `styles_ep(method: "sync")` | `core` | `true` | `create` |
+| `update_effect_style` | `styles_ep(method: "update_effect")` | `core` | `true` | `edit` |
+| `update_paint_style` | `styles_ep(method: "update_paint")` | `core` | `true` | `edit` |
+| `update_text_style` | `styles_ep(method: "update_text")` | `core` | `true` | `edit` |
+| `update_variable` | `variables_ep(method: "update")` | `core` | `true` | `edit` |

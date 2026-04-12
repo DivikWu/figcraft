@@ -253,6 +253,10 @@ export function registerEndpointTools(server: McpServer, bridge: Bridge): void {
             modeId: p.modeId,
           }),
         delete: (b, p) => bridgeRequestLogic(b, 'delete_variable', { variableId: p.variableId }),
+        batch_update: (b, p) =>
+          bridgeRequestLogic(b, 'batch_update_variables', {
+            updates: p.updates,
+          }),
         create_collection: (b, p) => bridgeRequestLogic(b, 'create_collection', { name: p.name }),
         delete_collection: (b, p) => bridgeRequestLogic(b, 'delete_collection', { collectionId: p.collectionId }),
         batch_create: (b, p) =>

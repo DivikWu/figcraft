@@ -113,6 +113,37 @@ export function registerWriteVariableHandlers(): void {
     return { ok: true, id: variable.id };
   });
 
+  registerHandler('batch_update_variables', async (params) => {
+    const updates = params.updates as Array<{
+      variableId: string;
+      name?: string;
+      description?: string;
+      scopes?: VariableScope[];
+      value?: VariableValue;
+      modeId?: string;
+    }>;
+    const results: Array<{ variableId: string; ok: boolean; error?: string }> = [];
+    for (const u of updates) {
+      try {
+        const variable = await figma.variables.getVariableByIdAsync(u.variableId);
+        if (!variable) {
+          results.push({ variableId: u.variableId, ok: false, error: 'NOT_FOUND' });
+          continue;
+        }
+        if (u.name !== undefined) variable.name = u.name;
+        if (u.description !== undefined) variable.description = u.description;
+        if (u.scopes !== undefined) variable.scopes = u.scopes;
+        if (u.value !== undefined && u.modeId) {
+          variable.setValueForMode(u.modeId, u.value);
+        }
+        results.push({ variableId: u.variableId, ok: true });
+      } catch (err) {
+        results.push({ variableId: u.variableId, ok: false, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+    return { updated: results.filter((r) => r.ok).length, total: results.length, results };
+  });
+
   registerHandler('delete_variable', async (params) => {
     const variableId = params.variableId as string;
     const variable = await figma.variables.getVariableByIdAsync(variableId);

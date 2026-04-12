@@ -1197,7 +1197,7 @@ export const componentsEndpointSchema = {
     };
 
 export const variables_epEndpointSchema = {
-      method: z.enum(['list', 'get', 'list_collections', 'get_bindings', 'set_binding', 'create', 'update', 'delete', 'create_collection', 'delete_collection', 'batch_create', 'export', 'set_code_syntax', 'batch_bind', 'set_values_multi_mode', 'extend_collection', 'get_overrides', 'remove_override']).describe('Method to invoke on this endpoint'),
+      method: z.enum(['list', 'get', 'list_collections', 'get_bindings', 'set_binding', 'create', 'update', 'batch_update', 'delete', 'create_collection', 'delete_collection', 'batch_create', 'export', 'set_code_syntax', 'batch_bind', 'set_values_multi_mode', 'extend_collection', 'get_overrides', 'remove_override']).describe('Method to invoke on this endpoint'),
       collectionId: z.string().optional().describe("Filter by collection ID"),
       type: z.string().optional().describe("Filter by type: COLOR, FLOAT, STRING, BOOLEAN"),
       variableId: z.string().optional().describe("Variable ID to remove overrides for"),
@@ -1209,6 +1209,7 @@ export const variables_epEndpointSchema = {
       modeId: z.string().optional(),
       description: z.string().optional(),
       scopes: z.array(z.string()).optional(),
+      updates: z.array(z.unknown()).optional().describe("Array of variable updates. Each: { variableId (required), name?, description?, scopes?, value?, modeId? }"),
       collectionName: z.string().optional(),
       modeName: z.string().optional(),
       variables: z.array(z.record(z.unknown())).optional(),

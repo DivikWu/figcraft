@@ -2390,6 +2390,11 @@ export const GENERATED_ENDPOINT_METHOD_RESPONSE_SCHEMAS: Record<string, Record<s
       id: z.string().optional(),
       error: z.string().optional(),
     }),
+    'batch_update': z.object({
+      updated: z.number(),
+      total: z.number(),
+      results: z.array(z.unknown()),
+    }),
     'delete': z.object({
       ok: z.boolean(),
       error: z.string().optional(),
@@ -2783,6 +2788,18 @@ export const GENERATED_ENDPOINT_METHOD_RESPONSE_EXAMPLES: Record<string, Record<
       {
         "ok": true,
         "id": "VariableID:1:30"
+      }
+    ],
+    'batch_update': [
+      {
+        "updated": 3,
+        "total": 3,
+        "results": [
+          {
+            "variableId": "VariableID:1:30",
+            "ok": true
+          }
+        ]
       }
     ],
     'delete': [
