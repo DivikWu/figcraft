@@ -42,11 +42,7 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
         /* proceed without tokens */
       }
 
-      const lintResult = (await bridge.request('lint_check', {
-        ...lintParams,
-        tokenContext,
-        maxViolations: 100,
-      })) as {
+      interface LintResult {
         summary: { total: number; violations: number; bySeverity: Record<string, number> };
         categories: Array<{
           rule: string;
@@ -63,7 +59,20 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
             autoFixable: boolean;
           }>;
         }>;
-      };
+      }
+
+      let lintResult: LintResult | null = null;
+      let lintError: string | undefined;
+
+      try {
+        lintResult = (await bridge.request('lint_check', {
+          ...lintParams,
+          tokenContext,
+          maxViolations: 100,
+        })) as LintResult;
+      } catch (err) {
+        lintError = err instanceof Error ? err.message : String(err);
+      }
 
       // Step 2: Get node info for structural analysis
       const nodeInfo = (await bridge.request('get_node_info', { nodeId })) as {
@@ -77,7 +86,7 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
       };
 
       // Step 3: Build structured audit report
-      const violations = lintResult.categories.flatMap((c) => c.nodes);
+      const violations = lintResult ? lintResult.categories.flatMap((c) => c.nodes) : [];
       const errors = violations.filter((v) => v.severity === 'error');
       const warnings = violations.filter((v) => v.severity === 'warning');
       const infos = violations.filter((v) => v.severity === 'info' || v.severity === 'hint');
@@ -85,6 +94,9 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
 
       // Step 4: Structural checks beyond lint
       const structuralNotes: string[] = [];
+      if (lintError) {
+        structuralNotes.push(`Lint check failed: ${lintError}. Structural analysis only.`);
+      }
       if (nodeInfo.type === 'FRAME' && !nodeInfo.layoutMode) {
         structuralNotes.push('Frame has no auto-layout — children may overlap.');
       }
@@ -94,7 +106,7 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
         );
       }
 
-      const score = Math.max(0, 100 - errors.length * 15 - warnings.length * 5 - infos.length * 1);
+      const score = lintResult ? Math.max(0, 100 - errors.length * 15 - warnings.length * 5 - infos.length * 1) : -1; // -1 indicates lint was unavailable
 
       const report = {
         nodeId: nodeInfo.id,
@@ -102,14 +114,16 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
         nodeType: nodeInfo.type,
         dimensions: nodeInfo.width && nodeInfo.height ? `${nodeInfo.width}×${nodeInfo.height}` : undefined,
         qualityScore: score,
-        summary: {
-          totalChecked: lintResult.summary.total,
-          violations: lintResult.summary.violations,
-          errors: errors.length,
-          warnings: warnings.length,
-          infos: infos.length,
-          autoFixable: fixable.length,
-        },
+        summary: lintResult
+          ? {
+              totalChecked: lintResult.summary.total,
+              violations: lintResult.summary.violations,
+              errors: errors.length,
+              warnings: warnings.length,
+              infos: infos.length,
+              autoFixable: fixable.length,
+            }
+          : { lintUnavailable: true, error: lintError },
         violations: violations.map((v) => ({
           rule: v.rule,
           severity: v.severity,
@@ -119,8 +133,9 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
           autoFixable: v.autoFixable,
         })),
         structuralNotes,
-        recommendation:
-          errors.length > 0
+        recommendation: lintError
+          ? 'Lint check failed — only structural analysis available. Try lint_fix_all on the parent component set instead.'
+          : errors.length > 0
             ? "Critical issues found. Run lint_fix_all to auto-fix what's possible, then address remaining errors manually."
             : warnings.length > 0
               ? 'Some quality issues detected. Consider running lint_fix_all to improve.'

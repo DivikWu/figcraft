@@ -266,25 +266,32 @@ export function simplifyNode(
     // Component property definitions (COMPONENT / COMPONENT_SET nodes)
     // Variant components (COMPONENT whose parent is COMPONENT_SET) don't support
     // componentPropertyDefinitions directly — read from the parent set instead.
+    // Wrapped in try-catch: Figma API may throw in edge cases (detached nodes, file state transitions).
     if (node.type === 'COMPONENT' || node.type === 'COMPONENT_SET') {
-      const isVariant = node.type === 'COMPONENT' && node.parent?.type === 'COMPONENT_SET';
-      const propDefSource = isVariant ? (node.parent as ComponentSetNode) : (node as ComponentNode | ComponentSetNode);
-      if (
-        propDefSource.componentPropertyDefinitions &&
-        Object.keys(propDefSource.componentPropertyDefinitions).length > 0
-      ) {
-        const defs: Record<string, { type: string; defaultValue?: unknown; variantOptions?: string[] }> = {};
-        for (const [key, def] of Object.entries(propDefSource.componentPropertyDefinitions)) {
-          const entry: { type: string; defaultValue?: unknown; variantOptions?: string[] } = { type: def.type };
-          if (def.defaultValue !== undefined) entry.defaultValue = def.defaultValue;
-          if (def.type === 'VARIANT' && 'variantOptions' in def) {
-            entry.variantOptions = (
-              def as ComponentPropertyDefinitions[string] & { variantOptions?: string[] }
-            ).variantOptions;
+      try {
+        const isVariant = node.type === 'COMPONENT' && node.parent?.type === 'COMPONENT_SET';
+        const propDefSource = isVariant
+          ? (node.parent as ComponentSetNode)
+          : (node as ComponentNode | ComponentSetNode);
+        if (
+          propDefSource.componentPropertyDefinitions &&
+          Object.keys(propDefSource.componentPropertyDefinitions).length > 0
+        ) {
+          const defs: Record<string, { type: string; defaultValue?: unknown; variantOptions?: string[] }> = {};
+          for (const [key, def] of Object.entries(propDefSource.componentPropertyDefinitions)) {
+            const entry: { type: string; defaultValue?: unknown; variantOptions?: string[] } = { type: def.type };
+            if (def.defaultValue !== undefined) entry.defaultValue = def.defaultValue;
+            if (def.type === 'VARIANT' && 'variantOptions' in def) {
+              entry.variantOptions = (
+                def as ComponentPropertyDefinitions[string] & { variantOptions?: string[] }
+              ).variantOptions;
+            }
+            defs[key] = entry;
           }
-          defs[key] = entry;
+          base.componentPropertyDefinitions = defs;
         }
-        base.componentPropertyDefinitions = defs;
+      } catch {
+        // componentPropertyDefinitions not accessible — skip silently
       }
     }
 
