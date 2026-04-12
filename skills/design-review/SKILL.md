@@ -1,6 +1,6 @@
 ---
 name: design-review
-description: "Review existing Figma designs against design quality rules. Outputs structured violation report with actionable fixes. Use when: review/audit/check/critique + design/screen/page/component, or after UI creation to verify quality."
+description: "Review existing Figma designs against design quality rules. Outputs structured violation report with actionable fixes. Use when: review/audit/check/critique/analyze/inspect/diagnose + design/screen/page/component, analyze issues/problems with components, or after UI creation to verify quality."
 ---
 
 # Design Review — Structured Quality Audit

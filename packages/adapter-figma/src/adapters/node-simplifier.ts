@@ -264,11 +264,17 @@ export function simplifyNode(
     }
 
     // Component property definitions (COMPONENT / COMPONENT_SET nodes)
+    // Variant components (COMPONENT whose parent is COMPONENT_SET) don't support
+    // componentPropertyDefinitions directly — read from the parent set instead.
     if (node.type === 'COMPONENT' || node.type === 'COMPONENT_SET') {
-      const comp = node as ComponentNode | ComponentSetNode;
-      if (comp.componentPropertyDefinitions && Object.keys(comp.componentPropertyDefinitions).length > 0) {
+      const isVariant = node.type === 'COMPONENT' && node.parent?.type === 'COMPONENT_SET';
+      const propDefSource = isVariant ? (node.parent as ComponentSetNode) : (node as ComponentNode | ComponentSetNode);
+      if (
+        propDefSource.componentPropertyDefinitions &&
+        Object.keys(propDefSource.componentPropertyDefinitions).length > 0
+      ) {
         const defs: Record<string, { type: string; defaultValue?: unknown; variantOptions?: string[] }> = {};
-        for (const [key, def] of Object.entries(comp.componentPropertyDefinitions)) {
+        for (const [key, def] of Object.entries(propDefSource.componentPropertyDefinitions)) {
           const entry: { type: string; defaultValue?: unknown; variantOptions?: string[] } = { type: def.type };
           if (def.defaultValue !== undefined) entry.defaultValue = def.defaultValue;
           if (def.type === 'VARIANT' && 'variantOptions' in def) {

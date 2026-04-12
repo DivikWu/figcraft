@@ -7,8 +7,10 @@ AI-powered Figma plugin. Bridges AI IDEs to Figma via MCP for design review, lin
 <!-- @inject-start: ide-shared/workflow.md -->
 **Tool routing by intent** (decide BEFORE entering the workflow):
 - CREATE/DESIGN UI → FigCraft tools only (workflow below)
+- REVIEW/ANALYZE existing design → FigCraft tools (nodes, audit_node, components, export_image). Load design-review or component-docs skill. Do NOT use figma-desktop for review/analysis tasks
 - IMPLEMENT CODE from existing design → Figma Desktop MCP: get_design_context
 - Figma URL in a creation request = WHERE to create, not what to read
+- Figma URL in a review/analysis request = WHAT to inspect with FigCraft tools
 - NEVER call get_design_context on empty pages/frames — it will error and block
 
 Before ANY Figma write operation, complete these steps IN ORDER:
