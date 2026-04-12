@@ -86,7 +86,7 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
       };
 
       // Step 3: Build structured audit report
-      const violations = lintResult ? lintResult.categories.flatMap((c) => c.nodes) : [];
+      const violations = lintResult?.categories?.flatMap((c) => c.nodes) ?? [];
       const errors = violations.filter((v) => v.severity === 'error');
       const warnings = violations.filter((v) => v.severity === 'warning');
       const infos = violations.filter((v) => v.severity === 'info' || v.severity === 'hint');
@@ -106,7 +106,8 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
         );
       }
 
-      const score = lintResult ? Math.max(0, 100 - errors.length * 15 - warnings.length * 5 - infos.length * 1) : -1; // -1 indicates lint was unavailable
+      const lintAvailable = violations.length > 0 || (lintResult?.summary != null && !lintError);
+      const score = lintAvailable ? Math.max(0, 100 - errors.length * 15 - warnings.length * 5 - infos.length * 1) : -1;
 
       const report = {
         nodeId: nodeInfo.id,
@@ -114,7 +115,7 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
         nodeType: nodeInfo.type,
         dimensions: nodeInfo.width && nodeInfo.height ? `${nodeInfo.width}×${nodeInfo.height}` : undefined,
         qualityScore: score,
-        summary: lintResult
+        summary: lintResult?.summary
           ? {
               totalChecked: lintResult.summary.total,
               violations: lintResult.summary.violations,
