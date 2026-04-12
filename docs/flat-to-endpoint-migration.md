@@ -40,7 +40,7 @@ The following legacy flat tool names have been removed. Use the declarative tool
 | `insert_child` | `create_frame` children with `parentId` |
 | `set_image_fill` | `create_frame` with `imageUrl` param |
 
-### Variables Toolset (requires `load_toolset("variables")`)
+### Variables Endpoint (core — always available, no toolset needed)
 
 | Flat Tool | Endpoint Call |
 |-----------|--------------|
@@ -57,7 +57,7 @@ The following legacy flat tool names have been removed. Use the declarative tool
 | `batch_create_variables(...)` | `variables_ep(method: "batch_create", ...)` |
 | `export_variables(...)` | `variables_ep(method: "export", ...)` |
 
-### Styles Toolset (requires `load_toolset("styles")`)
+### Styles Endpoint (core — always available, no toolset needed)
 
 | Flat Tool | Endpoint Call |
 |-----------|--------------|

@@ -96,8 +96,8 @@ FigCraft 在 `schema/tools.yaml` 中定义了 111 个工具，加上 3 个元工
 | `nodes` | `get` `get_batch` `list` `update` `delete` `clone` `reparent` | 节点 CRUD + 搜索 |
 | `text` | `set_content` `set_range` | 文本内容和范围样式 |
 | `components` | `list` `list_library` `get` `list_properties` | 组件查询 |
-| `variables_ep` | `list` `get` `list_collections` `get_bindings` `set_binding` `create` `update` `delete` `create_collection` `delete_collection` `batch_create` `export` | 变量全生命周期（需 `load_toolset("variables")`） |
-| `styles_ep` | `list` `get` `create_paint` `update_paint` `update_text` `update_effect` `delete` `sync` | 样式管理（需 `load_toolset("styles")`） |
+| `variables_ep` | `list` `get` `list_collections` `get_bindings` `export` `set_binding` `create` `update` `batch_update` `delete` `create_collection` `delete_collection` `batch_create` | 变量全生命周期（核心工具，始终可用）。`list` 返回所有字段含 codeSyntax/scopes，`batch_update` 支持批量修改含 codeSyntax |
+| `styles_ep` | `list` `get` `create_paint` `update_paint` `update_text` `update_effect` `delete` `sync` | 样式管理（核心工具，始终可用） |
 
 ---
 

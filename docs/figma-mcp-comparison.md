@@ -56,7 +56,7 @@
 |------|----------|----------|------|
 | 截图 | `get_screenshot` | `export_image` | 功能等价，FigCraft 支持 PNG/SVG/PDF/JPG + scale 参数 |
 | 设计系统搜索 | `search_design_system` | `search_design_system`（同名） | FigCraft 版本通过 Plugin API 实现，支持离线；官方版本通过 REST API |
-| 变量查询 | `get_variable_defs` | `variables_ep(method:"list"/"get"/"get_bindings")` | FigCraft 更细粒度，支持 CRUD 全生命周期 |
+| 变量查询 | `get_variable_defs` | `variables_ep(method:"list"/"get"/"get_bindings")` | FigCraft 更细粒度，核心工具始终可用，`list` 含 codeSyntax/scopes，`batch_update` 支持批量修改含 codeSyntax |
 | 写入 Figma | `use_figma`（通用 Plugin API 脚本） | `create_frame` / `create_text` / `nodes(method:"update")` 等声明式工具 | FigCraft 声明式 + Opinion Engine 更安全；官方更灵活但需手动处理陷阱 |
 | 创建新文件 | `create_new_file`（原生） | 通过 skill 编排官方工具 | 实际调用的是同一个工具 |
 

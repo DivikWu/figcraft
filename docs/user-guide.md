@@ -565,11 +565,11 @@ AI 调用 `get_mode` 时根据库状态自动选择 guardian 或 creator，funda
 
 ```
 load_toolset("tokens")                # Token 同步
-load_toolset("variables")             # Variable 管理
+load_toolset("variables")             # Variable 写操作（rename, alias, modes）— variables_ep 读写方法始终可用
 load_toolset("components-advanced")   # 高级组件操作
 load_toolset("library-import")        # 共享库变量/样式导入（设计系统管理用）
 load_toolset("shapes-vectors")        # 基础图形
-load_toolset("styles")                # Style 管理
+load_toolset("styles")                # Style 写操作 — styles_ep 读方法始终可用
 load_toolset("prototype")             # 原型交互
 load_toolset("lint")                  # 细粒度 Lint
 load_toolset("annotations")           # 标注管理
