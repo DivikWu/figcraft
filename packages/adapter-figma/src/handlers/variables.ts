@@ -24,6 +24,7 @@ export function registerVariableHandlers(): void {
         if (!variable) continue;
         if (type && variable.resolvedType !== type) continue;
 
+        const hasCodeSyntax = variable.codeSyntax && Object.keys(variable.codeSyntax).length > 0;
         results.push({
           id: variable.id,
           name: variable.name,
@@ -32,6 +33,7 @@ export function registerVariableHandlers(): void {
           collectionId: collection.id,
           collectionName: collection.name,
           scopes: variable.scopes,
+          ...(hasCodeSyntax ? { codeSyntax: variable.codeSyntax } : {}),
           valuesByMode: simplifyValuesByMode(variable, collection),
         });
       }
