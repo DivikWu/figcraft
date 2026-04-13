@@ -395,17 +395,32 @@ export function registerComponentHandlers(): void {
       }
     }
 
-    // ── Auto-position: avoid overlapping siblings within parent (section or page) ──
-    const siblings = targetParent.children;
-    if (siblings.length > 1) {
-      let maxBottom = 0;
-      for (const child of siblings) {
+    // ── Auto-position within parent ──
+    if (sectionParent) {
+      // combineAsVariants may set absolute page coordinates instead of section-relative.
+      // Reset to section origin with padding, then scan siblings for stacking.
+      const SECTION_PADDING = 40;
+      let maxBottom = SECTION_PADDING;
+      for (const child of sectionParent.children) {
         if (child.id === set.id) continue;
         if (!child.visible) continue;
-        maxBottom = Math.max(maxBottom, child.y + child.height);
+        maxBottom = Math.max(maxBottom, child.y + child.height + SECTION_PADDING);
       }
-      if (maxBottom > 0 && set.y < maxBottom) {
-        set.y = maxBottom + 80;
+      set.x = SECTION_PADDING;
+      set.y = maxBottom;
+    } else {
+      // Page-level: avoid overlapping existing content
+      const siblings = figma.currentPage.children;
+      if (siblings.length > 1) {
+        let maxBottom = 0;
+        for (const child of siblings) {
+          if (child.id === set.id) continue;
+          if (!child.visible) continue;
+          maxBottom = Math.max(maxBottom, child.y + child.height);
+        }
+        if (maxBottom > 0 && set.y < maxBottom) {
+          set.y = maxBottom + 80;
+        }
       }
     }
 
