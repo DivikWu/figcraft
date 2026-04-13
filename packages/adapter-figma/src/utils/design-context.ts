@@ -15,6 +15,8 @@ import { registerCache } from './cache-manager.js';
 export interface DesignVariable {
   name: string;
   key: string;
+  /** Figma variable ID (e.g. "VariableID:2763:7654"). Available for local variables. */
+  id?: string;
   resolvedType: string;
 }
 
@@ -492,7 +494,7 @@ export async function getLocalDesignContext(): Promise<DesignContextResult> {
   const allVars: DesignVariable[] = [];
   for (const r of varResults) {
     if (r.status === 'fulfilled' && r.value) {
-      allVars.push({ name: r.value.name, key: r.value.key, resolvedType: r.value.resolvedType });
+      allVars.push({ name: r.value.name, key: r.value.key, id: r.value.id, resolvedType: r.value.resolvedType });
     }
   }
   const nameMap = new Map(allVars.map((v) => [v.name, v]));
@@ -974,7 +976,7 @@ export async function findColorVariableByName(
 ): Promise<Variable | null> {
   // In library mode, search library first — library tokens take priority over local variables.
   // This avoids the case where a local variable with the same name shadows the intended library token.
-  if (libraryName) {
+  if (libraryName && libraryName !== LOCAL_LIBRARY) {
     try {
       const variable = await findLibraryVariableByName(name, 'COLOR', libraryName, preferredScopes);
       if (variable) return variable;
@@ -1157,8 +1159,8 @@ export async function findFloatVariableByName(
   preferredScopes?: string[],
   libraryName?: string,
 ): Promise<Variable | null> {
-  // In library mode, search library first
-  if (libraryName) {
+  // In library mode, search library first (skip for __local__ — local vars accessed directly)
+  if (libraryName && libraryName !== LOCAL_LIBRARY) {
     try {
       // FLOAT scope filtering is a no-op inside findLibraryVariableByName today
       // (the role hint tables are color-only); pass through for signature consistency.

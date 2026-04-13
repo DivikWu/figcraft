@@ -133,14 +133,16 @@ export function buildWorkflow(input: WorkflowInput): Record<string, unknown> {
       // Component authoring (when building reusable components, not just screens)
       '⛔ COMPONENT AUTHORING: If the task is creating reusable components/variants (not assembling screens from existing components): ' +
         'create_section(name:"Button") → create_component(role:"button", height:48, layoutSizingVertical:"FIXED", ' +
-        'children:[{type:"text", content:"Label", componentPropertyName:"Label", textStyleName:"..."}]) → ' +
+        (hasLibrary
+          ? 'fillVariableId:defaults.<role>.id, children:[{type:"text", fontColorVariableId:defaults.<textRole>.id, textStyleName:"..."}]) → '
+          : 'children:[{type:"text", content:"Label", textStyleName:"..."}]) → ') +
         'nodes(method:"clone") → nodes(method:"update") to rename (e.g. "Type=Emphasis, Size=Large, State=Default") → ' +
         'create_component_set (auto-layouts + auto-positions). All tools are core. ' +
         (hasLibrary
-          ? 'Harness auto-injects fillVariableName/fontColorVariableName from defaults when role is set — check _autoInjected in response. ' +
-            'For variant differentiation after cloning, use variables_ep(method:"batch_bind") with variant-specific variable IDs from availableColorVariables. '
+          ? 'defaults include variable IDs — use fillVariableId/fontColorVariableId for direct binding (zero name resolution). ' +
+            'For variant differentiation after cloning, use variables_ep(method:"batch_bind") with variant-specific IDs from availableColorVariables. '
           : '') +
-        'For component property management, load_toolset("components-advanced").',
+        'Harness auto-injects section parentId. For component property management, load_toolset("components-advanced").',
       // Component instances (Library vs Local vs Creator)
       isLocal
         ? '⛔ LOCAL COMPONENT INSTANCES: ' +

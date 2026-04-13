@@ -2776,9 +2776,12 @@ create_component:
     fill:
       type: string
       description: "Fill color hex or variable/style name — auto-binds to matching token"
+    fillVariableId:
+      type: string
+      description: "Bind fill to a variable by ID (e.g. defaults.buttonEmphasis.id). Direct binding — zero name resolution."
     fillVariableName:
       type: string
-      description: "Bind fill to a color variable by name (e.g. 'button/primary')"
+      description: "Bind fill to a color variable by name (e.g. 'button/primary'). Prefer fillVariableId when ID is available."
     strokeColor:
       type: string
       description: "Stroke color hex — auto-binds to matching variable/style"
@@ -2822,8 +2825,7 @@ create_component:
       description: >-
         Inline child nodes [{type, ...params, componentPropertyName?}].
         Text children with componentPropertyName auto-create TEXT component properties.
-        Text children also accept textStyleName (e.g. "heading-md") for text style binding.
-        Harness auto-injects fontColorVariableName for text children based on parent role.
+        Text children also accept textStyleName, fontColorVariableId (preferred), fontColorVariableName.
         Icon children accept colorVariableName for icon color binding.
     # ── Component properties ──
     properties:

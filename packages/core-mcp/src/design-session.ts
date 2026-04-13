@@ -36,7 +36,7 @@ export class DesignSession {
   /** Accumulated fallback decisions in library mode (hex colors/fonts when token binding unavailable). */
   private _libraryFallbackDecisions: DesignDecisions | null = null;
   /** Cached designContext.defaults from last get_mode in library mode (role→variable mapping). */
-  private _designContextDefaults: Record<string, { name: string } | null> | null = null;
+  private _designContextDefaults: Record<string, { name: string; id?: string } | null> | null = null;
   /** Saved design decisions from creator mode when migrating to library mode. Cleared after first get_mode. */
   private _migrationContext: DesignDecisions | null = null;
   /** Last created section ID — auto-injected as parentId for create_component. */
@@ -154,11 +154,11 @@ export class DesignSession {
 
   // ─── Design context defaults ───
 
-  get designContextDefaults(): Record<string, { name: string } | null> | null {
+  get designContextDefaults(): Record<string, { name: string; id?: string } | null> | null {
     return this._designContextDefaults;
   }
 
-  set designContextDefaults(value: Record<string, { name: string } | null> | null) {
+  set designContextDefaults(value: Record<string, { name: string; id?: string } | null> | null) {
     this._designContextDefaults = value;
   }
 

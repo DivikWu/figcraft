@@ -371,7 +371,8 @@ export function registerGeneratedTools(
       width: z.number().optional().describe("Width in px (omit for HUG)"),
       height: z.number().optional().describe("Height in px (omit for HUG)"),
       fill: z.string().optional().describe("Fill color hex or variable/style name — auto-binds to matching token"),
-      fillVariableName: z.string().optional().describe("Bind fill to a color variable by name (e.g. 'button/primary')"),
+      fillVariableId: z.string().optional().describe("Bind fill to a variable by ID (e.g. defaults.buttonEmphasis.id). Direct binding — zero name resolution."),
+      fillVariableName: z.string().optional().describe("Bind fill to a color variable by name (e.g. 'button/primary'). Prefer fillVariableId when ID is available."),
       strokeColor: z.string().optional().describe("Stroke color hex — auto-binds to matching variable/style"),
       strokeVariableName: z.string().optional().describe("Bind stroke to a color variable by name"),
       layoutMode: z.enum(['HORIZONTAL', 'VERTICAL']).optional().describe("Auto-layout direction (auto-inferred from padding/spacing/children)"),
@@ -383,7 +384,7 @@ export function registerGeneratedTools(
       parentId: z.string().optional().describe("Parent node ID"),
       children: z.array(z.object({
           type: z.enum(['frame', 'text', 'rectangle', 'ellipse', 'instance', 'svg', 'icon']).optional().describe("Child node type"),
-        }).passthrough()).optional().describe("Inline child nodes [{type, ...params, componentPropertyName?}]. Text children with componentPropertyName auto-create TEXT component properties. Text children also accept textStyleName (e.g. \"heading-md\") for text style binding. Harness auto-injects fontColorVariableName for text children based on parent role. Icon children accept colorVariableName for icon color binding."),
+        }).passthrough()).optional().describe("Inline child nodes [{type, ...params, componentPropertyName?}]. Text children with componentPropertyName auto-create TEXT component properties. Text children also accept textStyleName, fontColorVariableId (preferred), fontColorVariableName. Icon children accept colorVariableName for icon color binding."),
       properties: z.array(z.unknown()).optional().describe("Non-text component properties: [{propertyName, type:'BOOLEAN'|'INSTANCE_SWAP'|'SLOT', defaultValue}]. TEXT properties are created automatically from children with componentPropertyName."),
       items: z.array(z.unknown()).optional().describe("Batch mode: array of create_component param objects. When provided, creates multiple components in one call. Each item accepts the same params as create_component (name, fill, fillVariableName, children, etc.). Per-item errors do not block others. Max 20 components per batch. Returns {created, total, items: [{id, name, ok, error?}]}."),
       dryRun: z.boolean().optional().describe("When true, validates params without creating. Returns inferences and correctedPayload."),

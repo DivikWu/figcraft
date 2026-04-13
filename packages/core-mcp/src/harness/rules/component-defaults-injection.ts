@@ -1,12 +1,14 @@
 /**
  * Harness Rule: component-defaults-injection (Layer 1 — Pre-Transform)
  *
- * Auto-injects variable bindings for create_component based on role + designContext.defaults.
- * When AI calls create_component(role:"button") without fillVariableName, this rule
- * looks up defaults.buttonEmphasis and injects fillVariableName automatically.
- * Same for text children: auto-injects fontColorVariableName based on parent role.
+ * Auto-injects section parentId for create_component.
+ * When a section was recently created (tracked in session), new components
+ * automatically land inside it.
  *
- * This is Layer 1 (code enforcement) — works regardless of AI behavior or skill loading.
+ * Fill/color variable injection is NOT done here — AI passes fillVariableId
+ * directly from designContext.defaults (ID-based binding is more reliable
+ * than name-based, and the correct variable depends on variant type which
+ * the harness can't know).
  */
 
 import type { HarnessAction, HarnessRule } from '../types.js';
@@ -14,36 +16,14 @@ import { PASS } from '../types.js';
 
 const INJECTED_KEY = 'component-defaults-injected';
 
-/** Role → default fill variable role mapping. */
-const ROLE_FILL_MAP: Record<string, string> = {
-  button: 'buttonEmphasis',
-  input: 'inputBackground',
-};
-
-/** Role → default text color variable role mapping (for text children). */
-const ROLE_TEXT_MAP: Record<string, string> = {
-  button: 'textInverse',
-};
-
-/** Role → default stroke variable role mapping. */
-const ROLE_STROKE_MAP: Record<string, string> = {
-  input: 'border',
-};
-
 export const componentDefaultsInjection: HarnessRule = {
   name: 'component-defaults-injection',
   tools: ['create_component'],
   phase: 'pre-transform',
-  priority: 45, // before resolve-icons (50)
+  priority: 45,
 
   async execute(ctx): Promise<HarnessAction> {
-    const defaults = ctx.session.designContextDefaults;
-    if (!defaults) return PASS;
-
     const params = ctx.params;
-    const role = params.role as string | undefined;
-    if (!role) return PASS;
-
     const injected: Record<string, string> = {};
 
     // Auto-inject parentId from last created section (if no explicit parentId)
@@ -52,46 +32,11 @@ export const componentDefaultsInjection: HarnessRule = {
       injected.parentId = ctx.session.lastSectionId;
     }
 
-    // Auto-inject fillVariableName if not explicitly set
-    const fillRole = ROLE_FILL_MAP[role];
-    if (fillRole && !params.fill && !params.fillVariableName) {
-      const defaultVar = defaults[fillRole];
-      if (defaultVar?.name) {
-        params.fillVariableName = defaultVar.name;
-        injected.fillVariableName = defaultVar.name;
-      }
-    }
-
-    // Auto-inject strokeVariableName if not explicitly set
-    const strokeRole = ROLE_STROKE_MAP[role];
-    if (strokeRole && !params.strokeColor && !params.strokeVariableName) {
-      const defaultVar = defaults[strokeRole];
-      if (defaultVar?.name) {
-        params.strokeVariableName = defaultVar.name;
-        injected.strokeVariableName = defaultVar.name;
-      }
-    }
-
-    // Auto-inject fontColorVariableName for text children
-    const textColorRole = ROLE_TEXT_MAP[role];
-    if (textColorRole && Array.isArray(params.children)) {
-      const defaultVar = defaults[textColorRole];
-      if (defaultVar?.name) {
-        for (const child of params.children as Array<Record<string, unknown>>) {
-          if (child.type === 'text' && !child.fill && !child.fontColorVariableName) {
-            child.fontColorVariableName = defaultVar.name;
-            injected.fontColorVariableName = defaultVar.name;
-          }
-        }
-      }
-    }
-
-    // Store injected info for companion post-enrich rule
     if (Object.keys(injected).length > 0) {
       ctx.ruleState[INJECTED_KEY] = injected;
+      return { type: 'transform', params };
     }
-
-    return Object.keys(injected).length > 0 ? { type: 'transform', params } : PASS;
+    return PASS;
   },
 };
 

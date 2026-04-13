@@ -139,7 +139,7 @@ export async function getModeLogic(bridge: Bridge): Promise<McpResponse> {
   const designCtx = result.designContext as Record<string, unknown> | null;
   bridge.designContextDefaults =
     designCtx && typeof designCtx.defaults === 'object' && designCtx.defaults !== null
-      ? (designCtx.defaults as Record<string, { name: string } | null>)
+      ? (designCtx.defaults as Record<string, { name: string; id?: string } | null>)
       : null;
 
   // Cache fileKey from plugin response (survives MCP restarts)

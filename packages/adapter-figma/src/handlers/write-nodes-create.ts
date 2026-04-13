@@ -189,33 +189,49 @@ async function initCreateContext(): Promise<CreateContext> {
 // ─── Alias normalization: fillVariableName/fillStyleName → fill ───
 function normalizeAliases(p: Record<string, unknown>): void {
   // Conflict detection: fill + alias cannot coexist
-  const fillAliases = ['fillVariableName', 'fillStyleName', 'fontColorVariableName', 'fontColorStyleName'].filter(
-    (k) => p[k] != null,
-  );
+  const fillAliases = [
+    'fillVariableId',
+    'fillVariableName',
+    'fillStyleName',
+    'fontColorVariableId',
+    'fontColorVariableName',
+    'fontColorStyleName',
+  ].filter((k) => p[k] != null);
   if (p.fill != null && fillAliases.length > 0) {
     throw new Error(`Conflicting fill: "fill" and "${fillAliases.join('", "')}" both specified. Use only one.`);
   }
-  if (p.strokeColor != null && p.strokeVariableName != null) {
-    throw new Error('Conflicting stroke: "strokeColor" and "strokeVariableName" both specified. Use only one.');
+  if (p.strokeColor != null && (p.strokeVariableName != null || p.strokeVariableId != null)) {
+    throw new Error(
+      'Conflicting stroke: "strokeColor" and "strokeVariableName/strokeVariableId" both specified. Use only one.',
+    );
   }
-  // Fill aliases
-  if (!p.fill && p.fillVariableName) {
+  // Fill aliases — ID takes priority over name (ID binding is direct, zero resolution)
+  if (!p.fill && p.fillVariableId) {
+    p.fill = { _variableId: p.fillVariableId };
+    delete p.fillVariableId;
+  } else if (!p.fill && p.fillVariableName) {
     p.fill = { _variable: p.fillVariableName };
     delete p.fillVariableName;
   } else if (!p.fill && p.fillStyleName) {
     p.fill = { _style: p.fillStyleName };
     delete p.fillStyleName;
   }
-  // Font color aliases (for text)
-  if (!p.fill && p.fontColorVariableName) {
+  // Font color aliases (for text) — ID takes priority
+  if (!p.fill && p.fontColorVariableId) {
+    p.fill = { _variableId: p.fontColorVariableId };
+    delete p.fontColorVariableId;
+  } else if (!p.fill && p.fontColorVariableName) {
     p.fill = { _variable: p.fontColorVariableName };
     delete p.fontColorVariableName;
   } else if (!p.fill && p.fontColorStyleName) {
     p.fill = { _style: p.fontColorStyleName };
     delete p.fontColorStyleName;
   }
-  // Stroke aliases
-  if (!p.strokeColor && p.strokeVariableName) {
+  // Stroke aliases — ID takes priority
+  if (!p.strokeColor && p.strokeVariableId) {
+    p.strokeColor = { _variableId: p.strokeVariableId };
+    delete p.strokeVariableId;
+  } else if (!p.strokeColor && p.strokeVariableName) {
     p.strokeColor = { _variable: p.strokeVariableName };
     delete p.strokeVariableName;
   }
