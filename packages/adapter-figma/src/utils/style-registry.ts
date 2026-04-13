@@ -6,6 +6,7 @@
  * Keys persisted in clientStorage for lazy recovery after plugin restart.
  */
 
+import { LOCAL_LIBRARY } from '../constants.js';
 import { registerCache } from './cache-manager.js';
 
 // ─── Types ───
@@ -149,6 +150,63 @@ export async function registerStyles(
 export async function ensureLoaded(library: string): Promise<void> {
   if (loadedLibrary === library) return;
 
+  // ── Local mode: load local text/paint/effect styles directly into registry ──
+  if (library === LOCAL_LIBRARY) {
+    try {
+      const [textStyles, paintStyles, effectStyles] = await Promise.all([
+        figma.getLocalTextStylesAsync(),
+        figma.getLocalPaintStylesAsync(),
+        figma.getLocalEffectStylesAsync(),
+      ]);
+
+      // Clear and populate maps directly (no importStyleByKeyAsync needed — styles are already local)
+      textStyleMap.clear();
+      textStyleByName.clear();
+      paintStyleMap.clear();
+      effectStyleMap.clear();
+
+      for (const ts of textStyles) {
+        const entry = {
+          id: ts.id,
+          name: ts.name,
+          fontFamily: ts.fontName.family,
+          fontWeight: ts.fontName.style,
+        };
+        const existing = textStyleMap.get(ts.fontSize) ?? [];
+        existing.push(entry);
+        textStyleMap.set(ts.fontSize, existing);
+        textStyleByName.set(ts.name.toLowerCase(), { ...entry, fontSize: ts.fontSize });
+      }
+      for (const ps of paintStyles) {
+        const fills = ps.paints.filter((p): p is SolidPaint => p.type === 'SOLID');
+        if (fills.length > 0) {
+          const { r, g, b } = fills[0].color;
+          const hex = `#${[r, g, b]
+            .map((c) =>
+              Math.round(c * 255)
+                .toString(16)
+                .padStart(2, '0'),
+            )
+            .join('')}`;
+          const existing = paintStyleMap.get(hex) ?? [];
+          existing.push({ id: ps.id, name: ps.name });
+          paintStyleMap.set(hex, existing);
+        }
+      }
+      for (const es of effectStyles) {
+        const effects = es.effects;
+        if (effects.length > 0) {
+          effectStyleMap.set(effects[0].type, { id: es.id, name: es.name });
+        }
+      }
+    } catch (err) {
+      console.warn('[figcraft] ensureLoaded(__local__) failed:', err instanceof Error ? err.message : err);
+    }
+    loadedLibrary = library;
+    return;
+  }
+
+  // ── Library mode: restore from clientStorage ──
   const json = (await figma.clientStorage.getAsync(storageKey(library))) as string | undefined;
   if (!json) {
     loadedLibrary = library;
