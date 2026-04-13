@@ -2746,9 +2746,10 @@ create_component:
     TEXT properties auto-bind to child text nodes via componentPropertyName.
     Accepts all create_frame params via passthrough — only common params listed here.
 
-    Omit x/y to auto-position below existing content. Pass layoutSizingHorizontal:"FIXED" with width
-    to prevent Opinion Engine HUG override. Response includes _warnings and _tokenBindingFailures
-    from create_frame — check these for failed variable bindings.
+    Omit x/y to auto-position below existing content. For fixed-height components (buttons),
+    pass height + layoutSizingVertical:"FIXED" to prevent Opinion Engine HUG override.
+    When role is set (e.g. "button"), Harness auto-injects fillVariableName/fontColorVariableName
+    from designContext.defaults — no need to pass them explicitly.
 
     Workflow: create_component → nodes(method:"clone") → create_component_set (auto-layouts + auto-positions).
   toolset: core
@@ -2821,7 +2822,9 @@ create_component:
       description: >-
         Inline child nodes [{type, ...params, componentPropertyName?}].
         Text children with componentPropertyName auto-create TEXT component properties.
-        ⛔ Library mode: use fontColorVariableName on text children instead of fill hex.
+        Text children also accept textStyleName (e.g. "heading-md") for text style binding.
+        Harness auto-injects fontColorVariableName for text children based on parent role.
+        Icon children accept colorVariableName for icon color binding.
     # ── Component properties ──
     properties:
       type: array

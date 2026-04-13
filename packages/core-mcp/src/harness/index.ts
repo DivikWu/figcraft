@@ -13,6 +13,7 @@
 import type { Bridge } from '../bridge.js';
 import { HarnessPipeline } from './pipeline.js';
 import { createAutoVerifyRule } from './rules/auto-verify.js';
+import { componentDefaultsInjection, componentDefaultsPostEnrich } from './rules/component-defaults-injection.js';
 import { contentWarningsRule } from './rules/content-warnings.js';
 import { createRecoveryRules } from './rules/data-recovery.js';
 import { createDesignDecisionsRule } from './rules/design-decisions.js';
@@ -53,11 +54,13 @@ export function createHarnessPipeline(bridge: Bridge): HarnessPipeline {
   pipeline.register(designPreflightRule);
 
   // Layer 1: Pre-transforms
+  pipeline.register(componentDefaultsInjection);
   pipeline.register(resolveIconsPreTransform);
 
   // Layer 2: Post-enrich
   pipeline.register(contentWarningsRule);
   pipeline.register(resolveIconsPostEnrich);
+  pipeline.register(componentDefaultsPostEnrich);
   pipeline.register(createAutoVerifyRule(bridge));
   pipeline.register(nextStepsRule); // data-driven (content/harness/next-steps.yaml)
   pipeline.register(verificationDebtRemindRule);
