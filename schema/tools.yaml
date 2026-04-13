@@ -1070,6 +1070,8 @@ create_frame:
       description: >-
         Inline child nodes to create recursively. Each item: {type:'frame'|'text'|'rectangle'|'ellipse'|'instance'|'svg'|'star'|'polygon'|'icon', ...params, children?}.
         Frame children accept all create_frame params. Text children accept all create_text params (incl. textCase, textDecoration).
+        ⛔ Library mode: text children should use fontColorVariableName (e.g. 'text/primary-inverse')
+        instead of fill:'#hex'. Omitting fill triggers auto-binding to library text color tokens.
         Rectangle/ellipse children accept: name, width, height, fill, fillVariableName, fillStyleName, strokeColor, strokeVariableName, strokeWeight, cornerRadius (rect only), opacity, rotation.
         Instance children accept: componentId (local node ID), componentKey (library component key), or componentSetKey (library component set key) — at least one required. Also: name, width, height, variantProperties, properties, layoutSizingHorizontal/Vertical. For library components, prefer componentKey or componentSetKey over componentId.
         SVG children accept: svg (required), name, width, height.
@@ -2740,9 +2742,13 @@ get_registered_styles:
 create_component:
   description: >-
     Create a component with layout, fill, stroke, inline children, and component properties in one call.
-    A component IS a frame — build it directly with all layout properties.
+    Delegates to create_frame internally — all Opinion Engine inferences apply automatically.
     TEXT properties auto-bind to child text nodes via componentPropertyName.
-  toolset: components-advanced
+    Accepts all create_frame params via passthrough — only common params listed here.
+
+    Component authoring workflow: create_component → nodes(method:"clone") for variants →
+    create_component_set → layout_component_set.
+  toolset: core
   write: true
   access: create
   handler: bridge
@@ -2750,30 +2756,42 @@ create_component:
     name:
       type: string
       description: 'Component name (default: "Component")'
-    width:
-      type: number
-      description: "Width in px"
-    height:
-      type: number
-      description: "Height in px"
     description:
       type: string
       description: Component description
+    role:
+      type: string
+      description: "Semantic role (e.g. 'button', 'input', 'card'). Stored as plugin data for lint identification."
+    width:
+      type: number
+      description: "Width in px (omit for HUG)"
+    height:
+      type: number
+      description: "Height in px (omit for HUG)"
+    # ── Fill ──
+    fill:
+      type: string
+      description: "Fill color hex or variable/style name — auto-binds to matching token"
+    fillVariableName:
+      type: string
+      description: "Bind fill to a color variable by name (e.g. 'button/primary')"
+    strokeColor:
+      type: string
+      description: "Stroke color hex — auto-binds to matching variable/style"
+    strokeVariableName:
+      type: string
+      description: "Bind stroke to a color variable by name"
     # ── Layout ──
     layoutMode:
       type: enum
-      values: [HORIZONTAL, VERTICAL, GRID]
-      description: "Auto-layout direction. GRID enables CSS Grid-like layout (auto-inferred from padding/spacing/children)"
+      values: [HORIZONTAL, VERTICAL]
+      description: "Auto-layout direction (auto-inferred from padding/spacing/children)"
     itemSpacing:
       type: number
       description: "Spacing between children"
     padding:
       type: number
       description: "Shorthand — sets all 4 padding edges"
-    paddingTop: { type: number }
-    paddingRight: { type: number }
-    paddingBottom: { type: number }
-    paddingLeft: { type: number }
     primaryAxisAlignItems:
       type: enum
       values: [MIN, CENTER, MAX, SPACE_BETWEEN]
@@ -2782,10 +2800,6 @@ create_component:
       values: [MIN, CENTER, MAX]
     cornerRadius:
       type: number
-    # ── Fill ──
-    fill:
-      type: string
-      description: "Fill color hex (e.g. '#FFFFFF') or omit for transparent"
     # ── Parent ──
     parentId:
       type: string
@@ -2793,15 +2807,36 @@ create_component:
     # ── Inline children ──
     children:
       type: array
+      items:
+        type: object
+        additionalProperties: true
+        fields:
+          type:
+            type: enum
+            values: [frame, text, rectangle, ellipse, instance, svg, icon]
+            description: "Child node type"
       description: >-
-        Inline child nodes [{type:'frame'|'text', ...params, componentPropertyName?}].
-        Text children with componentPropertyName auto-create and bind TEXT component properties.
-    # ── Component properties (BOOLEAN, INSTANCE_SWAP) ──
+        Inline child nodes [{type, ...params, componentPropertyName?}].
+        Text children with componentPropertyName auto-create TEXT component properties.
+        ⛔ Library mode: use fontColorVariableName on text children instead of fill hex.
+    # ── Component properties ──
     properties:
       type: array
       description: >-
-        Non-text component properties: [{propertyName, type:'BOOLEAN'|'INSTANCE_SWAP', defaultValue}].
+        Non-text component properties: [{propertyName, type:'BOOLEAN'|'INSTANCE_SWAP'|'SLOT', defaultValue}].
         TEXT properties are created automatically from children with componentPropertyName.
+    # ── Batch mode ──
+    items:
+      type: array
+      description: >-
+        Batch mode: array of create_component param objects. When provided, creates multiple components in one call.
+        Each item accepts the same params as create_component (name, fill, fillVariableName, children, etc.).
+        Per-item errors do not block others. Max 20 components per batch.
+        Returns {created, total, items: [{id, name, ok, error?}]}.
+    # ── Dry run ──
+    dryRun:
+      type: boolean
+      description: "When true, validates params without creating. Returns inferences and correctedPayload."
   response:
     type: object
     fields:
@@ -2823,6 +2858,21 @@ create_component:
       visible:
         type: boolean
         required: true
+      _libraryBindings:
+        type: array
+        description: "Token/style bindings applied during creation"
+      _hints:
+        type: array
+        description: "Smart default inferences applied"
+      _warnings:
+        type: array
+        description: "Non-fatal issues during creation"
+      _children:
+        type: array
+        description: "Created child node IDs"
+      _lintSummary:
+        type: object
+        description: "Quick lint summary after creation. Run lint_fix_all to fix violations."
   examples:
     - id: "80:1"
       name: "Button / Primary"
@@ -2834,11 +2884,8 @@ create_component:
 create_component_set:
   description: >-
     Combine multiple existing components into a variant set (ComponentSet).
-    Enforces a soft variant cap (default 30) at the code level to catch matrices
-    that are blowing up due to missing INSTANCE_SWAP/SLOT extraction. Real
-    production libraries sometimes legitimately exceed 30 (e.g. 4 size × 3 style
-    × 4 state = 48), so the limit is overridable via `variantLimit`.
-  toolset: components-advanced
+    Enforces a soft variant cap (default 30). Override via variantLimit param.
+  toolset: core
   write: true
   access: create
   handler: bridge
@@ -3062,7 +3109,7 @@ create_component_from_node:
     Convert an existing frame/group to a component.
     When exposeText is true (default), all text children are auto-discovered and
     exposed as editable TEXT component properties.
-  toolset: components-advanced
+  toolset: core
   write: true
   access: create
   handler: bridge
@@ -3088,11 +3135,9 @@ create_component_from_node:
 
 layout_component_set:
   description: >-
-    Auto-layout variants in a grid after combineAsVariants. Parses variant names
-    ("Size=Small, Style=Primary, State=Default") to determine grid position.
-    Automatically calculates adaptive column widths and row heights, then resizes
-    the ComponentSet frame to fit.
-  toolset: components-advanced
+    Auto-layout variants in a grid after combineAsVariants. Parses variant names to determine grid position.
+    Call this after create_component_set — without it, all variants stack at (0,0).
+  toolset: core
   write: true
   access: edit
   handler: bridge
@@ -5732,9 +5777,21 @@ nodes:
   handler: endpoint
   methods:
     get:
-      description: Get detailed node info by ID (supports Figma URLs)
+      description: Get detailed node info by ID (supports Figma URLs). Auto-degrades large nodes to prevent response_too_large.
       maps_to: get_node_info
       write: false
+      params:
+        nodeId:
+          type: string
+          required: true
+          description: 'Node ID or Figma URL'
+        detail:
+          type: enum
+          values: [summary, standard, full]
+          description: 'Detail level (default: full). Use summary for tree browsing, standard for inspection, full for editing. Auto-degrades for large nodes.'
+        maxDepth:
+          type: number
+          description: 'Maximum tree depth to traverse. Deep children auto-degrade to summary. Use 1-2 for large component sets.'
       response:
         type: object
         fields:
@@ -5775,11 +5832,6 @@ nodes:
             - id: "1:24"
               name: "Login Form"
               type: "FRAME"
-      params:
-        nodeId:
-          type: string
-          required: true
-          description: 'Node ID or Figma URL'
     get_batch:
       description: Get multiple nodes in a single request (reduces round-trips)
       maps_to: get_node_info_batch

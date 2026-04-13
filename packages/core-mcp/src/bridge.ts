@@ -347,7 +347,12 @@ export class Bridge {
   }
 
   /** Raw WebSocket send/receive — the Phase 3 "execute" that pipeline wraps. */
-  private async sendRequest(method: string, params: Record<string, unknown>, timeoutMs?: number): Promise<unknown> {
+  private async sendRequest(
+    method: string,
+    params: Record<string, unknown>,
+    timeoutMs?: number,
+    _retried = false,
+  ): Promise<unknown> {
     // If disconnected, wait for reconnection (up to 10s)
     if (!this.ws || !this.connected) {
       await this.waitForConnection(10_000);
@@ -429,6 +434,24 @@ export class Bridge {
         console.error(`[FigCraft bridge] ✗ ${method} send failed — ${elapsed}ms (id=${id.slice(0, 8)})`);
         reject(sendErr instanceof Error ? sendErr : new Error(String(sendErr)));
       }
+    }).catch(async (err: Error) => {
+      // ── Auto-retry on transient connection failures ──
+      // When a request fails because the connection dropped mid-flight (rejectAllPending),
+      // wait for reconnection and retry once. This makes Plugin tab-switches and brief
+      // WebSocket interruptions transparent to the AI.
+      const isTransient = !_retried && (err.message === 'Connection closed' || err.message === 'Disconnected');
+      if (!isTransient) throw err;
+
+      console.error(`[FigCraft bridge] ${method} failed with "${err.message}" — waiting for reconnect to retry...`);
+      try {
+        await this.waitForConnection(10_000);
+      } catch {
+        throw err; // reconnect failed — surface original error
+      }
+      if (!this.connected) throw err;
+
+      console.error(`[FigCraft bridge] ${method} retrying after reconnect`);
+      return this.sendRequest(method, params, timeoutMs, true);
     });
   }
 

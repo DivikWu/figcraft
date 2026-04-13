@@ -42,6 +42,11 @@ export const responseSizeGuardRule: HarnessRule = {
 
     // Method-specific hints so agents know how to narrow scope
     const methodHints: Record<string, string[]> = {
+      get_node_info: [
+        'Pass detail:"summary" for tree browsing: nodes(method:"get", nodeId:"...", detail:"summary")',
+        'Pass maxDepth:2 to limit subtree depth: nodes(method:"get", nodeId:"...", maxDepth:2)',
+        'Inspect specific child nodes instead of the full parent: nodes(method:"get", nodeId:"<childId>")',
+      ],
       export_variables: [
         'Pass collectionId to export one collection at a time: variables_ep(method: "export", collectionId: "<id>")',
         'Use variables_ep(method: "list_collections") first to get collection IDs',

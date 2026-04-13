@@ -363,26 +363,30 @@ export function registerGeneratedTools(
   if (shouldRegisterGeneratedTool(include, 'create_component')) {
     server.tool(
     'create_component',
-    "Create a component with layout, fill, stroke, inline children, and component properties in one call. A component IS a frame — build it directly with all layout properties. TEXT properties auto-bind to child text nodes via componentPropertyName.",
+    "Create a component with layout, fill, stroke, inline children, and component properties in one call. Delegates to create_frame internally — all Opinion Engine inferences apply automatically. TEXT properties auto-bind to child text nodes via componentPropertyName. Accepts all create_frame params via passthrough — only common params listed here.\nComponent authoring workflow: create_component → nodes(method:\"clone\") for variants → create_component_set → layout_component_set.",
     {
       name: z.string().optional().describe("Component name (default: \"Component\")"),
-      width: z.number().optional().describe("Width in px"),
-      height: z.number().optional().describe("Height in px"),
       description: z.string().optional().describe("Component description"),
-      layoutMode: z.enum(['HORIZONTAL', 'VERTICAL', 'GRID']).optional().describe("Auto-layout direction. GRID enables CSS Grid-like layout (auto-inferred from padding/spacing/children)"),
+      role: z.string().optional().describe("Semantic role (e.g. 'button', 'input', 'card'). Stored as plugin data for lint identification."),
+      width: z.number().optional().describe("Width in px (omit for HUG)"),
+      height: z.number().optional().describe("Height in px (omit for HUG)"),
+      fill: z.string().optional().describe("Fill color hex or variable/style name — auto-binds to matching token"),
+      fillVariableName: z.string().optional().describe("Bind fill to a color variable by name (e.g. 'button/primary')"),
+      strokeColor: z.string().optional().describe("Stroke color hex — auto-binds to matching variable/style"),
+      strokeVariableName: z.string().optional().describe("Bind stroke to a color variable by name"),
+      layoutMode: z.enum(['HORIZONTAL', 'VERTICAL']).optional().describe("Auto-layout direction (auto-inferred from padding/spacing/children)"),
       itemSpacing: z.number().optional().describe("Spacing between children"),
       padding: z.number().optional().describe("Shorthand — sets all 4 padding edges"),
-      paddingTop: z.number().optional(),
-      paddingRight: z.number().optional(),
-      paddingBottom: z.number().optional(),
-      paddingLeft: z.number().optional(),
       primaryAxisAlignItems: z.enum(['MIN', 'CENTER', 'MAX', 'SPACE_BETWEEN']).optional(),
       counterAxisAlignItems: z.enum(['MIN', 'CENTER', 'MAX']).optional(),
       cornerRadius: z.number().optional(),
-      fill: z.string().optional().describe("Fill color hex (e.g. '#FFFFFF') or omit for transparent"),
       parentId: z.string().optional().describe("Parent node ID"),
-      children: z.array(z.unknown()).optional().describe("Inline child nodes [{type:'frame'|'text', ...params, componentPropertyName?}]. Text children with componentPropertyName auto-create and bind TEXT component properties."),
-      properties: z.array(z.unknown()).optional().describe("Non-text component properties: [{propertyName, type:'BOOLEAN'|'INSTANCE_SWAP', defaultValue}]. TEXT properties are created automatically from children with componentPropertyName."),
+      children: z.array(z.object({
+          type: z.enum(['frame', 'text', 'rectangle', 'ellipse', 'instance', 'svg', 'icon']).optional().describe("Child node type"),
+        }).passthrough()).optional().describe("Inline child nodes [{type, ...params, componentPropertyName?}]. Text children with componentPropertyName auto-create TEXT component properties. ⛔ Library mode: use fontColorVariableName on text children instead of fill hex."),
+      properties: z.array(z.unknown()).optional().describe("Non-text component properties: [{propertyName, type:'BOOLEAN'|'INSTANCE_SWAP'|'SLOT', defaultValue}]. TEXT properties are created automatically from children with componentPropertyName."),
+      items: z.array(z.unknown()).optional().describe("Batch mode: array of create_component param objects. When provided, creates multiple components in one call. Each item accepts the same params as create_component (name, fill, fillVariableName, children, etc.). Per-item errors do not block others. Max 20 components per batch. Returns {created, total, items: [{id, name, ok, error?}]}."),
+      dryRun: z.boolean().optional().describe("When true, validates params without creating. Returns inferences and correctedPayload."),
     },
     async (params) => {
       const result = await bridge.request('create_component', params, undefined, 'create_component', true);
@@ -394,7 +398,7 @@ export function registerGeneratedTools(
   if (shouldRegisterGeneratedTool(include, 'create_component_set')) {
     server.tool(
     'create_component_set',
-    "Combine multiple existing components into a variant set (ComponentSet). Enforces a soft variant cap (default 30) at the code level to catch matrices that are blowing up due to missing INSTANCE_SWAP/SLOT extraction. Real production libraries sometimes legitimately exceed 30 (e.g. 4 size × 3 style × 4 state = 48), so the limit is overridable via `variantLimit`.",
+    "Combine multiple existing components into a variant set (ComponentSet). Enforces a soft variant cap (default 30). Override via variantLimit param.",
     {
       componentIds: z.array(z.string()).describe("Component node IDs to combine into a variant set"),
       name: z.string().optional().describe("Name for the variant set"),
@@ -499,7 +503,7 @@ export function registerGeneratedTools(
   if (shouldRegisterGeneratedTool(include, 'layout_component_set')) {
     server.tool(
     'layout_component_set',
-    "Auto-layout variants in a grid after combineAsVariants. Parses variant names (\"Size=Small, Style=Primary, State=Default\") to determine grid position. Automatically calculates adaptive column widths and row heights, then resizes the ComponentSet frame to fit.",
+    "Auto-layout variants in a grid after combineAsVariants. Parses variant names to determine grid position. Call this after create_component_set — without it, all variants stack at (0,0).",
     {
       nodeId: z.string().describe("ComponentSet node ID"),
       gap: z.number().optional().describe("Gap between variants in px (default: 20)"),
@@ -1155,8 +1159,9 @@ export function registerGeneratedTools(
 export const nodesEndpointSchema = {
       method: z.enum(['get', 'get_batch', 'list', 'update', 'delete', 'clone', 'reparent']).describe('Method to invoke on this endpoint'),
       nodeId: z.string().optional().describe("Node ID or Figma URL"),
+      detail: z.enum(['summary', 'standard', 'full']).optional().describe("Detail level (default: full). Use summary for tree browsing, standard for inspection, full for editing. Auto-degrades for large nodes."),
+      maxDepth: z.number().optional().describe("Maximum tree depth to traverse. Deep children auto-degrade to summary. Use 1-2 for large component sets."),
       nodeIds: z.array(z.string()).optional().describe("Array of node IDs to fetch"),
-      detail: z.enum(['summary', 'standard', 'full']).optional().describe("Detail level (default: standard)"),
       query: z.string().optional().describe("Search query"),
       types: z.array(z.string()).optional().describe("Filter by SceneNode type (FRAME, TEXT, RECTANGLE, COMPONENT, INSTANCE, COMPONENT_SET, GROUP, VECTOR, ELLIPSE, LINE, STAR, POLYGON, BOOLEAN_OPERATION, SECTION, SLICE). NOT for VARIABLE / STYLE / library components — those live on other endpoints: variables_ep({method:\"list\"}) for variables, styles_ep({method:\"list\"}) for paint/text/effect styles, components({method:\"list_library\"}) for imported library components."),
       limit: z.number().optional().describe("Max results (default 50)"),

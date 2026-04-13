@@ -38,18 +38,22 @@ get_selection                 → get selected nodes
 
 ### Step 3: Read Node Properties
 
-For each target node, call `nodes(method: "get")` to read:
-- Fills, strokes, effects (colors, shadows)
-- fontSize, fontName, fontWeight, lineHeight
-- Spacing (padding, itemSpacing)
-- Dimensions (width, height)
-- cornerRadius
-- layoutMode, layoutSizingHorizontal/Vertical
-- Variable bindings (boundVariables)
+**Start with `audit_node(nodeId)`** — it returns everything in one call:
+- Lint violations with severity, suggestions, auto-fix availability
+- Variable bindings summary (which properties are token-bound vs hardcoded)
+- Text content summary (all text nodes with content)
+- Structural notes (layout issues, child count)
+- Quality score
 
-For complex frames, also use `text_scan` to discover all text content.
+**Only drill deeper if audit_node reveals specific issues:**
+- For multiple child nodes: `nodes(method:"get_batch", nodeIds:["id1","id2","id3"])` — one call, not N calls
+- For large nodes with `_degraded: true`: drill into specific children, not all
+- Limit `export_image` to 1-2 key screenshots (the full component + one detail)
 
-For deep inspection of a single element, use `audit_node(nodeId)` — it combines all lint rules + design guideline checks into one structured report with severity, suggestions, and auto-fix availability.
+**Avoid these patterns:**
+- Do NOT call `nodes(method:"get")` individually for each child — use `get_batch`
+- Do NOT call `variables_ep` for each variable — audit_node includes bindings summary
+- Do NOT call `text_scan` separately — audit_node includes text summary
 
 ### Step 4: Apply Design Rules
 

@@ -7,7 +7,7 @@
  * Re-generate: npm run schema
  */
 
-/** Core tools: always enabled (~34) */
+/** Core tools: always enabled (~38) */
 export const GENERATED_CORE_TOOLS = new Set([
   'ping',
   'get_mode',
@@ -37,6 +37,10 @@ export const GENERATED_CORE_TOOLS = new Set([
   'create_svg',
   'text_scan',
   'search_design_system',
+  'create_component',
+  'create_component_set',
+  'create_component_from_node',
+  'layout_component_set',
   'verify_design',
   'nodes',
   'text',
@@ -349,14 +353,10 @@ export const GENERATED_TOOLSETS: Record<string, { description: string; tools: st
   'components-advanced': {
     description: "Advanced component ops — create components, manage variants/properties/overrides, audit.",
     tools: [
-      'create_component',
-      'create_component_set',
       'update_component',
       'delete_component',
       'create_instance',
       'create_instances',
-      'create_component_from_node',
-      'layout_component_set',
       'bind_component_property',
       'swap_instance',
       'detach_instance',

@@ -13,7 +13,10 @@ export type McpResponse = {
   isError?: boolean;
 };
 
-export async function getNodeInfoLogic(bridge: Bridge, params: { nodeId: string }): Promise<McpResponse> {
+export async function getNodeInfoLogic(
+  bridge: Bridge,
+  params: { nodeId: string; detail?: string; maxDepth?: number },
+): Promise<McpResponse> {
   let resolvedNodeId = params.nodeId;
 
   // Support Figma URLs: extract fileKey + nodeId automatically
@@ -37,7 +40,11 @@ export async function getNodeInfoLogic(bridge: Bridge, params: { nodeId: string 
     }
   }
 
-  const { result, source } = await requestWithFallback(bridge, 'get_node_info', { nodeId: resolvedNodeId }, () =>
+  const bridgeParams: Record<string, unknown> = { nodeId: resolvedNodeId };
+  if (params.detail) bridgeParams.detail = params.detail;
+  if (params.maxDepth != null) bridgeParams.maxDepth = params.maxDepth;
+
+  const { result, source } = await requestWithFallback(bridge, 'get_node_info', bridgeParams, () =>
     restGetNodeInfo(resolvedNodeId),
   );
 

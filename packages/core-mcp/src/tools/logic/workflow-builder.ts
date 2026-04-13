@@ -42,7 +42,7 @@ export function buildWorkflow(input: WorkflowInput): Record<string, unknown> {
       instruction:
         'Classify task scale FIRST, then complete the required checklist items. ' +
         'Present a design proposal to the user and WAIT for explicit confirmation. ' +
-        'Do NOT call create_frame/create_text/create_svg until user approves.',
+        'Do NOT call create_frame/create_component/create_text/create_svg until user approves.',
       scaleClassification: {
         instruction: 'Classify the task into one of these scales. This determines which checklist items are required:',
         scales: {
@@ -126,8 +126,17 @@ export function buildWorkflow(input: WorkflowInput): Record<string, unknown> {
         ? '⛔ TOKEN BINDING: Use designContext.defaults for color bindings — pass fillVariableName/strokeVariableName. ' +
           'unresolvedDefaults lists roles with no matching token — call search_design_system for these. ' +
           'Text nodes auto-bind textColor when no fill specified. Only hardcode hex as last resort ' +
-          '(exception: role:"presentation" containers like Wrapper/Stage always use hex fills — they are scaffolding, not UI surfaces).'
+          '(exception: role:"presentation" containers like Wrapper/Stage always use hex fills — they are scaffolding, not UI surfaces). ' +
+          '⛔ TEXT ON COLORED BACKGROUNDS: use fontColorVariableName (e.g. "text/primary-inverse") — do NOT pass fill:"#FFFFFF". Omitting fill also works (auto-binds to textColor role). ' +
+          '⛔ POST-CREATION BINDING: If you need to bind variables after creation, use variables_ep(method:"batch_bind", bindings:[{nodeId, field, variableId}]) for bulk binding — NOT individual set_binding calls.'
         : null,
+      // Component authoring (when building reusable components, not just screens)
+      '⛔ COMPONENT AUTHORING: If the task is creating reusable components/variants (not assembling screens from existing components): ' +
+        'create_component (one base variant' +
+        (hasLibrary ? ' with fillVariableName/fontColorVariableName for token binding' : '') +
+        ') → nodes(method:"clone") to clone for each variant → nodes(method:"update") to rename (e.g. "Size=Small, Style=Primary") → ' +
+        'create_component_set → layout_component_set. All 4 tools are core — no load_toolset needed. ' +
+        'For component property management (add_component_property, bind_component_property), load_toolset("components-advanced").',
       // Component instances (Library vs Local vs Creator)
       isLocal
         ? '⛔ LOCAL COMPONENT INSTANCES: ' +
@@ -169,6 +178,8 @@ export function buildWorkflow(input: WorkflowInput): Record<string, unknown> {
       'Prefer batch tools: lint_fix_all over lint_check+lint_fix, create_frame items[] for multiple screens.',
       'nodes(method:"update") uses 5-phase ordered execution: simple → fills → sizing → resize → text.',
       'dryRun:true for complex/ambiguous params — preview before committing.',
+      'nodes(method:"get") auto-degrades large nodes (>50 children). If response includes _degraded:true, drill into specific children for full details.',
+      'REVIEW EFFICIENCY: audit_node returns bindings + text summary — avoid separate variables_ep/text_scan calls. Use nodes(method:"get_batch") for multiple nodes in one call. Limit export_image to 1-2 key screenshots.',
     ],
 
     // Where to find detailed rules (accessible via MCP tools in ALL IDEs)

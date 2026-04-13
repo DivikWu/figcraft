@@ -74,8 +74,8 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
         lintError = err instanceof Error ? err.message : String(err);
       }
 
-      // Step 2: Get node info for structural analysis
-      const nodeInfo = (await bridge.request('get_node_info', { nodeId })) as {
+      // Step 2: Get node info for structural analysis (standard detail to avoid response_too_large on large nodes)
+      const nodeInfo = (await bridge.request('get_node_info', { nodeId, detail: 'standard', maxDepth: 3 })) as {
         id: string;
         name: string;
         type: string;
@@ -84,6 +84,44 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
         layoutMode?: string;
         children?: Array<{ id: string; name: string; type: string }>;
       };
+
+      // Step 2b: Get variable bindings summary (eliminates need for follow-up variables_ep calls)
+      let bindingsSummary: { bound: number; details: Array<{ field: string; variable: string }> } | undefined;
+      try {
+        const bindingsResult = (await bridge.request('get_node_variables', { nodeId })) as {
+          bindings: Record<string, Array<{ name: string; resolvedType: string }>>;
+        };
+        const details: Array<{ field: string; variable: string }> = [];
+        for (const [field, vars] of Object.entries(bindingsResult.bindings ?? {})) {
+          for (const v of Array.isArray(vars) ? vars : [vars]) {
+            if (v && typeof v === 'object' && 'name' in v) {
+              details.push({ field, variable: (v as { name: string }).name });
+            }
+          }
+        }
+        bindingsSummary = {
+          bound: details.length,
+          details: details.slice(0, 20), // cap to avoid response bloat
+        };
+      } catch {
+        /* bindings unavailable — proceed without */
+      }
+
+      // Step 2c: Get text content summary (eliminates need for follow-up text_scan calls)
+      let textSummary: Array<{ name: string; content: string }> | undefined;
+      try {
+        const textResult = (await bridge.request('text_scan', { nodeId, limit: 20 })) as {
+          texts: Array<{ name: string; characters: string }>;
+        };
+        if (textResult.texts?.length > 0) {
+          textSummary = textResult.texts.map((t) => ({
+            name: t.name,
+            content: t.characters?.slice(0, 50) ?? '',
+          }));
+        }
+      } catch {
+        /* text scan unavailable */
+      }
 
       // Step 3: Build structured audit report
       const violations = lintResult?.categories?.flatMap((c) => c.nodes) ?? [];
@@ -134,6 +172,8 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
           autoFixable: v.autoFixable,
         })),
         structuralNotes,
+        bindings: bindingsSummary,
+        textContent: textSummary,
         recommendation: lintError
           ? 'Lint check failed — only structural analysis available. Try lint_fix_all on the parent component set instead.'
           : errors.length > 0

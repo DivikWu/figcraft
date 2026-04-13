@@ -76,10 +76,16 @@ describe('buildWorkflow', () => {
       expect(steps[0]).toContain('TOKEN BINDING');
     });
 
+    it('includes component authoring step', () => {
+      const w = buildWorkflow(baseInput({ selectedLibrary: 'MyLib' }));
+      const steps = w.creationSteps as string[];
+      expect(steps[1]).toContain('COMPONENT AUTHORING');
+    });
+
     it('includes library component instance step', () => {
       const w = buildWorkflow(baseInput({ selectedLibrary: 'MyLib' }));
       const steps = w.creationSteps as string[];
-      expect(steps[1]).toContain('COMPONENT INSTANCES');
+      expect(steps[2]).toContain('COMPONENT INSTANCES');
     });
 
     it('includes library fallback consistency in colorRules', () => {

@@ -1,6 +1,6 @@
 ---
 name: figma-create-ui
-description: "Create UI in Figma using FigCraft declarative tools (create_frame, create_text). Use when: create/design/build/make + Figma/UI/screen/page/component. IMPORTANT: Use create_frame instead of use_figma for all UI creation."
+description: "Create UI in Figma using FigCraft declarative tools (create_frame, create_text, create_component). Use when: create/design/build/make + Figma/UI/screen/page/component/button/variant. IMPORTANT: Use create_frame for screens, create_component for reusable components. Never use use_figma for UI creation."
 ---
 
 # FigCraft UI Creation
@@ -33,7 +33,8 @@ This SKILL.md is a **lightweight entry point**. The detailed, context-aware crea
 
 - Use this skill to **create new UI** using declarative tools (`create_frame`, `create_text`).
 - This skill covers **both** simple layouts and **library component assembly**. In library mode, use `search_design_system` and `type:"instance"` as described in the Library Components section below.
-- If the task is **building a design system** (variables, component libraries, theming), switch to [figma-generate-library](../figma-generate-library/SKILL.md).
+- This skill also covers **creating new reusable components** (buttons, inputs, cards). See the Component Authoring section below.
+- If the task is **building a full design system** (variables + components + theming), switch to [figma-generate-library](../figma-generate-library/SKILL.md).
 - If the task is **reviewing existing designs**, switch to [design-review](../design-review/SKILL.md).
 - If the task is **implementing code from Figma**, switch to [figma-implement-design](../figma-implement-design/SKILL.md).
 
@@ -141,6 +142,37 @@ Use `create_frame` with `type:"instance"` in children:
   ]
 }
 ```
+
+## Component Authoring — Creating New Reusable Components
+
+When the task is creating **new reusable components** (buttons, inputs, cards with variants) — not assembling screens from existing library components — use `create_component` instead of `create_frame`.
+
+### Why `create_component` over `create_frame`
+
+- `create_component` **delegates to `create_frame` internally** — you get all Opinion Engine inferences (sizing, FILL ordering, token auto-binding) for free
+- It converts the frame to a component and auto-binds TEXT component properties via `componentPropertyName`
+- Avoids the error-prone `create_frame` → `create_component_from_node` two-step conversion
+
+### Workflow
+
+All 4 tools below are core — no `load_toolset` needed.
+
+```
+1. create_component → one base variant (library mode: use fillVariableName/fontColorVariableName for token binding)
+2. nodes(method:"clone", items:[...]) → clone base for each variant
+3. nodes(method:"update", items:[...]) → rename variants (e.g. "Size=Small, Style=Primary")
+4. create_component_set → combine into variant set
+5. layout_component_set → auto-arrange variants in a grid (required — variants stack at 0,0 without this)
+```
+
+For component property management (add_component_property, bind_component_property), `load_toolset("components-advanced")`.
+
+### Key Rules
+
+- **Token binding (library mode)**: Use `fillVariableName` for background, `fontColorVariableName` on text children for text color. Do NOT hardcode `fill:"#FFFFFF"` for text on colored backgrounds — use `fontColorVariableName:"text/primary-inverse"` or omit fill to let auto-binding resolve.
+- **Variant naming**: Each component must follow `Property=Value, Property=Value` format (e.g., `"Size=Small, Style=Primary, State=Default"`).
+- **Variant cap**: `create_component_set` enforces a soft 30-variant cap. Pass `variantLimit:0` to disable for legitimate large matrices. Consider extracting high-cardinality axes (icons, colors) into `INSTANCE_SWAP` properties instead.
+- For full component library builds (multiple components + variables + theming), switch to [figma-generate-library](../figma-generate-library/SKILL.md).
 
 ## Opinion Engine
 

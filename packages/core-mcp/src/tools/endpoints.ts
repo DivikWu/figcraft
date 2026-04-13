@@ -137,7 +137,12 @@ export function registerEndpointTools(server: McpServer, bridge: Bridge): void {
     {
       name: 'nodes',
       methods: {
-        get: (b, p) => getNodeInfoLogic(b, { nodeId: p.nodeId as string }),
+        get: (b, p) =>
+          getNodeInfoLogic(b, {
+            nodeId: p.nodeId as string,
+            detail: p.detail as string | undefined,
+            maxDepth: p.maxDepth as number | undefined,
+          }),
         get_batch: async (b, p) => {
           const result = await b.request('get_node_info_batch', {
             nodeIds: p.nodeIds,

@@ -441,6 +441,11 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
       width: z.number(),
       height: z.number(),
       visible: z.boolean(),
+      _libraryBindings: z.array(z.unknown()).optional().describe("Token/style bindings applied during creation"),
+      _hints: z.array(z.unknown()).optional().describe("Smart default inferences applied"),
+      _warnings: z.array(z.unknown()).optional().describe("Non-fatal issues during creation"),
+      _children: z.array(z.unknown()).optional().describe("Created child node IDs"),
+      _lintSummary: z.record(z.unknown()).optional().describe("Quick lint summary after creation. Run lint_fix_all to fix violations."),
     }),
   'create_component_set': z.object({
       id: z.string(),

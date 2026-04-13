@@ -6,6 +6,7 @@ import { simplifyNode } from '../adapters/node-simplifier.js';
 import { handlers, registerHandler } from '../registry.js';
 import { assertHandler, assertNodeType, HandlerError } from '../utils/handler-error.js';
 import { assertOnCurrentPage, findNodeByIdAsync } from '../utils/node-lookup.js';
+import { quickLintSummary } from './lint-inline.js';
 
 export function registerComponentHandlers(): void {
   registerHandler('list_components', async () => {
@@ -47,52 +48,65 @@ export function registerComponentHandlers(): void {
     };
   });
 
-  registerHandler('create_component', async (params) => {
-    const _name = (params.name as string) ?? 'Component';
-    const description = params.description as string | undefined;
+  // ── Single-component creation logic (shared by single + batch modes) ──
+  async function createSingleComponent(
+    itemParams: Record<string, unknown>,
+    createFrameHandler: (p: Record<string, unknown>) => Promise<unknown>,
+  ): Promise<unknown> {
+    const description = itemParams.description as string | undefined;
 
-    // Delegate frame creation to create_frame handler (gets all smart defaults,
-    // token binding, recursive children, sizing inference for free)
-    const createFrameHandler = handlers.get('create_frame');
-    assertHandler(createFrameHandler, 'create_frame handler not registered');
-
-    // Build frame params from component params (exclude component-specific fields)
-    const frameParams: Record<string, unknown> = { ...params };
+    // Build frame params (exclude component-specific fields)
+    const frameParams: Record<string, unknown> = { ...itemParams };
     delete frameParams.description;
     delete frameParams.properties;
-    // create_frame will handle: name, width, height, layoutMode, padding, itemSpacing,
-    // fill, strokeColor, cornerRadius, children, primaryAxisAlignItems, etc.
+    delete frameParams.items; // never pass batch param to create_frame
 
-    const frameResult = (await createFrameHandler(frameParams)) as { id: string };
-    const frameNode = await findNodeByIdAsync(frameResult.id);
-    assertHandler(frameNode && frameNode.type === 'FRAME', `Frame creation failed`);
+    // Step 1: Create frame via create_frame handler (gets Opinion Engine for free)
+    let frameResult: Record<string, unknown>;
+    try {
+      frameResult = (await createFrameHandler(frameParams)) as Record<string, unknown>;
+    } catch (e: unknown) {
+      throw new HandlerError(
+        `create_component: frame creation failed — ${e instanceof Error ? e.message : String(e)}`,
+        'FRAME_CREATION_FAILED',
+      );
+    }
 
-    // Convert frame to component
+    // dryRun: create_frame returns preview without creating nodes — pass through directly
+    if (frameResult.dryRun) return frameResult;
+
+    if (!frameResult.id) {
+      throw new HandlerError(
+        'create_component: create_frame returned no id. Check create_frame params.',
+        'FRAME_CREATION_FAILED',
+      );
+    }
+
+    // Step 2: Convert frame to component
+    const frameNode = await findNodeByIdAsync(frameResult.id as string);
+    assertHandler(
+      frameNode && frameNode.type === 'FRAME',
+      `Frame creation failed: node ${frameResult.id} not found or not a FRAME`,
+    );
+
     const component = figma.createComponentFromNode(frameNode as SceneNode);
     if (description) component.description = description;
 
-    // Bind text children to component TEXT properties via componentPropertyName
-    // Recursively search all children definitions for componentPropertyName
-    if (Array.isArray(params.children)) {
-      function collectTextBindings(
-        defs: Array<Record<string, unknown>>,
-      ): Array<{ propName: string; textContent: string }> {
-        const bindings: Array<{ propName: string; textContent: string }> = [];
+    // Step 3: Bind text children to component TEXT properties via componentPropertyName
+    if (Array.isArray(itemParams.children)) {
+      const textBindings: Array<{ propName: string; textContent: string }> = [];
+      (function collect(defs: Array<Record<string, unknown>>) {
         for (const def of defs) {
           if (def.componentPropertyName && (def.type === 'text' || !def.type)) {
-            bindings.push({
+            textBindings.push({
               propName: def.componentPropertyName as string,
               textContent: (def.content as string) ?? (def.text as string) ?? '',
             });
           }
-          if (Array.isArray(def.children)) {
-            bindings.push(...collectTextBindings(def.children as Array<Record<string, unknown>>));
-          }
+          if (Array.isArray(def.children)) collect(def.children as Array<Record<string, unknown>>);
         }
-        return bindings;
-      }
+      })(itemParams.children as Array<Record<string, unknown>>);
 
-      const textBindings = collectTextBindings(params.children as Array<Record<string, unknown>>);
       for (const { propName, textContent } of textBindings) {
         const textNode = component.findOne(
           (n) => n.type === 'TEXT' && (n.name === propName || (n as TextNode).characters === textContent),
@@ -108,9 +122,9 @@ export function registerComponentHandlers(): void {
       }
     }
 
-    // Add non-text component properties (BOOLEAN, INSTANCE_SWAP)
-    if (Array.isArray(params.properties)) {
-      for (const prop of params.properties as Array<Record<string, unknown>>) {
+    // Step 4: Add non-text component properties (BOOLEAN, INSTANCE_SWAP, SLOT)
+    if (Array.isArray(itemParams.properties)) {
+      for (const prop of itemParams.properties as Array<Record<string, unknown>>) {
         const propName = prop.propertyName as string;
         const propType = prop.type as string;
         const defaultValue = prop.defaultValue;
@@ -124,7 +138,65 @@ export function registerComponentHandlers(): void {
       }
     }
 
-    return simplifyNode(component);
+    // Step 5: Post-creation lint — catch hardcoded tokens and other violations immediately
+    const simplified = simplifyNode(component);
+    let lintSummary: unknown;
+    try {
+      lintSummary = await quickLintSummary(component.id, true);
+    } catch {
+      /* lint failure should not block creation */
+    }
+    return lintSummary ? { ...simplified, _lintSummary: lintSummary } : simplified;
+  }
+
+  registerHandler('create_component', async (params) => {
+    const createFrameHandler = handlers.get('create_frame');
+    assertHandler(createFrameHandler, 'create_frame handler not registered');
+
+    // ── Batch mode: items[] ──
+    if (Array.isArray(params.items)) {
+      const items = params.items as Array<Record<string, unknown>>;
+      const MAX_BATCH = 20;
+      assertHandler(
+        items.length <= MAX_BATCH,
+        `Batch limited to ${MAX_BATCH} components per call. Got ${items.length}.`,
+        'BATCH_LIMIT_EXCEEDED',
+      );
+
+      const results: Array<{ id?: string; name?: string; ok: boolean; error?: string }> = [];
+      let created = 0;
+      let totalViolations = 0;
+      let totalAutoFixed = 0;
+      for (const item of items) {
+        try {
+          const result = (await createSingleComponent(item, createFrameHandler)) as Record<string, unknown>;
+          results.push({ id: result.id as string, name: result.name as string, ok: true });
+          created++;
+          // Aggregate lint stats
+          if (result._lintSummary) {
+            const ls = result._lintSummary as Record<string, unknown>;
+            totalViolations += (ls.violations as number) ?? 0;
+            totalAutoFixed += (ls.autoFixed as number) ?? 0;
+          }
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          results.push({ name: (item.name as string) ?? 'Component', ok: false, error: msg });
+        }
+      }
+      const out: Record<string, unknown> = { created, total: items.length, items: results };
+      if (totalViolations > 0) {
+        out._batchLintSummary = {
+          totalViolations,
+          totalAutoFixed,
+          remaining: totalViolations - totalAutoFixed,
+          hint: 'Run lint_fix_all to fix remaining violations across all created components.',
+        };
+      }
+      return out;
+    }
+
+    // ── Single mode ──
+    return createSingleComponent(params, createFrameHandler);
   });
 
   // create_instance is registered in write-nodes-instance.ts (with shared importAndResolveComponent,
@@ -288,7 +360,10 @@ export function registerComponentHandlers(): void {
 
     const set = figma.combineAsVariants(components, figma.currentPage);
     if (params.name != null) set.name = params.name as string;
-    return simplifyNode(set);
+    return {
+      ...simplifyNode(set),
+      _nextStep: `Call layout_component_set(nodeId:"${set.id}") to auto-arrange variants in a grid. Without this, all variants stack at position (0,0).`,
+    };
   });
 
   registerHandler('get_instance_overrides', async (params) => {

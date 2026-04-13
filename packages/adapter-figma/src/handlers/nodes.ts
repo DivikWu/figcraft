@@ -66,14 +66,54 @@ const WRONG_BUCKET: Record<string, string> = {
 export function registerNodeHandlers(): void {
   registerHandler('get_node_info', async (params) => {
     const nodeId = params.nodeId as string;
-    const detail = (params.detail as SimplifyDetail | undefined) ?? 'full';
+    const requestedDetail = (params.detail as SimplifyDetail | undefined) ?? 'full';
+    const maxDepth = params.maxDepth as number | undefined;
     const node = await findNodeByIdAsync(nodeId);
     assertHandler(
       node && 'type' in node && node.type !== 'PAGE' && node.type !== 'DOCUMENT',
       `Node not found: ${nodeId}`,
       'NOT_FOUND',
     );
-    return simplifyNode(node as SceneNode, 0, undefined, createContext(undefined, undefined, detail));
+
+    // ── Auto-degradation for large subtrees ──
+    // Estimate descendant count cheaply (direct children only, O(1))
+    const directChildren = 'children' in node ? (node as ChildrenMixin).children.length : 0;
+    let detail = requestedDetail;
+    let degradeDepth: number | undefined;
+    let degraded = false;
+
+    if (maxDepth != null) {
+      // Explicit maxDepth: use degradeDepth like get_current_page
+      degradeDepth = maxDepth >= 2 ? Math.max(1, maxDepth - 1) : undefined;
+    } else if (directChildren > 50 && requestedDetail === 'full') {
+      // Large node with full detail → auto-degrade to standard + shallow degradeDepth
+      detail = 'standard';
+      degradeDepth = 2;
+      degraded = true;
+    } else if (directChildren > 20 && requestedDetail === 'full') {
+      // Medium node → degrade to standard + shallow degradeDepth
+      detail = 'standard';
+      degradeDepth = 3;
+      degraded = true;
+    }
+
+    const result = simplifyNode(
+      node as SceneNode,
+      0,
+      undefined,
+      createContext(maxDepth, undefined, detail, degradeDepth),
+    );
+
+    if (!degraded) return result;
+
+    // Attach degradation metadata so AI knows data was reduced
+    return {
+      ...result,
+      _degraded: true,
+      _hint:
+        `Node has ${directChildren} direct children — detail auto-degraded to "${detail}" with deep children at summary level. ` +
+        `Use nodes(method:"get", nodeId:"<childId>") on specific children for full details.`,
+    };
   });
 
   // ─── Design-to-Code Context (P0-5) ───

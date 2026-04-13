@@ -41,10 +41,10 @@ Phase 0: DISCOVERY (always first — no writes yet)
   ✋ USER CHECKPOINT: present full plan, await explicit approval
 
 Phase 1: FOUNDATIONS (tokens first — always before components)
-  1a. ensure_collection_modes → create collections with modes
-  1b. batch_create_variables → create primitive variables (raw values)
+  1a. variables_ep(method:"create_collection") → create collections with modes
+  1b. variables_ep(method:"batch_create") → create primitive variables (raw values)
   1c. create_variable_alias → create semantic variables (aliased to primitives, mode-aware)
-  1d. set scopes via batch_create_variables(scopes:[...]) or variables_ep(method:"update", scopes:[...])
+  1d. set scopes via batch_create(scopes:[...]) or variables_ep(method:"update", scopes:[...])
   1e. variables_ep(method:"set_code_syntax") → set code syntax on ALL variables
   1f. styles_ep(method:"create_text") + styles_ep(method:"create_effect") → create text and effect styles
   → Exit criteria: every token from the agreed plan exists, all scopes set, all code syntax set
@@ -57,15 +57,17 @@ Phase 2: FILE STRUCTURE (before components)
   ✋ USER CHECKPOINT: show page list + export_image, await approval
 
 Phase 3: COMPONENTS (one at a time — never batch)
+  ⚡ Steps 3b-3e use core tools (no load_toolset needed).
+  ⚡ Steps 3f-3g need load_toolset("components-advanced") for property management.
   For EACH component (in dependency order: atoms before molecules):
     3a. create_page → dedicated page, then set_current_page to switch to it
-    3b. create_component → base component with auto-layout, children, variable bindings
-    3c. clone_nodes → clone base for each variant, patch_nodes to rename (e.g. "Size=Small, Style=Primary")
-    3d. create_component_set → combineAsVariants
-    3e. layout_component_set → auto-grid-layout variants
-    3f. add_component_property → add TEXT, BOOLEAN, INSTANCE_SWAP, SLOT properties
+    3b. create_component → base component with auto-layout, children, variable bindings (CORE)
+    3c. nodes(method:"clone") → clone base for each variant, nodes(method:"update") to rename (e.g. "Size=Small, Style=Primary")
+    3d. create_component_set → combineAsVariants (CORE)
+    3e. layout_component_set → auto-grid-layout variants (CORE)
+    3f. load_toolset("components-advanced") → add_component_property for TEXT, BOOLEAN, INSTANCE_SWAP, SLOT
     3g. bind_component_property → wire properties to child nodes across all variants
-    3h. batch_set_variable_binding → bind variables to all variant properties in one call
+    3h. variables_ep(method:"batch_bind") → bind variables to all variant properties in one call
     3i. create_frame + create_text → page documentation
     3j. export_image + audit_node → validate structure and visual
     → Exit criteria: variant count correct, all bindings verified, screenshot looks right
@@ -100,8 +102,8 @@ Phase 4: INTEGRATION + QA (final pass)
 
 | Task | Tool |
 |------|------|
-| Create collection + modes | `ensure_collection_modes(collectionName, modeNames)` |
-| Batch create primitives | `batch_create_variables(collectionName, variables:[{name, type, value, scopes}])` |
+| Create collection + modes | `variables_ep(method:"create_collection", collectionName, modeNames:["Light","Dark"])` |
+| Batch create primitives | `variables_ep(method:"batch_create", collectionName, variables:[{name, type, value, scopes}])` |
 | Create semantic aliases | `create_variable_alias(variableId, targetVariableId, modeId)` |
 | Set multi-mode values | `variables_ep(method:"set_values_multi_mode", variableId, valuesByMode:{Light:"#FFF", Dark:"#1A1A1A"})` |
 | Set code syntax | `variables_ep(method:"set_code_syntax", variableId, syntax:{WEB:"var(--color-primary)"})` |
