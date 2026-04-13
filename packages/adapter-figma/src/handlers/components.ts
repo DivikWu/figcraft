@@ -376,7 +376,11 @@ export function registerComponentHandlers(): void {
       );
     }
 
-    const set = figma.combineAsVariants(components, figma.currentPage);
+    // Detect if components share a common SECTION parent — preserve it as the ComponentSet parent
+    const sectionParent =
+      components[0]?.parent?.type === 'SECTION' ? (components[0].parent as FrameNode | SectionNode) : null;
+    const targetParent = sectionParent ?? figma.currentPage;
+    const set = figma.combineAsVariants(components, targetParent);
     if (params.name != null) set.name = params.name as string;
 
     // ── Auto-layout variants in grid (Layer 1: code enforcement) ──
@@ -391,8 +395,8 @@ export function registerComponentHandlers(): void {
       }
     }
 
-    // ── Auto-position: avoid overlapping existing page content ──
-    const siblings = figma.currentPage.children;
+    // ── Auto-position: avoid overlapping siblings within parent (section or page) ──
+    const siblings = targetParent.children;
     if (siblings.length > 1) {
       let maxBottom = 0;
       for (const child of siblings) {
@@ -403,6 +407,21 @@ export function registerComponentHandlers(): void {
       if (maxBottom > 0 && set.y < maxBottom) {
         set.y = maxBottom + 80;
       }
+    }
+
+    // ── Auto-resize section to fit content ──
+    if (sectionParent) {
+      const SECTION_PADDING = 40;
+      let maxRight = 0;
+      let maxBottom = 0;
+      for (const child of sectionParent.children) {
+        maxRight = Math.max(maxRight, child.x + child.width);
+        maxBottom = Math.max(maxBottom, child.y + child.height);
+      }
+      sectionParent.resizeWithoutConstraints(
+        Math.max(sectionParent.width, maxRight + SECTION_PADDING),
+        Math.max(sectionParent.height, maxBottom + SECTION_PADDING),
+      );
     }
 
     return {

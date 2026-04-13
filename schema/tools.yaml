@@ -4562,6 +4562,12 @@ create_section:
     name:
       type: string
       description: 'Section name (default: "Section")'
+    width:
+      type: number
+      description: 'Section width in px (default: 1920)'
+    height:
+      type: number
+      description: 'Section height in px (default: 1080)'
     x:
       type: number
       description: X position

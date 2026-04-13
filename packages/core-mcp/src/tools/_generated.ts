@@ -882,6 +882,8 @@ export function registerGeneratedTools(
     "Create a Figma Section node for organizing canvas content. Sections group frames without clipping and can be collapsed in Figma. Optionally move existing nodes inside by providing childIds. Auto-positions below existing content when x/y omitted.",
     {
       name: z.string().optional().describe("Section name (default: \"Section\")"),
+      width: z.number().optional().describe("Section width in px (default: 1920)"),
+      height: z.number().optional().describe("Section height in px (default: 1080)"),
       x: z.number().optional().describe("X position"),
       y: z.number().optional().describe("Y position"),
       childIds: z.array(z.string()).optional().describe("Node IDs to move inside the section"),

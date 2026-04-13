@@ -441,6 +441,7 @@ export function registerInstanceHandlers(): void {
   registerHandler('create_section', async (params) => {
     const section = figma.createSection();
     section.name = (params.name as string) ?? 'Section';
+    section.resizeWithoutConstraints((params.width as number) ?? 1920, (params.height as number) ?? 1080);
 
     if (params.x != null) section.x = params.x as number;
     if (params.y != null) section.y = params.y as number;
@@ -471,7 +472,14 @@ export function registerInstanceHandlers(): void {
       }
     }
 
-    return { id: section.id, name: section.name, x: section.x, y: section.y };
+    return {
+      id: section.id,
+      name: section.name,
+      x: section.x,
+      y: section.y,
+      width: section.width,
+      height: section.height,
+    };
   });
 
   registerHandler('boolean_operation', async (params) => {
