@@ -2748,10 +2748,10 @@ create_component:
 
     Omit x/y to auto-position below existing content. For fixed-height components (buttons),
     pass height + layoutSizingVertical:"FIXED" to prevent Opinion Engine HUG override.
-    When role is set (e.g. "button"), Harness auto-injects fillVariableName/fontColorVariableName
-    from designContext.defaults — no need to pass them explicitly.
+    Use fillVariableId (from designContext.defaults.*.id) for direct variable binding — zero name resolution.
+    Harness auto-injects section parentId — omit parentId to auto-place inside last created section.
 
-    Workflow: create_component → nodes(method:"clone") → create_component_set (auto-layouts + auto-positions).
+    Workflow: create_section → create_component(fillVariableId:...) → clone → create_component_set.
   toolset: core
   write: true
   access: create
