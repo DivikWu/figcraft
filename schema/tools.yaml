@@ -2746,8 +2746,11 @@ create_component:
     TEXT properties auto-bind to child text nodes via componentPropertyName.
     Accepts all create_frame params via passthrough — only common params listed here.
 
-    Component authoring workflow: create_component → nodes(method:"clone") for variants →
-    create_component_set → layout_component_set.
+    Omit x/y to auto-position below existing content. Pass layoutSizingHorizontal:"FIXED" with width
+    to prevent Opinion Engine HUG override. Response includes _warnings and _tokenBindingFailures
+    from create_frame — check these for failed variable bindings.
+
+    Workflow: create_component → nodes(method:"clone") → create_component_set (auto-layouts + auto-positions).
   toolset: core
   write: true
   access: create
@@ -2884,6 +2887,7 @@ create_component:
 create_component_set:
   description: >-
     Combine multiple existing components into a variant set (ComponentSet).
+    Auto-layouts variants in grid and auto-positions below existing content.
     Enforces a soft variant cap (default 30). Override via variantLimit param.
   toolset: core
   write: true
@@ -4546,7 +4550,8 @@ create_section:
     Create a Figma Section node for organizing canvas content.
     Sections group frames without clipping and can be collapsed in Figma.
     Optionally move existing nodes inside by providing childIds.
-  toolset: shapes-vectors
+    Auto-positions below existing content when x/y omitted.
+  toolset: core
   write: true
   access: create
   handler: bridge
@@ -5932,6 +5937,9 @@ nodes:
         → (4) resize (width/height)
         → (5) text props (fontSize, fontName, textDecoration, textCase, textAlign, paragraphSpacing).
         Safe to send layoutMode + width + layoutSizing in the same patch — ordering is handled internally.
+        ⚠️ fillVariableName/strokeVariableName/fontColorVariableName are create_frame aliases — NOT supported here.
+        For post-creation variable binding use variables_ep(method:"set_binding") or variables_ep(method:"batch_bind").
+        Strokes require Figma Paint format: [{type:"SOLID", color:{r:0,g:0,b:0}}], not hex strings.
       maps_to: patch_nodes
       write: true
       access: edit

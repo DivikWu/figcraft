@@ -445,6 +445,22 @@ export function registerInstanceHandlers(): void {
     if (params.x != null) section.x = params.x as number;
     if (params.y != null) section.y = params.y as number;
 
+    // ── Auto-position: avoid overlapping existing page content ──
+    if (params.x == null && params.y == null) {
+      const siblings = figma.currentPage.children;
+      if (siblings.length > 1) {
+        let maxBottom = 0;
+        for (const child of siblings) {
+          if (child.id === section.id) continue;
+          if (!child.visible) continue;
+          maxBottom = Math.max(maxBottom, child.y + child.height);
+        }
+        if (maxBottom > 0) {
+          section.y = maxBottom + 80;
+        }
+      }
+    }
+
     if (params.childIds) {
       const ids = params.childIds as string[];
       for (const id of ids) {

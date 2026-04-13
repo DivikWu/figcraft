@@ -63,8 +63,7 @@ Phase 3: COMPONENTS (one at a time — never batch)
     3a. create_page → dedicated page, then set_current_page to switch to it
     3b. create_component → base component with auto-layout, children, variable bindings (CORE)
     3c. nodes(method:"clone") → clone base for each variant, nodes(method:"update") to rename (e.g. "Size=Small, Style=Primary")
-    3d. create_component_set → combineAsVariants (CORE)
-    3e. layout_component_set → auto-grid-layout variants (CORE)
+    3d. create_component_set → combineAsVariants + auto-layout + auto-position (CORE, all automatic)
     3f. load_toolset("components-advanced") → add_component_property for TEXT, BOOLEAN, INSTANCE_SWAP, SLOT
     3g. bind_component_property → wire properties to child nodes across all variants
     3h. variables_ep(method:"batch_bind") → bind variables to all variant properties in one call

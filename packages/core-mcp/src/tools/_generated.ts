@@ -363,7 +363,7 @@ export function registerGeneratedTools(
   if (shouldRegisterGeneratedTool(include, 'create_component')) {
     server.tool(
     'create_component',
-    "Create a component with layout, fill, stroke, inline children, and component properties in one call. Delegates to create_frame internally — all Opinion Engine inferences apply automatically. TEXT properties auto-bind to child text nodes via componentPropertyName. Accepts all create_frame params via passthrough — only common params listed here.\nComponent authoring workflow: create_component → nodes(method:\"clone\") for variants → create_component_set → layout_component_set.",
+    "Create a component with layout, fill, stroke, inline children, and component properties in one call. Delegates to create_frame internally — all Opinion Engine inferences apply automatically. TEXT properties auto-bind to child text nodes via componentPropertyName. Accepts all create_frame params via passthrough — only common params listed here.\nOmit x/y to auto-position below existing content. Pass layoutSizingHorizontal:\"FIXED\" with width to prevent Opinion Engine HUG override. Response includes _warnings and _tokenBindingFailures from create_frame — check these for failed variable bindings.\nWorkflow: create_component → nodes(method:\"clone\") → create_component_set (auto-layouts + auto-positions).",
     {
       name: z.string().optional().describe("Component name (default: \"Component\")"),
       description: z.string().optional().describe("Component description"),
@@ -398,7 +398,7 @@ export function registerGeneratedTools(
   if (shouldRegisterGeneratedTool(include, 'create_component_set')) {
     server.tool(
     'create_component_set',
-    "Combine multiple existing components into a variant set (ComponentSet). Enforces a soft variant cap (default 30). Override via variantLimit param.",
+    "Combine multiple existing components into a variant set (ComponentSet). Auto-layouts variants in grid and auto-positions below existing content. Enforces a soft variant cap (default 30). Override via variantLimit param.",
     {
       componentIds: z.array(z.string()).describe("Component node IDs to combine into a variant set"),
       name: z.string().optional().describe("Name for the variant set"),
@@ -879,7 +879,7 @@ export function registerGeneratedTools(
   if (shouldRegisterGeneratedTool(include, 'create_section')) {
     server.tool(
     'create_section',
-    "Create a Figma Section node for organizing canvas content. Sections group frames without clipping and can be collapsed in Figma. Optionally move existing nodes inside by providing childIds.",
+    "Create a Figma Section node for organizing canvas content. Sections group frames without clipping and can be collapsed in Figma. Optionally move existing nodes inside by providing childIds. Auto-positions below existing content when x/y omitted.",
     {
       name: z.string().optional().describe("Section name (default: \"Section\")"),
       x: z.number().optional().describe("X position"),

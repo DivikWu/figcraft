@@ -158,11 +158,11 @@ When the task is creating **new reusable components** (buttons, inputs, cards wi
 All 4 tools below are core — no `load_toolset` needed.
 
 ```
-1. create_component → one base variant (library mode: use fillVariableName/fontColorVariableName for token binding)
-2. nodes(method:"clone", items:[...]) → clone base for each variant
-3. nodes(method:"update", items:[...]) → rename variants (e.g. "Size=Small, Style=Primary")
-4. create_component_set → combine into variant set
-5. layout_component_set → auto-arrange variants in a grid (required — variants stack at 0,0 without this)
+1. create_section(name:"Button") → organize components (auto-positions below existing content)
+2. create_component → one base variant (library mode: use fillVariableName/fontColorVariableName)
+3. nodes(method:"clone", items:[...]) → clone base for each variant
+4. nodes(method:"update", items:[...]) → rename variants (e.g. "Size=Small, Style=Primary")
+5. create_component_set → combine + auto-layout + auto-position (all automatic)
 ```
 
 For component property management (add_component_property, bind_component_property), `load_toolset("components-advanced")`.

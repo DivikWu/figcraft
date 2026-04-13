@@ -132,10 +132,11 @@ export function buildWorkflow(input: WorkflowInput): Record<string, unknown> {
         : null,
       // Component authoring (when building reusable components, not just screens)
       '⛔ COMPONENT AUTHORING: If the task is creating reusable components/variants (not assembling screens from existing components): ' +
-        'create_component (one base variant' +
+        'create_section(name:"Button") to organize → create_component (one base variant' +
         (hasLibrary ? ' with fillVariableName/fontColorVariableName for token binding' : '') +
         ') → nodes(method:"clone") to clone for each variant → nodes(method:"update") to rename (e.g. "Size=Small, Style=Primary") → ' +
-        'create_component_set → layout_component_set. All 4 tools are core — no load_toolset needed. ' +
+        'create_component_set (auto-layouts + auto-positions). All tools are core — no load_toolset needed. ' +
+        'create_section and create_component_set auto-position below existing content. ' +
         'For component property management (add_component_property, bind_component_property), load_toolset("components-advanced").',
       // Component instances (Library vs Local vs Creator)
       isLocal

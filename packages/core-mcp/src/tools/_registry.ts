@@ -7,7 +7,7 @@
  * Re-generate: npm run schema
  */
 
-/** Core tools: always enabled (~38) */
+/** Core tools: always enabled (~39) */
 export const GENERATED_CORE_TOOLS = new Set([
   'ping',
   'get_mode',
@@ -41,6 +41,7 @@ export const GENERATED_CORE_TOOLS = new Set([
   'create_component_set',
   'create_component_from_node',
   'layout_component_set',
+  'create_section',
   'verify_design',
   'nodes',
   'text',
@@ -391,7 +392,6 @@ export const GENERATED_TOOLSETS: Record<string, { description: string; tools: st
       'create_polygon',
       'create_rectangle',
       'create_ellipse',
-      'create_section',
       'group_nodes',
       'flatten_node',
       'boolean_operation',

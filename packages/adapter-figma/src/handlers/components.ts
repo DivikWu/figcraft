@@ -146,7 +146,17 @@ export function registerComponentHandlers(): void {
     } catch {
       /* lint failure should not block creation */
     }
-    return lintSummary ? { ...simplified, _lintSummary: lintSummary } : simplified;
+
+    // Merge frameResult metadata (warnings, bindings, failures) into response.
+    // Without this, token binding failures from create_frame are silently lost.
+    const metaKeys = ['_warnings', '_libraryBindings', '_tokenBindingFailures', '_hints', '_typedHints'] as const;
+    const meta: Record<string, unknown> = {};
+    for (const key of metaKeys) {
+      if (frameResult[key] != null) meta[key] = frameResult[key];
+    }
+    if (lintSummary) meta._lintSummary = lintSummary;
+
+    return Object.keys(meta).length > 0 ? { ...simplified, ...meta } : simplified;
   }
 
   registerHandler('create_component', async (params) => {
@@ -167,6 +177,7 @@ export function registerComponentHandlers(): void {
       let created = 0;
       let totalViolations = 0;
       let totalAutoFixed = 0;
+      const allBindingFailures: unknown[] = [];
       for (const item of items) {
         try {
           const result = (await createSingleComponent(item, createFrameHandler)) as Record<string, unknown>;
@@ -177,6 +188,10 @@ export function registerComponentHandlers(): void {
             const ls = result._lintSummary as Record<string, unknown>;
             totalViolations += (ls.violations as number) ?? 0;
             totalAutoFixed += (ls.autoFixed as number) ?? 0;
+          }
+          // Collect token binding failures across batch
+          if (Array.isArray(result._tokenBindingFailures)) {
+            allBindingFailures.push(...(result._tokenBindingFailures as unknown[]));
           }
         } catch (e: unknown) {
           const msg = e instanceof Error ? e.message : String(e);
@@ -191,6 +206,9 @@ export function registerComponentHandlers(): void {
           remaining: totalViolations - totalAutoFixed,
           hint: 'Run lint_fix_all to fix remaining violations across all created components.',
         };
+      }
+      if (allBindingFailures.length > 0) {
+        out._tokenBindingFailures = allBindingFailures;
       }
       return out;
     }
@@ -360,9 +378,36 @@ export function registerComponentHandlers(): void {
 
     const set = figma.combineAsVariants(components, figma.currentPage);
     if (params.name != null) set.name = params.name as string;
+
+    // ── Auto-layout variants in grid (Layer 1: code enforcement) ──
+    const layoutHandler = handlers.get('layout_component_set');
+    let layoutApplied = false;
+    if (layoutHandler) {
+      try {
+        await layoutHandler({ nodeId: set.id });
+        layoutApplied = true;
+      } catch {
+        /* layout failure should not block creation */
+      }
+    }
+
+    // ── Auto-position: avoid overlapping existing page content ──
+    const siblings = figma.currentPage.children;
+    if (siblings.length > 1) {
+      let maxBottom = 0;
+      for (const child of siblings) {
+        if (child.id === set.id) continue;
+        if (!child.visible) continue;
+        maxBottom = Math.max(maxBottom, child.y + child.height);
+      }
+      if (maxBottom > 0 && set.y < maxBottom) {
+        set.y = maxBottom + 80;
+      }
+    }
+
     return {
       ...simplifyNode(set),
-      _nextStep: `Call layout_component_set(nodeId:"${set.id}") to auto-arrange variants in a grid. Without this, all variants stack at position (0,0).`,
+      _layoutApplied: layoutApplied,
     };
   });
 
