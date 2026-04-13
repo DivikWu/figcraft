@@ -13,7 +13,11 @@
 import type { Bridge } from '../bridge.js';
 import { HarnessPipeline } from './pipeline.js';
 import { createAutoVerifyRule } from './rules/auto-verify.js';
-import { componentDefaultsInjection, componentDefaultsPostEnrich } from './rules/component-defaults-injection.js';
+import {
+  componentDefaultsInjection,
+  componentDefaultsPostEnrich,
+  trackSectionCreation,
+} from './rules/component-defaults-injection.js';
 import { contentWarningsRule } from './rules/content-warnings.js';
 import { createRecoveryRules } from './rules/data-recovery.js';
 import { createDesignDecisionsRule } from './rules/design-decisions.js';
@@ -76,6 +80,7 @@ export function createHarnessPipeline(bridge: Bridge): HarnessPipeline {
   pipeline.register(recordCreationDebtRule);
   pipeline.register(recordVerificationRule);
   pipeline.register(errorJournalRule);
+  pipeline.register(trackSectionCreation);
 
   console.error(`[FigCraft harness] pipeline initialized with ${pipeline.ruleCount} rules`);
   return pipeline;

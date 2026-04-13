@@ -39,6 +39,8 @@ export class DesignSession {
   private _designContextDefaults: Record<string, { name: string } | null> | null = null;
   /** Saved design decisions from creator mode when migrating to library mode. Cleared after first get_mode. */
   private _migrationContext: DesignDecisions | null = null;
+  /** Last created section ID — auto-injected as parentId for create_component. */
+  private _lastSectionId: string | null = null;
 
   // ─── REST component cache ───
 
@@ -79,6 +81,7 @@ export class DesignSession {
       this._designDecisions = null;
       this._libraryFallbackDecisions = null;
       this._designContextDefaults = null;
+      this._lastSectionId = null;
     }
   }
 
@@ -157,6 +160,16 @@ export class DesignSession {
 
   set designContextDefaults(value: Record<string, { name: string } | null> | null) {
     this._designContextDefaults = value;
+  }
+
+  // ─── Section tracking ───
+
+  get lastSectionId(): string | null {
+    return this._lastSectionId;
+  }
+
+  set lastSectionId(value: string | null) {
+    this._lastSectionId = value;
   }
 
   // ─── REST component cache ───

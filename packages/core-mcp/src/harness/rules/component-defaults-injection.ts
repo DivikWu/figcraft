@@ -46,6 +46,12 @@ export const componentDefaultsInjection: HarnessRule = {
 
     const injected: Record<string, string> = {};
 
+    // Auto-inject parentId from last created section (if no explicit parentId)
+    if (!params.parentId && ctx.session.lastSectionId) {
+      params.parentId = ctx.session.lastSectionId;
+      injected.parentId = ctx.session.lastSectionId;
+    }
+
     // Auto-inject fillVariableName if not explicitly set
     const fillRole = ROLE_FILL_MAP[role];
     if (fillRole && !params.fill && !params.fillVariableName) {
@@ -103,5 +109,22 @@ export const componentDefaultsPostEnrich: HarnessRule = {
       type: 'enrich',
       fields: { _autoInjected: injected },
     };
+  },
+};
+
+/** Session-update rule: cache section ID when create_section succeeds. */
+export const trackSectionCreation: HarnessRule = {
+  name: 'track-section-creation',
+  tools: ['create_section'],
+  phase: 'session-update',
+  priority: 100,
+
+  async execute(ctx): Promise<HarnessAction> {
+    if (!ctx.result) return PASS;
+    const result = ctx.result as Record<string, unknown>;
+    if (result.id && typeof result.id === 'string') {
+      ctx.session.lastSectionId = result.id;
+    }
+    return PASS;
   },
 };
