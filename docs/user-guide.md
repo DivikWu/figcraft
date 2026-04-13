@@ -24,7 +24,7 @@ Figma Plugin (UI iframe ↔ code.js sandbox)
 ```
 
 **核心特性：**
-- 136 个 MCP 工具覆盖设计全流程
+- 116 个 MCP 工具覆盖设计全流程
 - 40 条 Lint 规则 + 自动修复
 - 双模式：Figma 共享库 / DTCG 规范文档
 - Opinion Engine 自动推断布局、尺寸、Token 绑定
@@ -179,7 +179,7 @@ cwd = "/your/absolute/path/to/figcraft"
 
 ### 3.2 工具体系
 
-**31 个核心工具**（始终可用）：
+**39 个核心工具**（始终可用）：
 
 | 类别 | 工具 |
 |---|---|

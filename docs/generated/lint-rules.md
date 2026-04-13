@@ -10,10 +10,10 @@
 | --- | ---: | ---: |
 | Token Compliance | 6 | 6 |
 | WCAG Accessibility | 5 | 3 |
-| Layout & Structure | 24 | 13 |
+| Layout & Structure | 26 | 13 |
 | Naming & Content | 2 | 0 |
 | Component | 1 | 0 |
-| **Total** | **38** | **22** |
+| **Total** | **40** | **22** |
 
 ## Token Compliance
 
@@ -64,6 +64,8 @@
 | `input-field-structure` | heuristic | ✅ | Input fields must be auto-layout frames with stroke, corner radius, padding, and a text child. |
 | `mobile-dimensions` | style | ✅ | Mobile screen frames should use standard dimensions: iOS 402×874, Android 412×915. |
 | `system-bar-fullbleed` | unsafe | ✅ | Screens with system bars must have paddingLeft/Right/Top = 0 for full-bleed layout. |
+| `elevation-consistency` | heuristic | — | Sibling elements in the same container should share a consistent elevation strategy (all shadows or all flat). |
+| `elevation-hierarchy` | heuristic | — | Child elements should not have stronger shadows than their parent container. |
 
 ## Naming & Content
 
@@ -108,6 +110,8 @@ These hints are injected into AI prompts to prevent violations during creation.
 | `input-field-structure` | All input fields must be auto-layout frames with stroke (border), corner radius, internal padding, and placeholder text child — set layoutAlign: STRETCH |
 | `mobile-dimensions` | Mobile screen dimensions: iOS 402×874, Android 412×915 (no legacy sizes) |
 | `system-bar-fullbleed` | System bars (iOS/Android status bar) must be full-bleed: page-level paddingLeft/Right/Top = 0, primaryAxisAlignItems = MIN |
+| `elevation-consistency` | Choose one elevation strategy per container: flat (borders only) or elevated (shadows). Do not mix. |
+| `elevation-hierarchy` | Child elements should not have stronger shadows than their parent container. |
 | `default-name` | Every frame must have a descriptive name reflecting its purpose (e.g. "Login Form", "Email Input") — no "Frame 1" defaults |
 | `placeholder-text` | Use realistic, contextually appropriate text. Never use "Lorem ipsum", "Title", "Button", or "Text goes here". |
 

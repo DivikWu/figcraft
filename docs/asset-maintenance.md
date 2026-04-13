@@ -6,11 +6,11 @@
 
 | 资产 | 位置 | 格式 | 数量 | 构建命令 |
 |------|------|------|------|---------|
-| **Skills** | `skills/*/SKILL.md` | Markdown | 28 | `npm run build`（自动拷贝到 dist） |
+| **Skills** | `skills/*/SKILL.md` | Markdown | 29 | `npm run build`（自动拷贝到 dist） |
 | **UI 模板** | `content/templates/*.yaml` | YAML | 9 | `npm run content` |
 | **创建指南** | `content/guides/*.md` | Markdown | 7 | `npm run content` |
 | **MCP Prompts** | `content/prompts/*.yaml` | YAML | 9 | `npm run content` |
-| **MCP 工具** | `schema/tools.yaml` | YAML | 111 | `npm run schema` |
+| **MCP 工具** | `schema/tools.yaml` | YAML | 116 | `npm run schema` |
 | **Lint 规则** | `packages/quality-engine/src/rules/` | TypeScript | 40 | `npm run build` |
 | **Harness 规则** | `packages/core-mcp/src/harness/rules/` | TypeScript | 18 | `npm run build` |
 
@@ -187,9 +187,9 @@ steps: |                 # 工作流步骤文本
 
 **位置**: `packages/quality-engine/src/rules/<category>/<rule-name>.ts`
 
-**分类目录**: `layout/`(14)、`structure/`(13)、`spec/`(6)、`wcag/`(6, 含 1 helper)、`naming/`(2)
+**分类目录**: `layout/`(14)、`structure/`(13)、`spec/`(6)、`wcag/`(5, 含 1 helper)、`naming/`(2)
 
-**autoFix 率**: 53%（21/40）
+**autoFix 率**: 55%（22/40）
 
 ### 新增规则
 

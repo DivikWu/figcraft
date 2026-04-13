@@ -16,12 +16,14 @@ Describe what you want in natural language, and FigCraft + Figma MCP make it hap
 
 ## Features
 
-- 🎨 **From creation to delivery, fully covered** — Create UI directly in Figma, pair with the [official Figma MCP server](https://developers.figma.com/docs/figma-mcp-server/) for even more power. Check quality right after you create, fix issues on the spot
+- 🎨 **From creation to delivery, fully covered** — Create UI directly in Figma with 116 MCP tools. Build frames, components, variants, icons — check quality right after, fix issues on the spot
+- 🧠 **Opinion Engine** — auto-infers layout direction, sizing, token bindings, and catches parameter conflicts before they hit Figma. You describe *what*, it figures out *how*
 - 🔍 **Automated design audit** — token bindings, color contrast, spacing, component health — all checked in one pass
 - 🔧 **Lint + fix in one step** — 40 rules covering token compliance, WCAG, layout structure — one command to batch-fix everything flagged
 - 🔄 **Two-way token sync** — DTCG JSON ↔ Figma variables, Light/Dark multi-mode in one step. Changed tokens in code? Just sync
 - 🔀 **Dual mode for any team** — Library mode for Figma shared libraries, Spec mode for DTCG JSON — pick what fits your workflow
 - 📐 **Prototype → dev docs** — parse prototype interactions into Mermaid flow diagrams + interaction specs, no more manual handoff docs
+- 🛡️ **Harness Pipeline** — auto-verifies every creation, recovers from errors with actionable suggestions, and tracks quality debt across turns
 
 ## Quick Start
 
@@ -164,9 +166,9 @@ MCP Server (Node.js)
         (lint, audit, token sync, node ops)
 ```
 
-- Plugin Channel: WebSocket relay to the FigCraft Figma Plugin. Required for lint/audit (needs full node tree traversal in Plugin sandbox).
+- Plugin Channel: WebSocket relay to the FigCraft Figma Plugin. Required for all operations — creation, lint, audit, node inspection, and token sync all run through the Plugin API sandbox.
 - `ping` checks Plugin Channel connectivity and reports status.
-- Code generation, design system search, Code Connect, and canvas write are provided by Figma Power (Kiro) or the official Figma MCP server, not by FigCraft.
+- FigCraft handles UI creation, design system search, component management, and design-to-code context extraction natively. The [official Figma MCP server](https://developers.figma.com/docs/figma-mcp-server/) complements it with FigJam support and Code Connect publishing.
 
 ## Dual Mode
 
@@ -179,11 +181,12 @@ Switch modes via `set_mode` tool or the plugin UI.
 
 ## UI Creation
 
-FigCraft can create UI directly in Figma (frames, shapes, text, components). It also pairs well with the [official Figma MCP server](https://developers.figma.com/docs/figma-mcp-server/) for broader creation capabilities. Either way, FigCraft's quality tools have you covered:
+FigCraft creates UI directly in Figma — frames, text, SVG, components, variants, icons, and images. The Opinion Engine auto-infers layout, sizing, and token bindings so you describe structure, not implementation details. GRID layout, nested children trees, and batch operations are all supported.
 
-- After creating UI, run `lint_fix_all` to check and auto-fix layout, token, and accessibility issues
-- Use `audit_node` for deep quality inspection of specific elements
-- Use `get_design_guidelines` to review design rules before creating
+- `create_frame` with inline `children` builds entire screen hierarchies in one call
+- `create_component` / `create_component_set` build reusable component libraries with variant guardrails
+- After creating UI, the Harness Pipeline auto-verifies quality; or run `lint_fix_all` manually
+- Use `get_design_context` to extract node trees with resolved tokens for design-to-code workflows
 
 ## Lint Rules (40)
 

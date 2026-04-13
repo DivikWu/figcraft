@@ -92,7 +92,7 @@ Resource-oriented endpoints with method dispatch:
 | `nodes` | `get`, `get_batch`, `list`, `update`, `delete`, `clone`, `reparent` |
 | `text` | `set_content`, `set_range` |
 | `components` | `list`, `list_library`, `get`, `list_properties` |
-| `variables_ep` | `list`, `get`, `list_collections`, `get_bindings`, `export` (always available); `set_binding`, `create`, `update`, `batch_update`, `delete`, `create_collection`, `delete_collection`, `batch_create` (write methods — `load_toolset("variables")` to enable write tools) |
+| `variables_ep` | `list`, `get`, `list_collections`, `get_bindings`, `export` (always available); `set_binding`, `create`, `update`, `batch_update`, `delete`, `create_collection`, `delete_collection`, `batch_create`, `set_code_syntax`, `batch_bind`, `set_values_multi_mode`, `extend_collection`, `get_overrides`, `remove_override` (write methods — `load_toolset("variables")` to enable write tools) |
 | `styles_ep` | `list`, `get` (always available); `create_paint`, `update_paint`, `update_text`, `update_effect`, `delete`, `sync` (write methods — `load_toolset("styles")` to enable write tools) |
 
 Call syntax: `nodes({ method: "get", nodeId: "1:23" })`, `variables_ep({ method: "list_collections" })`, `styles_ep({ method: "list" })`
@@ -103,7 +103,7 @@ Standalone tools (not grouped into endpoints): `ping`, `get_mode`, `set_mode`, `
 ## Dynamic Toolsets
 
 <!-- @inject-start: ide-shared/toolsets.md -->
-Core tools are always enabled. Load additional toolsets as needed via `load_toolset`:
+Core tools (39) are always enabled — including `create_component`, `create_component_set`, `create_component_from_node`, `layout_component_set`, `create_section`, `get_design_context`, `variables_ep`, and `styles_ep`. Load additional toolsets as needed via `load_toolset`:
 
 | Toolset | When to load |
 |---------|-------------|

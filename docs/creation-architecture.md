@@ -1,6 +1,6 @@
 # FigCraft 创建架构：语义级 Opinion Engine
 
-文档版本：2026-04-07
+文档版本：2026-04-13
 
 ## 架构概览
 
@@ -91,6 +91,32 @@ Opinion Engine 不仅推断单节点属性，还基于父子布局关系推断 s
 | **Screen 尺寸 → auto-role** | 根级 + 显式尺寸 + isScreenSize | role:"screen" | **语义级** |
 
 语义级推断基于布局组合的**意图**而非单个属性，是 Level 2 的标志性能力。
+
+## GRID 布局支持
+
+`create_frame` 支持 `layoutMode: "GRID"`，除 HORIZONTAL/VERTICAL 外的第三种布局模式：
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `layoutMode` | `"GRID"` | 启用 GRID 布局 |
+| `gridRowCount` | number | 行数 |
+| `gridColumnCount` | number | 列数 |
+| `gridRowGap` | number | 行间距 |
+| `gridColumnGap` | number | 列间距 |
+
+Opinion Engine 在 GRID 模式下的 `inferChildSizing` 分支独立处理子节点 sizing 推断。
+
+## textOverrides（create_instance）
+
+`create_instance` / `create_instances` 支持 `textOverrides: Record<string, string>` 参数，允许创建实例时一次性设置所有文本内容。匹配策略：Path → Index → Name。处理混合字体节点使用 "prevail" 回退（统计占优字体）。
+
+## availableColorVariables
+
+`get_design_context` 响应包含 `availableColorVariables` 字段，按路径分组返回可用颜色变量（本地 + 库），上限 10 组 × 20 变量。让 AI 在默认映射无法解析时自主选择正确的变量名。
+
+## Local Mode 对齐
+
+`get_mode` 在 Local mode 下返回 `localComponents`（组件集 + 独立组件），`creationSteps` 分为 Library / Local / Creator 三个分支。空文件完全降级为 Creator 规则。
 
 ## 推断透明度
 
