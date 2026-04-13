@@ -31,6 +31,8 @@ export interface DesignContextResult {
   defaults: Record<string, DesignVariable | null>;
   /** Roles where no matching variable was found — helps agent know which bindings will be skipped. */
   unresolvedDefaults?: string[];
+  /** COLOR variables grouped by first path segment — lets AI self-select when defaults are unresolved. */
+  availableColorVariables?: Record<string, string[]>;
   typographyScales: string[];
   registeredStyles?: {
     textStyleCount: number;
@@ -171,6 +173,9 @@ const DEFAULT_MAPPINGS: Record<string, string[]> = {
   headingColor: ['text/heading', 'text/primary', 'color/text/heading', 'colors/text-heading'],
   textSecondary: ['text/secondary', 'text/muted', 'color/text/secondary', 'colors/text-secondary'],
   textDisabled: ['text/disabled', 'text/tertiary', 'color/text/disabled', 'colors/text-disabled'],
+  textInverse: ['text/primary-inverse', 'text/inverse', 'text/on-primary', 'color/text/inverse'],
+  textBrand: ['text/brand', 'text/accent', 'color/text/brand'],
+  textBrandInverse: ['text/brand-inverse', 'text/on-brand', 'color/text/brand-inverse'],
   // Surface / background colors
   background: ['surface/primary', 'surface/default', 'background/primary', 'colors/surface-primary'],
   backgroundSecondary: ['surface/secondary', 'surface/subtle', 'background/secondary', 'colors/surface-secondary'],
@@ -179,11 +184,21 @@ const DEFAULT_MAPPINGS: Record<string, string[]> = {
   border: ['border/default', 'border/primary', 'colors/border-default'],
   // Action / interactive colors
   primary: ['fill/primary', 'action/primary', 'brand/primary', 'interactive/primary', 'colors/fill-primary'],
-  primaryText: ['text/on-primary', 'text/inverse', 'fill/on-primary', 'colors/text-on-primary'],
+  primaryText: ['text/on-primary', 'text/primary-inverse', 'text/inverse', 'fill/on-primary', 'colors/text-on-primary'],
+  // Button colors
+  buttonEmphasis: ['button/emphasis', 'button/brand', 'fill/emphasis', 'action/emphasis'],
+  buttonEmphasisActive: ['button/emphasis-active', 'button/brand-active', 'fill/emphasis-active'],
+  buttonPrimary: ['button/primary', 'fill/primary-button', 'action/primary-button'],
+  buttonPrimaryActive: ['button/primary-active', 'fill/primary-button-active'],
+  buttonSecondary: ['button/secondary', 'fill/secondary-button', 'action/secondary-button'],
+  buttonSecondaryActive: ['button/secondary-active', 'fill/secondary-button-active'],
+  buttonTertiary: ['button/tertiary', 'fill/tertiary-button', 'action/tertiary-button'],
+  buttonTertiaryActive: ['button/tertiary-active', 'fill/tertiary-button-active'],
+  buttonDisabled: ['button/disabled', 'fill/disabled', 'state/disabled', 'action/disabled'],
   // State colors
-  error: ['error/default', 'status/error', 'danger/default', 'colors/error-default'],
-  success: ['success/default', 'status/success', 'colors/success-default'],
-  warning: ['warning/default', 'status/warning', 'colors/warning-default'],
+  error: ['error/default', 'status/error', 'danger/default', 'colors/error-default', 'feedback/error/fill-primary'],
+  success: ['success/default', 'status/success', 'colors/success-default', 'feedback/success/fill-primary'],
+  warning: ['warning/default', 'status/warning', 'colors/warning-default', 'feedback/warning/fill-primary'],
 };
 
 /** Custom role mappings cache (per-library). */
@@ -436,12 +451,30 @@ export async function getLibraryDesignContext(libraryName: string): Promise<Desi
     .filter(([, v]) => v === null)
     .map(([role]) => role);
 
+  // Build grouped COLOR variable names from color-hinted collections
+  let availableColorVariables: Record<string, string[]> | undefined;
+  try {
+    const colorHints = ['color', 'semantic', 'theme'];
+    const colorCols = collections.filter((c) => colorHints.some((h) => c.name.toLowerCase().includes(h)));
+    if (colorCols.length > 0) {
+      const allColorVars: DesignVariable[] = [];
+      for (const col of colorCols.slice(0, 3)) {
+        const vars = await getCollectionVariables(col.key);
+        allColorVars.push(...vars.filter((v) => v.resolvedType === 'COLOR'));
+      }
+      availableColorVariables = buildGroupedColorVars(allColorVars);
+    }
+  } catch {
+    /* best effort */
+  }
+
   return {
     source: 'library',
     libraryName,
     collections: collections.map((c) => ({ name: c.name, key: c.key })),
     defaults,
     ...(unresolvedDefaults.length > 0 ? { unresolvedDefaults } : undefined),
+    ...(availableColorVariables ? { availableColorVariables } : undefined),
     typographyScales,
   };
 }
@@ -480,14 +513,42 @@ export async function getLocalDesignContext(): Promise<DesignContextResult> {
     .filter(([, v]) => v === null)
     .map(([role]) => role);
 
+  // Build grouped COLOR variable names so AI can self-select when defaults are unresolved
+  const availableColorVariables = buildGroupedColorVars(allVars.filter((v) => v.resolvedType === 'COLOR'));
+
   return {
     source: 'local',
     libraryName: null,
     collections,
     defaults,
     ...(unresolvedDefaults.length > 0 ? { unresolvedDefaults } : undefined),
+    availableColorVariables,
     typographyScales: [],
   };
+}
+
+/**
+ * Group COLOR variables by first path segment for AI self-selection.
+ * Returns { text: ["text/primary", "text/primary-inverse", ...], button: ["button/emphasis", ...], ... }
+ * Capped at 10 groups × 20 vars per group to control response size.
+ */
+function buildGroupedColorVars(vars: DesignVariable[]): Record<string, string[]> {
+  const MAX_GROUPS = 10;
+  const MAX_PER_GROUP = 20;
+  const groups = new Map<string, string[]>();
+  for (const v of vars) {
+    const parts = v.name.split('/');
+    const group = parts.length > 1 ? parts[0] : '_ungrouped';
+    if (!groups.has(group)) {
+      if (groups.size >= MAX_GROUPS) continue;
+      groups.set(group, []);
+    }
+    const list = groups.get(group)!;
+    if (list.length < MAX_PER_GROUP) list.push(v.name);
+  }
+  const result: Record<string, string[]> = {};
+  for (const [group, names] of groups) result[group] = names;
+  return result;
 }
 
 /**
