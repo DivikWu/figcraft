@@ -89,8 +89,84 @@ export function registerComponentHandlers(): void {
       `Frame creation failed: node ${frameResult.id} not found or not a FRAME`,
     );
 
+    // ── Diagnostic: capture frame state BEFORE createComponentFromNode (P0-1 / P1-1) ──
+    // Temporary probe to nail the real root cause during verification. Remove once
+    // both sizing drift and cornerRadius drift are confirmed stable.
+    const preFrame = frameNode as FrameNode;
+    const preState = {
+      w: preFrame.width,
+      h: preFrame.height,
+      hSize: (preFrame as any).layoutSizingHorizontal as string | undefined,
+      vSize: (preFrame as any).layoutSizingVertical as string | undefined,
+      cr: (preFrame as any).cornerRadius as number | symbol | undefined,
+    };
+
     const component = figma.createComponentFromNode(frameNode as SceneNode);
     if (description) component.description = description;
+
+    // ── P0-1: Re-assert FIXED sizing after createComponentFromNode ──
+    // When component is wrapped inside an auto-layout parent (e.g. a Section with
+    // layoutMode), Figma can re-propagate layoutSizing from the parent and reset
+    // explicit FIXED back to HUG — collapsing the component to content size.
+    // Opinion Engine's FIXED decision lives in the frame's width/height; lock it
+    // back in after the wrap when dimensions were explicitly provided AND the user
+    // did not explicitly request HUG/FILL (mirrors the guard at setupFrame line 978).
+    if (itemParams.width != null || itemParams.height != null) {
+      // `parent` may be FrameNode | SectionNode | ComponentSetNode — all have
+      // layoutMode in recent Figma versions. Use `in`-check instead of a narrow
+      // cast that lies about the type.
+      const parent = component.parent;
+      const parentLayout =
+        parent && 'layoutMode' in parent ? ((parent as { layoutMode?: string }).layoutMode ?? undefined) : undefined;
+      if (parentLayout && parentLayout !== 'NONE') {
+        const needsH = itemParams.width != null && !itemParams.layoutSizingHorizontal;
+        const needsV = itemParams.height != null && !itemParams.layoutSizingVertical;
+        if (needsH) {
+          try {
+            component.layoutSizingHorizontal = 'FIXED';
+          } catch {
+            /* some contexts don't support direct sizing writes */
+          }
+        }
+        if (needsV) {
+          try {
+            component.layoutSizingVertical = 'FIXED';
+          } catch {
+            /* ibid */
+          }
+        }
+        if (needsH || needsV) {
+          component.resize(
+            (itemParams.width as number) ?? component.width,
+            (itemParams.height as number) ?? component.height,
+          );
+        }
+      }
+    }
+
+    // Diagnostic log — compare pre/post width, height, layoutSizing, cornerRadius.
+    // Emits only when a drift is detected so the console stays quiet in the
+    // happy path. Temporary; remove once P0-1 and P1-1 are confirmed stable.
+    {
+      const post = {
+        w: component.width,
+        h: component.height,
+        hSize: (component as any).layoutSizingHorizontal as string | undefined,
+        vSize: (component as any).layoutSizingVertical as string | undefined,
+        cr: (component as any).cornerRadius as number | symbol | undefined,
+      };
+      const drift =
+        preState.w !== post.w ||
+        preState.h !== post.h ||
+        preState.hSize !== post.hSize ||
+        preState.vSize !== post.vSize ||
+        preState.cr !== post.cr;
+      if (drift) {
+        console.warn(
+          `[FigCraft] create_component drift: pre=${JSON.stringify(preState)} post=${JSON.stringify(post)} requested=${JSON.stringify({ w: itemParams.width, h: itemParams.height, cr: itemParams.cornerRadius })}`,
+        );
+      }
+    }
 
     // Step 3: Bind text children to component TEXT properties via componentPropertyName
     if (Array.isArray(itemParams.children)) {

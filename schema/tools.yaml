@@ -6153,6 +6153,11 @@ text:
         Apply styling to character ranges within a text node.
         Supports fontSize, fontName, fills, insert, delete, letterSpacing, lineHeight, textDecoration, textCase.
         Operations are applied sequentially — character indices may shift after insert/delete.
+        ⚠️ Modifying fontSize or fontName via set_range will DETACH the node's text style binding
+        (Figma Plugin API behavior by design, not a figcraft bug). For size variants of the same
+        component, create SEPARATE base components with different `textStyleName` values instead
+        of using set_range. To rebind a text style after detachment, use
+        `nodes(method:"update", patches:[{props:{textStyleId:"S:..."}}])`.
       maps_to: set_text_range
       write: true
       access: edit

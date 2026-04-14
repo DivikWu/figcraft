@@ -334,6 +334,9 @@ export function registerWriteNodeHandlers(): void {
     const LAYOUT_KEYS = new Set(['layoutSizingHorizontal', 'layoutSizingVertical']);
     const RESIZE_KEYS = new Set(['resize', 'width', 'height']);
     const TEXT_KEYS = new Set(['fontSize', 'fontName', ...Object.keys(TEXT_DIRECT_PROPS)]);
+    // P1-2: textStyleId is handled by a dedicated branch after fontSize/fontName,
+    // since `setTextStyleIdAsync` overrides any inline font/size range props.
+    const TEXT_STYLE_KEYS = new Set(['textStyleId']);
     const ALL_KNOWN = new Set([
       ...SIMPLE_KEYS,
       ...FILL_KEYS,
@@ -343,6 +346,7 @@ export function registerWriteNodeHandlers(): void {
       ...LAYOUT_KEYS,
       ...RESIZE_KEYS,
       ...TEXT_KEYS,
+      ...TEXT_STYLE_KEYS,
     ]);
 
     const tokenBindableFields = new Set([
@@ -604,6 +608,30 @@ export function registerWriteNodeHandlers(): void {
               if (key in TEXT_DIRECT_PROPS) {
                 (textNode as any)[TEXT_DIRECT_PROPS[key]] = props[key];
               }
+            }
+          }
+
+          // ── P1-2: explicit textStyleId binding ──
+          // Direct API to re-bind a text style after detachment (e.g. caused by
+          // set_text_range modifying fontSize/fontName, which Figma silently
+          // detaches by design). Applied LAST so it overrides any inline range
+          // props in the same patch — the bound style is the authoritative state.
+          if (typeof props.textStyleId === 'string') {
+            try {
+              const style = await figma.getStyleByIdAsync(props.textStyleId as string);
+              if (style && style.type === 'TEXT') {
+                // The target style's font must be loaded before setTextStyleIdAsync
+                // or Figma throws "font not loaded".
+                const textStyle = style as TextStyle;
+                await figma.loadFontAsync(textStyle.fontName);
+                await (textNode as any).setTextStyleIdAsync(props.textStyleId as string);
+              } else {
+                patchWarnings.push(
+                  `textStyleId "${props.textStyleId}" does not resolve to a TEXT style (got ${style?.type ?? 'null'})`,
+                );
+              }
+            } catch (err) {
+              patchWarnings.push(`textStyleId bind failed: ${err instanceof Error ? err.message : String(err)}`);
             }
           }
         }

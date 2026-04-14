@@ -385,7 +385,18 @@ export async function applyFill(
           autoBound = `var:${variable.name}`;
         }
       } else {
-        colorHint = `Variable "${fill._variable}" not found. Use a hex color, or call search_design_system(query:"${fill._variable}") to find available variables.`;
+        // P0-2 parallel: same diagnostic style as the bare-string fill fall-through
+        // path below (the `"${fill}" is not a hex color` branch). This path hits when
+        // the user passes fill:{_variable:"..."} explicitly — lookup returned null
+        // (not ScopeMismatchError / AmbiguousMatchError, handled in the catch block
+        // above). Surface the 4 possible root causes + diagnostic tools.
+        const libCtx = useLibrary ? `library "${library ?? 'unknown'}"` : 'local file';
+        colorHint =
+          `⛔ Variable name "${fill._variable}" not found in ${libCtx}. ` +
+          `Possible causes: (a) not yet published to the library, (b) in a collection not yet subscribed by this file, ` +
+          `(c) name misspelled, or (d) it's a paint style name with no matching style. ` +
+          `Verify with variables_ep(method:"list_collections") and variables_ep(method:"list"), or styles_ep(method:"list", type:"PAINT"). ` +
+          `Workaround: pass fill:{_variableId:"VariableID:<id>"} to bind by ID directly, or call search_design_system(query:"${fill._variable}") to discover available variables.`;
         return {
           autoBound,
           colorHint,
@@ -481,7 +492,18 @@ export async function applyFill(
           }
         }
       }
-      colorHint = `"${fill}" is not a hex color and no matching variable or style found. Use "#RRGGBB" format or check the name.`;
+      // P0-2: diagnostic hint — the lookup returned null (not ScopeMismatchError /
+      // AmbiguousMatchError, which are handled above with role-aware messages).
+      // Root cause is one of: unpublished variable, unsubscribed collection,
+      // misspelled name, or library cache miss. Surface all three possibilities
+      // plus concrete next-step tools so the agent can self-diagnose.
+      const libCtx = useLibrary ? `library "${library ?? 'unknown'}"` : 'local file';
+      colorHint =
+        `⛔ Variable name "${fill}" not found in ${libCtx}. ` +
+        `Possible causes: (a) not yet published to the library, (b) in a collection not yet subscribed by this file, ` +
+        `(c) name misspelled, or (d) it's a paint style name with no matching style. ` +
+        `Verify with variables_ep(method:"list_collections") and variables_ep(method:"list"), or styles_ep(method:"list", type:"PAINT"). ` +
+        `Workaround: pass fillVariableId:"VariableID:<id>" to bind by ID directly.`;
       return { autoBound: null, colorHint };
     }
 
@@ -713,10 +735,22 @@ export async function applyStroke(
       }
       // Not a hex, not a variable, not a style — surface a hint so the agent
       // gets the same feedback applyFill emits in the equivalent situation.
+      // P0-2 parallel: diagnostic hint mirrors the applyFill bare-string fall-through
+      // but role-aware for stroke/border (STROKE_COLOR scope, border/* naming).
+      // Uses the strokeVariableId top-level alias (normalized in write-nodes-create.ts:231)
+      // for symmetry with the user's likely input (strokeVariableName) — one-key swap,
+      // no call-structure rewrite required.
       (node as any).strokeWeight = strokeWeight ?? 1;
+      const libCtx = useLibrary ? `library "${library ?? 'unknown'}"` : 'local file';
       return {
         autoBound: null,
-        colorHint: `"${stroke}" is not a hex color and no matching stroke variable or style found. Use "#RRGGBB" format or check the name.`,
+        colorHint:
+          `⛔ Stroke variable name "${stroke}" not found in ${libCtx}. ` +
+          `Possible causes: (a) not yet published to the library, (b) in a collection not yet subscribed by this file, ` +
+          `(c) name misspelled, or (d) it's a paint style name with no matching style. ` +
+          `Verify with variables_ep(method:"list_collections") and variables_ep(method:"list"), or styles_ep(method:"list", type:"PAINT"). ` +
+          `For strokes, prefer border/* variables with STROKE_COLOR scope. ` +
+          `Workaround: pass strokeVariableId:"VariableID:<id>" to bind by ID directly.`,
       };
     }
 
@@ -1023,6 +1057,13 @@ export async function applyCornerRadius(
       bottomRightRadius: br ?? 0,
       bottomLeftRadius: bl ?? 0,
     };
+    // P1-1: always write the direct value first so the visual state is correct even
+    // if token matching binds a variable whose resolved value doesn't match the
+    // requested number (e.g. a radius/* token with value 0). Token binding, when it
+    // succeeds, overlays the direct value with the bound variable reference.
+    for (const [field, val] of Object.entries(fields)) {
+      if (field in node) (node as any)[field] = val;
+    }
     if (useTokenBinding) {
       for (const [field, val] of Object.entries(fields)) {
         if (field in node) {
@@ -1030,20 +1071,16 @@ export async function applyCornerRadius(
           if (name) bound.push(`${field}:${name}`);
         }
       }
-    } else {
-      for (const [field, val] of Object.entries(fields)) {
-        if (field in node) (node as any)[field] = val;
-      }
     }
     return bound;
   }
 
   // Uniform number
+  // P1-1: direct value first, token binding second (see per-corner comment above).
+  (node as any).cornerRadius = value;
   if (useTokenBinding) {
     const name = await applyTokenField(node, 'cornerRadius', value, budgetExceeded, library);
     if (name) bound.push(`cornerRadius:${name}`);
-  } else {
-    (node as any).cornerRadius = value;
   }
   return bound;
 }

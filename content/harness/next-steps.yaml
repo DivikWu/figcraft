@@ -26,3 +26,16 @@
       figcraft-use before use_figma calls, figcraft-implement-design for Figma-to-code,
       figcraft-code-connect for Code Connect, figcraft-create-design-system-rules for rules generation.
       Do NOT load external skills: baseline-ui, ui-ux-pro-max, web-design-guidelines.
+
+- tool: create_component
+  steps:
+    - >-
+      Size variants (Large/Medium/Small buttons, etc.): create SEPARATE base components
+      with different `textStyleName` values — do NOT try to derive a smaller variant
+      from a larger base by using text.set_range to change fontSize. set_range on fontSize
+      or fontName silently DETACHES the text style binding (Figma API behavior, not a bug),
+      leaving the variant unable to inherit body-md/body-xl properly.
+    - >-
+      If a text style binding was accidentally detached by prior set_range calls, re-bind
+      via nodes(method:"update", patches:[{nodeId, props:{textStyleId:"S:..."}}]) — this
+      is the direct rebind path and respects font preloading.

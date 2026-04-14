@@ -157,6 +157,7 @@ function createMockFigma() {
       setAsync: vi.fn().mockResolvedValue(undefined),
     },
     loadFontAsync: vi.fn().mockResolvedValue(undefined),
+    getStyleByIdAsync: vi.fn(async (_id: string) => null),
     getNodeById: vi.fn((id: string) => nodeMap.get(id) ?? null),
     getNodeByIdAsync: vi.fn(async (id: string) => nodeMap.get(id) ?? null),
     createFrame: vi.fn(() => registerNode(createBaseNode('FRAME', 'Frame', true) as MockContainerNode)),
@@ -207,5 +208,90 @@ describe('write-nodes handler (patch/delete)', () => {
 
   it('delete_nodes handler is registered', () => {
     expect(handlers.get('delete_nodes')).toBeDefined();
+  });
+
+  // ── P1-2: patch_nodes textStyleId support ──
+  // Regression guards for the "rebind text style after detach" path.
+  // Previously textStyleId was silently dropped into _unknownProps because it
+  // wasn't in ALL_KNOWN — see components.ts P0-1 plan for the full story.
+  describe('patch_nodes textStyleId (P1-2)', () => {
+    // Create a TEXT node, attach setTextStyleIdAsync spy, register in figma.
+    // Returns { textNode, setTextStyleIdAsyncSpy } for assertions.
+    function createTextNodeWithStyleSpy(id: string) {
+      const setTextStyleIdAsyncSpy = vi.fn().mockResolvedValue(undefined);
+      const textNode = {
+        id,
+        type: 'TEXT',
+        name: 'Button Label',
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 20,
+        parent: null,
+        absoluteBoundingBox: { x: 0, y: 0, width: 100, height: 20 },
+        characters: 'Click me',
+        fontName: { family: 'Inter', style: 'Regular' },
+        fontSize: 14,
+        setTextStyleIdAsync: setTextStyleIdAsyncSpy,
+        resize: vi.fn(),
+        remove: vi.fn(),
+        setPluginData: vi.fn(),
+      };
+      // Stub getNodeByIdAsync to return this node for the given id.
+      (figma.getNodeByIdAsync as ReturnType<typeof vi.fn>).mockImplementation(async (nodeId: string) =>
+        nodeId === id ? textNode : null,
+      );
+      return { textNode, setTextStyleIdAsyncSpy };
+    }
+
+    it('accepts textStyleId in props and does not treat it as unknown', async () => {
+      const { setTextStyleIdAsyncSpy } = createTextNodeWithStyleSpy('text:1');
+      // Mock getStyleByIdAsync to return a valid TEXT style.
+      (figma.getStyleByIdAsync as ReturnType<typeof vi.fn>).mockResolvedValue({
+        id: 'S:xyz',
+        type: 'TEXT',
+        fontName: { family: 'Inter', style: 'Semi Bold' },
+      });
+
+      const patchHandler = handlers.get('patch_nodes');
+      expect(patchHandler).toBeDefined();
+      const response = (await patchHandler!({
+        patches: [{ nodeId: 'text:1', props: { textStyleId: 'S:xyz' } }],
+      })) as { results: Array<{ nodeId: string; ok: boolean; _unknownProps?: string[]; _warnings?: string[] }> };
+
+      expect(response.results).toHaveLength(1);
+      const [result] = response.results;
+      expect(result.ok).toBe(true);
+      // textStyleId must NOT be reported as unknown — the dedicated branch handles it.
+      expect(result._unknownProps ?? []).not.toContain('textStyleId');
+      // The dedicated branch must call setTextStyleIdAsync with the requested id.
+      expect(setTextStyleIdAsyncSpy).toHaveBeenCalledWith('S:xyz');
+      // And must preload the target style's font first (otherwise Figma throws).
+      expect(figma.loadFontAsync).toHaveBeenCalledWith({ family: 'Inter', style: 'Semi Bold' });
+    });
+
+    it('emits a warning (not a hard failure) when textStyleId does not resolve to a TEXT style', async () => {
+      const { setTextStyleIdAsyncSpy } = createTextNodeWithStyleSpy('text:2');
+      // Return a PAINT style for the id — should be rejected as non-TEXT.
+      (figma.getStyleByIdAsync as ReturnType<typeof vi.fn>).mockResolvedValue({
+        id: 'S:paint',
+        type: 'PAINT',
+      });
+
+      const patchHandler = handlers.get('patch_nodes');
+      const response = (await patchHandler!({
+        patches: [{ nodeId: 'text:2', props: { textStyleId: 'S:paint' } }],
+      })) as { results: Array<{ nodeId: string; ok: boolean; _unknownProps?: string[]; _warnings?: string[] }> };
+
+      const [result] = response.results;
+      // Patch still succeeds — textStyleId mismatch is a warning, not a fatal error.
+      expect(result.ok).toBe(true);
+      // A warning must be attached explaining the mismatch.
+      expect(result._warnings ?? []).toEqual(
+        expect.arrayContaining([expect.stringContaining('does not resolve to a TEXT style')]),
+      );
+      // setTextStyleIdAsync must NOT be called on a non-TEXT style.
+      expect(setTextStyleIdAsyncSpy).not.toHaveBeenCalled();
+    });
   });
 });
