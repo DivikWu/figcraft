@@ -1,6 +1,6 @@
 ---
-name: figma-generate-library
-description: "Build or update a professional-grade design system in Figma from a codebase. Use when the user wants to create variables/tokens, build component libraries, set up theming (light/dark modes), document foundations, or reconcile gaps between code and Figma. Uses FigCraft declarative tools — no use_figma required."
+name: figcraft-generate-library
+description: "Build or update the design system itself in Figma — variables/tokens, component libraries, theming (light/dark modes), foundations documentation. Use when creating the system, not just using it. Triggers: 'build component library', 'create design tokens', 'set up theming', 'reconcile code and Figma'. Uses FigCraft declarative tools — no use_figma required. Do NOT use for assembling screens from existing system (use figcraft-generate-design)."
 disable-model-invocation: false
 ---
 
@@ -140,9 +140,10 @@ Phase 4: INTEGRATION + QA (final pass)
 7. **Alias semantics to primitives** — use `create_variable_alias`. Never duplicate raw values in semantic layer.
 8. **Position variants after combineAsVariants** — use `layout_component_set` (auto-handles grid layout + resize).
 9. **INSTANCE_SWAP for icons** — never create a variant per icon. Use SLOT for flexible content areas. Cap variant matrices at 30 combinations.
-10. **Validate before proceeding** — `export_image` after every create, `audit_node` for structural checks.
+10. **Validate before proceeding** — `export_image` after every create, `audit_node` for structural checks. Verify with `nodes(method:"get", nodeId:"...")` that node exists, has expected type/name/child count.
 11. **Never hallucinate Node IDs** — always use IDs from previous tool responses.
 12. **Explicit phase approval** — at each checkpoint, name the next phase explicitly.
+13. **Cleanup on failure** — if a build run fails mid-way, identify orphaned nodes via `get_current_page(maxDepth:2)`, then remove with `nodes(method:"delete")`. For orphaned variables: `variables_ep(method:"list")` → filter by naming convention → `variables_ep(method:"delete")`.
 
 
 ---
@@ -166,6 +167,13 @@ For design systems with 10+ components, maintain a state ledger tracking created
 ```
 
 **Write the ledger to disk** (`/tmp/dsb-state.json`) at each phase boundary. Re-read at the start of every turn. In long workflows, conversation context will be truncated — the file is the source of truth.
+
+**Session recovery** (when resuming after interruption): Rebuild state by inventorying existing entities:
+1. `get_document_info()` → list all pages
+2. `variables_ep(method:"list_collections")` + `variables_ep(method:"list")` → existing variables
+3. `styles_ep(method:"list")` → existing styles
+4. `components(method:"list")` per page → existing components
+Match against the state ledger to determine which steps are already complete.
 
 **Idempotency**: before creating any entity, check if it already exists by name. `batch_create_variables` and `styles_ep(method:"create_text")` are already idempotent (skip duplicates). For components, check `components(method:"list")` first.
 

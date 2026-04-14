@@ -1,6 +1,6 @@
 ---
-name: figma-create-new-file
-description: Create a new blank Figma file. Use when the user wants to create a new Figma design or FigJam file, or when you need a new file before calling use_figma. Handles plan resolution via whoami if needed. Usage — /figma-create-new-file [editorType] [fileName] (e.g. /figma-create-new-file figjam My Whiteboard)
+name: figcraft-create-new-file
+description: Create a new blank Figma file. Use when the user wants to create a new Figma design or FigJam file, or when you need a new file before calling use_figma. Handles plan resolution via whoami if needed. Usage — /figcraft-create-new-file [editorType] [fileName] (e.g. /figcraft-create-new-file figjam My Whiteboard)
 disable-model-invocation: true
 ---
 
@@ -10,15 +10,15 @@ Use the `create_new_file` MCP tool to create a new blank Figma file in the user'
 
 ## Skill Arguments
 
-This skill accepts optional arguments: `/figma-create-new-file [editorType] [fileName]`
+This skill accepts optional arguments: `/figcraft-create-new-file [editorType] [fileName]`
 
 - **editorType**: `design` (default) or `figjam`
 - **fileName**: Name for the new file (defaults to "Untitled")
 
 Examples:
-- `/figma-create-new-file` — creates a design file named "Untitled"
-- `/figma-create-new-file figjam My Whiteboard` — creates a FigJam file named "My Whiteboard"
-- `/figma-create-new-file design My New Design` — creates a design file named "My New Design"
+- `/figcraft-create-new-file` — creates a design file named "Untitled"
+- `/figcraft-create-new-file figjam My Whiteboard` — creates a FigJam file named "My Whiteboard"
+- `/figcraft-create-new-file design My New Design` — creates a design file named "My New Design"
 
 Parse the arguments from the skill invocation. If editorType is not provided, default to `"design"`. If fileName is not provided, default to `"Untitled"`.
 
@@ -66,10 +66,10 @@ Use the `file_key` for subsequent tool calls like `use_figma`.
 
 - The file is created in the user's **drafts folder** for the selected plan.
 - Only `"design"` and `"figjam"` editor types are supported.
-- If `use_figma` is your next step, load the `figma-use` skill before calling it.
+- If `use_figma` is your next step, load the `figcraft-use` skill before calling it.
 
 ## Skill Boundaries
 
 - Use this skill to **create a new blank Figma file**.
 - If the task is **creating UI in an existing file**, switch to [figma-create-ui](../figma-create-ui/SKILL.md).
-- If the task is **building a design system**, switch to [figma-generate-library](../figma-generate-library/SKILL.md).
+- If the task is **building a design system**, switch to [figcraft-generate-library](../figcraft-generate-library/SKILL.md).

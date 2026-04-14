@@ -10,7 +10,7 @@ Assist with migrating a Figma design system between versions: map old tokens to 
 ## Skill Boundaries
 
 - Use this skill to **migrate between design system versions**.
-- If the task is **building a new design system from scratch**, switch to [figma-generate-library](../figma-generate-library/SKILL.md).
+- If the task is **building a new design system from scratch**, switch to [figcraft-generate-library](../figcraft-generate-library/SKILL.md).
 - If the task is **auditing current system health**, switch to [design-system-audit](../design-system-audit/SKILL.md).
 - If the task is **syncing tokens from a spec**, switch to [token-sync](../token-sync/SKILL.md).
 

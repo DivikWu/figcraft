@@ -51,23 +51,24 @@ Forms the "create → review → fix" quality loop: `figma-create-ui` → `desig
 
 | Skill | Description |
 |-------|-------------|
-| **figma-create-ui** | Create UI using FigCraft declarative tools with Opinion Engine. References 3 design rule skills. |
+| **figma-create-ui** | Create UI using FigCraft declarative tools with Opinion Engine. No-library or single component creation. |
+| **figcraft-generate-design** | Create screens by reusing existing design system components, variables, and styles. Extends figma-create-ui with mandatory discovery phase. |
+| **figcraft-generate-library** | Build professional design systems (20-100+ calls). Multi-phase: discovery → tokens → structure → components → QA. |
 
 ## Plugin API Path (execute_js / use_figma)
 
 | Skill | Description |
 |-------|-------------|
-| **figma-use** | Mandatory prerequisite for all `use_figma`/`execute_js` calls. Plugin API rules. |
-| **figma-generate-library** | Build professional design systems (20-100+ calls). References design rules + figma-use. |
+| **figcraft-use** | Mandatory prerequisite for all `use_figma`/`execute_js` calls. Plugin API rules. |
 
 ## Auxiliary
 
 | Skill | Description |
 |-------|-------------|
-| **figma-implement-design** | Translate Figma designs into production code. |
-| **figma-code-connect-components** | Map Figma components to code via Code Connect. |
-| **figma-create-design-system-rules** | Generate project-specific IDE design rules. |
-| **figma-create-new-file** | Create blank Figma design/FigJam files. |
+| **figcraft-implement-design** | Translate Figma designs into production code. |
+| **figcraft-code-connect** | Map Figma components to code via Code Connect. |
+| **figcraft-create-design-system-rules** | Generate project-specific IDE design rules. |
+| **figcraft-create-new-file** | Create blank Figma design/FigJam files. |
 
 ## Strategy
 

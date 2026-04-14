@@ -10,7 +10,7 @@ Comprehensive audit of a Figma design system's health: token coverage, component
 ## Skill Boundaries
 
 - Use this skill to **audit an existing design system's health**.
-- If the task is **building a new design system**, switch to [figma-generate-library](../figma-generate-library/SKILL.md).
+- If the task is **building a new design system**, switch to [figcraft-generate-library](../figcraft-generate-library/SKILL.md).
 - If the task is **auditing a single component**, switch to [component-docs](../component-docs/SKILL.md).
 - If the task is **linting a design page**, switch to [design-lint](../design-lint/SKILL.md).
 - If the task is **comparing tokens against a spec**, switch to [spec-compare](../spec-compare/SKILL.md).

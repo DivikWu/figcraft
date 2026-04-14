@@ -10,9 +10,9 @@ Annotate Figma designs with implementation specs (spacing, colors, typography, c
 ## Skill Boundaries
 
 - Use this skill to **annotate and prepare designs for developer handoff**.
-- If the task is **implementing code from Figma**, switch to [figma-implement-design](../figma-implement-design/SKILL.md).
+- If the task is **implementing code from Figma**, switch to [figcraft-implement-design](../figcraft-implement-design/SKILL.md).
 - If the task is **reviewing design quality**, switch to [design-review](../design-review/SKILL.md).
-- If the task is **connecting components to code**, switch to [figma-code-connect-components](../figma-code-connect-components/SKILL.md).
+- If the task is **connecting components to code**, switch to [figcraft-code-connect](../figcraft-code-connect/SKILL.md).
 
 ## Workflow
 
@@ -122,8 +122,8 @@ Focus annotations on information developers need most:
 ## Integration
 
 ```
-figma-create-ui → design-review → design-handoff → figma-implement-design
+figma-create-ui → design-review → design-handoff → figcraft-implement-design
 (create)          (review)         (this skill)      (implement)
 ```
 
-After review and approval, annotate the design for handoff, then use figma-implement-design to generate code.
+After review and approval, annotate the design for handoff, then use figcraft-implement-design to generate code.

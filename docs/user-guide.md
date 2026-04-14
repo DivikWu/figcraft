@@ -400,7 +400,7 @@ Skills 是 MCP 工具之上的**知识层**（纯 Markdown 文档），封装了
 - **不同 IDE 统一发现**：`skills/<name>/SKILL.md`，扁平目录结构
 - **Claude Code** 通过 `/skill-name` slash command 调用，**Kiro** 从 `.kiro/skills/` 自动发现
 
-### 6.2 Skills 全景（26 个）
+### 6.2 Skills 全景（29 个）
 
 #### 第 1 层：设计规则（自动加载，不直接调用）
 
@@ -419,14 +419,14 @@ AI 调用 `get_mode` 时根据库状态自动选择 guardian 或 creator，funda
 | Skill | 触发场景 |
 |---|---|
 | `figma-create-ui` | "帮我设计一个登录页" / "把这个代码页面写到 Figma" — 声明式创建 + 库组件组装 |
-| `figma-generate-library` | "建一套设计系统" — 变量/组件库/主题（use_figma） |
+| `figcraft-generate-library` | "建一套设计系统" — 变量/组件库/主题（use_figma） |
 
 **辅助**（Figma 官方 Skill，按需使用）：
 
 | Skill | 角色 |
 |---|---|
-| `figma-use` | `use_figma` Plugin API 规则（generate-design/library 自动加载，也可独立使用） |
-| `figma-create-new-file` | 创建新 Figma 文件（按需使用） |
+| `figcraft-use` | `use_figma` Plugin API 规则（generate-design/library 自动加载，也可独立使用） |
+| `figcraft-create-new-file` | 创建新 Figma 文件（按需使用） |
 
 #### 第 3 层：场景增强（叠加到第 2 层之上）
 
@@ -461,9 +461,9 @@ AI 调用 `get_mode` 时根据库状态自动选择 guardian 或 creator，funda
 | `prototype-analysis` | 原型交互流分析 |
 | `multi-brand` | 多品牌主题管理 |
 | `migration-assistant` | 设计系统版本迁移 |
-| `figma-code-connect-components` | Figma <-> 代码组件映射 |
-| `figma-create-design-system-rules` | 生成项目定制规则 |
-| `figma-implement-design` | Figma -> 代码实现 |
+| `figcraft-code-connect` | Figma <-> 代码组件映射 |
+| `figcraft-create-design-system-rules` | 生成项目定制规则 |
+| `figcraft-implement-design` | Figma -> 代码实现 |
 
 ### 6.3 协作模式
 
@@ -479,14 +479,14 @@ AI 调用 `get_mode` 时根据库状态自动选择 guardian 或 creator，funda
 **链式模式** — 按阶段切换：
 ```
 "建设计系统 -> 审计 -> 交付"
-  -> figma-generate-library -> design-system-audit -> design-handoff
+  -> figcraft-generate-library -> design-system-audit -> design-handoff
 ```
 
 **独立模式** — 单任务：
 ```
 "把 token 文件同步到 Figma"  -> token-sync
 "这个组件怎么用"             -> component-docs
-"帮我实现这个 Figma 设计"    -> figma-implement-design
+"帮我实现这个 Figma 设计"    -> figcraft-implement-design
 ```
 
 ### 6.4 自定义 Skill 编写技巧

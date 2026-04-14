@@ -1,6 +1,6 @@
 ---
-name: figma-generate-design
-description: "Create new designs in Figma using existing components and variables. Use when the task involves building a page, screen, or view by assembling design system assets — components, variables, and styles. Triggers: 'create a screen', 'build a landing page', 'push this page to Figma', 'create designs from code', 'update the Figma screen'. This skill discovers and reuses design system assets instead of hardcoding values."
+name: figcraft-generate-design
+description: "Create screens in Figma by REUSING an existing design system's components, variables, and styles. REQUIRES a published library or local components. Triggers: 'create a screen', 'build a landing page using the design system', 'push page to Figma', 'create designs from code', 'update the Figma screen'. Extends figma-create-ui with mandatory design system discovery. Do NOT use for no-library creation (use figma-create-ui) or building a new design system (use figcraft-generate-library)."
 disable-model-invocation: false
 ---
 
@@ -19,9 +19,9 @@ Use this skill to create or update full-page screens in Figma by **reusing the d
 | Build a screen from design system components | — |
 | Update an existing screen (swap instances, update content) | — |
 | Create a page from code/description using existing assets | — |
-| Create new reusable components or variants | → `figma-generate-library` |
+| Create new reusable components or variants | → `figcraft-generate-library` |
 | Create UI without a design system (no library) | → `figma-create-ui` |
-| Generate code from a Figma design | → `figma-implement-design` |
+| Generate code from a Figma design | → `figcraft-implement-design` |
 
 ## Mandatory Workflow
 

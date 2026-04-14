@@ -1,6 +1,6 @@
 ---
-name: figma-implement-design
-description: Translates Figma designs into production-ready application code with 1:1 visual fidelity. Use when implementing UI code from Figma files, when user mentions "implement design", "generate code", "implement component", "code from Figma", or asks to build application code matching Figma specs. NOT for reviewing/analyzing designs (use design-review instead). For Figma canvas writes via `use_figma`, use `figma-use`.
+name: figcraft-implement-design
+description: Translates Figma designs into production-ready application code with 1:1 visual fidelity. Use when implementing UI code from Figma files, when user mentions "implement design", "generate code", "implement component", "code from Figma", or asks to build application code matching Figma specs. NOT for reviewing/analyzing designs (use design-review instead). For Figma canvas writes via `use_figma`, use `figcraft-use`.
 disable-model-invocation: false
 ---
 
@@ -13,10 +13,10 @@ This skill provides a structured workflow for translating Figma designs into pro
 ## Skill Boundaries
 
 - Use this skill when the deliverable is code in the user's repository.
-- If the user asks to create/edit/delete nodes inside Figma itself, switch to [figma-use](../figma-use/SKILL.md).
+- If the user asks to create/edit/delete nodes inside Figma itself, switch to [figcraft-use](../figcraft-use/SKILL.md).
 - If the user asks to build or update a full-page screen in Figma, switch to [figma-create-ui](../figma-create-ui/SKILL.md).
-- If the user asks only for Code Connect mappings, switch to [figma-code-connect-components](../figma-code-connect-components/SKILL.md).
-- If the user asks to author reusable agent rules (`CLAUDE.md`/`AGENTS.md`), switch to [figma-create-design-system-rules](../figma-create-design-system-rules/SKILL.md).
+- If the user asks only for Code Connect mappings, switch to [figcraft-code-connect](../figcraft-code-connect/SKILL.md).
+- If the user asks to author reusable agent rules (`CLAUDE.md`/`AGENTS.md`), switch to [figcraft-create-design-system-rules](../figcraft-create-design-system-rules/SKILL.md).
 
 ## Tool Choice: figcraft First, Official Figma MCPs When They Fit
 

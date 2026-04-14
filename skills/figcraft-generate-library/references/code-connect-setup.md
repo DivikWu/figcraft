@@ -1,8 +1,10 @@
-> Part of the [figma-generate-library skill](../SKILL.md).
+> Part of the [figcraft-generate-library skill](../SKILL.md).
+>
+> All examples use FigCraft declarative tools. For raw Plugin API patterns, see the figcraft-use skill.
 
 # Code Connect Setup Reference
 
-This reference covers all Code Connect tooling available to the figma-generate-library agent: the `add_code_connect_map` tool, `get_code_connect_map` for verification, `send_code_connect_mappings` for bulk application, variable code syntax, framework labels, and the decision of when to map per-component vs. in a final pass.
+This reference covers all Code Connect tooling available to the figcraft-generate-library agent: the `add_code_connect_map` tool, `get_code_connect_map` for verification, `send_code_connect_mappings` for bulk application, variable code syntax, framework labels, and the decision of when to map per-component vs. in a final pass.
 
 ---
 
@@ -135,11 +137,14 @@ Setting code syntax on variables creates the bidirectional link between Figma to
 
 **The three platforms:**
 
-```javascript
-// In use_figma:
-variable.setVariableCodeSyntax('WEB', 'var(--color-bg-primary)');
-variable.setVariableCodeSyntax('ANDROID', 'Theme.colorBgPrimary');
-variable.setVariableCodeSyntax('iOS', 'Color.bgPrimary');
+Use `variables_ep(method: "set_code_syntax", ...)` to set code syntax on individual variables:
+
+```
+variables_ep(method: "set_code_syntax", variableId: "<id>", syntax: {
+  WEB: "var(--color-bg-primary)",
+  ANDROID: "Theme.colorBgPrimary",
+  iOS: "Color.bgPrimary"
+})
 ```
 
 - `WEB` — used for CSS custom properties, design token JSON, and any web framework.
@@ -150,27 +155,28 @@ variable.setVariableCodeSyntax('iOS', 'Color.bgPrimary');
 
 1. **Best:** Use the exact token name from the codebase. Search the codebase for CSS custom properties (`--`), Swift color extensions, or Kotlin theme references and use those exact strings.
 2. **Good:** Derive from the Figma variable name with a consistent transformation: replace `/` and spaces with `-`, prefix with `var(--` and suffix with `)`.
-   - Example: `color/bg/primary` → `var(--color-bg-primary)`
+   - Example: `color/bg/primary` -> `var(--color-bg-primary)`
 3. **Avoid:** Guessing or inventing names that don't exist in the codebase.
 
 **Consistency rule:** The transformation must be uniform. If you use `var(--color-bg-primary)` for one variable, use the same `var(--{path-with-hyphens})` pattern for all variables in that collection.
 
 **WEB syntax bulk example:**
 
-```javascript
-// In use_figma — set WEB code syntax on all variables in a collection
-const collections = await figma.variables.getLocalVariableCollectionsAsync();
-for (const coll of collections) {
-  if (coll.name !== 'Color') continue;
-  for (const varId of coll.variableIds) {
-    const v = await figma.variables.getVariableByIdAsync(varId);
-    if (!v) continue;
-    // Derive: "color/bg/primary" → "var(--color-bg-primary)"
-    const cssName = 'var(--' + v.name.toLowerCase().replace(/\//g, '-').replace(/\s+/g, '-') + ')';
-    v.setVariableCodeSyntax('WEB', cssName);
-  }
-}
+To set WEB code syntax on all variables in a collection, use `variables_ep(method: "batch_update", ...)`:
+
 ```
+// First, list variables in the target collection:
+variables_ep(method: "list", collectionId: "<color_collection_id>")
+
+// Then batch update code syntax for all variables:
+variables_ep(method: "batch_update", updates: [
+  { variableId: "<id1>", codeSyntax: { WEB: "var(--color-bg-primary)" } },
+  { variableId: "<id2>", codeSyntax: { WEB: "var(--color-bg-secondary)" } },
+  // ... one entry per variable
+])
+```
+
+The naming derivation rule: `color/bg/primary` -> `var(--color-bg-primary)` (replace `/` with `-`, wrap in `var(--...)`).
 
 ---
 

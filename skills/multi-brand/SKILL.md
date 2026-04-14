@@ -10,7 +10,7 @@ Set up and manage multiple brand themes in a single Figma design system using va
 ## Skill Boundaries
 
 - Use this skill to **set up or manage multi-brand token systems**.
-- If the task is **building a single-brand design system**, switch to [figma-generate-library](../figma-generate-library/SKILL.md).
+- If the task is **building a single-brand design system**, switch to [figcraft-generate-library](../figcraft-generate-library/SKILL.md).
 - If the task is **syncing tokens from a DTCG spec**, switch to [token-sync](../token-sync/SKILL.md).
 - If the task is **auditing design system health**, switch to [design-system-audit](../design-system-audit/SKILL.md).
 

@@ -1,5 +1,5 @@
 ---
-name: figma-use
+name: figcraft-use
 description: "**MANDATORY prerequisite** — you MUST invoke this skill BEFORE every `use_figma` tool call. NEVER call `use_figma` directly without loading this skill first. Skipping it causes common, hard-to-debug failures. Trigger whenever the user wants to perform a write action or a unique read action that requires JavaScript execution in the Figma file context — e.g. create/edit/delete nodes, set up variables or tokens, build components and variants, modify auto-layout or fills, bind variables to properties, or inspect file structure programmatically."
 disable-model-invocation: false
 ---
@@ -8,13 +8,13 @@ disable-model-invocation: false
 
 Use `use_figma` MCP to execute JavaScript in Figma files via the Plugin API. All detailed reference docs live in `references/`.
 
-**Always pass `skillNames: "figma-use"` when calling `use_figma`.** This is a logging parameter used to track skill usage — it does not affect execution.
+**Always pass `skillNames: "figcraft-use"` when calling `use_figma`.** This is a logging parameter used to track skill usage — it does not affect execution.
 
 ## Skill Boundaries
 
 - Use this skill for **Plugin API operations** (`use_figma` / `execute_js`) — creating/editing nodes, variables, styles, components via JavaScript.
 - If the task is building a full page or screen layout, prefer [figma-create-ui](../figma-create-ui/SKILL.md) (declarative `create_frame` with Opinion Engine). Only use `use_figma` for operations `create_frame` cannot handle.
-- If the task is building a full design system, also load [figma-generate-library](../figma-generate-library/SKILL.md).
+- If the task is building a full design system, also load [figcraft-generate-library](../figcraft-generate-library/SKILL.md).
 
 **If the task involves building or updating a full page, screen, or multi-section layout in Figma**, prefer [figma-create-ui](../figma-create-ui/SKILL.md) which uses declarative tools (`create_frame`) with Opinion Engine. Only use `use_figma` for operations that `create_frame` cannot handle.
 

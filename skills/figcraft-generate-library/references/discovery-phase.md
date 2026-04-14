@@ -1,4 +1,6 @@
-> Part of the [figma-generate-library skill](../SKILL.md).
+> Part of the [figcraft-generate-library skill](../SKILL.md).
+>
+> All examples use FigCraft declarative tools. For raw Plugin API patterns, see the figcraft-use skill.
 
 # Discovery Phase Reference
 
@@ -24,7 +26,7 @@ Look for token sources in this order. Stop as soon as you find a definitive sour
 
 ```
 :root { ... }
-@theme { ... }          ← Tailwind v4
+@theme { ... }          <- Tailwind v4
 --color-*, --spacing-*, --radius-*, --shadow-*, --font-*
 ```
 
@@ -42,26 +44,26 @@ Look for token sources in this order. Stop as soon as you find a definitive sour
 | `--radius-md: 8px` | `radius/md` | FLOAT | `var(--radius-md)` |
 | `--font-body: "Inter"` | `typography/body/font-family` | STRING | `var(--font-body)` |
 
-**Naming rule:** Replace hyphens with slashes at category boundaries. Keep hyphens within the final path segment: `--color-bg-primary` → `color/bg/primary`, but `--color-bg-primary-hover` → `color/bg/primary-hover`.
+**Naming rule:** Replace hyphens with slashes at category boundaries. Keep hyphens within the final path segment: `--color-bg-primary` -> `color/bg/primary`, but `--color-bg-primary-hover` -> `color/bg/primary-hover`.
 
-**Always store the original CSS variable name** as the code syntax value — never derive it from the Figma variable name. If the codebase uses `--sds-color-background-brand-default`, use exactly that string in `setVariableCodeSyntax('WEB', '--sds-color-background-brand-default')`.
+**Always store the original CSS variable name** as the code syntax value — never derive it from the Figma variable name. If the codebase uses `--sds-color-background-brand-default`, use exactly that string when setting code syntax via `variables_ep(method:"set_code_syntax", ...)`.
 
 ### Tailwind Configuration
 
 **What to look for in `tailwind.config.js` or `tailwind.config.ts`:**
 
 ```javascript
-// theme.extend.colors → Figma color variables
+// theme.extend.colors -> Figma color variables
 { primary: { DEFAULT: '#3366FF', light: '#6699FF', dark: '#0033CC' } }
-// → color/primary/default, color/primary/light, color/primary/dark
+// -> color/primary/default, color/primary/light, color/primary/dark
 
-// theme.extend.spacing → Figma FLOAT variables
+// theme.extend.spacing -> Figma FLOAT variables
 { 'xs': '4px', 'sm': '8px', 'md': '16px' }
-// → spacing/xs = 4, spacing/sm = 8, spacing/md = 16
+// -> spacing/xs = 4, spacing/sm = 8, spacing/md = 16
 
-// theme.extend.borderRadius → Figma FLOAT variables
+// theme.extend.borderRadius -> Figma FLOAT variables
 { 'sm': '4px', 'md': '8px', 'lg': '16px' }
-// → radius/sm = 4, radius/md = 8, radius/lg = 16
+// -> radius/sm = 4, radius/md = 8, radius/lg = 16
 ```
 
 Tailwind utility class names (`bg-blue-500`, `p-4`) are not tokens — extract values from the config object, not the class names.
@@ -84,16 +86,16 @@ Tailwind utility class names (`bg-blue-500`, `p-4`) are not tokens — extract v
 }
 ```
 
-Nested keys map to slash-separated Figma names: `color.bg.primary` → `color/bg/primary`.
+Nested keys map to slash-separated Figma names: `color.bg.primary` -> `color/bg/primary`.
 
 ### CSS-in-JS / Theme Objects
 
 **What to search for:** `createTheme`, `ThemeProvider`, `theme = {}`, styled-components, Emotion, Stitches, vanilla-extract
 
 ```typescript
-// theme.colors.bg.primary → Figma variable: color/bg/primary
-// theme.spacing.sm        → Figma variable: spacing/sm
-// Multiple theme objects (lightTheme, darkTheme) → modes in the same collection
+// theme.colors.bg.primary -> Figma variable: color/bg/primary
+// theme.spacing.sm        -> Figma variable: spacing/sm
+// Multiple theme objects (lightTheme, darkTheme) -> modes in the same collection
 ```
 
 ### iOS Token Sources
@@ -123,7 +125,7 @@ Nested keys map to slash-separated Figma names: `color.bg.primary` → `color/bg
 | iOS | `Color(uiColor:)` with `traitCollection.userInterfaceStyle`, dual-appearance asset catalog |
 | Android | `themes.xml` with `Theme.*.Night`, `isSystemInDarkTheme()` in Compose, `values-night/` folder |
 
-**Figma mapping:** If dark mode exists → minimum 2 modes (Light/Dark) in the semantic color collection. Primitive collections stay single-mode.
+**Figma mapping:** If dark mode exists -> minimum 2 modes (Light/Dark) in the semantic color collection. Primitive collections stay single-mode.
 
 ### Shadow/Elevation Extraction
 
@@ -136,10 +138,7 @@ Shadows cannot be Figma variables — they become **Effect Styles**.
 --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.10);
 ```
 
-CSS `0 4px 6px -1px rgba(0,0,0,0.1)` → Figma:
-```
-{ type: "DROP_SHADOW", offset: {x:0, y:4}, radius: 6, spread: -1, color: {r:0, g:0, b:0, a:0.1} }
-```
+CSS `0 4px 6px -1px rgba(0,0,0,0.1)` -> Figma Effect Style with: type DROP_SHADOW, offset x:0 y:4, radius 6, spread -1, color r:0 g:0 b:0 a:0.1.
 
 ### Typography Extraction
 
@@ -151,157 +150,97 @@ CSS `0 4px 6px -1px rgba(0,0,0,0.1)` → Figma:
 | `letter-spacing: -0.02em` | Text Style `letterSpacing: {value: -2, unit: "PERCENT"}` |
 | `font-family: "Inter"` | STRING variable (scope `FONT_FAMILY`) or Text Style `fontName.family` |
 
-Composite text styles (all properties bundled) → Figma Text Styles. Individual properties → Figma variables with appropriate scopes.
+Composite text styles (all properties bundled) -> Figma Text Styles. Individual properties -> Figma variables with appropriate scopes.
 
 ### Component Extraction
 
 For each component, extract:
 
-1. **Name** → Figma component set name
-2. **Union-type props** → VARIANT properties
-3. **String content props** → TEXT properties
-4. **Boolean props** → BOOLEAN properties (and VARIANT State when combined with interaction states)
-5. **Child/slot props** → INSTANCE_SWAP properties
+1. **Name** -> Figma component set name
+2. **Union-type props** -> VARIANT properties
+3. **String content props** -> TEXT properties
+4. **Boolean props** -> BOOLEAN properties (and VARIANT State when combined with interaction states)
+5. **Child/slot props** -> INSTANCE_SWAP properties
 
 ```typescript
 // React example:
 interface ButtonProps {
-  size: 'sm' | 'md' | 'lg';          // → VARIANT: Size = sm|md|lg
-  variant: 'primary' | 'secondary';   // → VARIANT: Style = primary|secondary
-  disabled?: boolean;                  // → VARIANT: State (combine: default|hover|pressed|disabled)
-  label: string;                       // → TEXT: Label
-  icon?: ReactNode;                    // → INSTANCE_SWAP: Icon + BOOLEAN: Show Icon
+  size: 'sm' | 'md' | 'lg';          // -> VARIANT: Size = sm|md|lg
+  variant: 'primary' | 'secondary';   // -> VARIANT: Style = primary|secondary
+  disabled?: boolean;                  // -> VARIANT: State (combine: default|hover|pressed|disabled)
+  label: string;                       // -> TEXT: Label
+  icon?: ReactNode;                    // -> INSTANCE_SWAP: Icon + BOOLEAN: Show Icon
 }
-// → Component Set "Button", variant count: 3 sizes × 2 styles × 4 states = 24
+// -> Component Set "Button", variant count: 3 sizes x 2 styles x 4 states = 24
 ```
 
 ---
 
 ## 2. Figma File Inspection
 
-Run these `use_figma` snippets at the start of every build. All are read-only and safe to run before any user checkpoint.
+Run these tool calls at the start of every build. All are read-only and safe to run before any user checkpoint.
 
 ### List All Pages
 
-```javascript
-const pages = figma.root.children.map((p, i) => ({
-  index: i,
-  name: p.name,
-  id: p.id,
-  childCount: p.children.length
-}));
-return { pages };
 ```
+get_document_info()
+```
+
+Returns: list of all pages with names, IDs, and child counts.
 
 Interpret: note page names for naming convention (are they PascalCase? sentence case?), count separator pages (`---`), identify existing component pages vs foundations pages.
 
 ### List Variable Collections With Modes
 
-```javascript
-const collections = await figma.variables.getLocalVariableCollectionsAsync();
-const result = collections.map(c => ({
-  id: c.id,
-  name: c.name,
-  modes: c.modes,                    // [{modeId, name}, ...]
-  variableCount: c.variableIds.length,
-  defaultModeId: c.defaultModeId
-}));
-return { collections: result };
 ```
+variables_ep(method: "list_collections")
+```
+
+Returns: all local variable collections with IDs, names, modes (modeId + name), variable counts, and default mode IDs.
 
 Interpret: identify existing primitive/semantic split, note mode names (do they use "Light/Dark" or "SDS Light/SDS Dark"?), count variables to understand scope.
 
 ### List Variables in a Collection (with names, types, scopes, and sample values)
 
-```javascript
-const collections = await figma.variables.getLocalVariableCollectionsAsync();
-const targetName = "Color"; // change to the collection you want to inspect
-const coll = collections.find(c => c.name === targetName);
-if (!coll) { return { error: `Collection "${targetName}" not found` }; }
-
-const allVars = await figma.variables.getLocalVariablesAsync();
-const vars = allVars.filter(v => v.variableCollectionId === coll.id);
-
-const result = vars.map(v => ({
-  id: v.id,
-  name: v.name,
-  resolvedType: v.resolvedType,
-  scopes: v.scopes,
-  codeSyntax: v.codeSyntax,
-  // First mode value only, for a sample
-  sampleValue: v.valuesByMode[coll.defaultModeId]
-}));
-
-return { collection: coll.name, variableCount: result.length, variables: result };
 ```
+variables_ep(method: "list", collectionId: "<collection_id>")
+```
+
+Returns: all variables in the specified collection with IDs, names, resolved types, scopes, code syntax, and values by mode.
 
 Interpret: check if variables use `ALL_SCOPES` (bad), check naming convention (slash-separated hierarchy?), check if code syntax is set, identify alias chains.
 
 ### List Component Sets with Properties
 
-```javascript
-// To inspect a specific page, switch to it first:
-// await figma.setCurrentPageAsync(targetPage);
-const componentSets = figma.currentPage.findAll(n => n.type === 'COMPONENT_SET');
-const result = componentSets.map(cs => ({
-  id: cs.id,
-  name: cs.name,
-  variantCount: cs.children.length,
-  properties: Object.entries(cs.componentPropertyDefinitions).map(([key, def]) => ({
-    name: key,
-    type: def.type,
-    variantOptions: def.variantOptions || null,
-    defaultValue: def.defaultValue
-  }))
-}));
-return { componentSets: result, count: result.length };
+```
+components(method: "list")
 ```
 
-Note: to search ALL pages, iterate `figma.root.children` and `setCurrentPageAsync` for each.
+Returns: all component sets and standalone components on the current page with IDs, names, variant counts, and property definitions (type, variant options, default values).
+
+To inspect a different page, switch first:
+
+```
+set_current_page(nameOrId: "Components")
+```
 
 ### List All Styles
 
-```javascript
-const [textStyles, effectStyles, paintStyles] = await Promise.all([
-  figma.getLocalTextStylesAsync(),
-  figma.getLocalEffectStylesAsync(),
-  figma.getLocalPaintStylesAsync()
-]);
-
-return {
-  textStyles: textStyles.map(s => ({ id: s.id, name: s.name, fontSize: s.fontSize, fontName: s.fontName })),
-  effectStyles: effectStyles.map(s => ({ id: s.id, name: s.name, effectCount: s.effects.length })),
-  paintStyles: paintStyles.map(s => ({ id: s.id, name: s.name })),
-  counts: { text: textStyles.length, effect: effectStyles.length, paint: paintStyles.length }
-};
 ```
+styles_ep(method: "list")
+```
+
+Returns: all local text styles, effect styles, and paint styles with IDs, names, and key properties (fontSize, fontName for text styles; effect count for effect styles).
 
 ### Check Naming Conventions on an Existing Component
 
-```javascript
-// Replace with the node ID of an existing component to analyze
-const node = await figma.getNodeByIdAsync("YOUR_NODE_ID");
-if (!node) { return { error: "Node not found" }; }
-
-// Check fills for variable bindings
-const fillInfo = [];
-if ('fills' in node && Array.isArray(node.fills)) {
-  for (const fill of node.fills) {
-    if (fill.type === 'SOLID' && fill.boundVariables?.color) {
-      fillInfo.push({ type: 'variable_alias', id: fill.boundVariables.color.id });
-    } else if (fill.type === 'SOLID') {
-      fillInfo.push({ type: 'hardcoded', r: fill.color.r, g: fill.color.g, b: fill.color.b });
-    }
-  }
-}
-
-return {
-  name: node.name,
-  type: node.type,
-  fills: fillInfo,
-  sharedPluginData: node.getSharedPluginData('dsb', 'key') || null
-};
 ```
+nodes(method: "get", nodeId: "YOUR_NODE_ID")
+```
+
+Returns: full node data including fills with variable bindings, stroke bindings, name, type, and applied styles.
+
+Interpret: check fills for variable bindings vs hardcoded hex values, check naming convention, identify which tokens are in use.
 
 ---
 
@@ -321,8 +260,8 @@ Only libraries the file has subscribed to are searched. If results are empty, th
 
 ```
 search_design_system({
-  query: "button",              // required — text query
-  fileKey: "abc123",            // required — your file key
+  query: "button",              // required -- text query
+  fileKey: "abc123",            // required -- your file key
   includeComponents: true,      // default true
   includeVariables: true,       // default true
   includeStyles: true           // default true
@@ -364,21 +303,26 @@ search_design_system({
 
 ### How to Interpret Results
 
-**Components:** The `componentKey` can be used in `use_figma` to import the component:
-```javascript
-const component = await figma.importComponentByKeyAsync("abc123def");
-// or for component sets:
-const componentSet = await figma.importComponentSetByKeyAsync("abc123def");
+**Components:** The `componentKey` can be used directly in `create_frame` children with the `componentKey` parameter to create instances:
+
 ```
+create_frame({
+  children: [
+    { type: "instance", componentKey: "abc123def" }
+  ]
+})
+```
+
+For component sets, use `componentSetKey` with `variantProperties`.
 
 **Variables:** The `variableSetKey` is the collection key. The `key` is the variable key. Use these to understand what naming conventions are in use, and what tokens are available to alias from.
 
-**Styles:** The `key` is usable with `figma.importStyleByKeyAsync(key)` to import into the current file.
+**Styles:** The `key` identifies the style. Style names can be referenced directly in creation tools via `textStyleName`, `effectStyleName`, or `fillStyleName`.
 
 ### When to Search
 
 - **Phase 0, step 0c**: Search broadly (`query: "button"`, `query: "color"`, `query: "spacing"`) before planning anything. This establishes the reuse baseline.
-- **Immediately before each component creation**: Search for the specific component name before writing any `use_figma` creation code.
+- **Immediately before each component creation**: Search for the specific component name before writing any creation code.
 
 **Reuse decision:**
 
@@ -394,7 +338,7 @@ const componentSet = await figma.importComponentSetByKeyAsync("abc123def");
 
 After codebase analysis and Figma inspection, produce a mapping table and present it to the user.
 
-### Token → Variable Mapping Table
+### Token -> Variable Mapping Table
 
 For each token found in code, record:
 
@@ -406,21 +350,21 @@ For each token found in code, record:
 | `theme.radii.md` | `--radius-md` | `8px` | Spacing | `radius/md` | FLOAT | Value |
 | `theme.shadows.md` | `--shadow-md` | `0 4px 6px rgba(0,0,0,0.1)` | — | — | Effect Style | — |
 
-### Component → Component Set Mapping Table
+### Component -> Component Set Mapping Table
 
-| Code Component | Props → Variant Axes | Variant Count | Figma Page | Reuse? |
+| Code Component | Props -> Variant Axes | Variant Count | Figma Page | Reuse? |
 |---|---|---|---|---|
-| `Button` | size (sm/md/lg) × variant (primary/secondary) × state (default/hover/disabled) | 18 | Buttons | Search first |
-| `Avatar` | size (sm/md/lg) × type (image/initials/icon) | 9 | Avatars | Search first |
+| `Button` | size (sm/md/lg) x variant (primary/secondary) x state (default/hover/disabled) | 18 | Buttons | Search first |
+| `Avatar` | size (sm/md/lg) x type (image/initials/icon) | 9 | Avatars | Search first |
 
 ### Gap Identification
 
 Compare what was found in code vs what already exists in Figma:
 
-- **New:** tokens or components that exist in code but not in Figma → create
-- **Existing:** tokens or components already in Figma with matching names → verify scope/code-syntax, skip or update
-- **Conflict:** same name, different value → escalate to user (see section 5)
-- **Figma-only:** exists in Figma but not in code → flag for user, likely skip
+- **New:** tokens or components that exist in code but not in Figma -> create
+- **Existing:** tokens or components already in Figma with matching names -> verify scope/code-syntax, skip or update
+- **Conflict:** same name, different value -> escalate to user (see section 5)
+- **Figma-only:** exists in Figma but not in code -> flag for user, likely skip
 
 ### User-Facing Checkpoint Message Template
 
@@ -433,7 +377,7 @@ CODEBASE ANALYSIS
   Colors: {N} primitives ({families}), {M} semantic tokens ({light/dark if applicable})
   Spacing: {N} tokens ({range})
   Typography: {N} text styles, {M} individual scale tokens
-  Shadows: {N} levels → will become Effect Styles
+  Shadows: {N} levels -> will become Effect Styles
   Components: {list of component names}
 
 EXISTING FIGMA FILE
@@ -450,7 +394,7 @@ PLAN
   Libraries to search before each component: {list}
 
 GAPS / CONFLICTS NEEDING DECISIONS
-  ⚠ {conflict description} — Code says X, Figma already has Y. Which wins?
+  ! {conflict description} -- Code says X, Figma already has Y. Which wins?
 
 WHAT I WON'T BUILD (and why)
   - {item}: already exists in Figma with matching conventions

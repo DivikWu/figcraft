@@ -1,6 +1,6 @@
 ---
 name: figma-create-ui
-description: "Create UI in Figma using FigCraft declarative tools (create_frame, create_text, create_component). Use when: create/design/build/make + Figma/UI/screen/page/component/button/variant. IMPORTANT: Use create_frame for screens, create_component for reusable components. Never use use_figma for UI creation."
+description: "Create UI in Figma using FigCraft declarative tools (create_frame, create_text, create_component). Use when: create/design/build/make + Figma/UI/screen/page/component/button/variant WITHOUT an existing design system. IMPORTANT: Use create_frame for screens, create_component for reusable components. Never use use_figma for UI creation. Do NOT use when assembling screens from existing design system (use figcraft-generate-design) or building a full design system (use figcraft-generate-library)."
 ---
 
 # FigCraft UI Creation
@@ -34,9 +34,9 @@ This SKILL.md is a **lightweight entry point**. The detailed, context-aware crea
 - Use this skill to **create new UI** using declarative tools (`create_frame`, `create_text`).
 - This skill covers **both** simple layouts and **library component assembly**. In library mode, use `search_design_system` and `type:"instance"` as described in the Library Components section below.
 - This skill also covers **creating new reusable components** (buttons, inputs, cards). See the Component Authoring section below.
-- If the task is **building a full design system** (variables + components + theming), switch to [figma-generate-library](../figma-generate-library/SKILL.md).
+- If the task is **building a full design system** (variables + components + theming), switch to [figcraft-generate-library](../figcraft-generate-library/SKILL.md).
 - If the task is **reviewing existing designs**, switch to [design-review](../design-review/SKILL.md).
-- If the task is **implementing code from Figma**, switch to [figma-implement-design](../figma-implement-design/SKILL.md).
+- If the task is **implementing code from Figma**, switch to [figcraft-implement-design](../figcraft-implement-design/SKILL.md).
 
 ## Library Components — Reuse Design System
 
@@ -172,7 +172,20 @@ For component property management (add_component_property, bind_component_proper
 - **Token binding (library mode)**: Use `fillVariableName` for background, `fontColorVariableName` on text children for text color. Do NOT hardcode `fill:"#FFFFFF"` for text on colored backgrounds — use `fontColorVariableName:"text/primary-inverse"` or omit fill to let auto-binding resolve.
 - **Variant naming**: Each component must follow `Property=Value, Property=Value` format (e.g., `"Size=Small, Style=Primary, State=Default"`).
 - **Variant cap**: `create_component_set` enforces a soft 30-variant cap. Pass `variantLimit:0` to disable for legitimate large matrices. Consider extracting high-cardinality axes (icons, colors) into `INSTANCE_SWAP` properties instead.
-- For full component library builds (multiple components + variables + theming), switch to [figma-generate-library](../figma-generate-library/SKILL.md).
+- For full component library builds (multiple components + variables + theming), switch to [figcraft-generate-library](../figcraft-generate-library/SKILL.md).
+
+### Advanced Component Patterns
+
+For components with 3+ variants or complex variant matrices, reference these patterns:
+
+- **Building Blocks** — extract sub-elements with independent state machines into `.Building Blocks/` component sets to prevent variant explosion (see [component-creation reference](../figcraft-generate-library/references/component-creation.md) Section 1)
+- **Dependency ordering** — atoms (Icon, Badge) → molecules (Button, Input) → organisms (Card, Dialog)
+- **Full variable binding** — beyond fill/fontColor: bind strokes, padding, spacing, cornerRadius via `variables_ep(method:"batch_bind")`
+- **Text + Effect styles** — `textStyleName` for typography, `effectStyleName` for shadows
+- **Per-component verification** — `audit_node(nodeId)` + `export_image` after each component set
+- **Private components** — `__` prefix for internal helpers, `.` prefix for hidden from assets panel
+
+For full design system builds (10+ components + variables + theming), switch to [figcraft-generate-library](../figcraft-generate-library/SKILL.md).
 
 ## Opinion Engine
 

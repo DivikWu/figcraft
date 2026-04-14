@@ -12,7 +12,7 @@ Review existing Figma designs against design quality rules. Produces a structure
 - Use this skill to **review and critique** existing designs against quality rules.
 - If the task is **automated lint + auto-fix**, switch to [design-lint](../design-lint/SKILL.md).
 - If the task is **creating new UI**, switch to [figma-create-ui](../figma-create-ui/SKILL.md).
-- If the task is **implementing code from Figma**, switch to [figma-implement-design](../figma-implement-design/SKILL.md).
+- If the task is **implementing code from Figma**, switch to [figcraft-implement-design](../figcraft-implement-design/SKILL.md).
 
 ## Design Direction
 

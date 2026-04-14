@@ -1,5 +1,5 @@
 ---
-name: figma-create-design-system-rules
+name: figcraft-create-design-system-rules
 description: Generates custom design system rules for the user's codebase. Use when user says "create design system rules", "generate rules for my project", "set up design rules", "customize design system guidelines", or wants to establish project-specific conventions for Figma-to-code workflows. Requires Figma MCP server connection.
 disable-model-invocation: false
 ---
@@ -50,8 +50,8 @@ Use this skill when:
 ## Skill Boundaries
 
 - Use this skill to **generate IDE rule files** (CLAUDE.md, AGENTS.md, .cursor/rules/) for Figma-to-code workflows.
-- If the task is **implementing code from a Figma design**, switch to [figma-implement-design](../figma-implement-design/SKILL.md).
-- If the task is **connecting components to code**, switch to [figma-code-connect-components](../figma-code-connect-components/SKILL.md).
+- If the task is **implementing code from a Figma design**, switch to [figcraft-implement-design](../figcraft-implement-design/SKILL.md).
+- If the task is **connecting components to code**, switch to [figcraft-code-connect](../figcraft-code-connect/SKILL.md).
 - If the task is **creating UI in Figma**, switch to [figma-create-ui](../figma-create-ui/SKILL.md).
 
 ## Required Workflow
@@ -132,9 +132,9 @@ These rules define how to translate Figma inputs into code for this project and 
 ### Required Flow (do not skip)
 
 1. Run get_design_context first to fetch the structured representation for the exact node(s)
-2. If the response is too large or truncated, run get_metadata to get the high-level node map, then re-fetch only the required node(s) with get_design_context
-3. Run get_screenshot for a visual reference of the node variant being implemented
-4. Only after you have both get_design_context and get_screenshot, download any assets needed and start implementation
+2. If the response is too large or truncated, run get_current_page(maxDepth: 2) to get the high-level node map, then re-fetch only the required node(s) with get_design_context
+3. Run export_image for a visual reference of the node variant being implemented
+4. Only after you have both get_design_context and export_image, download any assets needed and start implementation
 5. Translate the output (usually React + Tailwind) into this project's conventions, styles, and framework
 6. Validate against Figma for 1:1 look and behavior before marking complete
 
@@ -315,10 +315,10 @@ User says: "Create design system rules for my React project"
 ## Figma Implementation Flow
 
 1. Run get_design_context for the node
-2. Run get_screenshot for visual reference
+2. Run export_image for visual reference
 3. Map Figma colors to Tailwind colors defined in `tailwind.config.js`
 4. Reuse components from `src/components/ui/` when possible
-5. Validate against screenshot before completing
+5. Validate against export_image before completing
 
 ## Styling Rules
 
@@ -367,7 +367,7 @@ User says: "Set up Figma rules for my Vue app"
 
 ## Figma Implementation Flow
 
-1. Run get_design_context and get_screenshot
+1. Run get_design_context and export_image
 2. Translate React output to Vue 3 Composition API
 3. Map Figma colors to CSS variables in `src/styles/tokens.css`
 4. Use CSS Modules for component styles

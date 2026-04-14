@@ -208,6 +208,20 @@ export function buildWorkflow(input: WorkflowInput): Record<string, unknown> {
         : 'MANDATORY for token discovery beyond designContext.defaults. search_design_system searches local + library components via REST API. Call it when defaults doesn\'t cover all needed colors or when you need component IDs for type:"instance".'
       : 'search_design_system is disabled (no library selected). Skip it — make intentional design choices directly.',
 
+    // Skill routing — guides AI to the correct creation skill based on task type
+    skillRouting: {
+      instruction:
+        'Before creating, verify you loaded the correct skill for this task. ' +
+        'If the wrong skill is active, switch before proceeding.',
+      routes: [
+        hasLibrary
+          ? 'Assembling screens from existing design system → figcraft-generate-design (NOT figma-create-ui)'
+          : null,
+        'Building a full design system (variables + components + theming) → figcraft-generate-library (NOT figma-create-ui)',
+        !hasLibrary ? 'Creating UI without a design system, or creating single new components → figma-create-ui' : null,
+      ].filter(Boolean),
+    },
+
     // What to do RIGHT NOW (next action for AI)
     nextAction: hasLibrary
       ? 'Reply to user: gather missing preferences (platform, language, density, tone) OR present design proposal based on available library tokens/components if user provided enough detail. WAIT for confirmation.'

@@ -12,7 +12,7 @@ Sync DTCG (W3C Design Token Community Group) design tokens to Figma. Creates/upd
 - Use this skill to **sync tokens from DTCG JSON to Figma**.
 - If the task is **comparing tokens without syncing**, switch to [spec-compare](../spec-compare/SKILL.md).
 - If the task is **exporting Figma variables to DTCG JSON**, use `reverse_sync_tokens` directly after `load_toolset("tokens")`.
-- If the task is **creating a full design system** (variables + components), switch to [figma-generate-library](../figma-generate-library/SKILL.md).
+- If the task is **creating a full design system** (variables + components), switch to [figcraft-generate-library](../figcraft-generate-library/SKILL.md).
 
 ## Workflow
 

@@ -5,13 +5,13 @@ description: "Generate documentation for Figma components — properties, varian
 
 # Component Docs — Automated Component Documentation
 
-Scan Figma components, audit their structural health, and generate structured Markdown documentation including properties, variants, dimensions, and usage guidance. Pairs with `figma-generate-library` for the "build → document" design system workflow.
+Scan Figma components, audit their structural health, and generate structured Markdown documentation including properties, variants, dimensions, and usage guidance. Pairs with `figcraft-generate-library` for the "build → document" design system workflow.
 
 ## Skill Boundaries
 
 - Use this skill to **document and audit existing components**.
-- If the task is **creating new components or variants**, switch to [figma-generate-library](../figma-generate-library/SKILL.md) or [figma-use](../figma-use/SKILL.md).
-- If the task is **connecting components to code**, switch to [figma-code-connect-components](../figma-code-connect-components/SKILL.md).
+- If the task is **creating new components or variants**, switch to [figcraft-generate-library](../figcraft-generate-library/SKILL.md) or [figcraft-use](../figcraft-use/SKILL.md).
+- If the task is **connecting components to code**, switch to [figcraft-code-connect](../figcraft-code-connect/SKILL.md).
 - If the task is **reviewing overall design quality**, switch to [design-review](../design-review/SKILL.md).
 
 ## Workflow
@@ -100,8 +100,8 @@ The documentation can be output as:
 ## Integration with Design System Workflow
 
 ```
-figma-generate-library → component-docs → figma-code-connect-components
+figcraft-generate-library → component-docs → figcraft-code-connect
 (build components)       (this skill)      (connect to code)
 ```
 
-After building components with figma-generate-library, run component-docs to generate documentation and catch structural issues before publishing.
+After building components with figcraft-generate-library, run component-docs to generate documentation and catch structural issues before publishing.

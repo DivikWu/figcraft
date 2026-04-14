@@ -20,6 +20,30 @@ Rules single source of truth (update MCP tool code → all IDEs auto-update):
 
 > Do NOT duplicate these rules in CLAUDE.md or IDE config files. Rules are implemented in `packages/core-mcp/src/tools/logic/mode-logic.ts`.
 
+## ⛔ Skill Priority — Project Skills Override External
+
+When a skill name exists in BOTH the project `skills/` directory AND an external source (Figma MCP, Anthropic registry), **ALWAYS load the project version**. External versions contain generic guidance that bypasses figcraft's declarative pipeline (Opinion Engine, harness, variable binding).
+
+| Project Skill | Why project version must win |
+|--------------|------------------------------|
+| `figcraft-use` | Project version enforces declarative tools first; external goes straight to `use_figma` |
+| `figcraft-implement-design` | Project version uses figcraft `get_design_context` (zero REST limits, in-session freshness) |
+| `figcraft-generate-design` | Project version has mandatory library discovery phase |
+| `figcraft-generate-library` | Project version uses declarative tools; external may use raw Plugin API |
+| `figcraft-code-connect` | Project version supports 3 workflows (CLI / MCP / figcraft metadata) |
+| `figcraft-create-design-system-rules` | Project version targets figcraft ecosystem |
+
+**Do NOT load** these external skills — use project equivalents instead:
+- `baseline-ui` → does not exist in project, ignore entirely
+- `ui-ux-pro-max` → use project's `ui-ux-fundamentals` + `design-guardian`/`design-creator`
+- `web-design-guidelines` → use project's design rules via `get_design_guidelines(category)`
+
+Creation skill selection and external skill blocking are enforced at runtime via:
+- `get_mode._workflow.skillRouting` — skill routing guidance
+- Harness `_nextSteps` on `get_mode` — skill priority reminder (content/harness/next-steps.yaml)
+
+Do NOT duplicate these rules here — they are delivered by MCP tools to all IDEs automatically.
+
 ## Stack
 
 - TypeScript (strict, ESM)
@@ -96,7 +120,7 @@ figcraft/
 │   ├── design-creator/
 │   ├── design-guardian/
 │   ├── figma-create-ui/            # declarative creation flow
-│   └── figma-use/ ...              # (see skills/ for full list)
+│   └── figcraft-use/ ...              # (see skills/ for full list)
 ├── content/                        # editable content assets (YAML/Markdown)
 │   ├── ide-shared/                 # shared snippets injected into IDE config files
 │   ├── templates/*.yaml            # UI templates → _templates.ts

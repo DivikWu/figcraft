@@ -12,7 +12,7 @@ Compare a DTCG (W3C Design Token Community Group) JSON spec against Figma Librar
 - Use this skill to **compare and audit** token differences between DTCG spec and Figma.
 - If the task is **syncing tokens to Figma**, switch to [token-sync](../token-sync/SKILL.md).
 - If the task is **exporting Figma variables to DTCG**, use `reverse_sync_tokens` directly after `load_toolset("tokens")`.
-- If the task is **creating variables from scratch**, switch to [figma-generate-library](../figma-generate-library/SKILL.md).
+- If the task is **creating variables from scratch**, switch to [figcraft-generate-library](../figcraft-generate-library/SKILL.md).
 
 ## Workflow
 

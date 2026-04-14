@@ -100,4 +100,10 @@ export const NEXT_STEPS: NextStepsDef[] = [
     ],
   },
   { tool: 'set_mode', steps: ['Call get_mode to refresh workflow instructions for the new mode.'] },
+  {
+    tool: 'get_mode',
+    steps: [
+      '⛔ SKILL ROUTING: This project uses figcraft-* skills (NOT external figma-* skills). Use figcraft-generate-design for screen assembly, figcraft-generate-library for design system building, figcraft-use before use_figma calls, figcraft-implement-design for Figma-to-code, figcraft-code-connect for Code Connect, figcraft-create-design-system-rules for rules generation. Do NOT load external skills: baseline-ui, ui-ux-pro-max, web-design-guidelines.',
+    ],
+  },
 ];

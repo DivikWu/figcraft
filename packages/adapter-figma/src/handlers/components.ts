@@ -335,7 +335,7 @@ export function registerComponentHandlers(): void {
     assertHandler(components.length > 0, 'No valid components found');
 
     // ── Variant matrix guardrail (P0-4) ──
-    // Enforce a soft variant cap from figma-generate-library SKILL at the code level.
+    // Enforce a soft variant cap from figcraft-generate-library SKILL at the code level.
     // SKILL rules as warnings are weaker than runtime enforcement — see memory
     // feedback_ai_guidance_layers (Layer 1 > Layer 5). Default is 30, but real
     // production libraries sometimes legitimately exceed this (e.g. 4 size × 3

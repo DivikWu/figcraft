@@ -1,8 +1,8 @@
-> Part of the [figma-generate-library skill](../SKILL.md).
+> Part of the [figcraft-generate-library skill](../SKILL.md).
 
 # Naming Conventions Reference
 
-This reference documents every naming convention used in the figma-generate-library workflow. Cover all naming decisions in order: variables, components, pages, variants, styles, separators, status indicators. The last section explains when to match an existing file's conventions vs. using the defaults here.
+This reference documents every naming convention used in the figcraft-generate-library workflow. Cover all naming decisions in order: variables, components, pages, variants, styles, separators, status indicators. The last section explains when to match an existing file's conventions vs. using the defaults here.
 
 ---
 
@@ -380,7 +380,7 @@ This system is only recommended for large, multi-team systems where lifecycle tr
 
 ## 8. When to Match Existing vs. Use Defaults
 
-**Always inspect before naming anything.** Run `get_metadata` or `inspectFileStructure` to discover existing conventions before creating any pages or variables.
+**Always inspect before naming anything.** Run `get_current_page(maxDepth:2)` to discover existing conventions before creating any pages or variables.
 
 ### Match the existing file when:
 
