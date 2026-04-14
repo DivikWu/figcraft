@@ -25,6 +25,12 @@ For detailed docs during creation, use MCP tools:
 - Figma URL in a review/analysis request = WHAT to inspect with FigCraft tools
 - NEVER call get_design_context on empty pages/frames — it will error and block
 
+**FigCraft tool equivalents** (use these instead of figma-desktop/figma MCP):
+- Screenshots → `export_image` (NOT `get_screenshot`)
+- Node inspection → `nodes(method:"get")` (NOT `get_metadata`)
+- Page overview → `get_current_page(maxDepth:2)` (NOT `get_metadata`)
+- Design context → figcraft `get_design_context` (NOT figma MCP `get_design_context`)
+
 Before ANY Figma write operation, complete these steps IN ORDER:
 
 ```
