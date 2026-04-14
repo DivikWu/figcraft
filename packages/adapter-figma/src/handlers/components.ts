@@ -349,14 +349,29 @@ export function registerComponentHandlers(): void {
         'BATCH_LIMIT_EXCEEDED',
       );
 
+      // Bug fix: inherit top-level params onto each item when the item hasn't
+      // set them explicitly. This is critical for the harness-injected parentId
+      // (from componentDefaultsInjection rule, which puts the tracked section ID
+      // onto `params.parentId`). Without this propagation, batch-created components
+      // land at root instead of inside the section. Item-level values always win
+      // over top-level so agents can still override per item.
+      const INHERITED_KEYS = ['parentId'] as const;
+      const inheritedDefaults: Record<string, unknown> = {};
+      for (const key of INHERITED_KEYS) {
+        if (params[key] != null) inheritedDefaults[key] = params[key];
+      }
+
       const results: Array<{ id?: string; name?: string; ok: boolean; error?: string }> = [];
       let created = 0;
       let totalViolations = 0;
       let totalAutoFixed = 0;
       const allBindingFailures: unknown[] = [];
       for (const item of items) {
+        // Merge inherited defaults with item-level overrides. Item-level values win
+        // because the spread comes after.
+        const effectiveItem = { ...inheritedDefaults, ...item };
         try {
-          const result = (await createSingleComponent(item, createFrameHandler)) as Record<string, unknown>;
+          const result = (await createSingleComponent(effectiveItem, createFrameHandler)) as Record<string, unknown>;
           results.push({ id: result.id as string, name: result.name as string, ok: true });
           created++;
           // Aggregate lint stats
@@ -385,6 +400,12 @@ export function registerComponentHandlers(): void {
       }
       if (allBindingFailures.length > 0) {
         out._tokenBindingFailures = allBindingFailures;
+      }
+      // Surface the inherited top-level params so agents can confirm the
+      // section-parent injection reached each batch item (mirrors the
+      // _autoInjected field set by componentDefaultsPostEnrich for single mode).
+      if (Object.keys(inheritedDefaults).length > 0) {
+        out._inheritedToItems = inheritedDefaults;
       }
       return out;
     }
