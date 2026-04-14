@@ -1965,22 +1965,6 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
   const ctx = await initCreateContext();
   const frame = figma.createFrame();
 
-  // ── Auto-position: avoid overlapping existing page content for root-level frames ──
-  if (!params.parentId && params.x == null && params.y == null) {
-    const siblings = figma.currentPage.children;
-    if (siblings.length > 1) {
-      let maxBottom = 0;
-      for (const child of siblings) {
-        if (child.id === frame.id) continue;
-        if (!child.visible) continue;
-        maxBottom = Math.max(maxBottom, child.y + child.height);
-      }
-      if (maxBottom > 0) {
-        frame.y = maxBottom + 80;
-      }
-    }
-  }
-
   try {
     const p = { ...params };
     await setupFrame(frame, p, ctx);
@@ -1991,6 +1975,35 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
       if (parentNode) assertOnCurrentPage(parentNode, params.parentId as string);
       if (parentNode && 'appendChild' in parentNode) {
         (parentNode as FrameNode).appendChild(frame);
+      }
+    }
+
+    // ── Auto-position: stack below existing siblings in the target container ──
+    // Applies in free-layout containers:
+    //   - Page root (no parent) — scan currentPage.children
+    //   - SectionNode — scan section.children (SectionNode has no layoutMode)
+    //   - FRAME/COMPONENT with layoutMode === 'NONE' — scan parent.children
+    // Skipped when:
+    //   - User explicitly provided x or y (respect their intent)
+    //   - Parent is auto-layout (HORIZONTAL / VERTICAL / GRID) — Figma positions children
+    // Runs AFTER appendChild so frame.parent is correct and frame.y is already in the
+    // target container's local coordinate space — no manual coordinate conversion needed.
+    if (params.x == null && params.y == null) {
+      const container = (parentNode ?? figma.currentPage) as BaseNode & ChildrenMixin;
+      const parentLayoutMode =
+        parentNode && 'layoutMode' in parentNode
+          ? ((parentNode as { layoutMode?: string }).layoutMode ?? 'NONE')
+          : 'NONE';
+      if (parentLayoutMode === 'NONE' && 'children' in container) {
+        let maxBottom = 0;
+        for (const child of container.children) {
+          if (child.id === frame.id) continue;
+          if (!child.visible) continue;
+          maxBottom = Math.max(maxBottom, child.y + child.height);
+        }
+        if (maxBottom > 0) {
+          frame.y = maxBottom + 80;
+        }
       }
     }
 
