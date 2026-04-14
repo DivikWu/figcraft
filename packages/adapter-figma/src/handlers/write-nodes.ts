@@ -396,6 +396,38 @@ export function registerWriteNodeHandlers(): void {
           if (!ALL_KNOWN.has(key)) unknownProps.push(key);
         }
 
+        // 缺陷 P1b: self-correcting hint for variable-binding params.
+        // patch_nodes is for direct Figma node properties only — variable bindings
+        // go through variables_ep(method:"set_binding" | "batch_bind"). Without
+        // this guard, agents who try `nodes.update({props:{fillVariableId:...}})`
+        // see a silent unknown-prop drop and have to guess the right API.
+        const VAR_BINDING_SHORTCUTS: Record<string, { field: string; example: string }> = {
+          fillVariableId: { field: 'fills', example: 'field:"fills", paintIndex:0' },
+          fillVariableName: { field: 'fills', example: 'field:"fills", paintIndex:0' },
+          fillStyleName: { field: 'fills', example: 'field:"fills", paintIndex:0' },
+          strokeVariableId: { field: 'strokes', example: 'field:"strokes", paintIndex:0' },
+          strokeVariableName: { field: 'strokes', example: 'field:"strokes", paintIndex:0' },
+          cornerRadiusVariableId: { field: 'cornerRadius', example: 'field:"cornerRadius"' },
+          cornerRadiusVariableName: { field: 'cornerRadius', example: 'field:"cornerRadius"' },
+        };
+        const badBindingKey = Object.keys(patch.props).find((k) => k in VAR_BINDING_SHORTCUTS);
+        if (badBindingKey) {
+          const hint = VAR_BINDING_SHORTCUTS[badBindingKey];
+          const badValue = patch.props[badBindingKey];
+          const valueLit = typeof badValue === 'string' ? `"${badValue}"` : JSON.stringify(badValue);
+          results.push({
+            nodeId: patch.nodeId,
+            ok: false,
+            error:
+              `⛔ "${badBindingKey}" is not a direct node property — patch_nodes/nodes.update only takes raw Figma props. ` +
+              `To bind a variable to an existing node, call variables_ep(method:"set_binding", nodeId:"${patch.nodeId}", ${hint.example}, variableId:${valueLit}) ` +
+              `or variables_ep(method:"batch_bind", bindings:[{nodeId:"${patch.nodeId}", ${hint.example}, variableId:${valueLit}}]) for multiple at once. ` +
+              `Creating a new node? Pass ${badBindingKey} directly to create_frame / create_component instead.`,
+            _unknownProps: [badBindingKey],
+          });
+          continue;
+        }
+
         // Strict mode: reject patch if any unknown properties
         if (strict && unknownProps.length) {
           results.push({

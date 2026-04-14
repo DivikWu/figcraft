@@ -15,6 +15,7 @@ import {
   findColorVariableByName,
   findFloatVariableByName,
   findVariableByIdAny,
+  ResolvedTypeMismatchError,
   ScopeMismatchError,
   suggestColorVariable,
 } from './design-context.js';
@@ -316,6 +317,60 @@ function formatScopeMismatchHint(
 }
 
 /**
+ * Build a descriptive colorHint from a ResolvedTypeMismatchError for agent self-correction.
+ *
+ * Fired when a name lookup found variables under the requested name but all with
+ * the wrong resolvedType (e.g. agent passes `fillVariableName: "button/emphasis"`
+ * expecting COLOR, but only FLOAT CORNER_RADIUS token exists). This message names
+ * the actual type, the collection it lives in, and — critically — which parameter
+ * to use instead (cornerRadius for FLOAT+CORNER_RADIUS scope, etc.).
+ *
+ * Shared between applyFill, applyStroke, and numeric token binding paths. See
+ * memory file `feedback_p02_resolvedtype_mismatch.md`.
+ */
+function formatResolvedTypeMismatchHint(
+  err: ResolvedTypeMismatchError,
+  requestedName: string,
+  role: 'background' | 'textColor' | 'border' | 'stroke' | 'radius' | 'spacing',
+): string {
+  const found = err.found
+    .slice(0, 5)
+    .map((f) => {
+      const scope = f.scopes.length > 0 ? `, scopes: [${f.scopes.join(', ')}]` : '';
+      const coll = f.collection ? `, in "${f.collection}"` : '';
+      return `"${f.name}" (type: ${f.resolvedType}${scope}${coll})`;
+    })
+    .join('; ');
+
+  // Build a concrete "use X instead" pointer based on the actual resolvedType found.
+  const floatMatches = err.found.filter((f) => f.resolvedType === 'FLOAT');
+  const colorMatches = err.found.filter((f) => f.resolvedType === 'COLOR');
+
+  let suggestion = '';
+  if (err.requestedType === 'COLOR' && floatMatches.length > 0) {
+    // The most common case: agent wanted a color but the name is a FLOAT token.
+    const hasRadiusScope = floatMatches.some((f) => f.scopes.includes('CORNER_RADIUS'));
+    const hasGapScope = floatMatches.some((f) => f.scopes.includes('GAP') || f.scopes.includes('WIDTH_HEIGHT'));
+    if (hasRadiusScope) {
+      suggestion = ` If this is a radius token, use cornerRadius:"${requestedName}" instead of ${role === 'stroke' ? 'strokeVariableName' : 'fillVariableName'}.`;
+    } else if (hasGapScope) {
+      suggestion = ` If this is a spacing token, use itemSpacing/padding* with the value directly, or cornerRadius etc. — not ${role === 'stroke' ? 'strokeVariableName' : 'fillVariableName'}.`;
+    } else {
+      suggestion = ` This name maps to a FLOAT variable — use it with a numeric field (cornerRadius, itemSpacing, padding*), not a paint field.`;
+    }
+  } else if (err.requestedType === 'FLOAT' && colorMatches.length > 0) {
+    suggestion = ` This name is a COLOR variable — use it with fillVariableName / strokeVariableName / fontColorVariableName, not a numeric field.`;
+  }
+
+  const searchTypeHint = `variables_ep(method:"list", type:"${err.requestedType}")`;
+  return (
+    `⛔ Variable "${requestedName}" exists but its resolvedType is wrong for this binding. ` +
+    `Requested ${err.requestedType}, found: ${found}.${suggestion} ` +
+    `Run ${searchTypeHint} to list only correctly-typed candidates.`
+  );
+}
+
+/**
  * Apply a fill to a node: hex color → solid paint, then try to match a Paint Style.
  * If no fill is specified and library mode is active, auto-bind the default color variable.
  * If no fill and no library, clear the default white fill.
@@ -443,6 +498,40 @@ export async function applyFill(
         };
       }
     } catch (err) {
+      // 缺陷 P1a: surface semantic errors with precise hints before falling back.
+      if (err instanceof ScopeMismatchError) {
+        return {
+          autoBound: null,
+          colorHint: formatScopeMismatchHint(
+            err,
+            fill._variable,
+            role as 'background' | 'textColor' | 'border',
+            ((): string[] => {
+              const hints: Record<string, string[]> = {
+                background: ['ALL_FILLS', 'FRAME_FILL', 'SHAPE_FILL'],
+                textColor: ['ALL_FILLS', 'TEXT_FILL'],
+                border: ['STROKE_COLOR', 'ALL_SCOPES'],
+              };
+              return hints[role] ?? [];
+            })(),
+          ),
+          bindingFailure: { requested: fill._variable, type: 'variable', action: 'scope-mismatch' },
+        };
+      }
+      if (err instanceof AmbiguousMatchError) {
+        return {
+          autoBound: null,
+          colorHint: formatAmbiguousMatchHint(err, fill._variable),
+          bindingFailure: { requested: fill._variable, type: 'variable', action: 'ambiguous' },
+        };
+      }
+      if (err instanceof ResolvedTypeMismatchError) {
+        return {
+          autoBound: null,
+          colorHint: formatResolvedTypeMismatchHint(err, fill._variable, role as 'background' | 'textColor' | 'border'),
+          bindingFailure: { requested: fill._variable, type: 'variable', action: 'skipped' },
+        };
+      }
       colorHint = err instanceof Error ? err.message : `Variable "${fill._variable}" lookup failed.`;
       return {
         autoBound,
@@ -514,6 +603,13 @@ export async function applyFill(
             autoBound: null,
             colorHint: formatAmbiguousMatchHint(err, fill),
             bindingFailure: { requested: fill, type: 'variable', action: 'ambiguous' },
+          };
+        }
+        if (err instanceof ResolvedTypeMismatchError) {
+          return {
+            autoBound: null,
+            colorHint: formatResolvedTypeMismatchHint(err, fill, role as 'background' | 'textColor' | 'border'),
+            bindingFailure: { requested: fill, type: 'variable', action: 'skipped' },
           };
         }
         /* other variable lookup failure — try style */
@@ -707,6 +803,14 @@ export async function applyStroke(
           bindingFailure: { requested: varName, type: 'variable', action: 'ambiguous' },
         };
       }
+      if (err instanceof ResolvedTypeMismatchError) {
+        (node as any).strokeWeight = strokeWeight ?? 1;
+        return {
+          autoBound: null,
+          colorHint: formatResolvedTypeMismatchHint(err, varName, 'stroke'),
+          bindingFailure: { requested: varName, type: 'variable', action: 'skipped' },
+        };
+      }
       /* other lookup failure — fall through */
     }
     (node as any).strokeWeight = strokeWeight ?? 1;
@@ -770,6 +874,14 @@ export async function applyStroke(
             autoBound: null,
             colorHint: formatAmbiguousMatchHint(err, stroke),
             bindingFailure: { requested: stroke, type: 'variable', action: 'ambiguous' },
+          };
+        }
+        if (err instanceof ResolvedTypeMismatchError) {
+          (node as any).strokeWeight = strokeWeight ?? 1;
+          return {
+            autoBound: null,
+            colorHint: formatResolvedTypeMismatchHint(err, stroke, 'stroke'),
+            bindingFailure: { requested: stroke, type: 'variable', action: 'skipped' },
           };
         }
         /* other lookup failure — try style */

@@ -175,6 +175,14 @@ export function registerComponentHandlers(): void {
       }
     }
 
+    // 缺陷 P0b: local property-warning collector.
+    // Previously the inline property-creation path at steps 3-4 silently swallowed
+    // all errors (`catch { /* skip */ }`), so agents had no idea when a property
+    // failed to register. Each failed property now pushes a descriptive hint that
+    // gets merged into _warnings / _typedHints at the end so the agent can self-correct.
+    const propertyWarnings: string[] = [];
+    const propertiesAdded: string[] = [];
+
     // Step 3: Bind text children to component TEXT properties via componentPropertyName
     if (Array.isArray(itemParams.children)) {
       const textBindings: Array<{ propName: string; textContent: string }> = [];
@@ -194,29 +202,97 @@ export function registerComponentHandlers(): void {
         const textNode = component.findOne(
           (n) => n.type === 'TEXT' && (n.name === propName || (n as TextNode).characters === textContent),
         ) as TextNode | null;
-        if (textNode) {
-          try {
-            const propKey = component.addComponentProperty(propName, 'TEXT', textNode.characters);
-            textNode.componentPropertyReferences = { characters: propKey };
-          } catch {
-            /* skip duplicate */
-          }
+        if (!textNode) {
+          propertyWarnings.push(
+            `⛔ TEXT property "${propName}" — no matching text child found (name === "${propName}" or characters === "${textContent}"). ` +
+              `Check the child's componentPropertyName matches the text node's name or content.`,
+          );
+          continue;
+        }
+        try {
+          const propKey = component.addComponentProperty(propName, 'TEXT', textNode.characters);
+          textNode.componentPropertyReferences = { characters: propKey };
+          propertiesAdded.push(propName);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          // Common case: property already exists (e.g. duplicated componentPropertyName
+          // across multiple text children). Surface it so agents can deduplicate.
+          propertyWarnings.push(
+            `⛔ TEXT property "${propName}" failed to register: ${msg}. ` +
+              `Common cause: duplicate componentPropertyName across multiple text children — each TEXT property name must be unique within the component.`,
+          );
         }
       }
     }
 
     // Step 4: Add non-text component properties (BOOLEAN, INSTANCE_SWAP, SLOT)
+    // Mirrors the validation from the standalone add_component_property handler.
     if (Array.isArray(itemParams.properties)) {
+      const existingProps = new Set(Object.keys(component.componentPropertyDefinitions));
       for (const prop of itemParams.properties as Array<Record<string, unknown>>) {
         const propName = prop.propertyName as string;
         const propType = prop.type as string;
         const defaultValue = prop.defaultValue;
-        if (propName && propType && propType !== 'TEXT') {
-          try {
-            component.addComponentProperty(propName, propType as any, defaultValue as any);
-          } catch {
-            /* skip */
-          }
+        const preferredValues = prop.preferredValues;
+
+        if (!propName || !propType) {
+          propertyWarnings.push(
+            `⛔ component property missing required fields — need {propertyName, type, defaultValue}. Got: ${JSON.stringify(prop)}`,
+          );
+          continue;
+        }
+        if (propType === 'TEXT') continue; // TEXT properties are created via componentPropertyName on children
+
+        // Validation parity with standalone add_component_property handler (components.ts:687-746)
+        if (propType === 'VARIANT') {
+          propertyWarnings.push(
+            `⛔ component property "${propName}" type VARIANT is auto-managed by create_component_set / combineAsVariants — ` +
+              `do not declare it via properties:[]. Define variant axes in the variant set's name scheme instead.`,
+          );
+          continue;
+        }
+        if (propType === 'INSTANCE_SWAP' && !preferredValues) {
+          propertyWarnings.push(
+            `⛔ component property "${propName}" (INSTANCE_SWAP) requires preferredValues. ` +
+              `Pass preferredValues:[{type:"COMPONENT", key:"<componentKey>"}]. Use search_design_system to find component keys.`,
+          );
+          continue;
+        }
+        if (propType === 'BOOLEAN' && typeof defaultValue !== 'boolean') {
+          propertyWarnings.push(
+            `⛔ component property "${propName}" (BOOLEAN) defaultValue must be true/false, got ${typeof defaultValue}: ${JSON.stringify(defaultValue)}. ` +
+              `Pass the literal boolean, not the string "true"/"false".`,
+          );
+          continue;
+        }
+        // Strip Figma's #id:id suffix for the duplicate check so agents can use bare names.
+        const bareExisting = new Set(
+          [...existingProps].map((k) => {
+            const h = k.indexOf('#');
+            return h >= 0 ? k.slice(0, h) : k;
+          }),
+        );
+        if (bareExisting.has(propName)) {
+          propertyWarnings.push(
+            `⛔ component property "${propName}" already exists — skipped. Use update_component_property to change it, or delete_component_property first.`,
+          );
+          continue;
+        }
+
+        try {
+          const options: ComponentPropertyOptions | undefined = preferredValues
+            ? { preferredValues: preferredValues as InstanceSwapPreferredValue[] }
+            : undefined;
+          component.addComponentProperty(propName, propType as ComponentPropertyType, defaultValue as any, options);
+          propertiesAdded.push(propName);
+          existingProps.add(propName);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          propertyWarnings.push(
+            `⛔ component property "${propName}" (${propType}) failed to register: ${msg}. ` +
+              `Common causes: defaultValue type mismatch (BOOLEAN needs true/false, TEXT needs string), ` +
+              `name conflict, or unsupported type on this component type.`,
+          );
         }
       }
     }
@@ -238,6 +314,23 @@ export function registerComponentHandlers(): void {
       if (frameResult[key] != null) meta[key] = frameResult[key];
     }
     if (lintSummary) meta._lintSummary = lintSummary;
+
+    // 缺陷 P0b: merge inline property failures into response.
+    // Appends to existing _warnings from frame creation so the agent sees a single
+    // aggregated warning stream instead of two disjoint sources.
+    if (propertyWarnings.length > 0) {
+      const existing = Array.isArray(meta._warnings) ? (meta._warnings as string[]) : [];
+      meta._warnings = [...existing, ...propertyWarnings];
+      // Also surface as typed errors so the harness post-enrich layer sees them.
+      const existingTyped = Array.isArray(meta._typedHints) ? (meta._typedHints as Array<Record<string, unknown>>) : [];
+      meta._typedHints = [
+        ...existingTyped,
+        ...propertyWarnings.map((message) => ({ type: 'error' as const, message })),
+      ];
+    }
+    if (propertiesAdded.length > 0) {
+      meta._propertiesAdded = propertiesAdded;
+    }
 
     return Object.keys(meta).length > 0 ? { ...simplified, ...meta } : simplified;
   }

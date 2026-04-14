@@ -16,7 +16,12 @@ const ICON_WARNINGS_KEY = 'iconWarnings';
 
 export const resolveIconsPreTransform: HarnessRule = {
   name: 'resolve-icons',
-  tools: ['create_frame'],
+  // create_component delegates to create_frame internally but goes through its own
+  // MCP dispatch path — harness rules must be registered per-tool. Without
+  // create_component here, inline {type:"icon"} children in create_component calls
+  // reach the Plugin unresolved and fall into the default `frame` branch → empty frames.
+  // See .claude/plans/joyful-stirring-lobster.md (缺陷 2 in the Kiro self-diagnosis).
+  tools: ['create_frame', 'create_component'],
   phase: 'pre-transform',
   priority: 50,
 
@@ -32,7 +37,7 @@ export const resolveIconsPreTransform: HarnessRule = {
 
 export const resolveIconsPostEnrich: HarnessRule = {
   name: 'resolve-icons-warnings',
-  tools: ['create_frame'],
+  tools: ['create_frame', 'create_component'],
   phase: 'post-enrich',
   priority: 55,
 

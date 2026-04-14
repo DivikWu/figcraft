@@ -49,3 +49,24 @@
       swap targets, or text content, call bind_component_property (now core — no load_toolset
       needed). Pass the `bindings` array to batch all property wiring in one call. Do NOT
       fall back to execute_js — that path bypasses Opinion Engine and hint aggregation.
+    - >-
+      Variant matrices (≥8 variants, e.g. Button with 4 Type × 2 Size × 4 State = 32):
+      DO NOT clone + rename loop. Use create_component's `items:[]` batch mode — one call
+      creates up to 20 components with individual params, inline children (icons resolve
+      automatically), and inline `properties:[]` arrays. Then create_component_set combines
+      them into a variant set. For binding the same variable to many nodes after creation,
+      use variables_ep(method:"batch_bind", bindings:[...]). The clone-and-modify path costs
+      3-5× more tool calls and trips Opinion Engine re-inference edge cases.
+    - >-
+      Icon children in create_component work the same as in create_frame:
+      pass {type:"icon", icon:"lucide:chevron-right", size:24, colorVariableName:"text/primary"}
+      inline in `children`. The harness resolves them to SVG before the Plugin sees them.
+      DO NOT call icon_create then nodes.update to splice the icon in — that's 2 extra calls
+      plus manual parenting. If an icon child fails, the response's _warnings array reports
+      which icon and why; the SVG placeholder keeps creation from breaking.
+    - >-
+      For post-creation variable binding (e.g. binding existing node fills to variables by ID),
+      call variables_ep(method:"batch_bind") — NOT nodes(method:"update", patches:[{props:{fillVariableId:...}}]).
+      patch_nodes only accepts raw Figma props (fills, strokes arrays, etc.); variable binding
+      goes through variables_ep. This is now surfaced as a self-correcting error if you try
+      the wrong path.

@@ -2744,6 +2744,8 @@ create_component:
     Create a component with layout, fill, stroke, inline children, and component properties in one call.
     Delegates to create_frame internally — all Opinion Engine inferences apply automatically.
     TEXT properties auto-bind to child text nodes via componentPropertyName.
+    Icon children ({type:"icon", icon:"lucide:..."}) are resolved to SVG by the harness
+    before Plugin dispatch, same as create_frame.
     Accepts all create_frame params via passthrough — only common params listed here.
 
     Omit x/y to auto-position below existing content. For fixed-height components (buttons),
@@ -2751,7 +2753,14 @@ create_component:
     Use fillVariableId (from designContext.defaults.*.id) for direct variable binding — zero name resolution.
     Harness auto-injects section parentId — omit parentId to auto-place inside last created section.
 
-    Workflow: create_section → create_component(fillVariableId:...) → clone → create_component_set.
+    Batch mode (STRONGLY preferred for variant matrices ≥ 8): pass `items: [...]` with up
+    to 20 component param objects in one call. Each item gets inline `properties: [...]`
+    and inline `children: [...]` (including {type:"icon"}). Follow with create_component_set
+    to combine them into a variant set. The clone-and-modify alternative costs 3-5× more
+    tool calls and trips Opinion Engine re-inference edge cases.
+
+    Workflow (single): create_section → create_component(fillVariableId:...) → bind_component_property → create_component_set.
+    Workflow (batch): create_section → create_component({items:[...]}) → create_component_set.
   toolset: core
   write: true
   access: create

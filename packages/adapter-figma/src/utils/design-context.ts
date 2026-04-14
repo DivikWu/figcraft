@@ -791,6 +791,46 @@ export class AmbiguousMatchError extends Error {
   }
 }
 
+/**
+ * Thrown when a variable name lookup finds candidates under the requested name,
+ * but their `resolvedType` is incompatible with the requested type.
+ *
+ * Example: agent passes `fillVariableName: "button/emphasis"` expecting a COLOR,
+ * but the only match in the file is a FLOAT (CORNER_RADIUS token) in a collection
+ * named "rounded". Previously this returned null → generic "not found" hint.
+ * With this error class, applyFill can tell the agent exactly what type was
+ * found, which collection it lives in, and which parameter to use instead
+ * (e.g. `cornerRadius:"button/emphasis"`).
+ *
+ * The `found` array carries all name-matching variables regardless of type so
+ * the hint can suggest the best alternative parameter. See memory file
+ * `feedback_p02_resolvedtype_mismatch.md` for the original motivating case.
+ */
+export class ResolvedTypeMismatchError extends Error {
+  constructor(
+    public readonly requestedName: string,
+    public readonly requestedType: 'COLOR' | 'FLOAT' | 'STRING' | 'BOOLEAN',
+    public readonly found: Array<{
+      name: string;
+      resolvedType: 'COLOR' | 'FLOAT' | 'STRING' | 'BOOLEAN';
+      scopes: string[];
+      collection?: string;
+    }>,
+  ) {
+    super(
+      `Variable "${requestedName}" exists but with wrong resolvedType for this binding. ` +
+        `Requested ${requestedType}, found: ${found
+          .slice(0, 5)
+          .map(
+            (f) =>
+              `"${f.name}" (${f.resolvedType}${f.scopes.length ? `, scopes: [${f.scopes.join(', ')}]` : ''}${f.collection ? `, in "${f.collection}"` : ''})`,
+          )
+          .join('; ')}.`,
+    );
+    this.name = 'ResolvedTypeMismatchError';
+  }
+}
+
 /** Cache for local COLOR variables with resolved values. */
 let _colorVarCache: {
   vars: Array<{ variable: Variable; hex: string; scopes: string[] }>;
@@ -981,11 +1021,17 @@ export async function findColorVariableByName(
       const variable = await findLibraryVariableByName(name, 'COLOR', libraryName, preferredScopes);
       if (variable) return variable;
     } catch (err) {
-      // ScopeMismatchError / AmbiguousMatchError are semantic signals that the name was
-      // recognized but can't be bound unambiguously. Let them propagate so callers
-      // (applyFill, applyStroke) can emit descriptive hints instead of falling back to
-      // local lookup and reporting "not found".
-      if (err instanceof ScopeMismatchError || err instanceof AmbiguousMatchError) throw err;
+      // ScopeMismatchError / AmbiguousMatchError / ResolvedTypeMismatchError are
+      // semantic signals that the name was recognized but can't be bound unambiguously.
+      // Let them propagate so callers (applyFill, applyStroke) can emit descriptive
+      // hints instead of falling back to local lookup and reporting "not found".
+      if (
+        err instanceof ScopeMismatchError ||
+        err instanceof AmbiguousMatchError ||
+        err instanceof ResolvedTypeMismatchError
+      ) {
+        throw err;
+      }
       /* other library lookup failure — fall through to local */
     }
   }
@@ -993,7 +1039,16 @@ export async function findColorVariableByName(
   // Fallback: search local variables
   const colorVars = await getLocalColorVarsResolved();
   const entries = colorVars.map((e) => ({ variable: e.variable, scopes: e.scopes }));
-  return resolveVariableByName(entries, name, preferredScopes);
+  const match = resolveVariableByName(entries, name, preferredScopes);
+  if (match) return match;
+
+  // 缺陷 P1a: name missed the COLOR pool — check if it exists in another type.
+  // This catches the `button/emphasis` case where the name is a FLOAT CORNER_RADIUS
+  // token and the agent naively passed it as fillVariableName. Throwing
+  // ResolvedTypeMismatchError lets applyFill emit a precise hint pointing at the
+  // correct parameter (e.g. cornerRadius:"button/emphasis").
+  await throwIfWrongTypeLocal(name, 'COLOR');
+  return null;
 }
 
 /**
@@ -1038,6 +1093,15 @@ async function findLibraryVariableByName(
   // Track partial-name candidates that survived scope filtering but left 2+ hits —
   // AmbiguousMatchError at the end lets the agent re-request with a full path.
   const ambiguousCandidates: string[] = [];
+  // 缺陷 P1a: track variables whose name matches but whose resolvedType is wrong
+  // (e.g. agent wants COLOR "button/emphasis" but it's a FLOAT CORNER_RADIUS token
+  // in a different collection). Surfaced as ResolvedTypeMismatchError at the end.
+  const wrongTypeMatches: Array<{
+    name: string;
+    resolvedType: 'COLOR' | 'FLOAT' | 'STRING' | 'BOOLEAN';
+    scopes: string[];
+    collection?: string;
+  }> = [];
 
   // Import a candidate and check its scopes against preferredScopes.
   // Returns the imported Variable if accepted, or null if the scope doesn't match.
@@ -1070,6 +1134,21 @@ async function findLibraryVariableByName(
   for (const col of targetCols) {
     const vars = await getCollectionVariables(col.key);
     const filtered = vars.filter((v) => v.resolvedType === resolvedType);
+
+    // 缺陷 P1a: when filter rejected everything but there WERE name matches,
+    // record them as wrong-type candidates so the final throw can explain
+    // "variable exists but is the wrong resolvedType".
+    if (filtered.length === 0) {
+      const nameMatches = vars.filter((v) => v.name.toLowerCase() === lower);
+      for (const nm of nameMatches) {
+        wrongTypeMatches.push({
+          name: nm.name,
+          resolvedType: nm.resolvedType as 'COLOR' | 'FLOAT' | 'STRING' | 'BOOLEAN',
+          scopes: ((nm as DesignVariable & { scopes?: string[] }).scopes as string[] | undefined) ?? [],
+          collection: col.name,
+        });
+      }
+    }
 
     // Level 1: exact name match (case-insensitive)
     const exact = filtered.find((v) => v.name.toLowerCase() === lower);
@@ -1129,7 +1208,8 @@ async function findLibraryVariableByName(
   // Nothing was returned. Priority:
   //   1. Scope mismatch (name matched but all scopes rejected) — ScopeMismatchError
   //   2. Ambiguous partial match (2+ candidates across collections) — AmbiguousMatchError
-  //   3. No name match at all — return null, caller falls through to local lookup
+  //   3. Name matched but resolvedType wrong — ResolvedTypeMismatchError (缺陷 P1a)
+  //   4. No name match at all — return null, caller falls through to local lookup
   if (applyScopeFilter && scopeRejected.length > 0) {
     throw new ScopeMismatchError(name, preferredScopes!, scopeRejected);
   }
@@ -1137,6 +1217,9 @@ async function findLibraryVariableByName(
     // Dedup in case the same name appeared in multiple collections
     const unique = Array.from(new Set(ambiguousCandidates));
     if (unique.length > 1) throw new AmbiguousMatchError(name, unique);
+  }
+  if (wrongTypeMatches.length > 0) {
+    throw new ResolvedTypeMismatchError(name, resolvedType, wrongTypeMatches);
   }
   return null;
 }
@@ -1166,7 +1249,16 @@ export async function findFloatVariableByName(
       // (the role hint tables are color-only); pass through for signature consistency.
       const variable = await findLibraryVariableByName(name, 'FLOAT', libraryName, preferredScopes);
       if (variable) return variable;
-    } catch {
+    } catch (err) {
+      // Same semantic-error propagation as findColorVariableByName — let typed
+      // errors reach applyCornerRadius / applyTokenField for precise hints.
+      if (
+        err instanceof ScopeMismatchError ||
+        err instanceof AmbiguousMatchError ||
+        err instanceof ResolvedTypeMismatchError
+      ) {
+        throw err;
+      }
       /* library lookup failed — fall through to local */
     }
   }
@@ -1174,7 +1266,59 @@ export async function findFloatVariableByName(
   // Fallback: search local variables
   const vars = await figma.variables.getLocalVariablesAsync('FLOAT');
   const entries = vars.map((v) => ({ variable: v, scopes: (v as any).scopes as string[] | undefined }));
-  return resolveVariableByName(entries, name, preferredScopes);
+  const match = resolveVariableByName(entries, name, preferredScopes);
+  if (match) return match;
+
+  // 缺陷 P1a: symmetric wrong-type detection for FLOAT path.
+  // Catches the reverse case: agent passes `cornerRadius:"button/primary-active"`
+  // but the name is a COLOR in a different collection.
+  await throwIfWrongTypeLocal(name, 'FLOAT');
+  return null;
+}
+
+/**
+ * 缺陷 P1a helper: scan ALL local variables (regardless of type) for a name match.
+ * If found with a different resolvedType than `excludeType`, throw
+ * ResolvedTypeMismatchError so the caller can emit a self-correcting hint.
+ *
+ * This is the "local fallback" counterpart to findLibraryVariableByName's
+ * wrongTypeMatches collection — needed because `getLocalColorVarsResolved` and
+ * `getLocalVariablesAsync('FLOAT')` pre-filter by type, hiding cross-type matches.
+ *
+ * Runs ONLY when the typed lookup returned null, so the happy path is unaffected.
+ */
+async function throwIfWrongTypeLocal(name: string, excludeType: 'COLOR' | 'FLOAT'): Promise<void> {
+  const lower = name.toLowerCase();
+  const otherTypes: Array<'COLOR' | 'FLOAT' | 'STRING' | 'BOOLEAN'> =
+    excludeType === 'COLOR' ? ['FLOAT', 'STRING', 'BOOLEAN'] : ['COLOR', 'STRING', 'BOOLEAN'];
+  const found: Array<{
+    name: string;
+    resolvedType: 'COLOR' | 'FLOAT' | 'STRING' | 'BOOLEAN';
+    scopes: string[];
+    collection?: string;
+  }> = [];
+
+  // Fetch collections once so we can attach collection names to the hints.
+  const collections = await figma.variables.getLocalVariableCollectionsAsync().catch(() => []);
+  const collectionNameById = new Map(collections.map((c) => [c.id, c.name]));
+
+  for (const t of otherTypes) {
+    const vars = await figma.variables.getLocalVariablesAsync(t).catch(() => [] as Variable[]);
+    for (const v of vars) {
+      if (v.name.toLowerCase() === lower) {
+        found.push({
+          name: v.name,
+          resolvedType: t,
+          scopes: ((v as unknown as { scopes?: string[] }).scopes as string[] | undefined) ?? [],
+          collection: collectionNameById.get(v.variableCollectionId),
+        });
+      }
+    }
+  }
+
+  if (found.length > 0) {
+    throw new ResolvedTypeMismatchError(name, excludeType, found);
+  }
 }
 
 /**
