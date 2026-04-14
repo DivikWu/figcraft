@@ -3,6 +3,7 @@
  */
 
 import { simplifyNode } from '../adapters/node-simplifier.js';
+import { PAGE_GAP, SECTION_GAP, SECTION_PADDING } from '../constants.js';
 import { handlers, registerHandler } from '../registry.js';
 import { assertHandler, assertNodeType, HandlerError } from '../utils/handler-error.js';
 import { assertOnCurrentPage, findNodeByIdAsync } from '../utils/node-lookup.js';
@@ -595,13 +596,14 @@ export function registerComponentHandlers(): void {
     // ── Auto-position within parent ──
     if (sectionParent) {
       // combineAsVariants may set absolute page coordinates instead of section-relative.
-      // Reset to section origin with padding, then scan siblings for stacking.
-      const SECTION_PADDING = 40;
+      // Reset to section origin with shared SECTION_PADDING, then stack below existing
+      // siblings with SECTION_GAP. Start maxBottom at SECTION_PADDING so an empty
+      // section places the set at (SECTION_PADDING, SECTION_PADDING).
       let maxBottom = SECTION_PADDING;
       for (const child of sectionParent.children) {
         if (child.id === set.id) continue;
         if (!child.visible) continue;
-        maxBottom = Math.max(maxBottom, child.y + child.height + SECTION_PADDING);
+        maxBottom = Math.max(maxBottom, child.y + child.height + SECTION_GAP);
       }
       set.x = SECTION_PADDING;
       set.y = maxBottom;
@@ -616,14 +618,15 @@ export function registerComponentHandlers(): void {
           maxBottom = Math.max(maxBottom, child.y + child.height);
         }
         if (maxBottom > 0 && set.y < maxBottom) {
-          set.y = maxBottom + 80;
+          set.y = maxBottom + PAGE_GAP;
         }
       }
     }
 
     // ── Auto-resize section to fit content ──
     if (sectionParent) {
-      const SECTION_PADDING = 40;
+      // SECTION_PADDING here is the section's inner margin on the right/bottom
+      // edges — semantically "padding", not "gap between siblings".
       let maxRight = 0;
       let maxBottom = 0;
       for (const child of sectionParent.children) {

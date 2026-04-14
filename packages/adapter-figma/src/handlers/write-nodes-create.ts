@@ -5,7 +5,7 @@
  */
 
 import { simplifyNode } from '../adapters/node-simplifier.js';
-import { PLUGIN_DATA_KEYS } from '../constants.js';
+import { PAGE_GAP, PLUGIN_DATA_KEYS, SECTION_GAP, SECTION_PADDING } from '../constants.js';
 import { registerHandler } from '../registry.js';
 import { hexToFigmaRgb, hexToFigmaRgba } from '../utils/color.js';
 import { autoBindTypography } from '../utils/design-context.js';
@@ -1980,9 +1980,9 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
 
     // ── Auto-position: stack below existing siblings in the target container ──
     // Applies in free-layout containers:
-    //   - Page root (no parent) — scan currentPage.children
-    //   - SectionNode — scan section.children (SectionNode has no layoutMode)
-    //   - FRAME/COMPONENT with layoutMode === 'NONE' — scan parent.children
+    //   - Page root (no parent) — scan currentPage.children, no padding, gap = PAGE_GAP
+    //   - SectionNode — scan section.children, padding = SECTION_PADDING, gap = SECTION_GAP
+    //   - FRAME/COMPONENT with layoutMode === 'NONE' — page-style (no padding, PAGE_GAP)
     // Skipped when:
     //   - User explicitly provided x or y (respect their intent)
     //   - Parent is auto-layout (HORIZONTAL / VERTICAL / GRID) — Figma positions children
@@ -1995,14 +1995,30 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
           ? ((parentNode as { layoutMode?: string }).layoutMode ?? 'NONE')
           : 'NONE';
       if (parentLayoutMode === 'NONE' && 'children' in container) {
-        let maxBottom = 0;
-        for (const child of container.children) {
-          if (child.id === frame.id) continue;
-          if (!child.visible) continue;
-          maxBottom = Math.max(maxBottom, child.y + child.height);
-        }
-        if (maxBottom > 0) {
-          frame.y = maxBottom + 80;
+        if (parentNode?.type === 'SECTION') {
+          // Section: padding from edges + gap between siblings, padding == gap.
+          // Start maxBottom at SECTION_PADDING so an empty section places the first
+          // child at (SECTION_PADDING, SECTION_PADDING) — symmetric visual rhythm.
+          let maxBottom = SECTION_PADDING;
+          for (const child of container.children) {
+            if (child.id === frame.id) continue;
+            if (!child.visible) continue;
+            maxBottom = Math.max(maxBottom, child.y + child.height + SECTION_GAP);
+          }
+          frame.x = SECTION_PADDING;
+          frame.y = maxBottom;
+        } else {
+          // Page or NONE frame: no padding, only gap between siblings.
+          // Empty container → frame stays at (0, 0) per existing convention.
+          let maxBottom = 0;
+          for (const child of container.children) {
+            if (child.id === frame.id) continue;
+            if (!child.visible) continue;
+            maxBottom = Math.max(maxBottom, child.y + child.height);
+          }
+          if (maxBottom > 0) {
+            frame.y = maxBottom + PAGE_GAP;
+          }
         }
       }
     }

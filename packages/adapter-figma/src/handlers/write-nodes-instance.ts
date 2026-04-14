@@ -5,6 +5,7 @@
  */
 
 import { simplifyNode } from '../adapters/node-simplifier.js';
+import { PAGE_GAP } from '../constants.js';
 import { registerHandler } from '../registry.js';
 import { applySizingOverrides, importAndResolveComponent, setLayoutSizing } from '../utils/figma-compat.js';
 import { assertHandler } from '../utils/handler-error.js';
@@ -457,7 +458,7 @@ export function registerInstanceHandlers(): void {
           maxBottom = Math.max(maxBottom, child.y + child.height);
         }
         if (maxBottom > 0) {
-          section.y = maxBottom + 80;
+          section.y = maxBottom + PAGE_GAP;
         }
       }
     }

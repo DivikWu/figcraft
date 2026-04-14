@@ -25,3 +25,28 @@ export { VERSION as PLUGIN_VERSION } from '@figcraft/shared';
 
 /** Sentinel value identifying the current file's local styles/variables as the design system source. */
 export const LOCAL_LIBRARY = '__local__';
+
+// ─── Layout constants ──────────────────────────────────────────────
+// Canonical spacing used by auto-position logic across handlers.
+//
+// Hierarchy (outer → inner):
+//   PAGE_GAP    : between top-level items on figma.currentPage
+//   SECTION_*   : inside a SectionNode (padding from edges + gap between siblings)
+//
+// Rules:
+//  - Inside a section, padding = gap (symmetric visual rhythm)
+//  - Page-level has only gap, no padding (page has no meaningful "edge")
+//  - NONE frames inherit page-level behavior (no padding, just gap)
+//
+// Values are 8pt-grid-aligned (80 = 10 × 8pt) per Figma design system convention.
+// Kept as separate named constants even when values coincide so future tuning
+// can diverge without refactoring call sites.
+
+/** Left/top padding from a SectionNode's edges to its first child. */
+export const SECTION_PADDING = 80;
+
+/** Vertical gap between stacked siblings inside a SectionNode. */
+export const SECTION_GAP = 80;
+
+/** Vertical gap between top-level items on figma.currentPage. */
+export const PAGE_GAP = 80;
