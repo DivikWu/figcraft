@@ -26,6 +26,7 @@ import { errorJournalRule } from './rules/error-journal.js';
 import { nextStepsRule } from './rules/next-steps.js';
 import { resolveIconsPostEnrich, resolveIconsPreTransform } from './rules/resolve-icons.js';
 import { responseSizeGuardRule } from './rules/response-size.js';
+import { tokenBindingFailuresRule } from './rules/token-binding-failures.js';
 import {
   recordCreationDebtRule,
   recordVerificationRule,
@@ -42,6 +43,7 @@ import {
  * - auto-verify: Layer 2 enrich — auto lint root-level creations
  * - verification-debt-remind: Layer 2 enrich — persistent debt reminders
  * - response-size-guard: Layer 2 enrich — auto-truncate large responses
+ * - token-binding-failures: Layer 2 enrich — surface `_tokenBindingFailures` into `_nextSteps`
  * - design-decisions: Layer 5 session — extract color/font/radius/spacing
  * - record-creation-debt: Layer 5 session — track unverified creations
  * - record-verification: Layer 5 session — clear debt on verify_design
@@ -67,6 +69,7 @@ export function createHarnessPipeline(bridge: Bridge): HarnessPipeline {
   pipeline.register(componentDefaultsPostEnrich);
   pipeline.register(createAutoVerifyRule(bridge));
   pipeline.register(nextStepsRule); // data-driven (content/harness/next-steps.yaml)
+  pipeline.register(tokenBindingFailuresRule); // runs AFTER nextStepsRule (priority 90 vs 80)
   pipeline.register(verificationDebtRemindRule);
   pipeline.register(responseSizeGuardRule);
 

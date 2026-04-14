@@ -2217,6 +2217,11 @@ export function registerCreateHandlers(): void {
       const results: Array<{ id: string; name: string; ok: boolean; error?: string }> = [];
       const allHints: Hint[] = [];
       const allInferences: Inference[] = [];
+      // Aggregate token binding failures across the batch — per-item `out` carries
+      // `_tokenBindingFailures` but the `results` array only stores {id,name,ok},
+      // so without this loop the failures are silently dropped from the batch
+      // response (tokenBindingFailuresRule in core-mcp harness would never see them).
+      const allBindingFailures: unknown[] = [];
       const progressId = items.length > 3 ? (params._commandId as string | undefined) : undefined;
       if (progressId) sendBatchProgress(progressId, 0, items.length);
       for (const [idx, item] of items.entries()) {
@@ -2232,6 +2237,11 @@ export function registerCreateHandlers(): void {
           if (out._inferences) {
             allInferences.push(...(out._inferences as Inference[]));
             delete out._inferences;
+          }
+          // Collect token binding failures — same aggregation pattern as
+          // create_component batch mode in components.ts:384-404.
+          if (Array.isArray(out._tokenBindingFailures)) {
+            allBindingFailures.push(...(out._tokenBindingFailures as unknown[]));
           }
         } catch (err) {
           results.push({
@@ -2284,6 +2294,7 @@ export function registerCreateHandlers(): void {
         items: results,
       };
       if (batchLintSummary) batchResult._lintSummary = batchLintSummary;
+      if (allBindingFailures.length > 0) batchResult._tokenBindingFailures = allBindingFailures;
       // Aggregate hints: suppress confirmations, dedup suggest/warn, batch hardcoded colors
       const [, batchLib] = await getCachedModeLibrary();
       const aggregated = aggregateHints(allHints, { isLibraryMode: !!batchLib });
@@ -2315,6 +2326,10 @@ export function registerCreateHandlers(): void {
 
       const results: Array<{ id: string; name: string; ok: boolean; error?: string }> = [];
       const allHints: Hint[] = [];
+      // Same aggregation fix as create_frame batch mode above — without this,
+      // per-item token binding failures are dropped before reaching the harness
+      // post-enrich rule.
+      const allBindingFailures: unknown[] = [];
       const textProgressId = items.length > 3 ? (params._commandId as string | undefined) : undefined;
       if (textProgressId) sendBatchProgress(textProgressId, 0, items.length);
       for (const [idx, item] of items.entries()) {
@@ -2325,6 +2340,9 @@ export function registerCreateHandlers(): void {
           if (out._typedHints) {
             allHints.push(...(out._typedHints as Hint[]));
             delete out._typedHints;
+          }
+          if (Array.isArray(out._tokenBindingFailures)) {
+            allBindingFailures.push(...(out._tokenBindingFailures as unknown[]));
           }
         } catch (err) {
           results.push({
@@ -2342,6 +2360,7 @@ export function registerCreateHandlers(): void {
         total: items.length,
         items: results,
       };
+      if (allBindingFailures.length > 0) batchResult._tokenBindingFailures = allBindingFailures;
       const [, textBatchLib] = await getCachedModeLibrary();
       const aggregated = aggregateHints(allHints, { isLibraryMode: !!textBatchLib });
       if (aggregated.length > 0) batchResult.warnings = aggregated;

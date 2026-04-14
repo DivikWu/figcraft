@@ -1363,6 +1363,66 @@ export async function findVariableByIdAny(id: string): Promise<Variable | null> 
 }
 
 /**
+ * P2 (did-you-mean): Suggest the closest-named variables when a name lookup
+ * returned null. Used by applyFill/applyStroke to enrich "not found" hints
+ * with concrete alternatives the agent can pivot to on the next call.
+ *
+ * Scope: LOCAL variables only. Library variables are behind an async collection
+ * index and not every caller can afford the fetch; callers that want library
+ * suggestions should run search_design_system separately. This keeps the hot
+ * path cheap.
+ *
+ * Scoring (highest wins):
+ *   - Substring containment in either direction  → +100
+ *   - Shared token (split on /, -, _)            → +10 each
+ *   - Length similarity                          → -0.1 per char diff
+ *
+ * Returns variables ordered by descending score, capped at `limit` (default 3).
+ * Never throws — returns [] on any error.
+ */
+export async function suggestSimilarVariableNames(
+  requested: string,
+  type: 'COLOR' | 'FLOAT' | 'STRING' | 'BOOLEAN' = 'COLOR',
+  limit = 3,
+): Promise<string[]> {
+  try {
+    const vars = await figma.variables.getLocalVariablesAsync(type).catch(() => [] as Variable[]);
+    if (vars.length === 0) return [];
+
+    const lower = requested.toLowerCase();
+    const requestedTokens = new Set(lower.split(/[/\-_]/).filter(Boolean));
+    if (requestedTokens.size === 0) return [];
+
+    const scored: Array<{ name: string; score: number }> = [];
+    for (const v of vars) {
+      const vLower = v.name.toLowerCase();
+      if (vLower === lower) continue; // identical matches are never "suggestions"
+
+      let score = 0;
+      // Substring containment is the strongest signal (catches typos like
+      // "text/primary" vs "text/primary-default" or "colors/text/primary").
+      if (vLower.includes(lower) || lower.includes(vLower)) score += 100;
+
+      // Token overlap: "text/primary" vs "semantic/text/primary" shares
+      // ['text','primary'] → +20.
+      const vTokens = new Set(vLower.split(/[/\-_]/).filter(Boolean));
+      for (const t of requestedTokens) if (vTokens.has(t)) score += 10;
+
+      // Tiebreaker: prefer names of similar length.
+      const lenDiff = Math.abs(vLower.length - lower.length);
+      score -= lenDiff * 0.1;
+
+      if (score > 0) scored.push({ name: v.name, score });
+    }
+
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, limit).map((s) => s.name);
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Auto-bind typography variables to a text node.
  * Matches fontSize to the closest typography scale, then binds all properties.
  * Returns the matched scale name or null.

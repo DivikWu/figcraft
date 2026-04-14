@@ -18,6 +18,7 @@ import {
   ResolvedTypeMismatchError,
   ScopeMismatchError,
   suggestColorVariable,
+  suggestSimilarVariableNames,
 } from './design-context.js';
 import { ensureLoaded, findClosestPaintStyle, getAvailablePaintStyleNames, getPaintStyleId } from './style-registry.js';
 
@@ -371,6 +372,16 @@ function formatResolvedTypeMismatchHint(
 }
 
 /**
+ * P2 helper — append a "Did you mean: X, Y, Z?" suffix to a not-found hint
+ * using fuzzy matching over local COLOR/FLOAT variables. Silent on failure.
+ */
+async function withDidYouMean(hint: string, requestedName: string, type: 'COLOR' | 'FLOAT' = 'COLOR'): Promise<string> {
+  const suggestions = await suggestSimilarVariableNames(requestedName, type, 3);
+  if (suggestions.length === 0) return hint;
+  return `${hint} Did you mean: ${suggestions.map((n) => `"${n}"`).join(', ')}?`;
+}
+
+/**
  * Apply a fill to a node: hex color → solid paint, then try to match a Paint Style.
  * If no fill is specified and library mode is active, auto-bind the default color variable.
  * If no fill and no library, clear the default white fill.
@@ -485,12 +496,14 @@ export async function applyFill(
         // (not ScopeMismatchError / AmbiguousMatchError, handled in the catch block
         // above). Surface the 4 possible root causes + diagnostic tools.
         const libCtx = useLibrary ? `library "${library ?? 'unknown'}"` : 'local file';
-        colorHint =
+        const baseHint =
           `⛔ Variable name "${fill._variable}" not found in ${libCtx}. ` +
           `Possible causes: (a) not yet published to the library, (b) in a collection not yet subscribed by this file, ` +
           `(c) name misspelled, or (d) it's a paint style name with no matching style. ` +
           `Verify with variables_ep(method:"list_collections") and variables_ep(method:"list"), or styles_ep(method:"list", type:"PAINT"). ` +
           `Workaround: pass fill:{_variableId:"VariableID:<id>"} to bind by ID directly, or call search_design_system(query:"${fill._variable}") to discover available variables.`;
+        // P2: append did-you-mean suggestions from local COLOR variables.
+        colorHint = await withDidYouMean(baseHint, fill._variable, 'COLOR');
         return {
           autoBound,
           colorHint,
@@ -633,12 +646,14 @@ export async function applyFill(
       // misspelled name, or library cache miss. Surface all three possibilities
       // plus concrete next-step tools so the agent can self-diagnose.
       const libCtx = useLibrary ? `library "${library ?? 'unknown'}"` : 'local file';
-      colorHint =
+      const baseHint =
         `⛔ Variable name "${fill}" not found in ${libCtx}. ` +
         `Possible causes: (a) not yet published to the library, (b) in a collection not yet subscribed by this file, ` +
         `(c) name misspelled, or (d) it's a paint style name with no matching style. ` +
         `Verify with variables_ep(method:"list_collections") and variables_ep(method:"list"), or styles_ep(method:"list", type:"PAINT"). ` +
         `Workaround: pass fillVariableId:"VariableID:<id>" to bind by ID directly.`;
+      // P2: append did-you-mean suggestions from local COLOR variables.
+      colorHint = await withDidYouMean(baseHint, fill, 'COLOR');
       return { autoBound: null, colorHint };
     }
 
@@ -813,8 +828,23 @@ export async function applyStroke(
       }
       /* other lookup failure — fall through */
     }
+    // P2: lookup returned null (not a structured error). Mirror the applyFill
+    // not-found path — emit a descriptive hint + bindingFailure so the agent
+    // sees the failure in _tokenBindingFailures (fed into harness _nextSteps
+    // by tokenBindingFailuresRule) instead of silently keeping Figma's default.
     (node as any).strokeWeight = strokeWeight ?? 1;
-    return { autoBound: null };
+    const libCtx = useLibrary ? `library "${library ?? 'unknown'}"` : 'local file';
+    const baseHint =
+      `⛔ Stroke variable name "${varName}" not found in ${libCtx}. ` +
+      `Possible causes: (a) not yet published to the library, (b) in a collection not yet subscribed, ` +
+      `(c) name misspelled, or (d) the token is a paint style without a matching variable. ` +
+      `Verify with variables_ep(method:"list", type:"COLOR"). ` +
+      `Workaround: pass stroke:{_variableId:"VariableID:<id>"} to bind by ID directly.`;
+    return {
+      autoBound: null,
+      colorHint: await withDidYouMean(baseHint, varName, 'COLOR'),
+      bindingFailure: { requested: varName, type: 'variable', action: 'skipped' },
+    };
   }
 
   // Handle { _style: "name" } — direct style binding for stroke
@@ -911,15 +941,21 @@ export async function applyStroke(
       // no call-structure rewrite required.
       (node as any).strokeWeight = strokeWeight ?? 1;
       const libCtx = useLibrary ? `library "${library ?? 'unknown'}"` : 'local file';
+      const baseHint =
+        `⛔ Stroke variable name "${stroke}" not found in ${libCtx}. ` +
+        `Possible causes: (a) not yet published to the library, (b) in a collection not yet subscribed by this file, ` +
+        `(c) name misspelled, or (d) it's a paint style name with no matching style. ` +
+        `Verify with variables_ep(method:"list_collections") and variables_ep(method:"list"), or styles_ep(method:"list", type:"PAINT"). ` +
+        `For strokes, prefer border/* variables with STROKE_COLOR scope. ` +
+        `Workaround: pass strokeVariableId:"VariableID:<id>" to bind by ID directly.`;
       return {
         autoBound: null,
-        colorHint:
-          `⛔ Stroke variable name "${stroke}" not found in ${libCtx}. ` +
-          `Possible causes: (a) not yet published to the library, (b) in a collection not yet subscribed by this file, ` +
-          `(c) name misspelled, or (d) it's a paint style name with no matching style. ` +
-          `Verify with variables_ep(method:"list_collections") and variables_ep(method:"list"), or styles_ep(method:"list", type:"PAINT"). ` +
-          `For strokes, prefer border/* variables with STROKE_COLOR scope. ` +
-          `Workaround: pass strokeVariableId:"VariableID:<id>" to bind by ID directly.`,
+        // P2: append did-you-mean suggestions from local COLOR variables.
+        colorHint: await withDidYouMean(baseHint, stroke, 'COLOR'),
+        // P0 companion fix: previously this path returned no bindingFailure,
+        // so the harness token-binding-failures rule never saw it. Emit one
+        // so agent recovery fires consistently with applyFill's equivalent path.
+        bindingFailure: { requested: stroke, type: 'variable', action: 'skipped' },
       };
     }
 

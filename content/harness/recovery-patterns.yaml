@@ -45,7 +45,7 @@
     for library components). Restarting the plugin will NOT help.
 
 - name: token-not-found
-  tools: [create_frame, create_text, create_svg, create_rectangle, create_ellipse, variables_ep]
+  tools: [create_frame, create_text, create_svg, create_rectangle, create_ellipse, create_component, create_component_set, nodes, variables_ep]
   patterns:
     - "variable.*not found"
     - "token.*not found"

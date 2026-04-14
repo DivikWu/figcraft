@@ -36,7 +36,17 @@ export const RECOVERY_PATTERNS: RecoveryPattern[] = [
   },
   {
     name: 'token-not-found',
-    tools: ['create_frame', 'create_text', 'create_svg', 'create_rectangle', 'create_ellipse', 'variables_ep'],
+    tools: [
+      'create_frame',
+      'create_text',
+      'create_svg',
+      'create_rectangle',
+      'create_ellipse',
+      'create_component',
+      'create_component_set',
+      'nodes',
+      'variables_ep',
+    ],
     patterns: [/variable.*not found/i, /token.*not found/i, /no matching.*variable/i, /cannot find.*variable/i],
     errorType: 'token_not_found',
     suggestion:
