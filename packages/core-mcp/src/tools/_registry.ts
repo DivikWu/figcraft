@@ -7,7 +7,7 @@
  * Re-generate: npm run schema
  */
 
-/** Core tools: always enabled (~39) */
+/** Core tools: always enabled (~40) */
 export const GENERATED_CORE_TOOLS = new Set([
   'ping',
   'get_mode',
@@ -41,6 +41,7 @@ export const GENERATED_CORE_TOOLS = new Set([
   'create_component_set',
   'create_component_from_node',
   'layout_component_set',
+  'bind_component_property',
   'create_section',
   'verify_design',
   'nodes',
@@ -358,7 +359,6 @@ export const GENERATED_TOOLSETS: Record<string, { description: string; tools: st
       'delete_component',
       'create_instance',
       'create_instances',
-      'bind_component_property',
       'swap_instance',
       'detach_instance',
       'reset_instance_overrides',

@@ -1197,6 +1197,28 @@ export async function findColorVariableById(id: string): Promise<Variable | null
 }
 
 /**
+ * Lookup a variable by ID regardless of its resolvedType.
+ *
+ * 缺陷 D / P0-2 fix: `findColorVariableById` silently returns null when the
+ * variable exists but has the wrong type (e.g. a FLOAT radius variable passed
+ * where a COLOR was expected). That silence makes the agent blind to the real
+ * mistake. Callers should use this helper to distinguish:
+ *   - returns a variable → let caller check resolvedType and emit a typed hint
+ *   - returns null → variable does not exist at all
+ *
+ * Matches the pattern described in memory's
+ * `feedback_p02_resolvedtype_mismatch`.
+ */
+export async function findVariableByIdAny(id: string): Promise<Variable | null> {
+  try {
+    const variable = await figma.variables.getVariableByIdAsync(id);
+    return variable ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Auto-bind typography variables to a text node.
  * Matches fontSize to the closest typography scale, then binds all properties.
  * Returns the matched scale name or null.

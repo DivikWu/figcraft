@@ -14,6 +14,7 @@ import {
   findColorVariableById,
   findColorVariableByName,
   findFloatVariableByName,
+  findVariableByIdAny,
   ScopeMismatchError,
   suggestColorVariable,
 } from './design-context.js';
@@ -359,10 +360,48 @@ export async function applyFill(
         node.fills = fills;
         autoBound = `var:${variable.name}`;
       }
-    } else {
-      colorHint = `Variable ID "${fill._variableId}" not found. Use a variable name or hex color instead.`;
+      return { autoBound, colorHint };
     }
-    return { autoBound, colorHint };
+    // 缺陷 D / P0-2: distinguish "variable does not exist" from
+    // "variable exists but has the wrong resolvedType" (e.g. a FLOAT radius
+    // variable passed where a COLOR was expected). The self-correcting hint
+    // names the actual type and suggests the right parameter.
+    const raw = await findVariableByIdAny(fill._variableId);
+    if (raw && raw.resolvedType !== 'COLOR') {
+      colorHint =
+        `⛔ Variable "${raw.name}" (ID ${fill._variableId}) is a ${raw.resolvedType} variable, not a COLOR. ` +
+        `${raw.resolvedType === 'FLOAT' ? 'Pass it to numeric fields (cornerRadius, itemSpacing, padding*) via their *VariableId params, not fill.' : ''}` +
+        `Use a COLOR variable ID for fill. Run variables_ep(method:"list", type:"COLOR") to see available color variables.`;
+      return {
+        autoBound: null,
+        colorHint,
+        bindingFailure: { requested: fill._variableId, type: 'variable', action: 'skipped' },
+      };
+    }
+    // Not found at all — list a few local COLOR candidates so the agent has
+    // concrete next-step options instead of a dead-end "not found" message.
+    let candidates = '';
+    try {
+      const locals = await figma.variables.getLocalVariablesAsync('COLOR');
+      if (locals.length > 0) {
+        const sample = locals
+          .slice(0, 5)
+          .map((v) => `"${v.name}" (${v.id})`)
+          .join(', ');
+        candidates = ` Sample local COLOR variables: ${sample}.`;
+      }
+    } catch {
+      /* best effort */
+    }
+    colorHint =
+      `⛔ Variable ID "${fill._variableId}" not found. ` +
+      `Possible causes: (a) ID typo, (b) variable from an unsubscribed library, (c) ID refers to a deleted variable.${candidates} ` +
+      `Run variables_ep(method:"list", type:"COLOR") to enumerate all COLOR variables, or pass fillVariableName:"<name>" to look up by name.`;
+    return {
+      autoBound: null,
+      colorHint,
+      bindingFailure: { requested: fill._variableId, type: 'variable', action: 'skipped' },
+    };
   }
 
   // Handle { _variable: "name" } — variable binding with 3-level resolution
@@ -600,7 +639,8 @@ export async function applyStroke(
 
   // Handle { _variableId: "id" } — direct variable binding by ID
   if (stroke && typeof stroke === 'object' && '_variableId' in stroke) {
-    const variable = await findColorVariableById((stroke as { _variableId: string })._variableId);
+    const strokeId = (stroke as { _variableId: string })._variableId;
+    const variable = await findColorVariableById(strokeId);
     if (variable) {
       await clearStrokeStyle(node);
       node.strokes = [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }];
@@ -612,8 +652,25 @@ export async function applyStroke(
       (node as any).strokeWeight = strokeWeight ?? 1;
       return { autoBound: `var:${variable.name}` };
     }
+    // 缺陷 D: same resolvedType-mismatch / not-found disambiguation as fill path.
     (node as any).strokeWeight = strokeWeight ?? 1;
-    return { autoBound: null };
+    const raw = await findVariableByIdAny(strokeId);
+    if (raw && raw.resolvedType !== 'COLOR') {
+      return {
+        autoBound: null,
+        colorHint:
+          `⛔ Stroke variable "${raw.name}" (ID ${strokeId}) is a ${raw.resolvedType}, not a COLOR. ` +
+          `Use a COLOR variable for strokes. Run variables_ep(method:"list", type:"COLOR") to see candidates.`,
+        bindingFailure: { requested: strokeId, type: 'variable', action: 'skipped' },
+      };
+    }
+    return {
+      autoBound: null,
+      colorHint:
+        `⛔ Stroke variable ID "${strokeId}" not found. ` +
+        `Run variables_ep(method:"list", type:"COLOR") to enumerate, or pass strokeVariableName:"<name>".`,
+      bindingFailure: { requested: strokeId, type: 'variable', action: 'skipped' },
+    };
   }
 
   // Handle { _variable: "name" } — variable binding with 3-level resolution

@@ -187,7 +187,67 @@ async function initCreateContext(): Promise<CreateContext> {
 }
 
 // ─── Alias normalization: fillVariableName/fillStyleName → fill ───
+
+/**
+ * Reject common mis-shapes of fill / strokeColor.
+ *
+ * `fill` is a string parameter (hex color or variable/style name). Users frequently
+ * try to pass objects like `{ variableId: "..." }` or `{ variableName: "..." }`,
+ * which currently fall through all type guards in applyFill() and return `null`
+ * silently — causing the agent to lose feedback and enter 8-12 step retry loops.
+ *
+ * This guard runs BEFORE normalization and throws a self-correcting error that
+ * names the correct parameter directly, so the agent can fix in one round-trip.
+ * Internal shapes (`_variable`, `_variableId`, `_style`) set by normalization
+ * itself are allowed — only USER-facing mis-shapes are rejected.
+ */
+function rejectBadFillShape(
+  p: Record<string, unknown>,
+  key: 'fill' | 'strokeColor',
+  aliasKey: 'fillVariable' | 'strokeVariable',
+): void {
+  const v = p[key];
+  if (v == null || typeof v !== 'object' || Array.isArray(v)) return;
+  const obj = v as Record<string, unknown>;
+
+  // Allow already-normalized internal shapes (set by this function itself on a
+  // previous call, or by inline children that came pre-normalized).
+  if ('_variable' in obj || '_variableId' in obj || '_style' in obj) return;
+
+  // Allow raw Paint[] arrays — already filtered above by Array.isArray, but be defensive.
+  if ('type' in obj && typeof obj.type === 'string') return;
+
+  // Detect known wrong shapes and map to correct param names.
+  const mapping: Record<string, string> = {
+    variableId: `${aliasKey}Id`,
+    variableName: `${aliasKey}Name`,
+    variable: `${aliasKey}Name`,
+    styleName: key === 'fill' ? 'fillStyleName' : 'strokeStyleName',
+    style: key === 'fill' ? 'fillStyleName' : 'strokeStyleName',
+    id: `${aliasKey}Id`,
+    name: `${aliasKey}Name`,
+  };
+
+  for (const [badKey, correctParam] of Object.entries(mapping)) {
+    if (badKey in obj) {
+      const badValue = obj[badKey];
+      const valueLiteral = typeof badValue === 'string' ? `"${badValue}"` : JSON.stringify(badValue);
+      throw new Error(
+        `⛔ "${key}" is a string parameter, not an object. ` +
+          `You passed ${key}:{${badKey}:${valueLiteral}} — use ${correctParam}:${valueLiteral} instead. ` +
+          `${key === 'fill' ? 'fill' : 'strokeColor'} accepts hex colors ("#RRGGBB") or plain string names; ` +
+          `for variable/style binding use the dedicated ${aliasKey}Id / ${aliasKey}Name / ${key === 'fill' ? 'fillStyleName' : 'strokeStyleName'} parameters.`,
+      );
+    }
+  }
+}
+
 function normalizeAliases(p: Record<string, unknown>): void {
+  // Pre-validation: reject mis-shaped fill/strokeColor before alias resolution.
+  // Silent fallthrough here causes the infamous "create_component retries 10x" loop.
+  rejectBadFillShape(p, 'fill', 'fillVariable');
+  rejectBadFillShape(p, 'strokeColor', 'strokeVariable');
+
   // Conflict detection: fill + alias cannot coexist
   const fillAliases = [
     'fillVariableId',
@@ -593,6 +653,11 @@ function inferChildSizing(
 ): void {
   // Root-level frames (direct children of page, no auto-layout parent):
   // Default to HUG/HUG so the frame wraps its content instead of collapsing to Figma's default 100px.
+  //
+  // 缺陷 B fix: SectionNode has no `layoutMode` property, so sections fall into this
+  // "root" branch. When the caller passed explicit width/height, we must NOT override
+  // with HUG — HUG + HORIZONTAL auto-layout + HUG children = 0×0 collapse. Force FIXED
+  // on any axis that has an explicit dimension before the HUG fallback runs.
   if (!parent || !('layoutMode' in parent) || (parent as FrameNode).layoutMode === 'NONE') {
     // Screen dimensions or role='screen' → always FIXED even when root frame (no auto-layout parent)
     if (isScreenSize(node) || (node as any).getPluginData?.('role') === 'screen') {
@@ -618,21 +683,29 @@ function inferChildSizing(
     }
     if ('layoutMode' in node && node.type !== 'INSTANCE' && (node as FrameNode).layoutMode !== 'NONE') {
       if (!explicitH) {
-        setLayoutSizing(node, 'horizontal', 'HUG');
+        // 缺陷 B: explicit width overrides the HUG default so section-parented
+        // auto-layout frames don't collapse their children to 0.
+        const sizing = hasExplicitWidth ? 'FIXED' : 'HUG';
+        setLayoutSizing(node, 'horizontal', sizing);
         hints.push({
           confidence: 'deterministic',
           field: 'layoutSizingHorizontal',
-          value: 'HUG',
-          reason: 'root frame — HUG to wrap content (no auto-layout parent)',
+          value: sizing,
+          reason: hasExplicitWidth
+            ? 'explicit width provided under non-auto-layout parent — FIXED'
+            : 'root frame — HUG to wrap content (no auto-layout parent)',
         });
       }
       if (!explicitV) {
-        setLayoutSizing(node, 'vertical', 'HUG');
+        const sizing = hasExplicitHeight ? 'FIXED' : 'HUG';
+        setLayoutSizing(node, 'vertical', sizing);
         hints.push({
           confidence: 'deterministic',
           field: 'layoutSizingVertical',
-          value: 'HUG',
-          reason: 'root frame — HUG to wrap content (no auto-layout parent)',
+          value: sizing,
+          reason: hasExplicitHeight
+            ? 'explicit height provided under non-auto-layout parent — FIXED'
+            : 'root frame — HUG to wrap content (no auto-layout parent)',
         });
       }
     }
@@ -974,12 +1047,29 @@ async function setupFrame(
       if (p.gridColumnGap != null) frame.gridColumnGap = p.gridColumnGap as number;
     }
     // When dimensions are explicitly provided with auto-layout, ensure FIXED sizing
-    // (layoutMode assignment resets sizing to HUG by default, which would override resize)
-    if (p.width != null && !p.layoutSizingHorizontal) {
+    // (layoutMode assignment resets sizing to HUG by default, which would override resize).
+    //
+    // 缺陷 B fix: setting FIXED alone is insufficient — if `frame.layoutMode = ...`
+    // already collapsed the frame (e.g. 360×48 → 0×0 on an empty HUG-default auto-layout),
+    // FIXED just locks it at the collapsed size. Re-invoke resize() to restore the
+    // explicit dimensions after setting the sizing mode.
+    const needsFixedH = p.width != null && !p.layoutSizingHorizontal;
+    const needsFixedV = p.height != null && !p.layoutSizingVertical;
+    if (needsFixedH) {
       setLayoutSizing(frame, 'horizontal', 'FIXED');
     }
-    if (p.height != null && !p.layoutSizingVertical) {
+    if (needsFixedV) {
       setLayoutSizing(frame, 'vertical', 'FIXED');
+    }
+    if (needsFixedH || needsFixedV) {
+      try {
+        frame.resize(
+          needsFixedH ? (p.width as number) : frame.width,
+          needsFixedV ? (p.height as number) : frame.height,
+        );
+      } catch {
+        /* resize can fail on 0-dimension frames in rare cases */
+      }
     }
   }
 

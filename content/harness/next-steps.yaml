@@ -39,3 +39,13 @@
       If a text style binding was accidentally detached by prior set_range calls, re-bind
       via nodes(method:"update", patches:[{nodeId, props:{textStyleId:"S:..."}}]) — this
       is the direct rebind path and respects font preloading.
+    - >-
+      For color / variable binding on a component or its children, pass strings — NEVER
+      objects. Correct: fillVariableId:"VariableID:123:456" or fillVariableName:"button/emphasis".
+      Wrong: fill:{variableId:"..."} or fill:{variable:"..."} — these are now rejected
+      upfront with a self-correcting error, but the correct shape avoids the rejection entirely.
+    - >-
+      To wire a component's BOOLEAN/INSTANCE_SWAP/TEXT properties to child node visibility,
+      swap targets, or text content, call bind_component_property (now core — no load_toolset
+      needed). Pass the `bindings` array to batch all property wiring in one call. Do NOT
+      fall back to execute_js — that path bypasses Opinion Engine and hint aggregation.

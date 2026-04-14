@@ -104,42 +104,49 @@ export function registerComponentHandlers(): void {
     const component = figma.createComponentFromNode(frameNode as SceneNode);
     if (description) component.description = description;
 
-    // ── P0-1: Re-assert FIXED sizing after createComponentFromNode ──
-    // When component is wrapped inside an auto-layout parent (e.g. a Section with
-    // layoutMode), Figma can re-propagate layoutSizing from the parent and reset
-    // explicit FIXED back to HUG — collapsing the component to content size.
-    // Opinion Engine's FIXED decision lives in the frame's width/height; lock it
-    // back in after the wrap when dimensions were explicitly provided AND the user
-    // did not explicitly request HUG/FILL (mirrors the guard at setupFrame line 978).
+    // ── P0-1 / 缺陷 B: Re-assert FIXED sizing after createComponentFromNode ──
+    // When dimensions were explicitly provided, lock the component back to those
+    // dimensions regardless of parent type. Two drift paths exist:
+    //
+    // 1. Auto-layout parent (FRAME with layoutMode) — Figma re-propagates
+    //    layoutSizing from the parent and resets explicit FIXED back to HUG.
+    //
+    // 2. Section parent (SectionNode has no `layoutMode`) — the child frame
+    //    may have HUG children that collapse the auto-layout container to 0
+    //    after createComponentFromNode triggers a re-layout. Previously this
+    //    case was skipped because the old guard required `parentLayout !== 'NONE'`,
+    //    which is falsy for sections (no layoutMode property at all). That
+    //    caused the "create_component inside a section returns wrong size"
+    //    loop documented in the diagnosis plan.
+    //
+    // Always re-assert when width/height explicit AND user did not ask HUG/FILL.
+    // Mirrors the guard at setupFrame line 978. Safe for all parent types:
+    // sections, auto-layout frames, root page, component sets.
     if (itemParams.width != null || itemParams.height != null) {
-      // `parent` may be FrameNode | SectionNode | ComponentSetNode — all have
-      // layoutMode in recent Figma versions. Use `in`-check instead of a narrow
-      // cast that lies about the type.
-      const parent = component.parent;
-      const parentLayout =
-        parent && 'layoutMode' in parent ? ((parent as { layoutMode?: string }).layoutMode ?? undefined) : undefined;
-      if (parentLayout && parentLayout !== 'NONE') {
-        const needsH = itemParams.width != null && !itemParams.layoutSizingHorizontal;
-        const needsV = itemParams.height != null && !itemParams.layoutSizingVertical;
-        if (needsH) {
-          try {
-            component.layoutSizingHorizontal = 'FIXED';
-          } catch {
-            /* some contexts don't support direct sizing writes */
-          }
+      const needsH = itemParams.width != null && !itemParams.layoutSizingHorizontal;
+      const needsV = itemParams.height != null && !itemParams.layoutSizingVertical;
+      if (needsH) {
+        try {
+          component.layoutSizingHorizontal = 'FIXED';
+        } catch {
+          /* some contexts don't support direct sizing writes */
         }
-        if (needsV) {
-          try {
-            component.layoutSizingVertical = 'FIXED';
-          } catch {
-            /* ibid */
-          }
+      }
+      if (needsV) {
+        try {
+          component.layoutSizingVertical = 'FIXED';
+        } catch {
+          /* ibid */
         }
-        if (needsH || needsV) {
+      }
+      if (needsH || needsV) {
+        try {
           component.resize(
             (itemParams.width as number) ?? component.width,
             (itemParams.height as number) ?? component.height,
           );
+        } catch {
+          /* resize can fail on component sets — best effort */
         }
       }
     }

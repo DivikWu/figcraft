@@ -3225,7 +3225,7 @@ bind_component_property:
     a typical Button has 4-6 properties (Label / Icon / ShowIcon / State / ...) and
     batching them cuts round-trips.
     Legacy: omit `bindings` and pass `propertyName + targetNodeSelector + nodeProperty` for a single binding.
-  toolset: components-advanced
+  toolset: core
   write: true
   access: edit
   handler: bridge
