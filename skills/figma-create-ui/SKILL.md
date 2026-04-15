@@ -173,12 +173,65 @@ All 4 tools below are core — no `load_toolset` needed.
 
 For component property management (add_component_property, bind_component_property), `load_toolset("components-advanced")`.
 
+### Variant Matrix Planning (MANDATORY for ≥8 variants)
+
+⛔ **When the target component has 8 or more variants, you MUST output a markdown difference matrix BEFORE calling any `create_component` / `nodes(method:"clone")` / `bind_component_property`.** Skipping this step is the single largest failure mode for multi-variant component creation — it produces clone-then-patch chains where each fix exposes another inconsistency, and the agent burns 10+ rounds chasing variant drift.
+
+The matrix has one row per variant and one column per "axis of difference":
+
+| Variant | base fill | textColor | iconColor | padding | structure | notes |
+|---------|-----------|-----------|-----------|---------|-----------|-------|
+| Emphasis / Default / sm | `button/emphasis` | `text/inverse` | `text/inverse` | 12/6 | std | — |
+| Emphasis / Default / md | `button/emphasis` | `text/inverse` | `text/inverse` | 16/8 | std | — |
+| Tertiary / Default / md | `transparent` | `text/primary` | `text/primary` | 16/8 | std | no fill |
+| * / Loading / md | inherit | inherit | — | inherit | **spinner-only** | replaces children |
+| * / Disabled / md | `surface/disabled` | `text/disabled` | `text/disabled` | inherit | std | — |
+
+Without this matrix you will:
+- clone the wrong base
+- forget that Tertiary needs `iconColor` rebound (icon Vectors stay on Emphasis color after clone)
+- miss that Loading is a structural variant (see below)
+- write 31 cells of padding=0 because the base had no padding default
+
+After the matrix is filled in, build in this order: (1) base for each Type, (2) clone States from each Type base, (3) `bind_component_property` with `variantFilter` to re-bind iconColor/fill per Type slice, (4) handle Loading separately.
+
+**Loading is a STRUCTURAL variant, not a visual variant.** Loading replaces `children` with a spinner — it's not just a different color/state of the standard structure. Build Loading variants separately:
+
+```
+1. Build base "Default" with [icon-left, label, icon-right]
+2. Clone Default → Hover / Active / Pressed / Focused (5 visual states share structure)
+3. Build SEPARATE base "Loading" with [spinner] children
+4. Clone Loading → Loading × Type matrix
+5. Combine all into one ComponentSet
+```
+
+If you try to clone Default → Loading and then "hide icon-left, hide label, show spinner", you will end up with 8 broken Loading variants whose children don't match the rest of the design system's spinner spec.
+
+### Variant-Aware Binding (use `variantFilter`)
+
+`bind_component_property` accepts `variantFilter: { Type: "Tertiary" }` (or any property combo) to limit a binding to a subset of variants. Use this whenever Type/State/Size determines a different value:
+
+```json
+{
+  "nodeId": "<componentSetId>",
+  "variantFilter": { "Type": "Tertiary" },
+  "bindings": [
+    { "targetNodeSelector": "Icon-left", "nodeProperty": "iconColor", "value": "icon/primary" },
+    { "targetNodeSelector": "Icon-right", "nodeProperty": "iconColor", "value": "icon/primary" }
+  ]
+}
+```
+
+`nodeProperty: "iconColor"` is a build-time bulk-apply — it walks the matched node's Vector descendants and rebinds their fills/strokes. Use it INSTEAD of cloning + manually editing each variant's icon. Value auto-detection: `#hex` → hex, `VariableID:...` → direct ID binding, bare name → variable name lookup.
+
 ### Key Rules
 
 - **Token binding (library mode, ID-first)**: Prefer `fillVariableId` / `fontColorVariableId` from `get_design_context.defaults.*.id`. Fall back to `*Name` only when the ID is unavailable. figcraft returns a "next time use `fontColorVariableId`" typed hint after a successful name lookup — use it on subsequent calls. Text binding failures write a magenta sentinel fill so black-on-black bugs are visible in screenshots.
 - **BOOLEAN visibility binding**: declare `properties:[{type:"BOOLEAN", propertyName:"Icon", defaultValue:false}]` AND `componentPropertyReferences:{visible:"Icon"}` on the child whose visibility you want to control. The child must have a `name` field. figcraft auto-wires + syncs node visibility with `defaultValue`. See `create_component` schema for the full example.
 - **Variant naming**: Each component must follow `Property=Value, Property=Value` format (e.g., `"Size=Small, Style=Primary, State=Default"`).
 - **Variant cap**: `create_component_set` enforces a soft 30-variant cap. Pass `variantLimit:0` to disable for legitimate large matrices. Consider extracting high-cardinality axes (icons, colors) into `INSTANCE_SWAP` properties instead.
+- **Batch cap**: `create_component({items:[...]})` is capped at **10 items per call** (lowered from 20 after timeout incidents). For 32-variant components, split into ⌈N/10⌉ sequential calls.
+- **`strokes` / `fills` are NOT figcraft params**. Use `strokeColor` / `fill` (singular, hex string) or the `*VariableId` / `*VariableName` aliases. Passing the raw plural Plugin API names will throw a self-correcting error pointing at the right alias.
 - For full component library builds (multiple components + variables + theming), switch to [figcraft-generate-library](../figcraft-generate-library/SKILL.md).
 
 ### Advanced Component Patterns

@@ -456,10 +456,16 @@ export function registerComponentHandlers(): void {
     // ── Batch mode: items[] ──
     if (Array.isArray(params.items)) {
       const items = params.items as Array<Record<string, unknown>>;
-      const MAX_BATCH = 20;
+      // Cap lowered from 20 → 10 after the 2026-04 Button regression: even
+      // 20-item batches were timing out the MCP call (each item carries layout
+      // + variable bind + property wire + role inference, ~1.2s each on a
+      // typical Button-sized component). 10 is the new safe budget. See plan
+      // elegant-wandering-raven.md B1.
+      const MAX_BATCH = 10;
       assertHandler(
         items.length <= MAX_BATCH,
-        `Batch limited to ${MAX_BATCH} components per call. Got ${items.length}.`,
+        `Batch limited to ${MAX_BATCH} components per call (lowered from 20 after timeout incidents). ` +
+          `Got ${items.length}. Split into ${Math.ceil(items.length / MAX_BATCH)} sequential calls.`,
         'BATCH_LIMIT_EXCEEDED',
       );
 
@@ -480,7 +486,20 @@ export function registerComponentHandlers(): void {
       let totalViolations = 0;
       let totalAutoFixed = 0;
       const allBindingFailures: unknown[] = [];
-      for (const item of items) {
+      // Periodic yield to the Plugin sandbox event loop every YIELD_EVERY items.
+      // This is a defensive measure, not a proven fix for relay timeouts:
+      // - The WebSocket relay heartbeat lives on the UI iframe layer, so this
+      //   sandbox-side yield does NOT directly fire heartbeats.
+      // - What it DOES do: let pending microtasks (pending postMessage responses
+      //   from the UI, resolved promises from prior items, etc.) drain between
+      //   batch items instead of starving at the end of the batch.
+      // The REAL fix for the timeout incident was lowering MAX_BATCH from 20 to
+      // 10 (see above). This yield is kept as a low-cost (~microseconds/yield)
+      // margin in case the sandbox queue was a contributor. If empirical data
+      // later shows it doesn't help, it can be safely removed. See plan B1.
+      const YIELD_EVERY = 4;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
         // Merge inherited defaults with item-level overrides. Item-level values win
         // because the spread comes after.
         const effectiveItem = { ...inheritedDefaults, ...item };
@@ -501,6 +520,12 @@ export function registerComponentHandlers(): void {
         } catch (e: unknown) {
           const msg = e instanceof Error ? e.message : String(e);
           results.push({ name: (item.name as string) ?? 'Component', ok: false, error: msg });
+        }
+        // Heartbeat yield — non-zero modulo and not the last iteration.
+        if ((i + 1) % YIELD_EVERY === 0 && i + 1 < items.length) {
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, 0);
+          });
         }
       }
       const out: Record<string, unknown> = { created, total: items.length, items: results };
