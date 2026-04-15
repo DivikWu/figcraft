@@ -3509,6 +3509,13 @@ bind_component_property:
       variantsTargeted: 6
       totalBound: 24
       totalNotFound: 0
+      results:
+        - propertyName: "Label"
+          bound: 6
+          notFound: 0
+        - propertyName: "ShowIcon"
+          bound: 6
+          notFound: 0
     - ok: true
       action: batch
       created: 3
@@ -3526,13 +3533,6 @@ bind_component_property:
           ok: true
           bindingsProcessed: 2
           totalBound: 2
-      results:
-        - propertyName: "Label"
-          bound: 6
-          notFound: 0
-        - propertyName: "ShowIcon"
-          bound: 6
-          notFound: 0
 
 swap_instance:
   description: Swap an existing instance to a different component.

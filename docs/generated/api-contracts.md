@@ -115,11 +115,12 @@ Covered flat/custom tools: 111
 
 ### `bind_component_property`
 
-- Example payloads: 1
+- Example payloads: 2
 
 ```json
 {
   "ok": true,
+  "action": "single",
   "bindingsProcessed": 4,
   "variantsTargeted": 6,
   "totalBound": 24,
@@ -2140,11 +2141,12 @@ Covered endpoint methods: 42
 
 ### `text.set_content`
 
-- Example payloads: 1
+- Example payloads: 2
 
 ```json
 {
-  "ok": true
+  "ok": true,
+  "action": "single"
 }
 ```
 
@@ -2415,11 +2417,12 @@ Covered endpoint methods: 42
 
 ### `variables_ep.set_binding`
 
-- Example payloads: 1
+- Example payloads: 2
 
 ```json
 {
-  "ok": true
+  "ok": true,
+  "action": "bound"
 }
 ```
 

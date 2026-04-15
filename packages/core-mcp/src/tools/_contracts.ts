@@ -1603,7 +1603,19 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
       "bindingsProcessed": 4,
       "variantsTargeted": 6,
       "totalBound": 24,
-      "totalNotFound": 0
+      "totalNotFound": 0,
+      "results": [
+        {
+          "propertyName": "Label",
+          "bound": 6,
+          "notFound": 0
+        },
+        {
+          "propertyName": "ShowIcon",
+          "bound": 6,
+          "notFound": 0
+        }
+      ]
     },
     {
       "ok": true,
@@ -1628,18 +1640,6 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
           "ok": true,
           "bindingsProcessed": 2,
           "totalBound": 2
-        }
-      ],
-      "results": [
-        {
-          "propertyName": "Label",
-          "bound": 6,
-          "notFound": 0
-        },
-        {
-          "propertyName": "ShowIcon",
-          "bound": 6,
-          "notFound": 0
         }
       ]
     }
