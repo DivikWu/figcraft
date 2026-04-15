@@ -8,3 +8,5 @@ Key architectural constraints:
 - Plugin API bypasses REST API Enterprise restrictions — Variable writes work on all Figma plans
 - Batch operations use `items[]` + per-item error handling — single-item failure doesn't block batch
 - Token sync is idempotent — second run: created=0
+- Figma Plugin API does NOT expose component property descriptions — `editComponentProperty`/`addComponentProperty` accept only `{ name, defaultValue, preferredValues }`. Property descriptions are editable only in Figma's UI (`execute_js` cannot help — same API surface). `update_component_property` throws `UNSUPPORTED_BY_FIGMA_API` with the workaround
+- VARIANT property defaults are derived from the top-left variant's spatial position — `editComponentProperty`'s `defaultValue` does NOT apply to VARIANT. Reorder variants to change the default. `update_component_property` throws `UNSUPPORTED_FOR_VARIANT`

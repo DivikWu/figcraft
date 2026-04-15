@@ -579,19 +579,63 @@ export function registerComponentHandlers(): void {
 
   registerHandler('update_component', async (params) => {
     const node = await findNodeByIdAsync(params.nodeId as string);
-    assertNodeType(
-      node,
-      'COMPONENT',
-      `nodeId="${params.nodeId}"`,
-      'For a COMPONENT_SET, pass the id of a specific variant (use list_local_components to enumerate variants). For a FRAME, convert it first via create_component_from_node.',
+    // Accept both COMPONENT and COMPONENT_SET — both extend PublishableMixin,
+    // so name/description/descriptionMarkdown work uniformly. The set's own
+    // description is what shows in Figma's assets panel for multi-variant
+    // components, and rejecting it was the head of a 6-defect trap chain.
+    assertHandler(
+      !!node && (node.type === 'COMPONENT' || node.type === 'COMPONENT_SET'),
+      `nodeId="${params.nodeId}" — update_component accepts COMPONENT or COMPONENT_SET. ` +
+        `For a FRAME, convert it first via create_component_from_node.`,
+      'INVALID_NODE_TYPE',
     );
-    const comp = node as ComponentNode;
+    const comp = node as ComponentNode | ComponentSetNode;
+    const warnings: string[] = [];
+
     if (params.name != null) comp.name = params.name as string;
     if (params.description != null) comp.description = params.description as string;
-    if (params.width != null || params.height != null) {
-      comp.resize((params.width as number) ?? comp.width, (params.height as number) ?? comp.height);
+    // PublishableMixin exposes both description (plain) and descriptionMarkdown
+    // (rich) — expose both to callers, design-system docs often want markdown.
+    if (params.descriptionMarkdown != null) {
+      comp.descriptionMarkdown = params.descriptionMarkdown as string;
     }
-    return simplifyNode(comp);
+    // documentationLinks: matches the "Link to documentation" field in Figma's
+    // Component configuration modal. Figma Plugin API types this as an array
+    // (ReadonlyArray<DocumentationLink>) but currently caps runtime length at 1
+    // — we mirror the API shape (future-proof) and enforce the limit via guard.
+    // Accept string[] rather than {uri}[] to avoid a useless single-field object
+    // wrapper; figcraft wraps internally. Pass [] to clear.
+    if (params.documentationLinks != null) {
+      const links = params.documentationLinks as string[];
+      if (links.length > 1) {
+        throw new HandlerError(
+          `documentationLinks accepts at most 1 entry (Figma Plugin API current limit), got ${links.length}. ` +
+            `Pick the single most important link; the rest belong in the descriptionMarkdown body as inline links. ` +
+            `Pass [] to clear. This is a Figma platform restriction, not a figcraft schema restriction.`,
+          'DOCUMENTATION_LINKS_LIMIT',
+        );
+      }
+      comp.documentationLinks = links.map((uri) => ({ uri }));
+    }
+
+    if (params.width != null || params.height != null) {
+      if (comp.type === 'COMPONENT_SET') {
+        // ComponentSet size is auto-computed from its variant layout. If
+        // create_component_set ran layout_component_set (it always does),
+        // a manual resize() here would be clobbered the next time variants
+        // shuffle — phantom success. Warn instead of silently failing.
+        warnings.push(
+          'width/height ignored on COMPONENT_SET — set size is auto-computed from variant layout. ' +
+            "To change the set's footprint, resize individual variants or re-run layout_component_set " +
+            'with different padding/gap.',
+        );
+      } else {
+        comp.resize((params.width as number) ?? comp.width, (params.height as number) ?? comp.height);
+      }
+    }
+
+    const result = simplifyNode(comp);
+    return warnings.length > 0 ? { ...result, _warnings: warnings } : result;
   });
 
   registerHandler('delete_component', async (params) => {
@@ -940,8 +984,21 @@ export function registerComponentHandlers(): void {
     if (params.preferredValues) {
       options.preferredValues = params.preferredValues as InstanceSwapPreferredValue[];
     }
-    if (params.description && propertyType === 'SLOT') {
-      (options as ComponentPropertyOptions & { description?: string }).description = params.description as string;
+    // Reject `description` on any property type — consistent with update_component_property.
+    // Figma Plugin API (typings 1.123.0) ComponentPropertyOptions = { preferredValues? }
+    // with no description field. The previous SLOT-only cast relied on undocumented
+    // runtime behavior that was never verified via read-back test. SLOT descriptions
+    // visible in library components are set via Figma UI by library authors, not via
+    // this API. If future typings expose description, re-add with a runtime verify step.
+    if (params.description != null) {
+      throw new HandlerError(
+        `Component property descriptions are NOT settable via the Figma Plugin API. ` +
+          `addComponentProperty options type is { preferredValues? } — no description field, ` +
+          `for any property type including SLOT. ` +
+          `Workaround: ask the user to set the description manually in Figma's UI ` +
+          `(right-click the property → Edit). Do NOT retry via execute_js — it uses the same API.`,
+        'UNSUPPORTED_BY_FIGMA_API',
+      );
     }
 
     try {
@@ -992,12 +1049,41 @@ export function registerComponentHandlers(): void {
       );
     }
 
+    // ── Figma Plugin API capability guards (typings 1.123.0) ──
+    // editComponentProperty's newValue signature is strictly { name?, defaultValue?,
+    // preferredValues? } — passing `description` was a ghost write that returned
+    // ok:true but changed nothing. Throw loudly instead of looping the agent.
+    if (params.description != null) {
+      throw new HandlerError(
+        `Component property descriptions are NOT settable via the Figma Plugin API. ` +
+          `editComponentProperty accepts only { name, defaultValue, preferredValues } — ` +
+          `there is no description field on any property type. ` +
+          `Workaround: ask the user to edit the property description manually in Figma's UI ` +
+          `(right-click the property → Edit). Do NOT retry via execute_js — it uses the same API.`,
+        'UNSUPPORTED_BY_FIGMA_API',
+      );
+    }
+    // VARIANT defaults are derived from the top-left variant's spatial position,
+    // not from editComponentProperty. Silently accepting defaultValue here was a
+    // second phantom write — surface it with actionable guidance.
+    if (params.defaultValue != null) {
+      const propDef = comp.componentPropertyDefinitions[propertyName];
+      if (propDef?.type === 'VARIANT') {
+        throw new HandlerError(
+          `defaultValue is not supported for VARIANT properties. ` +
+            `VARIANT defaults are determined by the top-left variant's spatial position in the component set — ` +
+            `reorder variants via nodes(method:"update") or layout_component_set to change which variant is the default. ` +
+            `Property "${propertyName}" is a VARIANT.`,
+          'UNSUPPORTED_FOR_VARIANT',
+        );
+      }
+    }
+
     // Build a single edit payload — Figma's editComponentProperty accepts partial fields
     const edits: Record<string, unknown> = {};
     if (params.newName != null) edits.name = params.newName as string;
     if (params.defaultValue != null) edits.defaultValue = params.defaultValue as string | boolean;
     if (params.preferredValues != null) edits.preferredValues = params.preferredValues as InstanceSwapPreferredValue[];
-    if (params.description != null) edits.description = params.description as string;
 
     // Apply name first (changes the key), then remaining fields on the new key
     let currentName = propertyName;
@@ -1011,7 +1097,6 @@ export function registerComponentHandlers(): void {
         edits as {
           defaultValue?: string | boolean;
           preferredValues?: InstanceSwapPreferredValue[];
-          description?: string;
         },
       );
     }

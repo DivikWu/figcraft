@@ -462,6 +462,7 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
       width: z.number(),
       height: z.number(),
       visible: z.boolean(),
+      _warnings: z.array(z.string()).optional().describe("Non-fatal warnings (e.g. width/height ignored on COMPONENT_SET). Only present when at least one warning was collected."),
     }),
   'delete_component': z.object({
       ok: z.boolean(),

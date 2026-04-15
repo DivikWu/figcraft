@@ -416,13 +416,15 @@ export function registerGeneratedTools(
   if (shouldRegisterGeneratedTool(include, 'update_component')) {
     server.tool(
     'update_component',
-    "Update a component's name, description, or size.",
+    "Update a component or component set's name, description, or size. Accepts both COMPONENT and COMPONENT_SET nodes — both extend PublishableMixin, so description/descriptionMarkdown apply uniformly. For multi-variant components, pass the COMPONENT_SET id — its description is what shows in the Figma assets panel.",
     {
-      nodeId: z.string().describe("Component node ID"),
+      nodeId: z.string().describe("Component or ComponentSet node ID"),
       name: z.string().optional().describe("New component name"),
-      description: z.string().optional().describe("New component description"),
-      width: z.number().optional().describe("New width in px"),
-      height: z.number().optional().describe("New height in px"),
+      description: z.string().optional().describe("New plain-text description"),
+      descriptionMarkdown: z.string().optional().describe("New rich-text (markdown) description. PublishableMixin exposes both `description` (plain) and `descriptionMarkdown` (rich) — pass either or both. Markdown is preferred for design-system docs (supports bold, lists, links)."),
+      documentationLinks: z.array(z.string()).optional().describe("Documentation links shown in the Figma Component configuration modal's \"Link\" field and in the assets panel. Array of URL strings — figcraft wraps them into Figma's `{uri}` shape automatically. ⚠️ Figma Plugin API currently caps this at 1 entry (platform runtime limit, not a figcraft restriction, verified against plugin-typings 1.123.0). Passing more than 1 throws DOCUMENTATION_LINKS_LIMIT with guidance to consolidate extra links into the descriptionMarkdown body. Pass `[]` to clear all links. Applies to both COMPONENT and COMPONENT_SET (both extend PublishableMixin)."),
+      width: z.number().optional().describe("New width in px. Ignored on COMPONENT_SET — set size is auto-computed from variant layout; use layout_component_set to adjust padding/gap instead. When ignored, response includes a _warnings entry explaining how to resize."),
+      height: z.number().optional().describe("New height in px. Same COMPONENT_SET caveat as width — ignored with warning."),
     },
     async (params) => {
       const result = await bridge.request('update_component', params, undefined, 'update_component', true);
@@ -617,14 +619,13 @@ export function registerGeneratedTools(
   if (shouldRegisterGeneratedTool(include, 'add_component_property')) {
     server.tool(
     'add_component_property',
-    "Add a new property to a component or component set. Supported types: BOOLEAN, TEXT, INSTANCE_SWAP, VARIANT, SLOT.",
+    "Add a new property to a component or component set. Supported types: BOOLEAN, TEXT, INSTANCE_SWAP, VARIANT, SLOT. ⚠️ Figma Plugin API limit (verified against @figma/plugin-typings 1.123.0):\n  • Property DESCRIPTIONS cannot be set via any API — ComponentPropertyOptions\n    only accepts `{ preferredValues }`. Property descriptions (including SLOT)\n    are editable ONLY in Figma's UI (right-click property → Edit).\n    Same limit applies to update_component_property. execute_js cannot help.",
     {
       nodeId: z.string().describe("Component or ComponentSet node ID"),
       propertyName: z.string().describe("Property name"),
       type: z.enum(['BOOLEAN', 'TEXT', 'INSTANCE_SWAP', 'VARIANT', 'SLOT']).describe("Property type"),
       defaultValue: z.unknown().describe("Default value. String or boolean for most types. Can be a VariableAlias object ({ type: \"VARIABLE_ALIAS\", id: \"...\" }) to bind to a variable."),
       preferredValues: z.array(z.record(z.unknown())).optional().describe("Preferred values for INSTANCE_SWAP and SLOT properties. Array of {type: \"COMPONENT\"|\"COMPONENT_SET\", key: string}."),
-      description: z.string().optional().describe("Property description (only supported for SLOT properties)"),
     },
     async (params) => {
       const result = await bridge.request('add_component_property', params, undefined, 'add_component_property', true);
@@ -636,14 +637,13 @@ export function registerGeneratedTools(
   if (shouldRegisterGeneratedTool(include, 'update_component_property')) {
     server.tool(
     'update_component_property',
-    "Update an existing component property (rename, change default value, preferred values, or description). preferredValues is supported for INSTANCE_SWAP and SLOT properties. description is supported for SLOT properties only.",
+    "Update an existing component property (rename, change default value, or preferred values). ⚠️ Figma Plugin API limits (verified against @figma/plugin-typings 1.123.0):\n  • Property DESCRIPTIONS cannot be set via any API — editComponentProperty accepts only\n    { name, defaultValue, preferredValues }. Property descriptions are editable ONLY in\n    Figma's UI (right-click property → Edit). execute_js cannot help (same API surface).\n  • defaultValue does NOT apply to VARIANT properties — VARIANT defaults are determined\n    by the top-left variant's spatial position. Reorder variants to change the default.\n  • preferredValues applies to INSTANCE_SWAP (and SLOT) properties only.\nPassing `description` or a VARIANT `defaultValue` will throw with actionable guidance — do not retry in a loop; follow the workaround in the error message.",
     {
       nodeId: z.string().describe("Component or ComponentSet node ID"),
       propertyName: z.string().describe("Current property name"),
       newName: z.string().optional().describe("New property name"),
-      defaultValue: z.unknown().optional().describe("New default value"),
+      defaultValue: z.unknown().optional().describe("New default value. Works for BOOLEAN, TEXT, and INSTANCE_SWAP properties. NOT supported for VARIANT — reorder variants spatially to change the default."),
       preferredValues: z.array(z.record(z.unknown())).optional().describe("Preferred values for INSTANCE_SWAP or SLOT properties. Array of {type: 'COMPONENT'|'COMPONENT_SET', key: string}."),
-      description: z.string().optional().describe("Description for SLOT properties only"),
     },
     async (params) => {
       const result = await bridge.request('update_component_property', params, undefined, 'update_component_property', true);

@@ -3003,7 +3003,11 @@ create_component_set:
       visible: true
 
 update_component:
-  description: "Update a component's name, description, or size."
+  description: >-
+    Update a component or component set's name, description, or size.
+    Accepts both COMPONENT and COMPONENT_SET nodes — both extend PublishableMixin,
+    so description/descriptionMarkdown apply uniformly. For multi-variant components,
+    pass the COMPONENT_SET id — its description is what shows in the Figma assets panel.
   toolset: components-advanced
   write: true
   access: edit
@@ -3012,19 +3016,41 @@ update_component:
     nodeId:
       type: string
       required: true
-      description: Component node ID
+      description: Component or ComponentSet node ID
     name:
       type: string
       description: New component name
     description:
       type: string
-      description: New component description
+      description: New plain-text description
+    descriptionMarkdown:
+      type: string
+      description: >-
+        New rich-text (markdown) description. PublishableMixin exposes both
+        `description` (plain) and `descriptionMarkdown` (rich) — pass either or both.
+        Markdown is preferred for design-system docs (supports bold, lists, links).
+    documentationLinks:
+      type: array
+      items: string
+      description: >-
+        Documentation links shown in the Figma Component configuration modal's "Link"
+        field and in the assets panel. Array of URL strings — figcraft wraps them into
+        Figma's `{uri}` shape automatically.
+        ⚠️ Figma Plugin API currently caps this at 1 entry (platform runtime limit,
+        not a figcraft restriction, verified against plugin-typings 1.123.0). Passing
+        more than 1 throws DOCUMENTATION_LINKS_LIMIT with guidance to consolidate
+        extra links into the descriptionMarkdown body. Pass `[]` to clear all links.
+        Applies to both COMPONENT and COMPONENT_SET (both extend PublishableMixin).
     width:
       type: number
-      description: New width in px
+      description: >-
+        New width in px. Ignored on COMPONENT_SET — set size is auto-computed from
+        variant layout; use layout_component_set to adjust padding/gap instead.
+        When ignored, response includes a _warnings entry explaining how to resize.
     height:
       type: number
-      description: New height in px
+      description: >-
+        New height in px. Same COMPONENT_SET caveat as width — ignored with warning.
   response:
     type: object
     fields:
@@ -3046,6 +3072,12 @@ update_component:
       visible:
         type: boolean
         required: true
+      _warnings:
+        type: array
+        items: string
+        description: >-
+          Non-fatal warnings (e.g. width/height ignored on COMPONENT_SET).
+          Only present when at least one warning was collected.
   examples:
     - id: "80:1"
       name: "Button / Secondary"
@@ -3568,6 +3600,11 @@ add_component_property:
   description: >-
     Add a new property to a component or component set.
     Supported types: BOOLEAN, TEXT, INSTANCE_SWAP, VARIANT, SLOT.
+    ⚠️ Figma Plugin API limit (verified against @figma/plugin-typings 1.123.0):
+      • Property DESCRIPTIONS cannot be set via any API — ComponentPropertyOptions
+        only accepts `{ preferredValues }`. Property descriptions (including SLOT)
+        are editable ONLY in Figma's UI (right-click property → Edit).
+        Same limit applies to update_component_property. execute_js cannot help.
   toolset: components-advanced
   write: true
   access: create
@@ -3594,9 +3631,6 @@ add_component_property:
       type: array
       items: object
       description: 'Preferred values for INSTANCE_SWAP and SLOT properties. Array of {type: "COMPONENT"|"COMPONENT_SET", key: string}.'
-    description:
-      type: string
-      description: 'Property description (only supported for SLOT properties)'
   response:
     type: object
     fields:
@@ -3618,9 +3652,16 @@ add_component_property:
 
 update_component_property:
   description: >-
-    Update an existing component property (rename, change default value, preferred values, or description).
-    preferredValues is supported for INSTANCE_SWAP and SLOT properties.
-    description is supported for SLOT properties only.
+    Update an existing component property (rename, change default value, or preferred values).
+    ⚠️ Figma Plugin API limits (verified against @figma/plugin-typings 1.123.0):
+      • Property DESCRIPTIONS cannot be set via any API — editComponentProperty accepts only
+        { name, defaultValue, preferredValues }. Property descriptions are editable ONLY in
+        Figma's UI (right-click property → Edit). execute_js cannot help (same API surface).
+      • defaultValue does NOT apply to VARIANT properties — VARIANT defaults are determined
+        by the top-left variant's spatial position. Reorder variants to change the default.
+      • preferredValues applies to INSTANCE_SWAP (and SLOT) properties only.
+    Passing `description` or a VARIANT `defaultValue` will throw with actionable guidance —
+    do not retry in a loop; follow the workaround in the error message.
   toolset: components-advanced
   write: true
   access: edit
@@ -3639,15 +3680,14 @@ update_component_property:
       description: New property name
     defaultValue:
       type: unknown
-      description: New default value
+      description: >-
+        New default value. Works for BOOLEAN, TEXT, and INSTANCE_SWAP properties.
+        NOT supported for VARIANT — reorder variants spatially to change the default.
     preferredValues:
       type: array
       items:
         type: object
       description: "Preferred values for INSTANCE_SWAP or SLOT properties. Array of {type: 'COMPONENT'|'COMPONENT_SET', key: string}."
-    description:
-      type: string
-      description: Description for SLOT properties only
   response:
     type: object
     fields:
