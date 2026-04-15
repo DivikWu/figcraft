@@ -2362,7 +2362,7 @@ export function registerCreateHandlers(): void {
             delete out._inferences;
           }
           // Collect token binding failures — same aggregation pattern as
-          // create_component batch mode in components.ts:384-404.
+          // create_component batch mode (see handlers/components/crud.ts).
           if (Array.isArray(out._tokenBindingFailures)) {
             allBindingFailures.push(...(out._tokenBindingFailures as unknown[]));
           }
