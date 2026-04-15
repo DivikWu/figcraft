@@ -166,11 +166,7 @@ interface CreateContext {
   tokenBindingFailures: TokenBindingFailure[];
   /** Typed hints emitted directly (bypassing StructuredHint conversion). */
   typedHints: Hint[];
-  /**
-   * P0-B: dedupe tracker for "next time use ID" teaching hints. Keyed by
-   * `${field}|${variableId}` so a batch that resolves the same variable across
-   * many nodes emits only one hint per field+ID combination.
-   */
+  /** Dedupe tracker for teachIdForNextTime — keyed by `${field}|${variableId}`. */
   idHintsSeen: Set<string>;
   /** Detected target platform for font resolution. */
   platform: Platform;
@@ -194,15 +190,9 @@ async function initCreateContext(): Promise<CreateContext> {
 }
 
 /**
- * P0-B: when a fill/stroke/text-color binding was resolved via NAME (autoBoundId
- * is set), emit a typed hint teaching the agent to pass the variable ID next
- * time for zero-lookup binding. Deduped via ctx.idHintsSeen so batches don't
- * flood the response with identical hints.
- *
- * No-op when:
- * - autoBoundId is undefined (ID path, style path, or failure)
- * - autoBound is null (binding failed — different signal path)
- * - a hint for this (field, ID) pair was already emitted this call
+ * When a binding was resolved via NAME (autoBoundId set), emit a dedup'd
+ * typed hint teaching the agent to pass the variable ID next time. No-op
+ * when autoBoundId is undefined (ID path / style / failure).
  */
 function teachIdForNextTime(
   ctx: CreateContext,
@@ -216,7 +206,7 @@ function teachIdForNextTime(
   const name = result.autoBound.replace(/^var:/, '');
   ctx.typedHints.push({
     type: 'suggest',
-    message: `Resolved '${name}' → ${result.autoBoundId}. Next time pass ${field}: '${result.autoBoundId}' for zero-lookup binding (no name resolution, no fragility).`,
+    message: `Resolved '${name}' → ${result.autoBoundId}. Next time pass ${field}: '${result.autoBoundId}' to skip name resolution.`,
   });
 }
 

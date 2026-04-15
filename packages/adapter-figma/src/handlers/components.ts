@@ -9,78 +9,50 @@ import { assertHandler, assertNodeType, HandlerError } from '../utils/handler-er
 import { assertOnCurrentPage, findNodeByIdAsync } from '../utils/node-lookup.js';
 import { quickLintSummary } from './lint-inline.js';
 
-// ─── P2: BOOLEAN component property visibility binding ───
+// ─── BOOLEAN component property visibility binding ───
 
-/**
- * A declaration collected from inline children that says
- *   `componentPropertyReferences: { visible: "<propName>" }`
- * — i.e. the child's visibility should be bound to a BOOLEAN component property.
- */
-export interface VisibleRefDecl {
-  /** The BOOLEAN property name this child references. */
+interface VisibleRefDecl {
   propName: string;
-  /** The child's `name` field — used to locate the target node in the component tree. */
   childName: string;
-  /** Human-readable tree path used in warning messages. */
-  path: string;
 }
 
-/** Result of walking inline children for `componentPropertyReferences` decls. */
 export interface VisibleRefCollectorResult {
   refs: VisibleRefDecl[];
-  /** Warnings emitted during the walk (e.g. a ref with no name on the child). */
   warnings: string[];
 }
 
 /**
- * P2: Walk an inline children tree and collect every
- * `componentPropertyReferences: { visible: "<prop>" }` declaration.
- *
- * Pure function — no Figma API calls. Exported for unit testing.
- *
- * Validation:
- * - Children that declare a visibility ref MUST have a `name` field, otherwise
- *   the target node cannot be located post-creation (`component.findAll` needs
- *   a stable name). Unnamed refs are dropped with a warning.
- * - Recursive: refs on grandchildren are collected with full path prefixes.
+ * Walk inline children and collect every `componentPropertyReferences.visible`
+ * declaration. Children declaring a ref must have a `name` field (used by
+ * `component.findAll` post-creation to locate the target); unnamed refs are
+ * dropped with a warning. Pure function — exported for unit testing.
  */
 export function collectVisibleRefs(children: unknown): VisibleRefCollectorResult {
   const refs: VisibleRefDecl[] = [];
   const warnings: string[] = [];
-
   if (!Array.isArray(children)) return { refs, warnings };
 
-  function walk(defs: unknown[], pathPrefix: string): void {
+  function walk(defs: unknown[]): void {
     for (const def of defs) {
       if (!def || typeof def !== 'object') continue;
       const d = def as Record<string, unknown>;
-      const raw = d.componentPropertyReferences;
-      if (raw && typeof raw === 'object') {
-        const visibleProp = (raw as Record<string, unknown>).visible;
-        if (typeof visibleProp === 'string') {
-          const childName = typeof d.name === 'string' ? d.name : '';
-          if (!childName) {
-            warnings.push(
-              `⛔ componentPropertyReferences.visible = "${visibleProp}" requires a 'name' field on the child ` +
-                `so the target node can be located in the component tree. Add { name: "..." } to this child.`,
-            );
-          } else {
-            refs.push({
-              propName: visibleProp,
-              childName,
-              path: `${pathPrefix}/${childName}`,
-            });
-          }
+      const raw = d.componentPropertyReferences as Record<string, unknown> | undefined;
+      const visibleProp = raw && typeof raw === 'object' ? raw.visible : undefined;
+      if (typeof visibleProp === 'string') {
+        const childName = typeof d.name === 'string' ? d.name : '';
+        if (!childName) {
+          warnings.push(
+            `⛔ componentPropertyReferences.visible = "${visibleProp}" requires a 'name' field on the child.`,
+          );
+        } else {
+          refs.push({ propName: visibleProp, childName });
         }
       }
-      if (Array.isArray(d.children)) {
-        const segName = typeof d.name === 'string' ? d.name : typeof d.type === 'string' ? d.type : '?';
-        walk(d.children as unknown[], `${pathPrefix}/${segName}`);
-      }
+      if (Array.isArray(d.children)) walk(d.children as unknown[]);
     }
   }
 
-  walk(children as unknown[], '');
+  walk(children as unknown[]);
   return { refs, warnings };
 }
 
@@ -259,16 +231,8 @@ export function registerComponentHandlers(): void {
     const propertyWarnings: string[] = [];
     const propertiesAdded: string[] = [];
 
-    // Step 3a (P2): Collect inline `componentPropertyReferences` declarations
-    // from children. Agents declare BOOLEAN visibility binding as:
-    //   { type: "icon", name: "ArrowIcon", componentPropertyReferences: { visible: "Icon" } }
-    // The BOOLEAN property itself is still declared in `properties[]`; this step
-    // just collects the child-side references so Step 4 can auto-wire them.
-    //
-    // Mirrors Figma's native `ComponentPropertyReferences` map shape (visible,
-    // characters, mainComponent) — future PRs can extend the supported fields.
-    // Walker is extracted to `collectVisibleRefs` (module-level export) for
-    // unit testability.
+    // Step 3a: collect inline componentPropertyReferences.visible declarations
+    // so Step 4 can auto-wire them when the matching BOOLEAN property lands.
     const { refs: visibleRefs, warnings: visibleRefWarnings } = collectVisibleRefs(itemParams.children);
     for (const w of visibleRefWarnings) propertyWarnings.push(w);
     const usedVisibleRefs = new Set<string>();
@@ -382,59 +346,33 @@ export function registerComponentHandlers(): void {
           propertiesAdded.push(propName);
           existingProps.add(propName);
 
-          // P2: BOOLEAN auto-wire — locate children that declared
+          // BOOLEAN auto-wire: locate children that declared
           // componentPropertyReferences.visible = "<propName>" and bind them.
-          // Previously BOOLEAN properties were created but orphaned (no node's
-          // visible was bound to them), so flipping the toggle in instances did
-          // nothing. This mirrors what bind_component_property does standalone,
-          // but inline and up-front so create_component is one-shot.
+          // Otherwise the property would be orphaned (toggle does nothing).
           if (propType === 'BOOLEAN') {
             const matches = visibleRefs.filter((r) => r.propName === propName);
             if (matches.length === 0) {
               propertyWarnings.push(
-                `⚠️ BOOLEAN property "${propName}" created but NO child is bound to it — ` +
-                  `flipping this toggle in instances will have no visible effect. ` +
-                  `Declare componentPropertyReferences: { visible: "${propName}" } on the child ` +
-                  `whose visibility should be controlled.`,
+                `⚠️ BOOLEAN property "${propName}" has no bound child — flipping this toggle in instances will have no effect. ` +
+                  `Declare componentPropertyReferences: { visible: "${propName}" } on a child.`,
               );
             } else {
-              let wiredCount = 0;
               for (const match of matches) {
-                usedVisibleRefs.add(`${match.propName}|${match.childName}`);
+                usedVisibleRefs.add(match.propName);
                 const targets = component.findAll((n) => n.name === match.childName);
-                if (targets.length === 0) {
-                  propertyWarnings.push(
-                    `⚠️ BOOLEAN property "${propName}" → child "${match.childName}" not found in ` +
-                      `component tree. The child may have failed to create — check _warnings above.`,
-                  );
-                  continue;
-                }
                 for (const target of targets) {
-                  try {
-                    const existingRefs =
-                      ((target as SceneNode & { componentPropertyReferences?: Record<string, string> })
-                        .componentPropertyReferences as Record<string, string> | undefined) ?? {};
-                    (
-                      target as SceneNode & { componentPropertyReferences?: Record<string, string> }
-                    ).componentPropertyReferences = { ...existingRefs, visible: propKey };
-                    // Sync main-component-level node visibility with defaultValue
-                    // so the component preview in the library matches the declared
-                    // default. Variants can override per-variant.
-                    if ('visible' in target) {
-                      (target as SceneNode).visible = defaultValue === true;
-                    }
-                    wiredCount++;
-                  } catch (err) {
-                    const msg = err instanceof Error ? err.message : String(err);
-                    propertyWarnings.push(
-                      `⚠️ BOOLEAN property "${propName}" → binding visible on "${match.childName}" ` + `failed: ${msg}.`,
-                    );
+                  const existingRefs =
+                    ((target as SceneNode & { componentPropertyReferences?: Record<string, string> })
+                      .componentPropertyReferences as Record<string, string> | undefined) ?? {};
+                  (
+                    target as SceneNode & { componentPropertyReferences?: Record<string, string> }
+                  ).componentPropertyReferences = { ...existingRefs, visible: propKey };
+                  // Sync node visible with defaultValue so the main component
+                  // preview matches the declared default. Variants override.
+                  if ('visible' in target) {
+                    (target as SceneNode).visible = defaultValue === true;
                   }
                 }
-              }
-              if (wiredCount > 0) {
-                // Silent success — propertiesAdded already records the property.
-                // Agents can verify via audit_node if they need to confirm wiring.
               }
             }
           }
@@ -447,34 +385,17 @@ export function registerComponentHandlers(): void {
           );
         }
       }
+    }
 
-      // P2: post-Step-4 sweep — surface `componentPropertyReferences.visible`
-      // declarations that reference a propName NOT declared in properties[].
-      // This catches the reverse orphan: agent wrote
-      //   { componentPropertyReferences: { visible: "Icon" } }
-      // but forgot the matching { type: "BOOLEAN", propertyName: "Icon", ... }
-      // entry. Without this warning the reference is silently dropped at
-      // the Figma API layer and nothing gets wired.
-      for (const ref of visibleRefs) {
-        const key = `${ref.propName}|${ref.childName}`;
-        if (!usedVisibleRefs.has(key)) {
-          propertyWarnings.push(
-            `⚠️ Child "${ref.childName}" references BOOLEAN property "${ref.propName}" via ` +
-              `componentPropertyReferences.visible, but no such BOOLEAN property was declared in properties[]. ` +
-              `Add { type: "BOOLEAN", propertyName: "${ref.propName}", defaultValue: false } to properties[], ` +
-              `or remove the reference.`,
-          );
-        }
-      }
-    } else if (visibleRefs.length > 0) {
-      // P2: children declared visibility bindings but `properties[]` is
-      // completely missing. Surface all dangling refs in one batched warning.
-      for (const ref of visibleRefs) {
+    // Reverse orphan: a child declared componentPropertyReferences.visible but
+    // no matching BOOLEAN property landed (either absent from properties[] or
+    // no properties[] at all). Figma silently ignores unknown prop keys so
+    // this is a real mistake the agent can't detect otherwise.
+    for (const ref of visibleRefs) {
+      if (!usedVisibleRefs.has(ref.propName)) {
         propertyWarnings.push(
-          `⚠️ Child "${ref.childName}" references BOOLEAN property "${ref.propName}" via ` +
-            `componentPropertyReferences.visible, but no properties[] array was provided. ` +
-            `Add properties: [{ type: "BOOLEAN", propertyName: "${ref.propName}", defaultValue: false }] ` +
-            `to create_component.`,
+          `⚠️ Child "${ref.childName}" references BOOLEAN property "${ref.propName}" but no such property was declared. ` +
+            `Add { type: "BOOLEAN", propertyName: "${ref.propName}", defaultValue: false } to properties[].`,
         );
       }
     }

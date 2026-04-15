@@ -922,49 +922,22 @@ export async function suggestColorVariable(hex: string, role: string, libraryNam
 }
 
 /**
- * P1: Normalize a variable-name key for comparison only.
- *
- * - lowercase
- * - unify /, ., -, _ separators into a single / (collapses repeated separators)
- *
- * Does NOT change stored or returned variable names — only the comparison key
- * used inside the resolver. `scopeRejected`, `ambiguousCandidates`, and
- * `wrongTypeMatches` still surface the original Figma variable names.
- *
- * This lets agents pass any common separator variant:
- *   "bg/primary" == "bg.primary" == "bg-primary" == "bg_primary" == "BG/Primary"
- *
- * Intentionally NOT normalized: semantic aliases (bg ≠ background), plurals
- * (color ≠ colors), camelCase→kebab — those are handled by
- * `suggestSimilarVariableNames` as read-only did-you-mean suggestions.
+ * Normalize a variable-name key for comparison: lowercase + unify
+ * `/`, `.`, `-`, `_` separators to a single `/`. Comparison key only —
+ * stored and returned variable names are unchanged.
  */
 export function normalizeVarNameKey(s: string): string {
   return s.toLowerCase().replace(/[/.\-_]+/g, '/');
 }
 
-/**
- * Split a normalized key into segments by '/'. Empty strings filtered out so
- * a leading/trailing separator doesn't produce phantom segments.
- */
 function segs(key: string): string[] {
   return key.split('/').filter((s) => s.length > 0);
 }
 
 /**
- * P1: Check if a candidate name's trailing segments match the query exactly.
- * This replaces both the old "includes('/')" path and the "single-segment tail"
- * path with one unified rule:
- *
- *   queryKey "bg/primary"     → qSegs ["bg","primary"]
- *   candidate "color/bg/primary" → cSegs ["color","bg","primary"] — last 2 == qSegs ✓
- *   candidate "button/primary"   → cSegs ["button","primary"]      — last 2 ≠  qSegs ✗
- *   candidate "primary"          → cSegs.length < qSegs.length       ✗
- *
- *   queryKey "primary"        → qSegs ["primary"]
- *   candidate "text/primary"     → last 1 == ["primary"] ✓
- *   candidate "bg/primary"       → last 1 == ["primary"] ✓ (ambiguous — caller handles)
- *
- * Segment-boundary safe: "xa/b" does NOT match query "a/b" (unlike raw endsWith).
+ * True if the candidate's trailing N segments equal the query segments
+ * exactly, where N = qSegs.length. Segment-boundary safe: "xa/b" does NOT
+ * match query "a/b" (unlike raw endsWith).
  */
 function hasTailSegments(candidateKey: string, qSegs: string[]): boolean {
   const cSegs = segs(candidateKey);
@@ -977,18 +950,8 @@ function hasTailSegments(candidateKey: string, qSegs: string[]): boolean {
 }
 
 /**
- * 3-level variable resolution strategy:
- *
- * Level 1: Exact normalized match (case-insensitive + separator-normalized)
- * Level 2: Multi-segment tail match — candidate's last N segments equal query
- *          (works for both 1-segment and multi-segment queries)
- * Level 3: Scope-based disambiguation — when multiple variables share the same
- *          tail segments, prefer ones whose scopes match the requested context
- *
- * @param vars - Array of variables to search
- * @param name - Variable name to resolve
- * @param preferredScopes - Optional scope hints for disambiguation (e.g. ['ALL_FILLS', 'FRAME_FILL'])
- * @returns The best-matched variable or null
+ * Resolve a variable by name: normalized exact match, then tail-segment match,
+ * scope-filtered. Throws AmbiguousMatchError on multi-candidate ties.
  */
 function resolveVariableByName(
   vars: Array<{ variable: Variable; scopes?: string[] }>,
@@ -1115,9 +1078,6 @@ async function findLibraryVariableByName(
   const collections = await getCollectionIndex(libraryName);
   if (collections.length === 0) return null;
 
-  // P1: normalize query key — lowercase + separator unification. This lets
-  // "bg/primary", "bg.primary", "bg-primary", "BG/Primary" all resolve to the
-  // same Figma variable.
   const key = normalizeVarNameKey(name);
   const qSegs = segs(key);
   // Only apply scope filtering for COLOR — FLOAT scopes are orthogonal (GAP, RADIUS, etc.)
@@ -1173,11 +1133,9 @@ async function findLibraryVariableByName(
     const vars = await getCollectionVariables(col.key);
     const filtered = vars.filter((v) => v.resolvedType === resolvedType);
 
-    // 缺陷 P1a: when filter rejected everything but there WERE name matches,
-    // record them as wrong-type candidates so the final throw can explain
-    // "variable exists but is the wrong resolvedType".
-    // P1: use normalized key so "bg.primary" still matches "bg/primary" for
-    // wrong-type detection.
+    // When type-filter rejects everything but there WERE name matches, record
+    // them as wrong-type candidates so the final throw can explain "variable
+    // exists but is the wrong resolvedType".
     if (filtered.length === 0) {
       const nameMatches = vars.filter((v) => normalizeVarNameKey(v.name) === key);
       for (const nm of nameMatches) {
@@ -1326,8 +1284,6 @@ export async function findFloatVariableByName(
  * Runs ONLY when the typed lookup returned null, so the happy path is unaffected.
  */
 async function throwIfWrongTypeLocal(name: string, excludeType: 'COLOR' | 'FLOAT'): Promise<void> {
-  // P1: normalized comparison — lets "bg.primary" detect a wrong-type "bg/primary"
-  // just like the matched-type path.
   const key = normalizeVarNameKey(name);
   const otherTypes: Array<'COLOR' | 'FLOAT' | 'STRING' | 'BOOLEAN'> =
     excludeType === 'COLOR' ? ['FLOAT', 'STRING', 'BOOLEAN'] : ['COLOR', 'STRING', 'BOOLEAN'];

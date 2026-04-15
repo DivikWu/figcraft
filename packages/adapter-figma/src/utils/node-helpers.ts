@@ -257,11 +257,7 @@ export interface TokenBindingFailure {
 
 export interface ApplyFillResult {
   autoBound: string | null;
-  /**
-   * P0-B: when autoBound was resolved via NAME (not ID), the resolved variable's
-   * Figma ID so the caller can emit a "next time use fillVariableId:<id>" typed
-   * hint. Undefined when binding was by ID, via style, or failed.
-   */
+  /** Resolved variable ID — set only when binding succeeded via NAME (not ID). */
   autoBoundId?: string;
   /** Hint for agent self-correction when no exact match found */
   colorHint?: string;
@@ -272,7 +268,6 @@ export interface ApplyFillResult {
 /** Stroke application result — mirrors ApplyFillResult for consistency. */
 export interface ApplyStrokeResult {
   autoBound: string | null;
-  /** Same semantics as ApplyFillResult.autoBoundId — set only on name-path success. */
   autoBoundId?: string;
   colorHint?: string;
   bindingFailure?: TokenBindingFailure;
@@ -389,71 +384,31 @@ async function withDidYouMean(hint: string, requestedName: string, type: 'COLOR'
   return `${hint} Did you mean: ${suggestions.map((n) => `"${n}"`).join(', ')}?`;
 }
 
-// ─── Sentinel: visual marker for text-role token binding failures ───
-//
-// When a text-role fill fails to resolve a variable/style, Figma's default
-// text fill is SOLID BLACK (rgb 0,0,0). On a dark button background that
-// looks identical to an intentional hardcoded color and the failure is
-// invisible in screenshots. The harness rule (token-binding-failures.ts)
-// surfaces failures as `_nextSteps`, but agents that skip `export_image`
-// and rely on visual confirmation miss the problem entirely.
-//
-// Fix: on text-role failure, write a hot-magenta fill + tag the node with
-// plugin data. The color is loud enough to spot in any screenshot; the tag
-// lets `lint_fix_all` / `audit_node` machine-detect the unresolved binding.
-//
-// Scoped to text roles only — frame/border failures keep Figma defaults to
-// avoid false positives on intentional no-fill or transparent surfaces.
-// `#FF00D4` (slightly off pure #FF00FF) reduces collision risk with
-// intentional magenta designs.
-export const SENTINEL_TEXT_FAIL_FILL: SolidPaint = {
-  type: 'SOLID',
-  color: { r: 1, g: 0, b: 0.831 },
-};
-export const SENTINEL_PLUGIN_KEY = 'figcraft:sentinel';
-export const SENTINEL_PLUGIN_VALUE = 'token-binding-failure';
+// Hot magenta sentinel: on text-role binding failure, replace Figma's default
+// SOLID BLACK with this so the failure is visible in screenshots instead of
+// blending into a dark background. Scoped to text roles — frame/border keep
+// their defaults to avoid false positives on intentional no-fill surfaces.
+export const SENTINEL_TEXT_FAIL_FILL: SolidPaint = { type: 'SOLID', color: { r: 1, g: 0, b: 0.831 } };
 const SENTINEL_TEXT_ROLES = new Set(['textColor', 'headingColor', 'textSecondary']);
-const SENTINEL_HINT_PREFIX = '⚠️ Sentinel magenta applied (token binding failed, text left visually obvious) — ';
+const SENTINEL_HINT_PREFIX = '⚠️ Sentinel magenta applied (token binding failed) — ';
 
 /**
- * Write sentinel magenta fill + plugin data tag on text-role failure returns.
- * Returns true if the sentinel was applied so the caller can prepend the hint.
- *
- * Exported for unit-test access; use `withSentinel` in production code paths.
- */
-export function writeSentinelIfText(node: SceneNode & MinimalFillsMixin, role: string): boolean {
-  if (!SENTINEL_TEXT_ROLES.has(role)) return false;
-  try {
-    node.fills = [SENTINEL_TEXT_FAIL_FILL];
-    if ('setPluginData' in node) {
-      (node as unknown as { setPluginData: (k: string, v: string) => void }).setPluginData(
-        SENTINEL_PLUGIN_KEY,
-        SENTINEL_PLUGIN_VALUE,
-      );
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Wrap an ApplyFillResult failure return with the text sentinel. No-op when:
- * - autoBound !== null (success path)
- * - role is not a text role (frame/border failures stay silent per design)
- * - bindingFailure is absent (non-token input error — leave untouched)
- *
- * Exported for unit-test access.
+ * Wrap an ApplyFillResult failure return with the text sentinel. No-op when
+ * autoBound !== null, when role is not a text role, or when bindingFailure is
+ * absent (non-token input error — leave untouched).
  */
 export function withSentinel(
   result: ApplyFillResult,
   node: SceneNode & MinimalFillsMixin,
   role: string,
 ): ApplyFillResult {
-  if (result.autoBound !== null) return result;
-  if (!result.bindingFailure) return result;
-  const applied = writeSentinelIfText(node, role);
-  if (!applied) return result;
+  if (result.autoBound !== null || !result.bindingFailure) return result;
+  if (!SENTINEL_TEXT_ROLES.has(role)) return result;
+  try {
+    node.fills = [SENTINEL_TEXT_FAIL_FILL];
+  } catch {
+    return result;
+  }
   const base = result.colorHint ?? `Binding failed for "${result.bindingFailure.requested}".`;
   return { ...result, colorHint: SENTINEL_HINT_PREFIX + base };
 }
@@ -563,8 +518,7 @@ export async function applyFill(
       textColor: ['ALL_FILLS', 'TEXT_FILL'],
       border: ['STROKE_COLOR', 'ALL_SCOPES'],
     };
-    // P0-B: track resolved variable ID on name-path success so the caller can emit
-    // a "next time use fillVariableId" typed hint.
+    // Track resolved variable ID for the "next time use fillVariableId" hint.
     let autoBoundId: string | undefined;
     try {
       const variable = await findColorVariableByName(fill._variable, ROLE_SCOPE_HINTS[role], library);
@@ -710,8 +664,6 @@ export async function applyFill(
           if (fills[0]) {
             fills[0] = figma.variables.setBoundVariableForPaint(fills[0] as SolidPaint, 'color', variable);
             node.fills = fills;
-            // P0-B: return the variable ID so the caller can emit a "next time use
-            // fillVariableId" typed hint.
             return { autoBound: `var:${variable.name}`, autoBoundId: variable.id };
           }
         }
@@ -1029,7 +981,6 @@ export async function applyStroke(
             node.strokes = strokes;
           }
           (node as any).strokeWeight = strokeWeight ?? 1;
-          // P0-B: return ID for "next time use strokeVariableId" hint.
           return { autoBound: `var:${variable.name}`, autoBoundId: variable.id };
         }
       } catch (err) {

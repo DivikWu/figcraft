@@ -173,60 +173,10 @@ All 4 tools below are core — no `load_toolset` needed.
 
 For component property management (add_component_property, bind_component_property), `load_toolset("components-advanced")`.
 
-### Example: Button with icon toggle (inline BOOLEAN auto-wire)
-
-This is the canonical shape for a Button that has a toggleable leading/trailing icon. BOOLEAN visibility binding happens **inline in create_component** — declare the property in `properties[]` AND reference it from the child via `componentPropertyReferences`. figcraft wires `target.componentPropertyReferences.visible = propKey` automatically + syncs the main-component node's `visible` state with `defaultValue`.
-
-```json
-create_component({
-  name: "Button / Primary / Default",
-  role: "button",
-  layoutMode: "HORIZONTAL",
-  primaryAxisAlignItems: "CENTER",
-  counterAxisAlignItems: "CENTER",
-  padding: 12, paddingLeft: 16, paddingRight: 16,
-  itemSpacing: 8,
-  cornerRadius: 8,
-  fillVariableId: "VariableID:123:45",
-  children: [
-    {
-      type: "text",
-      name: "Label",
-      content: "Click me",
-      componentPropertyName: "Label",
-      textStyleName: "body-md",
-      fontColorVariableId: "VariableID:123:67"
-    },
-    {
-      type: "icon",
-      name: "Icon",
-      icon: "lucide:arrow-right",
-      size: 16,
-      colorVariableName: "text/primary",
-      componentPropertyReferences: { visible: "Icon" }
-    }
-  ],
-  properties: [
-    { type: "BOOLEAN", propertyName: "Icon", defaultValue: false }
-  ]
-})
-```
-
-**What this does:**
-- `Label` TEXT property auto-wires to the text child's `characters` (via `componentPropertyName`)
-- `Icon` BOOLEAN property auto-wires to the icon child's `visible` (via `componentPropertyReferences.visible`)
-- Main component shows the icon as hidden (`defaultValue: false` → `target.visible = false`)
-- Instances default to "Icon = off" and flipping the toggle in the instance panel works immediately
-
-**Common mistakes figcraft now warns about:**
-- Declaring a BOOLEAN property without referencing it from any child → orphaned property, toggle has no effect
-- Referencing a BOOLEAN property from a child without declaring it in `properties[]` → reference dropped silently by Figma
-- Declaring `componentPropertyReferences` on a child without a `name` field → target cannot be located post-creation
-
 ### Key Rules
 
-- **Token binding (library mode, ID-first)**: Prefer `fillVariableId` / `fontColorVariableId` from `get_design_context.defaults.*.id` — zero name resolution, zero fragility. Fall back to `fillVariableName` / `fontColorVariableName` only when the ID is not available. When you bind by name, figcraft returns a `"next time use fontColorVariableId"` typed hint with the resolved ID — use it on subsequent calls. Do NOT hardcode `fill:"#FFFFFF"` for text on colored backgrounds — text binding failures now write a magenta sentinel fill so silent black-on-black bugs are visually obvious, but the correct fix is still to bind a text token.
-- **BOOLEAN visibility properties**: always declare BOTH `properties:[{type:"BOOLEAN", ...}]` AND the matching `componentPropertyReferences:{visible:"PropName"}` on the child whose visibility you want to control. The child MUST have a `name` field. figcraft auto-wires + syncs node visibility with defaultValue.
+- **Token binding (library mode, ID-first)**: Prefer `fillVariableId` / `fontColorVariableId` from `get_design_context.defaults.*.id`. Fall back to `*Name` only when the ID is unavailable. figcraft returns a "next time use `fontColorVariableId`" typed hint after a successful name lookup — use it on subsequent calls. Text binding failures write a magenta sentinel fill so black-on-black bugs are visible in screenshots.
+- **BOOLEAN visibility binding**: declare `properties:[{type:"BOOLEAN", propertyName:"Icon", defaultValue:false}]` AND `componentPropertyReferences:{visible:"Icon"}` on the child whose visibility you want to control. The child must have a `name` field. figcraft auto-wires + syncs node visibility with `defaultValue`. See `create_component` schema for the full example.
 - **Variant naming**: Each component must follow `Property=Value, Property=Value` format (e.g., `"Size=Small, Style=Primary, State=Default"`).
 - **Variant cap**: `create_component_set` enforces a soft 30-variant cap. Pass `variantLimit:0` to disable for legitimate large matrices. Consider extracting high-cardinality axes (icons, colors) into `INSTANCE_SWAP` properties instead.
 - For full component library builds (multiple components + variables + theming), switch to [figcraft-generate-library](../figcraft-generate-library/SKILL.md).
