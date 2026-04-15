@@ -833,7 +833,7 @@ export class ResolvedTypeMismatchError extends Error {
 
 /** Cache for local COLOR variables with resolved values. */
 let _colorVarCache: {
-  vars: Array<{ variable: Variable; hex: string; scopes: string[] }>;
+  vars: Array<{ variable: Variable; hex: string; alpha: number; scopes: string[] }>;
   ts: number;
 } | null = null;
 const COLOR_CACHE_TTL_MS = 30_000;
@@ -842,7 +842,9 @@ const COLOR_CACHE_TTL_MS = 30_000;
  * Load local COLOR variables and resolve their default-mode hex values.
  * Cached with TTL to avoid repeated API calls.
  */
-async function getLocalColorVarsResolved(): Promise<Array<{ variable: Variable; hex: string; scopes: string[] }>> {
+async function getLocalColorVarsResolved(): Promise<
+  Array<{ variable: Variable; hex: string; alpha: number; scopes: string[] }>
+> {
   const now = Date.now();
   if (_colorVarCache && now - _colorVarCache.ts < COLOR_CACHE_TTL_MS) {
     return _colorVarCache.vars;
@@ -852,7 +854,7 @@ async function getLocalColorVarsResolved(): Promise<Array<{ variable: Variable; 
     figma.variables.getLocalVariableCollectionsAsync(),
   ]);
   const defaultModes = new Map(collections.map((c) => [c.id, c.defaultModeId]));
-  const result: Array<{ variable: Variable; hex: string; scopes: string[] }> = [];
+  const result: Array<{ variable: Variable; hex: string; alpha: number; scopes: string[] }> = [];
   for (const v of vars) {
     const modeId = defaultModes.get(v.variableCollectionId);
     if (!modeId) continue;
@@ -869,8 +871,9 @@ async function getLocalColorVarsResolved(): Promise<Array<{ variable: Variable; 
       .toString(16)
       .padStart(2, '0');
     const hex = `#${r}${g}${b}`.toUpperCase();
+    const alpha = rgb.a !== undefined ? rgb.a : 1;
     const scopes: string[] = (v as any).scopes || [];
-    result.push({ variable: v, hex, scopes });
+    result.push({ variable: v, hex, alpha, scopes });
   }
   _colorVarCache = { vars: result, ts: now };
   return result;
@@ -891,13 +894,18 @@ async function getLocalColorVarsResolved(): Promise<Array<{ variable: Variable; 
 export async function suggestColorVariable(hex: string, role: string, libraryName?: string): Promise<Variable | null> {
   const normalizedHex = hex.replace('#', '').toUpperCase();
   const targetHex = `#${normalizedHex.slice(0, 6)}`;
+  // If input is 6-char hex (no alpha), require fully opaque variables only.
+  // If input is 8-char hex, extract the target alpha.
+  const targetAlpha = normalizedHex.length >= 8 ? parseInt(normalizedHex.slice(6, 8), 16) / 255 : 1;
+  const alphaTolerance = 0.01;
   const acceptableScopes = ROLE_TO_SCOPES[role];
   if (!acceptableScopes) return null;
 
   const colorVars = await getLocalColorVarsResolved();
-  // First pass: exact hex match + scope match (local variables)
+  // First pass: exact hex match + alpha match + scope match (local variables)
   for (const entry of colorVars) {
     if (entry.hex !== targetHex) continue;
+    if (Math.abs(entry.alpha - targetAlpha) > alphaTolerance) continue;
     const hasScope =
       entry.scopes.length === 0 ||
       entry.scopes.includes('ALL_SCOPES') ||
