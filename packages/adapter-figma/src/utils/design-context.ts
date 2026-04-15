@@ -922,13 +922,68 @@ export async function suggestColorVariable(hex: string, role: string, libraryNam
 }
 
 /**
+ * P1: Normalize a variable-name key for comparison only.
+ *
+ * - lowercase
+ * - unify /, ., -, _ separators into a single / (collapses repeated separators)
+ *
+ * Does NOT change stored or returned variable names — only the comparison key
+ * used inside the resolver. `scopeRejected`, `ambiguousCandidates`, and
+ * `wrongTypeMatches` still surface the original Figma variable names.
+ *
+ * This lets agents pass any common separator variant:
+ *   "bg/primary" == "bg.primary" == "bg-primary" == "bg_primary" == "BG/Primary"
+ *
+ * Intentionally NOT normalized: semantic aliases (bg ≠ background), plurals
+ * (color ≠ colors), camelCase→kebab — those are handled by
+ * `suggestSimilarVariableNames` as read-only did-you-mean suggestions.
+ */
+export function normalizeVarNameKey(s: string): string {
+  return s.toLowerCase().replace(/[/.\-_]+/g, '/');
+}
+
+/**
+ * Split a normalized key into segments by '/'. Empty strings filtered out so
+ * a leading/trailing separator doesn't produce phantom segments.
+ */
+function segs(key: string): string[] {
+  return key.split('/').filter((s) => s.length > 0);
+}
+
+/**
+ * P1: Check if a candidate name's trailing segments match the query exactly.
+ * This replaces both the old "includes('/')" path and the "single-segment tail"
+ * path with one unified rule:
+ *
+ *   queryKey "bg/primary"     → qSegs ["bg","primary"]
+ *   candidate "color/bg/primary" → cSegs ["color","bg","primary"] — last 2 == qSegs ✓
+ *   candidate "button/primary"   → cSegs ["button","primary"]      — last 2 ≠  qSegs ✗
+ *   candidate "primary"          → cSegs.length < qSegs.length       ✗
+ *
+ *   queryKey "primary"        → qSegs ["primary"]
+ *   candidate "text/primary"     → last 1 == ["primary"] ✓
+ *   candidate "bg/primary"       → last 1 == ["primary"] ✓ (ambiguous — caller handles)
+ *
+ * Segment-boundary safe: "xa/b" does NOT match query "a/b" (unlike raw endsWith).
+ */
+function hasTailSegments(candidateKey: string, qSegs: string[]): boolean {
+  const cSegs = segs(candidateKey);
+  if (cSegs.length < qSegs.length) return false;
+  const tail = cSegs.slice(-qSegs.length);
+  for (let i = 0; i < qSegs.length; i++) {
+    if (tail[i] !== qSegs[i]) return false;
+  }
+  return true;
+}
+
+/**
  * 3-level variable resolution strategy:
  *
- * Level 1: Exact name match (case-insensitive)
- * Level 2: "Collection/VarName" slash-path match — if name contains "/" and no exact match,
- *          try matching the last segment(s) against variable names within the named collection
- * Level 3: Scope-based disambiguation — when multiple variables share the same name segment,
- *          prefer the one whose scopes match the requested context
+ * Level 1: Exact normalized match (case-insensitive + separator-normalized)
+ * Level 2: Multi-segment tail match — candidate's last N segments equal query
+ *          (works for both 1-segment and multi-segment queries)
+ * Level 3: Scope-based disambiguation — when multiple variables share the same
+ *          tail segments, prefer ones whose scopes match the requested context
  *
  * @param vars - Array of variables to search
  * @param name - Variable name to resolve
@@ -940,7 +995,8 @@ function resolveVariableByName(
   name: string,
   preferredScopes?: string[],
 ): Variable | null {
-  const lower = name.toLowerCase();
+  const key = normalizeVarNameKey(name);
+  const qSegs = segs(key);
 
   // When preferredScopes is provided, filter entries so scope-incompatible
   // variables are never returned (even via exact name match).
@@ -950,47 +1006,25 @@ function resolveVariableByName(
     return scopesAccept(scopes, preferredScopes);
   };
 
-  // Level 1: exact case-insensitive match (scope-filtered)
+  // Level 1: exact normalized match (case-insensitive + separator-normalized, scope-filtered)
   for (const entry of vars) {
-    if (entry.variable.name.toLowerCase() === lower && scopeOk(entry)) return entry.variable;
+    if (normalizeVarNameKey(entry.variable.name) === key && scopeOk(entry)) return entry.variable;
   }
 
-  // Level 2: slash-path match — "CollectionName/VarName" or partial path
-  if (name.includes('/')) {
-    const segments = lower.split('/');
-    // Try matching by last N segments (progressively less specific)
-    for (let drop = 1; drop < segments.length; drop++) {
-      const suffix = segments.slice(drop).join('/');
-      const candidates = vars.filter((e) => e.variable.name.toLowerCase().endsWith(suffix));
-      // When preferredScopes provided, narrow to scope-accepted candidates first
-      const pool = preferredScopes ? candidates.filter(scopeOk) : candidates;
-      if (pool.length === 1) return pool[0].variable;
-      if (pool.length > 1) {
-        // Ambiguity even after scope filtering: throw AmbiguousMatchError so the
-        // agent can surface the candidate list and self-correct with a full path.
-        throw new AmbiguousMatchError(
-          name,
-          pool.map((e) => e.variable.name),
-        );
-      }
-    }
-  }
-
-  // Level 2b: partial name match (no slash in input, but variable names have slashes)
-  // e.g. input "primary" matches "colors/primary" or "text/primary"
-  if (!name.includes('/')) {
-    const candidates = vars.filter((e) => {
-      const parts = e.variable.name.toLowerCase().split('/');
-      return parts[parts.length - 1] === lower;
-    });
-    const pool = preferredScopes ? candidates.filter(scopeOk) : candidates;
-    if (pool.length === 1) return pool[0].variable;
-    if (pool.length > 1) {
-      throw new AmbiguousMatchError(
-        name,
-        pool.map((e) => e.variable.name),
-      );
-    }
+  // Level 2: multi-segment tail match — handles all of:
+  //   - single-segment query ("primary") matches "text/primary"
+  //   - multi-segment query ("bg/primary") matches "color/bg/primary"
+  //   - exact multi-segment query matches itself
+  const candidates = vars.filter((e) => hasTailSegments(normalizeVarNameKey(e.variable.name), qSegs));
+  const pool = preferredScopes ? candidates.filter(scopeOk) : candidates;
+  if (pool.length === 1) return pool[0].variable;
+  if (pool.length > 1) {
+    // Ambiguity even after scope filtering: throw AmbiguousMatchError so the
+    // agent can surface the candidate list and self-correct with a full path.
+    throw new AmbiguousMatchError(
+      name,
+      pool.map((e) => e.variable.name),
+    );
   }
 
   return null;
@@ -1081,7 +1115,11 @@ async function findLibraryVariableByName(
   const collections = await getCollectionIndex(libraryName);
   if (collections.length === 0) return null;
 
-  const lower = name.toLowerCase();
+  // P1: normalize query key — lowercase + separator unification. This lets
+  // "bg/primary", "bg.primary", "bg-primary", "BG/Primary" all resolve to the
+  // same Figma variable.
+  const key = normalizeVarNameKey(name);
+  const qSegs = segs(key);
   // Only apply scope filtering for COLOR — FLOAT scopes are orthogonal (GAP, RADIUS, etc.)
   // and the current scope hint tables are color-only.
   const applyScopeFilter = resolvedType === 'COLOR' && preferredScopes && preferredScopes.length > 0;
@@ -1138,8 +1176,10 @@ async function findLibraryVariableByName(
     // 缺陷 P1a: when filter rejected everything but there WERE name matches,
     // record them as wrong-type candidates so the final throw can explain
     // "variable exists but is the wrong resolvedType".
+    // P1: use normalized key so "bg.primary" still matches "bg/primary" for
+    // wrong-type detection.
     if (filtered.length === 0) {
-      const nameMatches = vars.filter((v) => v.name.toLowerCase() === lower);
+      const nameMatches = vars.filter((v) => normalizeVarNameKey(v.name) === key);
       for (const nm of nameMatches) {
         wrongTypeMatches.push({
           name: nm.name,
@@ -1150,59 +1190,57 @@ async function findLibraryVariableByName(
       }
     }
 
-    // Level 1: exact name match (case-insensitive)
-    const exact = filtered.find((v) => v.name.toLowerCase() === lower);
+    // Level 1: exact normalized match (case-insensitive + separator-normalized)
+    const exact = filtered.find((v) => normalizeVarNameKey(v.name) === key);
     if (exact) {
       const accepted = await importIfScopeAccepted(exact);
       if (accepted) return accepted;
       // Scope-mismatched exact match: fall through and keep searching other collections.
     }
 
-    // Level 2: partial path match (input "primary" matches "text/primary")
-    if (!name.includes('/')) {
-      const partial = filtered.filter((v) => {
-        const parts = v.name.toLowerCase().split('/');
-        return parts[parts.length - 1] === lower;
-      });
-      if (partial.length === 0) continue;
+    // Level 2: multi-segment tail match — P1 fix
+    // Old guard `if (!name.includes('/'))` removed: query "bg/primary" now
+    // successfully matches candidate "color/bg/primary" via last-N-segments
+    // comparison. Single-segment queries still work as a special case.
+    const partial = filtered.filter((v) => hasTailSegments(normalizeVarNameKey(v.name), qSegs));
+    if (partial.length === 0) continue;
 
-      if (!applyScopeFilter) {
-        // Original behavior: only return when there's exactly one candidate.
-        if (partial.length === 1) {
-          return cachedImportVariable(partial[0].key, `library:${partial[0].name}`);
-        }
-        // 2+ candidates without scope disambiguation: record for end-of-function throw.
-        for (const p of partial) ambiguousCandidates.push(p.name);
-        continue;
+    if (!applyScopeFilter) {
+      // Without scope disambiguation: only return when there's exactly one candidate.
+      if (partial.length === 1) {
+        return cachedImportVariable(partial[0].key, `library:${partial[0].name}`);
       }
-
-      // Scope-aware mode: import all candidates in parallel, keep only scope-accepted ones.
-      const imported = await Promise.all(
-        partial.map((v) =>
-          cachedImportVariable(v.key, `library:${v.name}`).then(
-            (imp) => ({ imp, src: v }),
-            () => null,
-          ),
-        ),
-      );
-      const accepted: Array<{ imp: Variable; src: DesignVariable }> = [];
-      for (const r of imported) {
-        if (r === null) continue;
-        const scopes = ((r.imp as any).scopes as string[] | undefined) ?? [];
-        if (scopesAccept(scopes, preferredScopes!)) {
-          accepted.push(r);
-        } else {
-          scopeRejected.push({ name: r.src.name, scopes });
-        }
-      }
-      if (accepted.length === 1) return accepted[0].imp;
-      if (accepted.length >= 2) {
-        // Multiple candidates survived scope filtering — ambiguous, record all so the
-        // final throw below surfaces the complete list across collections.
-        for (const a of accepted) ambiguousCandidates.push(a.src.name);
-      }
-      // 0 accepted → fall through to next collection.
+      // 2+ candidates: record for end-of-function ambiguous throw.
+      for (const p of partial) ambiguousCandidates.push(p.name);
+      continue;
     }
+
+    // Scope-aware mode: import all candidates in parallel, keep only scope-accepted ones.
+    const imported = await Promise.all(
+      partial.map((v) =>
+        cachedImportVariable(v.key, `library:${v.name}`).then(
+          (imp) => ({ imp, src: v }),
+          () => null,
+        ),
+      ),
+    );
+    const accepted: Array<{ imp: Variable; src: DesignVariable }> = [];
+    for (const r of imported) {
+      if (r === null) continue;
+      const scopes = ((r.imp as any).scopes as string[] | undefined) ?? [];
+      if (scopesAccept(scopes, preferredScopes!)) {
+        accepted.push(r);
+      } else {
+        scopeRejected.push({ name: r.src.name, scopes });
+      }
+    }
+    if (accepted.length === 1) return accepted[0].imp;
+    if (accepted.length >= 2) {
+      // Multiple candidates survived scope filtering — ambiguous, record all so the
+      // final throw below surfaces the complete list across collections.
+      for (const a of accepted) ambiguousCandidates.push(a.src.name);
+    }
+    // 0 accepted → fall through to next collection.
   }
 
   // Nothing was returned. Priority:
@@ -1288,7 +1326,9 @@ export async function findFloatVariableByName(
  * Runs ONLY when the typed lookup returned null, so the happy path is unaffected.
  */
 async function throwIfWrongTypeLocal(name: string, excludeType: 'COLOR' | 'FLOAT'): Promise<void> {
-  const lower = name.toLowerCase();
+  // P1: normalized comparison — lets "bg.primary" detect a wrong-type "bg/primary"
+  // just like the matched-type path.
+  const key = normalizeVarNameKey(name);
   const otherTypes: Array<'COLOR' | 'FLOAT' | 'STRING' | 'BOOLEAN'> =
     excludeType === 'COLOR' ? ['FLOAT', 'STRING', 'BOOLEAN'] : ['COLOR', 'STRING', 'BOOLEAN'];
   const found: Array<{
@@ -1305,7 +1345,7 @@ async function throwIfWrongTypeLocal(name: string, excludeType: 'COLOR' | 'FLOAT
   for (const t of otherTypes) {
     const vars = await figma.variables.getLocalVariablesAsync(t).catch(() => [] as Variable[]);
     for (const v of vars) {
-      if (v.name.toLowerCase() === lower) {
+      if (normalizeVarNameKey(v.name) === key) {
         found.push({
           name: v.name,
           resolvedType: t,
