@@ -39,26 +39,61 @@
 # For multiple merges: <<: [*anchor_a, *anchor_b]
 
 _mixins:
+  # shape_fill — full fill param set (matches create_frame / create_component usage).
+  # Tools that only need a subset (e.g. create_star with fill hex only) can merge and
+  # inline-override the specific field.
   shape_fill: &shape_fill
     fill:
       type: string
-      description: "Fill color as hex (e.g. '#FFFFFF') — auto-binds to matching token"
+      description: "Fill color as hex (e.g. '#FFFFFF') or variable/style name — auto-binds to matching token"
+    fillVariableId:
+      type: string
+      description: >-
+        PREFERRED — bind fill to a variable by ID (e.g. "VariableID:123:456" from
+        get_design_context defaults.*.id). Zero name resolution, zero fragility. Use
+        this whenever you have the ID from a prior get_design_context call.
     fillVariableName:
       type: string
-      description: "Bind fill to a color variable by name (e.g. 'bg/primary')"
+      description: >-
+        Bind fill to a color variable by name (e.g. 'bg/primary'). FALLBACK — use
+        fillVariableId instead when you have the ID. Name lookup tolerates case and
+        separator variants (/, ., -, _) but is still fragile across libraries.
     fillStyleName:
       type: string
       description: "Apply paint style by name (e.g. 'Surface/Primary')"
+  # shape_stroke — full stroke param set (matches create_frame usage).
   shape_stroke: &shape_stroke
     strokeColor:
       type: string
       description: "Stroke color hex — auto-binds to matching variable/style"
+    strokeVariableId:
+      type: string
+      description: >-
+        PREFERRED — bind stroke to a variable by ID. Zero name resolution, zero fragility.
+        Use this whenever you have the ID from a prior get_design_context call.
     strokeVariableName:
       type: string
-      description: "Bind stroke to a color variable by name"
+      description: >-
+        Bind stroke to a color variable by name. FALLBACK — use strokeVariableId when
+        the ID is available.
     strokeWeight:
       type: number
-      description: "Stroke weight (default: 1)"
+      description: "Stroke thickness (default: 1 when stroke specified)"
+    strokeAlign:
+      type: enum
+      values: [INSIDE, OUTSIDE, CENTER]
+      description: "Stroke position (default: INSIDE)"
+    strokeDashes:
+      type: array
+      description: "Dash pattern array [dash, gap] (e.g. [10, 5] for dashed, [2, 2] for dotted)"
+    strokeCap:
+      type: enum
+      values: [NONE, ROUND, SQUARE, ARROW_LINES, ARROW_EQUILATERAL]
+      description: "Stroke end cap style"
+    strokeJoin:
+      type: enum
+      values: [MITER, BEVEL, ROUND]
+      description: "Stroke corner join style"
   shape_appearance: &shape_appearance
     opacity:
       type: number
@@ -887,62 +922,13 @@ create_frame:
     height:
       type: number
       description: "Height in px (omit to shrink-to-content via HUG when auto-layout)"
-    # ── Fill (6 formats: hex, variableId, variableName, styleName, Paint[], or omit for transparent) ──
-    fill:
-      type: string
-      description: "Fill color as hex (e.g. '#FFFFFF') or variable/style name — auto-binds to matching token"
-    fillVariableId:
-      type: string
-      description: >-
-        PREFERRED — bind fill to a variable by ID (e.g. "VariableID:123:456" from
-        get_design_context defaults.*.id). Zero name resolution, zero fragility. Use
-        this whenever you have the ID from a prior get_design_context call.
-    fillVariableName:
-      type: string
-      description: >-
-        Bind fill to a color variable by name (e.g. 'bg/primary'). FALLBACK — use
-        fillVariableId instead when you have the ID. Name lookup tolerates case and
-        separator variants (/, ., -, _) but is still fragile across libraries.
-    fillStyleName:
-      type: string
-      description: "Apply paint style by name (e.g. 'Surface/Primary')"
+    # ── Fill + Stroke (see _mixins.shape_fill / shape_stroke for field list) ──
+    <<: [*shape_fill, *shape_stroke]
     gradient:
       type: object
       description: >-
         Gradient fill. {type:'LINEAR'|'RADIAL', stops:[{color:'#hex', position:0-1}, ...], angle?: degrees (LINEAR only, default 180=top-to-bottom)}.
         Example: {type:'LINEAR', stops:[{color:'#FF0000',position:0},{color:'#0000FF',position:1}], angle:90}
-    # ── Stroke ──
-    strokeColor:
-      type: string
-      description: "Stroke color hex — auto-binds to matching variable/style"
-    strokeVariableId:
-      type: string
-      description: >-
-        PREFERRED — bind stroke to a variable by ID. Zero name resolution, zero fragility.
-        Use this whenever you have the ID from a prior get_design_context call.
-    strokeVariableName:
-      type: string
-      description: >-
-        Bind stroke to a color variable by name. FALLBACK — use strokeVariableId when
-        the ID is available.
-    strokeWeight:
-      type: number
-      description: "Stroke thickness (default: 1 when stroke specified)"
-    strokeAlign:
-      type: enum
-      values: [INSIDE, OUTSIDE, CENTER]
-      description: "Stroke position (default: INSIDE)"
-    strokeDashes:
-      type: array
-      description: "Dash pattern array [dash, gap] (e.g. [10, 5] for dashed, [2, 2] for dotted)"
-    strokeCap:
-      type: enum
-      values: [NONE, ROUND, SQUARE, ARROW_LINES, ARROW_EQUILATERAL]
-      description: "Stroke end cap style"
-    strokeJoin:
-      type: enum
-      values: [MITER, BEVEL, ROUND]
-      description: "Stroke corner join style"
     # ── Layout ──
     layoutMode:
       type: enum
@@ -1020,16 +1006,8 @@ create_frame:
     gridColumnGap:
       type: number
       description: "Gap between columns in the grid (only when layoutMode: GRID)"
-    # ── Appearance ──
-    opacity:
-      type: number
-      description: "Opacity 0-1"
-    visible:
-      type: boolean
-      description: "Show/hide (default: true)"
-    rotation:
-      type: number
-      description: "Rotation in degrees"
+    # ── Appearance (see _mixins.shape_appearance) ──
+    <<: *shape_appearance
     blendMode:
       type: enum
       values: [PASS_THROUGH, NORMAL, DARKEN, MULTIPLY, SCREEN, OVERLAY, SOFT_LIGHT, HARD_LIGHT]
@@ -1122,24 +1100,7 @@ create_frame:
   response:
     type: object
     fields:
-      id:
-        type: string
-        required: true
-      name:
-        type: string
-        required: true
-      type:
-        type: string
-        required: true
-      width:
-        type: number
-        required: true
-      height:
-        type: number
-        required: true
-      visible:
-        type: boolean
-        required: true
+      <<: *node_response
       _libraryBindings:
         type: array
         description: "Token/style bindings applied during creation"
@@ -2828,22 +2789,10 @@ create_component:
     height:
       type: number
       description: "Height in px (omit for HUG)"
-    # ── Fill ──
-    fill:
-      type: string
-      description: "Fill color hex or variable/style name — auto-binds to matching token"
-    fillVariableId:
-      type: string
-      description: "Bind fill to a variable by ID (e.g. defaults.buttonEmphasis.id). Direct binding — zero name resolution."
-    fillVariableName:
-      type: string
-      description: "Bind fill to a color variable by name (e.g. 'button/primary'). Prefer fillVariableId when ID is available."
-    strokeColor:
-      type: string
-      description: "Stroke color hex — auto-binds to matching variable/style"
-    strokeVariableName:
-      type: string
-      description: "Bind stroke to a color variable by name"
+    # ── Fill + Stroke (see _mixins.shape_fill / shape_stroke) ──
+    # create_component passes these through to the same pipeline as create_frame,
+    # so the full stroke/fill field set applies even though most users only need hex fill.
+    <<: [*shape_fill, *shape_stroke]
     # ── Layout ──
     layoutMode:
       type: enum
@@ -4586,24 +4535,7 @@ create_line:
   response:
     type: object
     fields:
-      id:
-        type: string
-        required: true
-      name:
-        type: string
-        required: true
-      type:
-        type: string
-        required: true
-      width:
-        type: number
-        required: true
-      height:
-        type: number
-        required: true
-      visible:
-        type: boolean
-        required: true
+      <<: *node_response
   examples:
     - id: "90:1"
       name: "Divider"
@@ -4622,18 +4554,7 @@ create_star:
     name:
       type: string
       description: Node name
-    x:
-      type: number
-      description: X position
-    y:
-      type: number
-      description: Y position
-    width:
-      type: number
-      description: "Width (default: 100)"
-    height:
-      type: number
-      description: "Height (default: 100)"
+    <<: *shape_position
     pointCount:
       type: number
       description: "Number of points (default: 5)"
@@ -4649,24 +4570,7 @@ create_star:
   response:
     type: object
     fields:
-      id:
-        type: string
-        required: true
-      name:
-        type: string
-        required: true
-      type:
-        type: string
-        required: true
-      width:
-        type: number
-        required: true
-      height:
-        type: number
-        required: true
-      visible:
-        type: boolean
-        required: true
+      <<: *node_response
   examples:
     - id: "90:2"
       name: "Star"
@@ -4685,18 +4589,7 @@ create_polygon:
     name:
       type: string
       description: Node name
-    x:
-      type: number
-      description: X position
-    y:
-      type: number
-      description: Y position
-    width:
-      type: number
-      description: "Width (default: 100)"
-    height:
-      type: number
-      description: "Height (default: 100)"
+    <<: *shape_position
     pointCount:
       type: number
       description: "Number of sides (default: 3 = triangle)"
@@ -4709,24 +4602,7 @@ create_polygon:
   response:
     type: object
     fields:
-      id:
-        type: string
-        required: true
-      name:
-        type: string
-        required: true
-      type:
-        type: string
-        required: true
-      width:
-        type: number
-        required: true
-      height:
-        type: number
-        required: true
-      visible:
-        type: boolean
-        required: true
+      <<: *node_response
   examples:
     - id: "90:3"
       name: "Triangle"
@@ -4748,10 +4624,8 @@ create_rectangle:
       type: string
       description: 'Node name (default: "Rectangle")'
     <<: [*shape_position, *shape_fill, *shape_stroke, *shape_appearance]
-    strokeAlign:
-      type: enum
-      values: [INSIDE, OUTSIDE, CENTER]
-      description: "Stroke position (default: INSIDE)"
+    # strokeAlign/Dashes/Cap/Join now come from *shape_stroke (since the 2026-04
+    # anchor enrichment). No inline override needed.
     cornerRadius:
       type: number
       description: Corner radius — sets all 4 corners uniformly
