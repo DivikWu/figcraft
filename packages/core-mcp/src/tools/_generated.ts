@@ -530,25 +530,29 @@ export function registerGeneratedTools(
   if (shouldRegisterGeneratedTool(include, 'bind_component_property')) {
     server.tool(
     'bind_component_property',
-    "Wire one or more component properties to child nodes across all variants in a single call. Finds child nodes by name and sets componentPropertyReferences. Works on both Component and ComponentSet (iterates all variants). PREFERRED: pass `bindings` as an array to wire multiple properties in one call — a typical Button has 4-6 properties (Label / Icon / ShowIcon / State / ...) and batching them cuts round-trips. CROSS-COMPONENT BATCH: pass `items: [{nodeId, bindings}]` to wire properties across MULTIPLE independent Components / ComponentSets in one call. Use this when you have N separate base Components (e.g. 8 \"Default\" state components under different parents) that each need the same or different bindings — instead of calling bind_component_property N times. Legacy single-binding shorthand: omit `bindings` and pass `propertyName + targetNodeSelector + nodeProperty`.",
+    "Wire one or more component properties to child nodes across all variants in a single call. Finds child nodes by name and sets componentPropertyReferences. Works on both Component and ComponentSet (iterates all variants). PREFERRED: pass `bindings` as an array to wire multiple properties in one call — a typical Button has 4-6 properties (Label / Icon / ShowIcon / State / ...) and batching them cuts round-trips. CROSS-COMPONENT BATCH: pass `items: [{nodeId, bindings, variantFilter?}]` to wire properties across MULTIPLE independent Components / ComponentSets in one call. Use this when you have N separate base Components (e.g. 8 \"Default\" state components under different parents) that each need the same or different bindings — instead of calling bind_component_property N times. NODE PROPERTY TYPES: bindings have two distinct shapes by nodeProperty: (1) Property-reference (characters / visible / mainComponent): wires a child to an EXISTING component property defined via create_component or update_component_property. propertyName must match a real property. Instance-overrideable. (2) iconColor: bulk-applies a color (hex / variable name / \"VariableID:...\" ) to the matched node's Vector descendants. NOT a runtime property — applied at build time. Use `value` instead of relying on a real component property. propertyName is optional (becomes a label for errors). VARIANT FILTERING: pass `variantFilter` (top-level or per-item) to limit which variants in the ComponentSet receive the bindings. Useful when one ComponentSet has many variants but only a subset (e.g. all Type=Tertiary) needs a specific iconColor or other binding. Example: `variantFilter: { Type: \"Tertiary\" }`. Legacy single-binding shorthand: omit `bindings` and pass `propertyName + targetNodeSelector + nodeProperty`.",
     {
       nodeId: z.string().optional().describe("Component or ComponentSet node ID (single-component mode). Omit when using items[]."),
       bindings: z.array(z.object({
-          propertyName: z.string(),
+          propertyName: z.string().optional().describe("Required for characters/visible/mainComponent (must match an existing component property). Optional for iconColor (used only as a label in error messages)."),
           targetNodeSelector: z.string(),
-          nodeProperty: z.enum(['characters', 'visible', 'mainComponent']),
-        })).optional().describe("Array of bindings (preferred for single-component mode). Each item has {propertyName, targetNodeSelector, nodeProperty}. When provided, propertyName/targetNodeSelector/nodeProperty at the top level are ignored."),
+          nodeProperty: z.enum(['characters', 'visible', 'mainComponent', 'iconColor']),
+          value: z.string().optional().describe("Required for iconColor bindings. Color value — auto-detected: \"#RRGGBB\" (hex), \"VariableID:...\" (direct ID binding, preferred when known), or a bare name like \"icon/primary\" (looked up via the same library-aware resolver applyFill uses). Ignored for characters/visible/mainComponent."),
+        })).optional().describe("Array of bindings (preferred for single-component mode). Each item has {propertyName, targetNodeSelector, nodeProperty} for property-reference bindings, OR {targetNodeSelector, nodeProperty:\"iconColor\", value} for bulk color application. When provided, top-level propertyName/targetNodeSelector/nodeProperty are ignored."),
+      variantFilter: z.record(z.unknown()).optional().describe("Optional. Limit bindings to variants whose variantProperties match this filter exactly. Example: { \"Type\": \"Tertiary\", \"Size\": \"md\" } applies bindings only to Tertiary md variants. Use when one ComponentSet has many variants but only a subset needs a specific binding (common with iconColor — different Types of buttons get different icon colors)."),
       items: z.array(z.object({
           nodeId: z.string().describe("Component or ComponentSet node ID for this item"),
           bindings: z.array(z.object({
-          propertyName: z.string(),
+          propertyName: z.string().optional(),
           targetNodeSelector: z.string(),
-          nodeProperty: z.enum(['characters', 'visible', 'mainComponent']),
+          nodeProperty: z.enum(['characters', 'visible', 'mainComponent', 'iconColor']),
+          value: z.string().optional().describe("Required for iconColor bindings (see top-level bindings.items.value)."),
         })).describe("Bindings to wire on this item's component"),
-        })).optional().describe("Cross-component batch mode — max 20 items. Each item targets a distinct Component/ComponentSet with its own bindings array. Per-item errors do not block other items. When provided, top-level nodeId/bindings/ propertyName/targetNodeSelector/nodeProperty are ignored."),
+          variantFilter: z.record(z.unknown()).optional().describe("Optional per-item variant filter — see top-level variantFilter."),
+        })).optional().describe("Cross-component batch mode — max 20 items. Each item targets a distinct Component/ComponentSet with its own bindings array (and optional variantFilter). Per-item errors do not block other items. When provided, top-level nodeId/bindings/variantFilter/propertyName/targetNodeSelector/nodeProperty are ignored."),
       propertyName: z.string().optional().describe("(Legacy single binding) Component property name (e.g. \"Label\", \"Show Icon\")"),
       targetNodeSelector: z.string().optional().describe("(Legacy single binding) Child node name to match via recursive search"),
-      nodeProperty: z.enum(['characters', 'visible', 'mainComponent']).optional().describe("(Legacy single binding) Which node property to bind: characters → TEXT property (text nodes), visible → BOOLEAN property (any node), mainComponent → INSTANCE_SWAP property (instance nodes)"),
+      nodeProperty: z.enum(['characters', 'visible', 'mainComponent', 'iconColor']).optional().describe("(Legacy single binding) Which node property to bind: characters → TEXT property (text nodes), visible → BOOLEAN property (any node), mainComponent → INSTANCE_SWAP property (instance nodes), iconColor → bulk-apply color to Vector descendants of the matched FRAME/GROUP node (NOT a runtime property — value comes from the binding's `value` field, NOT from an existing component property)."),
     },
     async (params) => {
       const result = await bridge.request('bind_component_property', params, undefined, 'bind_component_property', true);

@@ -3352,11 +3352,24 @@ bind_component_property:
     PREFERRED: pass `bindings` as an array to wire multiple properties in one call —
     a typical Button has 4-6 properties (Label / Icon / ShowIcon / State / ...) and
     batching them cuts round-trips.
-    CROSS-COMPONENT BATCH: pass `items: [{nodeId, bindings}]` to wire properties
-    across MULTIPLE independent Components / ComponentSets in one call. Use this
-    when you have N separate base Components (e.g. 8 "Default" state components
+    CROSS-COMPONENT BATCH: pass `items: [{nodeId, bindings, variantFilter?}]` to wire
+    properties across MULTIPLE independent Components / ComponentSets in one call. Use
+    this when you have N separate base Components (e.g. 8 "Default" state components
     under different parents) that each need the same or different bindings —
     instead of calling bind_component_property N times.
+    NODE PROPERTY TYPES: bindings have two distinct shapes by nodeProperty:
+    (1) Property-reference (characters / visible / mainComponent): wires a child
+    to an EXISTING component property defined via create_component or
+    update_component_property. propertyName must match a real property.
+    Instance-overrideable.
+    (2) iconColor: bulk-applies a color (hex / variable name / "VariableID:..." )
+    to the matched node's Vector descendants. NOT a runtime property — applied
+    at build time. Use `value` instead of relying on a real component property.
+    propertyName is optional (becomes a label for errors).
+    VARIANT FILTERING: pass `variantFilter` (top-level or per-item) to limit which
+    variants in the ComponentSet receive the bindings. Useful when one ComponentSet
+    has many variants but only a subset (e.g. all Type=Tertiary) needs a specific
+    iconColor or other binding. Example: `variantFilter: { Type: "Tertiary" }`.
     Legacy single-binding shorthand: omit `bindings` and pass
     `propertyName + targetNodeSelector + nodeProperty`.
   toolset: core
@@ -3371,28 +3384,52 @@ bind_component_property:
       type: array
       description: >-
         Array of bindings (preferred for single-component mode). Each item has
-        {propertyName, targetNodeSelector, nodeProperty}. When provided,
-        propertyName/targetNodeSelector/nodeProperty at the top level are ignored.
+        {propertyName, targetNodeSelector, nodeProperty} for property-reference
+        bindings, OR {targetNodeSelector, nodeProperty:"iconColor", value} for
+        bulk color application. When provided, top-level
+        propertyName/targetNodeSelector/nodeProperty are ignored.
       items:
         type: object
         fields:
           propertyName:
             type: string
-            required: true
+            required: false
+            description: >-
+              Required for characters/visible/mainComponent (must match an
+              existing component property). Optional for iconColor (used only
+              as a label in error messages).
           targetNodeSelector:
             type: string
             required: true
           nodeProperty:
             type: enum
-            values: [characters, visible, mainComponent]
+            values: [characters, visible, mainComponent, iconColor]
             required: true
+          value:
+            type: string
+            required: false
+            description: >-
+              Required for iconColor bindings. Color value — auto-detected:
+              "#RRGGBB" (hex), "VariableID:..." (direct ID binding, preferred
+              when known), or a bare name like "icon/primary" (looked up via
+              the same library-aware resolver applyFill uses). Ignored for
+              characters/visible/mainComponent.
+    variantFilter:
+      type: object
+      description: >-
+        Optional. Limit bindings to variants whose variantProperties match this
+        filter exactly. Example: { "Type": "Tertiary", "Size": "md" } applies
+        bindings only to Tertiary md variants. Use when one ComponentSet has
+        many variants but only a subset needs a specific binding (common with
+        iconColor — different Types of buttons get different icon colors).
     items:
       type: array
       description: >-
         Cross-component batch mode — max 20 items. Each item targets a distinct
-        Component/ComponentSet with its own bindings array. Per-item errors do
-        not block other items. When provided, top-level nodeId/bindings/
-        propertyName/targetNodeSelector/nodeProperty are ignored.
+        Component/ComponentSet with its own bindings array (and optional
+        variantFilter). Per-item errors do not block other items. When provided,
+        top-level nodeId/bindings/variantFilter/propertyName/targetNodeSelector/nodeProperty
+        are ignored.
       items:
         type: object
         fields:
@@ -3409,14 +3446,22 @@ bind_component_property:
               fields:
                 propertyName:
                   type: string
-                  required: true
+                  required: false
                 targetNodeSelector:
                   type: string
                   required: true
                 nodeProperty:
                   type: enum
-                  values: [characters, visible, mainComponent]
+                  values: [characters, visible, mainComponent, iconColor]
                   required: true
+                value:
+                  type: string
+                  required: false
+                  description: Required for iconColor bindings (see top-level bindings.items.value).
+          variantFilter:
+            type: object
+            required: false
+            description: Optional per-item variant filter — see top-level variantFilter.
     propertyName:
       type: string
       description: '(Legacy single binding) Component property name (e.g. "Label", "Show Icon")'
@@ -3425,12 +3470,15 @@ bind_component_property:
       description: '(Legacy single binding) Child node name to match via recursive search'
     nodeProperty:
       type: enum
-      values: [characters, visible, mainComponent]
+      values: [characters, visible, mainComponent, iconColor]
       description: >-
         (Legacy single binding) Which node property to bind:
         characters → TEXT property (text nodes),
         visible → BOOLEAN property (any node),
-        mainComponent → INSTANCE_SWAP property (instance nodes)
+        mainComponent → INSTANCE_SWAP property (instance nodes),
+        iconColor → bulk-apply color to Vector descendants of the matched
+        FRAME/GROUP node (NOT a runtime property — value comes from the
+        binding's `value` field, NOT from an existing component property).
   response:
     type: object
     fields:

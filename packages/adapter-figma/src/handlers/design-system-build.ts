@@ -19,7 +19,8 @@ import { resolveWeight } from '../utils/font-weight.js';
 import { assertHandler, HandlerError } from '../utils/handler-error.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
 import { isVariableAlias } from '../utils/type-guards.js';
-import { resolveFontAsync } from './write-nodes.js';
+import { type ApplyIconColorResult, applyIconColor } from './icon-svg.js';
+import { getCachedModeLibrary, resolveFontAsync } from './write-nodes.js';
 
 export function registerDesignSystemBuildHandlers(): void {
   // ═══════════════════════════════════════════════════════════════
@@ -330,12 +331,38 @@ export function registerDesignSystemBuildHandlers(): void {
 
   // ── Core per-component binder (extracted so both single-component and
   //    cross-component batch paths share the same implementation) ──
-  type BindingSpec = {
+  //
+  // BindingSpec is a discriminated union on `nodeProperty`:
+  //
+  // 1. Property-reference bindings (characters / visible / mainComponent) wire
+  //    a child node to an EXISTING component property defined on the component.
+  //    The `propertyName` must match a real property added via create_component
+  //    or update_component_property. Used at instance time — overrideable.
+  //
+  // 2. Bulk-color binding (iconColor) — NEW in plan elegant-wandering-raven.md
+  //    B2. Applies a color (hex / variable name / variable ID) to the matched
+  //    node's Vector descendants. NOT a runtime property — it's a build-time
+  //    bulk-apply, so instances can't override it (variables CAN still update
+  //    live, since the binding lives on the Vector's boundVariables).
+  //    The `propertyName` field is repurposed as a label for error messages
+  //    (it does NOT need to match a real component property).
+  type PropertyRefBinding = {
     propertyName: string;
     targetNodeSelector: string;
     nodeProperty: 'characters' | 'visible' | 'mainComponent';
   };
-  const validNodeProps = ['characters', 'visible', 'mainComponent'];
+  type IconColorBinding = {
+    propertyName?: string; // Optional label for error messages (not a real component property).
+    targetNodeSelector: string;
+    nodeProperty: 'iconColor';
+    // Color value — auto-detected:
+    //   "#RRGGBB"           → hex
+    //   "VariableID:..."    → direct binding by ID (preferred when known)
+    //   "icon/primary"      → name lookup via findColorVariableByName
+    value: string;
+  };
+  type BindingSpec = PropertyRefBinding | IconColorBinding;
+  const validNodeProps = ['characters', 'visible', 'mainComponent', 'iconColor'];
 
   const validateBindingSpecs = (bindings: BindingSpec[]): void => {
     assertHandler(
@@ -343,18 +370,30 @@ export function registerDesignSystemBuildHandlers(): void {
       'bindings array (or single propertyName/targetNodeSelector/nodeProperty) is required',
     );
     for (const b of bindings) {
-      assertHandler(b.propertyName, 'propertyName is required for each binding');
       assertHandler(b.targetNodeSelector, 'targetNodeSelector is required for each binding (child node name to match)');
       assertHandler(
         b.nodeProperty && validNodeProps.includes(b.nodeProperty),
-        `Invalid nodeProperty "${b.nodeProperty}" on binding for "${b.propertyName}". Must be one of: ${validNodeProps.join(', ')}`,
+        `Invalid nodeProperty "${b.nodeProperty}". Must be one of: ${validNodeProps.join(', ')}`,
       );
+      if (b.nodeProperty === 'iconColor') {
+        const ib = b as IconColorBinding;
+        assertHandler(
+          typeof ib.value === 'string' && ib.value.length > 0,
+          `iconColor binding requires "value" (hex "#RRGGBB", variable name, or "VariableID:..."). Got: ${JSON.stringify(ib.value)}`,
+        );
+      } else {
+        assertHandler(
+          (b as PropertyRefBinding).propertyName,
+          'propertyName is required for characters/visible/mainComponent bindings',
+        );
+      }
     }
   };
 
   const bindOneComponent = async (
     nodeId: string,
     bindings: BindingSpec[],
+    variantFilter?: Record<string, string>,
   ): Promise<{
     ok: boolean;
     bindingsProcessed: number;
@@ -368,6 +407,7 @@ export function registerDesignSystemBuildHandlers(): void {
       availableChildren: Array<{ name: string; type: string }>;
       suggestion: string;
     };
+    variantFilterApplied?: { filter: Record<string, string>; matched: number; total: number };
   }> => {
     validateBindingSpecs(bindings);
 
@@ -381,9 +421,15 @@ export function registerDesignSystemBuildHandlers(): void {
     const defs = comp.componentPropertyDefinitions;
     const availableProps = Object.keys(defs);
 
-    // Pre-resolve each binding's actual property key (with Figma's #id:id suffix).
-    const resolved: Array<{ spec: BindingSpec; propKey: string }> = [];
+    // Pre-resolve property-reference bindings to Figma's actual property key
+    // (with the #id:id suffix). iconColor bindings skip this — they don't
+    // reference an existing component property.
+    const resolved: Array<{ spec: BindingSpec; propKey: string | null }> = [];
     for (const b of bindings) {
+      if (b.nodeProperty === 'iconColor') {
+        resolved.push({ spec: b, propKey: null });
+        continue;
+      }
       const propKey = availableProps.find((k) => k === b.propertyName || k.startsWith(`${b.propertyName}#`));
       if (!propKey) {
         throw new HandlerError(
@@ -395,15 +441,64 @@ export function registerDesignSystemBuildHandlers(): void {
     }
 
     // Walk all variant children (for ComponentSet) or the component itself
-    const targets: SceneNode[] =
+    const allVariants: SceneNode[] =
       comp.type === 'COMPONENT_SET' ? (comp.children.filter((c) => c.type === 'COMPONENT') as SceneNode[]) : [comp];
+
+    // ── variantFilter: limit which variants the bindings apply to ──
+    // Useful when one ComponentSet has 32 variants but you only want to wire
+    // (e.g.) iconColor on Tertiary variants. Filter is `Record<propName, value>`
+    // and matches Figma's per-variant `variantProperties` map exactly.
+    let targets: SceneNode[] = allVariants;
+    if (variantFilter && Object.keys(variantFilter).length > 0) {
+      targets = allVariants.filter((v) => {
+        if (v.type !== 'COMPONENT') return false;
+        const vp = (v as ComponentNode).variantProperties;
+        if (!vp) return false;
+        return Object.entries(variantFilter).every(([k, val]) => vp[k] === val);
+      });
+      assertHandler(
+        targets.length > 0,
+        `variantFilter ${JSON.stringify(variantFilter)} matched 0 variants out of ${allVariants.length}. ` +
+          `Available variant properties: ${
+            allVariants[0]?.type === 'COMPONENT'
+              ? JSON.stringify((allVariants[0] as ComponentNode).variantProperties ?? {})
+              : '(none)'
+          }`,
+        'VARIANT_FILTER_NO_MATCH',
+      );
+    }
 
     type BindingResult = { propertyName: string; bound: number; notFound: number };
     const perBinding = new Map<string, BindingResult>();
-    for (const { spec } of resolved) {
-      perBinding.set(spec.propertyName, { propertyName: spec.propertyName, bound: 0, notFound: 0 });
+    // Per-binding label used as the response's per-binding key. Pre-computed
+    // once with the resolved array index appended to iconColor labels so two
+    // bindings targeting the same selector don't collide in perBinding —
+    // otherwise the second would silently overwrite the first's counter and
+    // the user would see `bound: 2` while only the second `applyIconColor`
+    // call actually took effect. Property-ref bindings keep the raw
+    // propertyName (duplicate propertyNames there is a pre-existing caveat).
+    const labels: string[] = resolved.map(({ spec }, i) =>
+      spec.nodeProperty === 'iconColor'
+        ? (spec.propertyName ?? `iconColor:${spec.targetNodeSelector}#${i}`)
+        : (spec as PropertyRefBinding).propertyName,
+    );
+    for (const label of labels) {
+      perBinding.set(label, { propertyName: label, bound: 0, notFound: 0 });
     }
     const errors: Array<{ variantName: string; propertyName: string; error: string }> = [];
+
+    // Lazy-load library context only if any binding needs it (iconColor name lookup).
+    // Cached via getCachedModeLibrary so the cost is one clientStorage hit at most.
+    let libraryContext: string | undefined;
+    const needsLibraryContext = resolved.some(({ spec }) => spec.nodeProperty === 'iconColor');
+    if (needsLibraryContext) {
+      try {
+        const [, lib] = (await getCachedModeLibrary()) as ['library' | 'spec', string | undefined];
+        libraryContext = lib;
+      } catch {
+        /* getCachedModeLibrary failure is non-fatal — iconColor falls back to local-only lookup */
+      }
+    }
 
     // ── Self-correcting error context (P0-2) ──
     // When a binding fails because targetNodeSelector matches no node, agents
@@ -424,18 +519,56 @@ export function registerDesignSystemBuildHandlers(): void {
     }
 
     for (const target of targets) {
-      for (const { spec, propKey } of resolved) {
-        const result = perBinding.get(spec.propertyName)!;
+      for (let specIdx = 0; specIdx < resolved.length; specIdx++) {
+        const { spec, propKey } = resolved[specIdx];
+        const label = labels[specIdx];
+        const result = perBinding.get(label)!;
         try {
           const childNode = (target as FrameNode).findOne((n) => n.name === spec.targetNodeSelector);
           if (!childNode) {
             result.notFound++;
             continue;
           }
+
+          // ── iconColor branch: bulk-apply color to Vector descendants ──
+          if (spec.nodeProperty === 'iconColor') {
+            if (childNode.type !== 'FRAME' && childNode.type !== 'GROUP') {
+              errors.push({
+                variantName: target.name,
+                propertyName: label,
+                error: `Node "${spec.targetNodeSelector}" is ${childNode.type}, not FRAME/GROUP — iconColor needs a frame containing Vector descendants`,
+              });
+              continue;
+            }
+            const value = (spec as IconColorBinding).value;
+            // Auto-detect value type: hex / VariableID: prefix / bare name.
+            const isHex = value.startsWith('#');
+            const isId = value.startsWith('VariableID:');
+            let iconResult: ApplyIconColorResult;
+            if (isId) {
+              iconResult = await applyIconColor(childNode as FrameNode, undefined, undefined, libraryContext, value);
+            } else if (isHex) {
+              iconResult = await applyIconColor(childNode as FrameNode, value, undefined, libraryContext);
+            } else {
+              iconResult = await applyIconColor(childNode as FrameNode, undefined, value, libraryContext);
+            }
+            if (iconResult.bindingFailure || iconResult.colorHint) {
+              errors.push({
+                variantName: target.name,
+                propertyName: label,
+                error: iconResult.colorHint ?? `iconColor binding failed for "${value}"`,
+              });
+              continue;
+            }
+            result.bound++;
+            continue;
+          }
+
+          // ── Property-reference bindings (characters/visible/mainComponent) ──
           if (spec.nodeProperty === 'characters' && childNode.type !== 'TEXT') {
             errors.push({
               variantName: target.name,
-              propertyName: spec.propertyName,
+              propertyName: label,
               error: `Node "${spec.targetNodeSelector}" is ${childNode.type}, not TEXT`,
             });
             continue;
@@ -443,7 +576,7 @@ export function registerDesignSystemBuildHandlers(): void {
           if (spec.nodeProperty === 'mainComponent' && childNode.type !== 'INSTANCE') {
             errors.push({
               variantName: target.name,
-              propertyName: spec.propertyName,
+              propertyName: label,
               error: `Node "${spec.targetNodeSelector}" is ${childNode.type}, not INSTANCE`,
             });
             continue;
@@ -455,13 +588,14 @@ export function registerDesignSystemBuildHandlers(): void {
             childNode as unknown as { componentPropertyReferences: Record<string, string> }
           ).componentPropertyReferences = {
             ...existing,
-            [spec.nodeProperty]: propKey,
+            // propKey is non-null for non-iconColor bindings (set in resolve loop above)
+            [spec.nodeProperty]: propKey as string,
           };
           result.bound++;
         } catch (err) {
           errors.push({
             variantName: target.name,
-            propertyName: spec.propertyName,
+            propertyName: label,
             error: err instanceof Error ? err.message : String(err),
           });
         }
@@ -483,8 +617,8 @@ export function registerDesignSystemBuildHandlers(): void {
         };
     if (totalNotFound > 0 && targets.length > 0) {
       const missingSelectors = resolved
-        .filter(({ spec }) => {
-          const r = perBinding.get(spec.propertyName)!;
+        .filter((_, i) => {
+          const r = perBinding.get(labels[i])!;
           return r.notFound > 0 && r.bound === 0;
         })
         .map(({ spec }) => spec.targetNodeSelector);
@@ -523,7 +657,11 @@ export function registerDesignSystemBuildHandlers(): void {
     // the legacy single-nodeId path forces N round-trips. items[] collapses
     // them into one call. Per-item errors do not block siblings.
     if (Array.isArray(params.items)) {
-      const items = params.items as Array<{ nodeId: string; bindings: BindingSpec[] }>;
+      const items = params.items as Array<{
+        nodeId: string;
+        bindings: BindingSpec[];
+        variantFilter?: Record<string, string>;
+      }>;
       assertHandler(items.length > 0, 'items array must not be empty');
       assertHandler(items.length <= 20, 'Maximum 20 components per batch');
 
@@ -555,7 +693,7 @@ export function registerDesignSystemBuildHandlers(): void {
           continue;
         }
         try {
-          const r = await bindOneComponent(item.nodeId, item.bindings);
+          const r = await bindOneComponent(item.nodeId, item.bindings, item.variantFilter);
           outItems.push({ nodeId: item.nodeId, ...r });
           if (r.ok) created += 1;
         } catch (err) {
@@ -595,7 +733,8 @@ export function registerDesignSystemBuildHandlers(): void {
             },
           ];
 
-    const single = await bindOneComponent(nodeId, bindings);
+    const variantFilter = params.variantFilter as Record<string, string> | undefined;
+    const single = await bindOneComponent(nodeId, bindings, variantFilter);
     return { action: 'single', ...single };
   });
 

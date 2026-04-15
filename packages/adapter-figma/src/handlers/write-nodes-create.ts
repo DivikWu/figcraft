@@ -266,7 +266,44 @@ function rejectBadFillShape(
   }
 }
 
+/**
+ * Reject the raw Plugin API plural fields `fills` and `strokes` at create_frame entry.
+ *
+ * `nodes(method:"update")` patch path accepts `props.fills` / `props.strokes` because
+ * it's a power-user surface that mirrors the Figma Plugin API field names. But
+ * `create_frame` / `create_component` use the singular figcraft aliases `fill` and
+ * `strokeColor`. When agents copy params between the two surfaces, `fills`/`strokes`
+ * is SILENTLY DROPPED at create time — the frame is built without the requested
+ * paint, the agent sees an unstyled node, retries N times, and never gets feedback.
+ *
+ * This guard runs BEFORE normalization and throws a self-correcting error that
+ * names the canonical alias plus the alternative (patch path or variable binding).
+ */
+function rejectRawPaintFields(p: Record<string, unknown>): void {
+  for (const [rawKey, alias, variableAlias] of [
+    ['fills', 'fill', 'fillVariable'],
+    ['strokes', 'strokeColor', 'strokeVariable'],
+  ] as const) {
+    if (!(rawKey in p) || p[rawKey] == null) continue;
+    const v = p[rawKey];
+    const valueLiteral = typeof v === 'string' ? `"${v}"` : Array.isArray(v) ? `[${v.length} item(s)]` : 'object';
+    throw new Error(
+      `⛔ "${rawKey}" is the raw Plugin API field — not accepted by create_frame/create_component. ` +
+        `You passed ${rawKey}: ${valueLiteral}. Use one of:\n` +
+        `  • ${alias}: "#RRGGBB"  (hex color)\n` +
+        `  • ${variableAlias}Id: "VariableID:..."  (bind by ID — preferred, zero name lookup)\n` +
+        `  • ${variableAlias}Name: "token/name"  (bind by name)\n` +
+        `  • ${alias === 'fill' ? 'fillStyleName' : 'strokeStyleName'}: "Style/Name"  (paint style)\n` +
+        `If you genuinely need to set a raw Paint[] array (rare), use nodes(method:"update", props:{${rawKey}: ...}) on the created node instead.`,
+    );
+  }
+}
+
 function normalizeAliases(p: Record<string, unknown>): void {
+  // Pre-validation: reject raw Plugin API plural fields (fills / strokes) that are
+  // silently dropped by create_frame's singular API surface.
+  rejectRawPaintFields(p);
+
   // Pre-validation: reject mis-shaped fill/strokeColor before alias resolution.
   // Silent fallthrough here causes the infamous "create_component retries 10x" loop.
   rejectBadFillShape(p, 'fill', 'fillVariable');
@@ -898,11 +935,45 @@ function inferChildSizing(
 const INFERRED_FIELDS_SET = new Set(['layoutMode', 'layoutSizingHorizontal', 'layoutSizingVertical']);
 
 // ─── Role-driven defaults: semantic role → missing property auto-fill ───
+//
+// Each entry only fills a field when the agent didn't pass it explicitly
+// (see line ~930: `if (p[key] == null) p[key] = value`). Defaults are
+// non-destructive — agents always win.
+//
+// Padding/spacing values are md-size baselines. Smaller/larger sizes can
+// override per call. The 2026-04 Button regression (31 variants cloned with
+// padding=0 because base had no padding and clone preserved that) made
+// these defaults necessary — see plan elegant-wandering-raven.md A3.
 const ROLE_DEFAULTS: Record<string, Record<string, unknown>> = {
   screen: { layoutMode: 'VERTICAL', clipsContent: true },
-  button: { layoutMode: 'HORIZONTAL', primaryAxisAlignItems: 'CENTER', counterAxisAlignItems: 'CENTER' },
-  input: { layoutMode: 'HORIZONTAL', counterAxisAlignItems: 'CENTER' },
-  header: { layoutMode: 'HORIZONTAL', counterAxisAlignItems: 'CENTER' },
+  button: {
+    layoutMode: 'HORIZONTAL',
+    primaryAxisAlignItems: 'CENTER',
+    counterAxisAlignItems: 'CENTER',
+    paddingLeft: 16,
+    paddingRight: 16,
+    paddingTop: 8,
+    paddingBottom: 8,
+    itemSpacing: 8,
+  },
+  input: {
+    layoutMode: 'HORIZONTAL',
+    counterAxisAlignItems: 'CENTER',
+    paddingLeft: 12,
+    paddingRight: 12,
+    paddingTop: 8,
+    paddingBottom: 8,
+    itemSpacing: 8,
+  },
+  header: {
+    layoutMode: 'HORIZONTAL',
+    counterAxisAlignItems: 'CENTER',
+    paddingLeft: 16,
+    paddingRight: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    itemSpacing: 12,
+  },
 };
 
 // ─── Core frame setup (shared by create_frame and inline children) ───
@@ -1801,10 +1872,20 @@ async function createInlineChildren(
           child.height != null,
         );
         applySizingOverrides(svgNode, child);
-        // Apply icon color from _iconMeta (set by MCP Server resolve-icons)
+        // Apply icon color from _iconMeta (set by MCP Server resolve-icons).
+        // Pass ctx.library so name lookup gets library-aware resolution — same
+        // path as applyFill/applyStroke. See plan A2.
         if (child._iconMeta && typeof child._iconMeta === 'object') {
           const meta = child._iconMeta as Record<string, unknown>;
-          await applyIconColor(svgNode, meta.fill as string | undefined, meta.colorVariableName as string | undefined);
+          const iconResult = await applyIconColor(
+            svgNode,
+            meta.fill as string | undefined,
+            meta.colorVariableName as string | undefined,
+            ctx.library,
+          );
+          if (iconResult.autoBound) ctx.libraryBindings.push(iconResult.autoBound);
+          if (iconResult.colorHint) ctx.warnings.push(iconResult.colorHint);
+          if (iconResult.bindingFailure) ctx.tokenBindingFailures.push(iconResult.bindingFailure);
         }
         createdNode = svgNode;
         results.push({ id: svgNode.id, type: 'FRAME', name: svgNode.name });
