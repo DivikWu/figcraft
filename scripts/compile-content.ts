@@ -12,6 +12,7 @@
  * Usage: npx tsx scripts/compile-content.ts
  */
 
+import { execSync } from 'node:child_process';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, extname, resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
@@ -311,6 +312,40 @@ ${nextStepsEntries.join('\n')}
   );
 }
 
+// ─── Biome post-format ───
+// Normalize all generated TS files through biome so the committed state matches
+// raw generator output. Without this, _harness.ts in particular drifts on every
+// run: compile-content.ts emits JSON.stringify output (double-quoted, compact)
+// while the committed state was hand-formatted. The drift caused phantom "M"
+// status at session start (tests/contracts/content-generated.test.ts runs this
+// script as a side effect, overwriting the biome-formatted committed files).
+//
+// Fix: emit + format in one pipeline so there's exactly one canonical output.
+
+const GENERATED_TS_FILES = [
+  resolve(TOOLS_OUT, '_guides.ts'),
+  resolve(PROMPTS_OUT, '_prompts.ts'),
+  resolve(TOOLS_OUT, '_templates.ts'),
+  resolve(HARNESS_OUT, '_harness.ts'),
+];
+
+function formatGeneratedFiles(): void {
+  try {
+    // One biome call handles all files — faster than N spawns.
+    execSync(`npx biome check --write --no-errors-on-unmatched ${GENERATED_TS_FILES.join(' ')}`, {
+      cwd: ROOT,
+      stdio: 'pipe',
+    });
+    console.log(`✅ Formatted ${GENERATED_TS_FILES.length} generated files through biome`);
+  } catch (err) {
+    // Non-fatal: if biome fails (e.g. not installed yet), fall back to raw output
+    // with a warning rather than breaking the build.
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`⚠️  biome format step failed (non-fatal): ${msg.split('\n')[0]}`);
+    console.warn('    Generated files left in raw form; run `npx biome check --write` manually.');
+  }
+}
+
 // ─── Main ───
 
 compileGuides();
@@ -318,3 +353,4 @@ compilePrompts();
 compileTemplates();
 compileHarness();
 injectSharedContent();
+formatGeneratedFiles();
