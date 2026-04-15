@@ -11,6 +11,7 @@ import { applySizingOverrides, importAndResolveComponent, setLayoutSizing } from
 import { assertHandler } from '../utils/handler-error.js';
 import { applyStroke, setComponentProperties } from '../utils/node-helpers.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
+import { applyPublishableMetadata } from '../utils/publishable-metadata.js';
 import { getCachedModeLibrary } from './write-nodes.js';
 
 // ─── Semantic text property naming for component conversion ───
@@ -272,6 +273,9 @@ export function registerInstanceHandlers(): void {
 
     const component = figma.createComponentFromNode(node as SceneNode);
     if (params.name) component.name = params.name as string;
+    // PublishableMixin metadata — symmetric with create_component and update_component.
+    // The shared helper enforces the documentationLinks length guard consistently.
+    applyPublishableMetadata(component, params);
 
     // exposeText: auto-discover text children and create TEXT properties
     const exposeText = params.exposeText !== false; // default true

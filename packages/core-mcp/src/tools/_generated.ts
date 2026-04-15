@@ -367,7 +367,9 @@ export function registerGeneratedTools(
     "Create a component with layout, fill, stroke, inline children, and component properties in one call. Delegates to create_frame internally — all Opinion Engine inferences apply automatically. TEXT properties auto-bind to child text nodes via componentPropertyName. Icon children ({type:\"icon\", icon:\"lucide:...\"}) are resolved to SVG by the harness before Plugin dispatch, same as create_frame. Accepts all create_frame params via passthrough — only common params listed here.\nOmit x/y to auto-position below existing content. For fixed-height components (buttons), pass height + layoutSizingVertical:\"FIXED\" to prevent Opinion Engine HUG override. Use fillVariableId (from designContext.defaults.*.id) for direct variable binding — zero name resolution. Harness auto-injects section parentId — omit parentId to auto-place inside last created section.\nBatch mode (STRONGLY preferred for variant matrices ≥ 8): pass `items: [...]` with up to 20 component param objects in one call. Each item gets inline `properties: [...]` and inline `children: [...]` (including {type:\"icon\"}). Follow with create_component_set to combine them into a variant set. The clone-and-modify alternative costs 3-5× more tool calls and trips Opinion Engine re-inference edge cases.\nWorkflow (single): create_section → create_component(fillVariableId:...) → bind_component_property → create_component_set. Workflow (batch): create_section → create_component({items:[...]}) → create_component_set.",
     {
       name: z.string().optional().describe("Component name (default: \"Component\")"),
-      description: z.string().optional().describe("Component description"),
+      description: z.string().optional().describe("Component plain-text description (shown in the Figma assets panel)."),
+      descriptionMarkdown: z.string().optional().describe("Component rich-text (markdown) description. PublishableMixin exposes both `description` (plain) and `descriptionMarkdown` (rich) — pass either or both. Markdown is preferred for design-system docs (supports bold, lists, links)."),
+      documentationLinks: z.array(z.string()).optional().describe("Documentation links shown in the Figma Component configuration modal's \"Link\" field. Array of URL strings — figcraft wraps them into Figma's `{uri}` shape automatically. ⚠️ Figma Plugin API currently caps this at 1 entry (platform runtime limit, verified against plugin-typings 1.123.0). Passing more than 1 throws DOCUMENTATION_LINKS_LIMIT. Pass `[]` to clear all links."),
       role: z.string().optional().describe("Semantic role (e.g. 'button', 'input', 'card'). Stored as plugin data for lint identification."),
       width: z.number().optional().describe("Width in px (omit for HUG)"),
       height: z.number().optional().describe("Height in px (omit for HUG)"),
@@ -491,14 +493,17 @@ export function registerGeneratedTools(
   if (shouldRegisterGeneratedTool(include, 'create_component_from_node')) {
     server.tool(
     'create_component_from_node',
-    "Convert an existing frame/group to a component. When exposeText is true (default), all text children are auto-discovered and exposed as editable TEXT component properties.",
+    "Convert an existing frame/group to a component. When exposeText is true (default), all text children are auto-discovered and exposed as editable TEXT component properties. Supports all PublishableMixin metadata fields (description, descriptionMarkdown, documentationLinks) — symmetric with create_component and update_component so agents can set full metadata at conversion time without a follow-up update call.",
     {
       nodeId: z.string().describe("Node ID to convert to component"),
       name: z.string().optional().describe("Rename the component (default: keeps current name)"),
       exposeText: z.boolean().optional().describe("Auto-expose text children as editable TEXT properties (default: true)"),
+      description: z.string().optional().describe("Component plain-text description (shown in the Figma assets panel)."),
+      descriptionMarkdown: z.string().optional().describe("Component rich-text (markdown) description. PublishableMixin exposes both `description` (plain) and `descriptionMarkdown` (rich) — pass either or both."),
+      documentationLinks: z.array(z.string()).optional().describe("Documentation links shown in the Figma Component configuration modal's \"Link\" field. Array of URL strings — figcraft wraps them into Figma's `{uri}` shape. ⚠️ Figma Plugin API currently caps this at 1 entry (platform runtime limit, verified against plugin-typings 1.123.0). Passing more than 1 throws DOCUMENTATION_LINKS_LIMIT. Pass `[]` to clear all links."),
     },
-    async ({ nodeId, name, exposeText }) => {
-      const result = await bridge.request('create_component_from_node', { nodeId, name, exposeText }, undefined, 'create_component_from_node', true);
+    async (params) => {
+      const result = await bridge.request('create_component_from_node', params, undefined, 'create_component_from_node', true);
       return jsonResponse(result);
     },
   );

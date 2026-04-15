@@ -7,6 +7,7 @@ import { PAGE_GAP, SECTION_GAP, SECTION_PADDING } from '../constants.js';
 import { handlers, registerHandler } from '../registry.js';
 import { assertHandler, assertNodeType, HandlerError } from '../utils/handler-error.js';
 import { assertOnCurrentPage, findNodeByIdAsync } from '../utils/node-lookup.js';
+import { applyPublishableMetadata, stripPublishableMetadata } from '../utils/publishable-metadata.js';
 import { quickLintSummary } from './lint-inline.js';
 
 // ─── BOOLEAN component property visibility binding ───
@@ -101,11 +102,17 @@ export function registerComponentHandlers(): void {
     itemParams: Record<string, unknown>,
     createFrameHandler: (p: Record<string, unknown>) => Promise<unknown>,
   ): Promise<unknown> {
-    const description = itemParams.description as string | undefined;
+    // Capture PublishableMixin metadata before stripping — applied after component
+    // creation. Symmetric with update_component: all 3 fields are settable at birth.
+    const metadata = {
+      description: itemParams.description,
+      descriptionMarkdown: itemParams.descriptionMarkdown,
+      documentationLinks: itemParams.documentationLinks,
+    };
 
     // Build frame params (exclude component-specific fields)
     const frameParams: Record<string, unknown> = { ...itemParams };
-    delete frameParams.description;
+    stripPublishableMetadata(frameParams);
     delete frameParams.properties;
     delete frameParams.items; // never pass batch param to create_frame
 
@@ -150,7 +157,11 @@ export function registerComponentHandlers(): void {
     };
 
     const component = figma.createComponentFromNode(frameNode as SceneNode);
-    if (description) component.description = description;
+    // Apply all 3 PublishableMixin metadata fields uniformly. The length guard
+    // for documentationLinks lives in the helper; a guard violation throws here
+    // AFTER component creation — caller sees the component exist but metadata
+    // rejected, which is the same failure mode as update_component.
+    applyPublishableMetadata(component, metadata);
 
     // ── P0-1 / 缺陷 B: Re-assert FIXED sizing after createComponentFromNode ──
     // When dimensions were explicitly provided, lock the component back to those
@@ -593,30 +604,10 @@ export function registerComponentHandlers(): void {
     const warnings: string[] = [];
 
     if (params.name != null) comp.name = params.name as string;
-    if (params.description != null) comp.description = params.description as string;
-    // PublishableMixin exposes both description (plain) and descriptionMarkdown
-    // (rich) — expose both to callers, design-system docs often want markdown.
-    if (params.descriptionMarkdown != null) {
-      comp.descriptionMarkdown = params.descriptionMarkdown as string;
-    }
-    // documentationLinks: matches the "Link to documentation" field in Figma's
-    // Component configuration modal. Figma Plugin API types this as an array
-    // (ReadonlyArray<DocumentationLink>) but currently caps runtime length at 1
-    // — we mirror the API shape (future-proof) and enforce the limit via guard.
-    // Accept string[] rather than {uri}[] to avoid a useless single-field object
-    // wrapper; figcraft wraps internally. Pass [] to clear.
-    if (params.documentationLinks != null) {
-      const links = params.documentationLinks as string[];
-      if (links.length > 1) {
-        throw new HandlerError(
-          `documentationLinks accepts at most 1 entry (Figma Plugin API current limit), got ${links.length}. ` +
-            `Pick the single most important link; the rest belong in the descriptionMarkdown body as inline links. ` +
-            `Pass [] to clear. This is a Figma platform restriction, not a figcraft schema restriction.`,
-          'DOCUMENTATION_LINKS_LIMIT',
-        );
-      }
-      comp.documentationLinks = links.map((uri) => ({ uri }));
-    }
+    // PublishableMixin metadata (description / descriptionMarkdown / documentationLinks)
+    // — shared helper enforces the documentationLinks length guard consistently
+    // with create_component and create_component_from_node.
+    applyPublishableMetadata(comp, params);
 
     if (params.width != null || params.height != null) {
       if (comp.type === 'COMPONENT_SET') {

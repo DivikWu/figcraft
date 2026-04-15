@@ -2802,7 +2802,23 @@ create_component:
       description: 'Component name (default: "Component")'
     description:
       type: string
-      description: Component description
+      description: Component plain-text description (shown in the Figma assets panel).
+    descriptionMarkdown:
+      type: string
+      description: >-
+        Component rich-text (markdown) description. PublishableMixin exposes both
+        `description` (plain) and `descriptionMarkdown` (rich) — pass either or both.
+        Markdown is preferred for design-system docs (supports bold, lists, links).
+    documentationLinks:
+      type: array
+      items: string
+      description: >-
+        Documentation links shown in the Figma Component configuration modal's "Link"
+        field. Array of URL strings — figcraft wraps them into Figma's `{uri}` shape
+        automatically.
+        ⚠️ Figma Plugin API currently caps this at 1 entry (platform runtime limit,
+        verified against plugin-typings 1.123.0). Passing more than 1 throws
+        DOCUMENTATION_LINKS_LIMIT. Pass `[]` to clear all links.
     role:
       type: string
       description: "Semantic role (e.g. 'button', 'input', 'card'). Stored as plugin data for lint identification."
@@ -3210,6 +3226,9 @@ create_component_from_node:
     Convert an existing frame/group to a component.
     When exposeText is true (default), all text children are auto-discovered and
     exposed as editable TEXT component properties.
+    Supports all PublishableMixin metadata fields (description, descriptionMarkdown,
+    documentationLinks) — symmetric with create_component and update_component so
+    agents can set full metadata at conversion time without a follow-up update call.
   toolset: core
   write: true
   access: create
@@ -3225,6 +3244,23 @@ create_component_from_node:
     exposeText:
       type: boolean
       description: "Auto-expose text children as editable TEXT properties (default: true)"
+    description:
+      type: string
+      description: Component plain-text description (shown in the Figma assets panel).
+    descriptionMarkdown:
+      type: string
+      description: >-
+        Component rich-text (markdown) description. PublishableMixin exposes both
+        `description` (plain) and `descriptionMarkdown` (rich) — pass either or both.
+    documentationLinks:
+      type: array
+      items: string
+      description: >-
+        Documentation links shown in the Figma Component configuration modal's "Link"
+        field. Array of URL strings — figcraft wraps them into Figma's `{uri}` shape.
+        ⚠️ Figma Plugin API currently caps this at 1 entry (platform runtime limit,
+        verified against plugin-typings 1.123.0). Passing more than 1 throws
+        DOCUMENTATION_LINKS_LIMIT. Pass `[]` to clear all links.
   response:
     type: object
     fields:
