@@ -12,6 +12,7 @@
 
 import type { Bridge } from '../bridge.js';
 import { HarnessPipeline } from './pipeline.js';
+import { createAutoSaveRule } from './rules/auto-save.js';
 import { createAutoVerifyRule } from './rules/auto-verify.js';
 import {
   componentDefaultsInjection,
@@ -38,6 +39,7 @@ import {
  *
  * Code-type rules (packages/core-mcp/src/harness/rules/):
  * - design-preflight: Layer 0 guard — require get_mode before UI creation
+ * - auto-save: Layer 0 guard (non-blocking) — snapshot before destructive ops
  * - resolve-icons: Layer 1 transform — convert icon children to SVGs
  * - content-warnings: Layer 2 enrich — detect placeholder text
  * - auto-verify: Layer 2 enrich — auto lint root-level creations
@@ -58,6 +60,7 @@ export function createHarnessPipeline(bridge: Bridge): HarnessPipeline {
 
   // Layer 0: Pre-guards
   pipeline.register(designPreflightRule);
+  pipeline.register(createAutoSaveRule(bridge));
 
   // Layer 1: Pre-transforms
   pipeline.register(componentDefaultsInjection);

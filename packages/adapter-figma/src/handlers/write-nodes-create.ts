@@ -1123,10 +1123,10 @@ async function setupFrame(
     teachIdForNextTime(ctx, sr, 'strokeVariableId');
     if (sr.colorHint) ctx.warnings.push(sr.colorHint);
     if (sr.bindingFailure) ctx.tokenBindingFailures.push(sr.bindingFailure);
-  } else {
-    // No stroke requested — clear Figma's default strokeWeight to prevent phantom borders
-    frame.strokeWeight = 0;
   }
+  // When no strokeColor is requested, leave Figma defaults intact (strokes=[], strokeWeight=1).
+  // strokes=[] already guarantees no visible border; preserving strokeWeight=1 keeps the
+  // native default so users adding a stroke later in the Figma UI get the expected 1px.
   setStrokeProps(frame, {
     strokeAlign: p.strokeAlign && 'strokeAlign' in frame ? (p.strokeAlign as string) : undefined,
     dashPattern: p.strokeDashes && Array.isArray(p.strokeDashes) ? (p.strokeDashes as number[]) : undefined,

@@ -68,6 +68,15 @@ export function registerComponentSetHandlers(): void {
     const set = figma.combineAsVariants(components, targetParent);
     if (params.name != null) set.name = params.name as string;
 
+    // ── Restore Figma's default purple dashed stroke for ComponentSet ──
+    // The Figma UI adds a #9747FF dashed stroke when combining variants manually,
+    // but the Plugin API's combineAsVariants() does not. Add it explicitly to match
+    // the native Figma behavior so designers see the familiar variant boundary.
+    if (!set.strokes || set.strokes.length === 0) {
+      set.strokes = [{ type: 'SOLID', color: { r: 0.592, g: 0.278, b: 1 }, opacity: 1, visible: true }];
+      set.dashPattern = [10, 5];
+    }
+
     // ── Auto-layout variants in grid (Layer 1: code enforcement) ──
     const layoutHandler = handlers.get('layout_component_set');
     let layoutApplied = false;
