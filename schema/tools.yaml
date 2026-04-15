@@ -3352,7 +3352,13 @@ bind_component_property:
     PREFERRED: pass `bindings` as an array to wire multiple properties in one call —
     a typical Button has 4-6 properties (Label / Icon / ShowIcon / State / ...) and
     batching them cuts round-trips.
-    Legacy: omit `bindings` and pass `propertyName + targetNodeSelector + nodeProperty` for a single binding.
+    CROSS-COMPONENT BATCH: pass `items: [{nodeId, bindings}]` to wire properties
+    across MULTIPLE independent Components / ComponentSets in one call. Use this
+    when you have N separate base Components (e.g. 8 "Default" state components
+    under different parents) that each need the same or different bindings —
+    instead of calling bind_component_property N times.
+    Legacy single-binding shorthand: omit `bindings` and pass
+    `propertyName + targetNodeSelector + nodeProperty`.
   toolset: core
   write: true
   access: edit
@@ -3360,13 +3366,13 @@ bind_component_property:
   params:
     nodeId:
       type: string
-      required: true
-      description: Component or ComponentSet node ID
+      description: Component or ComponentSet node ID (single-component mode). Omit when using items[].
     bindings:
       type: array
       description: >-
-        Array of bindings (preferred). Each item has {propertyName, targetNodeSelector, nodeProperty}.
-        When provided, propertyName/targetNodeSelector/nodeProperty at the top level are ignored.
+        Array of bindings (preferred for single-component mode). Each item has
+        {propertyName, targetNodeSelector, nodeProperty}. When provided,
+        propertyName/targetNodeSelector/nodeProperty at the top level are ignored.
       items:
         type: object
         fields:
@@ -3380,6 +3386,37 @@ bind_component_property:
             type: enum
             values: [characters, visible, mainComponent]
             required: true
+    items:
+      type: array
+      description: >-
+        Cross-component batch mode — max 20 items. Each item targets a distinct
+        Component/ComponentSet with its own bindings array. Per-item errors do
+        not block other items. When provided, top-level nodeId/bindings/
+        propertyName/targetNodeSelector/nodeProperty are ignored.
+      items:
+        type: object
+        fields:
+          nodeId:
+            type: string
+            required: true
+            description: Component or ComponentSet node ID for this item
+          bindings:
+            type: array
+            required: true
+            description: Bindings to wire on this item's component
+            items:
+              type: object
+              fields:
+                propertyName:
+                  type: string
+                  required: true
+                targetNodeSelector:
+                  type: string
+                  required: true
+                nodeProperty:
+                  type: enum
+                  values: [characters, visible, mainComponent]
+                  required: true
     propertyName:
       type: string
       description: '(Legacy single binding) Component property name (e.g. "Label", "Show Icon")'
@@ -3400,21 +3437,20 @@ bind_component_property:
       ok:
         type: boolean
         required: true
+      action:
+        type: string
+        description: "'single' for single-component mode, 'batch' when items[] was used"
       bindingsProcessed:
         type: number
-        required: true
       variantsTargeted:
         type: number
-        required: true
       totalBound:
         type: number
-        required: true
       totalNotFound:
         type: number
-        required: true
       results:
         type: array
-        required: true
+        description: "Single-component mode: per-binding counters"
         items:
           type: object
           fields:
@@ -3438,12 +3474,58 @@ bind_component_property:
               type: string
             error:
               type: string
+      created:
+        type: number
+        description: "Batch mode only: count of successfully processed items"
+      total:
+        type: number
+        description: "Batch mode only: total items submitted"
+      items:
+        type: array
+        description: "Batch mode only: per-item outcome"
+        items:
+          type: object
+          fields:
+            nodeId:
+              type: string
+              required: true
+            ok:
+              type: boolean
+              required: true
+            bindingsProcessed:
+              type: number
+            variantsTargeted:
+              type: number
+            totalBound:
+              type: number
+            totalNotFound:
+              type: number
+            error:
+              type: string
   examples:
     - ok: true
+      action: single
       bindingsProcessed: 4
       variantsTargeted: 6
       totalBound: 24
       totalNotFound: 0
+    - ok: true
+      action: batch
+      created: 3
+      total: 3
+      items:
+        - nodeId: "1:24"
+          ok: true
+          bindingsProcessed: 2
+          totalBound: 2
+        - nodeId: "1:30"
+          ok: true
+          bindingsProcessed: 2
+          totalBound: 2
+        - nodeId: "1:36"
+          ok: true
+          bindingsProcessed: 2
+          totalBound: 2
       results:
         - propertyName: "Label"
           bound: 6
@@ -6261,7 +6343,12 @@ text:
   handler: endpoint
   methods:
     set_content:
-      description: Update the text content of an existing text node
+      description: >-
+        Update the text content of an existing text node.
+        Batch mode: pass items:[{nodeId, content}] to rewrite multiple text
+        nodes in one call (max 50). Font preloading is batched across items —
+        cheaper than calling set_content N times. Per-item errors do not block
+        others. This is the ONLY batch path for text content updates.
       maps_to: set_text_content
       write: true
       access: edit
@@ -6271,19 +6358,64 @@ text:
           ok:
             type: boolean
             required: true
+          action:
+            type: string
+            description: "'single' for single-node update, 'batch' when items[] was used"
+          created:
+            type: number
+            description: "Batch mode only: count of successfully updated items"
+          total:
+            type: number
+            description: "Batch mode only: total items processed"
+          results:
+            type: array
+            description: "Batch mode only: per-item outcome"
+            items:
+              type: object
+              fields:
+                nodeId:
+                  type: string
+                  required: true
+                ok:
+                  type: boolean
+                  required: true
+                error:
+                  type: string
           error:
             type: string
       examples:
         - ok: true
+          action: single
+        - ok: true
+          action: batch
+          created: 3
+          total: 3
+          results:
+            - nodeId: "1:24"
+              ok: true
+            - nodeId: "1:25"
+              ok: true
+            - nodeId: "1:26"
+              ok: true
       params:
         nodeId:
           type: string
-          required: true
-          description: Text node ID
+          description: "Text node ID (single-item mode). Omit when using items[]."
         content:
           type: string
-          required: true
-          description: New text content
+          description: "New text content (single-item mode). Omit when using items[]."
+        items:
+          type: array
+          description: "Batch mode — max 50 items. Each item is {nodeId, content}."
+          items:
+            type: object
+            fields:
+              nodeId:
+                type: string
+                required: true
+              content:
+                type: string
+                required: true
     set_range:
       description: >-
         Apply styling to character ranges within a text node.
@@ -6689,7 +6821,13 @@ variables_ep:
           type: string
           required: true
     set_binding:
-      description: Bind a variable to a node property
+      description: >-
+        Bind a variable to a node property, or unbind an existing variable.
+        OMIT variableId (i.e. don't include it in the request) to REMOVE the
+        binding on that field — for fills/strokes this clears the paint's
+        boundVariables.color, for other bindable fields it calls
+        setBoundVariable(field, null). Needed whenever an agent bound the wrong
+        variable and wants to revert to a literal value or rebind from scratch.
       maps_to: set_variable_binding
       write: true
       access: edit
@@ -6699,10 +6837,16 @@ variables_ep:
           ok:
             type: boolean
             required: true
+          action:
+            type: string
+            description: "'bound' when a variable was attached, 'unbound' when variableId was null"
           error:
             type: string
       examples:
         - ok: true
+          action: bound
+        - ok: true
+          action: unbound
       params:
         nodeId:
           type: string
@@ -6710,9 +6854,16 @@ variables_ep:
         field:
           type: string
           required: true
+          description: "Bindable field name: fills, strokes, characters, fontSize, width, height, etc."
         variableId:
           type: string
-          required: true
+          description: >-
+            Variable ID to bind. OMIT this field to UNBIND — the existing
+            variable binding on this field will be cleared and the field
+            will fall back to its literal value.
+        paintIndex:
+          type: number
+          description: "Paint index for fills/strokes (default 0). Ignored for other fields."
     create:
       description: Create a new Figma variable
       maps_to: create_variable

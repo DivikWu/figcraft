@@ -496,20 +496,32 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
     }),
   'bind_component_property': z.object({
       ok: z.boolean(),
-      bindingsProcessed: z.number(),
-      variantsTargeted: z.number(),
-      totalBound: z.number(),
-      totalNotFound: z.number(),
+      action: z.string().optional().describe("'single' for single-component mode, 'batch' when items[] was used"),
+      bindingsProcessed: z.number().optional(),
+      variantsTargeted: z.number().optional(),
+      totalBound: z.number().optional(),
+      totalNotFound: z.number().optional(),
       results: z.array(z.object({
           propertyName: z.string(),
           bound: z.number(),
           notFound: z.number(),
-        })),
+        })).optional().describe("Single-component mode: per-binding counters"),
       errors: z.array(z.object({
           variantName: z.string().optional(),
           propertyName: z.string().optional(),
           error: z.string().optional(),
         })).optional(),
+      created: z.number().optional().describe("Batch mode only: count of successfully processed items"),
+      total: z.number().optional().describe("Batch mode only: total items submitted"),
+      items: z.array(z.object({
+          nodeId: z.string(),
+          ok: z.boolean(),
+          bindingsProcessed: z.number().optional(),
+          variantsTargeted: z.number().optional(),
+          totalBound: z.number().optional(),
+          totalNotFound: z.number().optional(),
+          error: z.string().optional(),
+        })).optional().describe("Batch mode only: per-item outcome"),
     }),
   'swap_instance': z.object({
       id: z.string(),
@@ -1587,10 +1599,37 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
   'bind_component_property': [
     {
       "ok": true,
+      "action": "single",
       "bindingsProcessed": 4,
       "variantsTargeted": 6,
       "totalBound": 24,
-      "totalNotFound": 0,
+      "totalNotFound": 0
+    },
+    {
+      "ok": true,
+      "action": "batch",
+      "created": 3,
+      "total": 3,
+      "items": [
+        {
+          "nodeId": "1:24",
+          "ok": true,
+          "bindingsProcessed": 2,
+          "totalBound": 2
+        },
+        {
+          "nodeId": "1:30",
+          "ok": true,
+          "bindingsProcessed": 2,
+          "totalBound": 2
+        },
+        {
+          "nodeId": "1:36",
+          "ok": true,
+          "bindingsProcessed": 2,
+          "totalBound": 2
+        }
+      ],
       "results": [
         {
           "propertyName": "Label",
@@ -2294,6 +2333,14 @@ export const GENERATED_ENDPOINT_METHOD_RESPONSE_SCHEMAS: Record<string, Record<s
   'text': {
     'set_content': z.object({
       ok: z.boolean(),
+      action: z.string().optional().describe("'single' for single-node update, 'batch' when items[] was used"),
+      created: z.number().optional().describe("Batch mode only: count of successfully updated items"),
+      total: z.number().optional().describe("Batch mode only: total items processed"),
+      results: z.array(z.object({
+          nodeId: z.string(),
+          ok: z.boolean(),
+          error: z.string().optional(),
+        })).optional().describe("Batch mode only: per-item outcome"),
       error: z.string().optional(),
     }),
     'set_range': z.object({
@@ -2384,6 +2431,7 @@ export const GENERATED_ENDPOINT_METHOD_RESPONSE_SCHEMAS: Record<string, Record<s
     }),
     'set_binding': z.object({
       ok: z.boolean(),
+      action: z.string().optional().describe("'bound' when a variable was attached, 'unbound' when variableId was null"),
       error: z.string().optional(),
     }),
     'create': z.object({
@@ -2643,7 +2691,28 @@ export const GENERATED_ENDPOINT_METHOD_RESPONSE_EXAMPLES: Record<string, Record<
   'text': {
     'set_content': [
       {
-        "ok": true
+        "ok": true,
+        "action": "single"
+      },
+      {
+        "ok": true,
+        "action": "batch",
+        "created": 3,
+        "total": 3,
+        "results": [
+          {
+            "nodeId": "1:24",
+            "ok": true
+          },
+          {
+            "nodeId": "1:25",
+            "ok": true
+          },
+          {
+            "nodeId": "1:26",
+            "ok": true
+          }
+        ]
       }
     ],
     'set_range': [
@@ -2781,7 +2850,12 @@ export const GENERATED_ENDPOINT_METHOD_RESPONSE_EXAMPLES: Record<string, Record<
     ],
     'set_binding': [
       {
-        "ok": true
+        "ok": true,
+        "action": "bound"
+      },
+      {
+        "ok": true,
+        "action": "unbound"
       }
     ],
     'create': [

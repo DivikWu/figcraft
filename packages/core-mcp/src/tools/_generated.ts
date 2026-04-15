@@ -530,14 +530,22 @@ export function registerGeneratedTools(
   if (shouldRegisterGeneratedTool(include, 'bind_component_property')) {
     server.tool(
     'bind_component_property',
-    "Wire one or more component properties to child nodes across all variants in a single call. Finds child nodes by name and sets componentPropertyReferences. Works on both Component and ComponentSet (iterates all variants). PREFERRED: pass `bindings` as an array to wire multiple properties in one call — a typical Button has 4-6 properties (Label / Icon / ShowIcon / State / ...) and batching them cuts round-trips. Legacy: omit `bindings` and pass `propertyName + targetNodeSelector + nodeProperty` for a single binding.",
+    "Wire one or more component properties to child nodes across all variants in a single call. Finds child nodes by name and sets componentPropertyReferences. Works on both Component and ComponentSet (iterates all variants). PREFERRED: pass `bindings` as an array to wire multiple properties in one call — a typical Button has 4-6 properties (Label / Icon / ShowIcon / State / ...) and batching them cuts round-trips. CROSS-COMPONENT BATCH: pass `items: [{nodeId, bindings}]` to wire properties across MULTIPLE independent Components / ComponentSets in one call. Use this when you have N separate base Components (e.g. 8 \"Default\" state components under different parents) that each need the same or different bindings — instead of calling bind_component_property N times. Legacy single-binding shorthand: omit `bindings` and pass `propertyName + targetNodeSelector + nodeProperty`.",
     {
-      nodeId: z.string().describe("Component or ComponentSet node ID"),
+      nodeId: z.string().optional().describe("Component or ComponentSet node ID (single-component mode). Omit when using items[]."),
       bindings: z.array(z.object({
           propertyName: z.string(),
           targetNodeSelector: z.string(),
           nodeProperty: z.enum(['characters', 'visible', 'mainComponent']),
-        })).optional().describe("Array of bindings (preferred). Each item has {propertyName, targetNodeSelector, nodeProperty}. When provided, propertyName/targetNodeSelector/nodeProperty at the top level are ignored."),
+        })).optional().describe("Array of bindings (preferred for single-component mode). Each item has {propertyName, targetNodeSelector, nodeProperty}. When provided, propertyName/targetNodeSelector/nodeProperty at the top level are ignored."),
+      items: z.array(z.object({
+          nodeId: z.string().describe("Component or ComponentSet node ID for this item"),
+          bindings: z.array(z.object({
+          propertyName: z.string(),
+          targetNodeSelector: z.string(),
+          nodeProperty: z.enum(['characters', 'visible', 'mainComponent']),
+        })).describe("Bindings to wire on this item's component"),
+        })).optional().describe("Cross-component batch mode — max 20 items. Each item targets a distinct Component/ComponentSet with its own bindings array. Per-item errors do not block other items. When provided, top-level nodeId/bindings/ propertyName/targetNodeSelector/nodeProperty are ignored."),
       propertyName: z.string().optional().describe("(Legacy single binding) Component property name (e.g. \"Label\", \"Show Icon\")"),
       targetNodeSelector: z.string().optional().describe("(Legacy single binding) Child node name to match via recursive search"),
       nodeProperty: z.enum(['characters', 'visible', 'mainComponent']).optional().describe("(Legacy single binding) Which node property to bind: characters → TEXT property (text nodes), visible → BOOLEAN property (any node), mainComponent → INSTANCE_SWAP property (instance nodes)"),
@@ -1194,8 +1202,12 @@ export const nodesEndpointSchema = {
 
 export const textEndpointSchema = {
       method: z.enum(['set_content', 'set_range']).describe('Method to invoke on this endpoint'),
-      nodeId: z.string().optional().describe("Text node ID"),
-      content: z.string().optional().describe("New text content"),
+      nodeId: z.string().optional().describe("Text node ID (single-item mode). Omit when using items[]."),
+      content: z.string().optional().describe("New text content (single-item mode). Omit when using items[]."),
+      items: z.array(z.object({
+          nodeId: z.string(),
+          content: z.string(),
+        })).optional().describe("Batch mode — max 50 items. Each item is {nodeId, content}."),
       operations: z.array(z.object({
           type: z.string().describe("Operation type: fontSize, fontName, fills, insert, delete, letterSpacing, lineHeight, textDecoration, textCase"),
           start: z.number().describe("Start character index (0-based)"),
@@ -1214,9 +1226,10 @@ export const variables_epEndpointSchema = {
       method: z.enum(['list', 'get', 'list_collections', 'get_bindings', 'set_binding', 'create', 'update', 'batch_update', 'delete', 'create_collection', 'delete_collection', 'batch_create', 'export', 'set_code_syntax', 'batch_bind', 'set_values_multi_mode', 'extend_collection', 'get_overrides', 'remove_override']).describe('Method to invoke on this endpoint'),
       collectionId: z.string().optional().describe("Filter by collection ID"),
       type: z.string().optional().describe("Filter by type: COLOR, FLOAT, STRING, BOOLEAN"),
-      variableId: z.string().optional().describe("Variable ID to remove overrides for"),
+      variableId: z.string().optional().describe("Variable ID to bind. OMIT this field to UNBIND — the existing variable binding on this field will be cleared and the field will fall back to its literal value."),
       nodeId: z.string().optional(),
-      field: z.string().optional(),
+      field: z.string().optional().describe("Bindable field name: fills, strokes, characters, fontSize, width, height, etc."),
+      paintIndex: z.number().optional().describe("Paint index for fills/strokes (default 0). Ignored for other fields."),
       name: z.string().optional().describe("Name for the extended collection"),
       resolvedType: z.enum(['COLOR', 'FLOAT', 'STRING', 'BOOLEAN']).optional(),
       value: z.unknown().optional(),

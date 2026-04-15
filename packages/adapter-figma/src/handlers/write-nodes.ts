@@ -178,17 +178,115 @@ registerCache('mode-library', invalidateModeCache);
 registerCache('font-cache', clearFontCache);
 
 export function registerWriteNodeHandlers(): void {
+  // Internal: apply content to a single already-resolved + font-loaded TextNode.
+  // Extracted so the batch branch can reuse it without re-loading fonts per item.
+  const applyContentToText = (text: TextNode, content: string): void => {
+    text.characters = content;
+  };
+
   registerHandler('set_text_content', async (params) => {
+    // ── Batch mode: items[] ──
+    // Other write endpoints (create_frame/create_text/create_component/
+    // nodes.update) all support items[]; text.set_content was the only write
+    // endpoint without a batch path, forcing N round-trips when multiple text
+    // nodes needed content updates (e.g. Disabled variant state).
+    if (Array.isArray(params.items)) {
+      const items = params.items as Array<{ nodeId: string; content: string }>;
+      assertHandler(items.length > 0, 'items array must not be empty');
+      assertHandler(items.length <= 50, 'Maximum 50 text nodes per batch');
+
+      // ── Phase 1: parallel node resolution ──
+      // findNodeByIdAsync is a plugin-side local lookup but still async.
+      // Running 50 items sequentially costs 50 event-loop ticks before we
+      // can start preloading fonts; Promise.all collapses this to one pass.
+      type Resolved = { nodeId: string; content: string; text?: TextNode; error?: string };
+      const resolved: Resolved[] = await Promise.all(
+        items.map(async (item): Promise<Resolved> => {
+          if (!item || typeof item.nodeId !== 'string' || typeof item.content !== 'string') {
+            return {
+              nodeId: (item && (item as { nodeId?: string }).nodeId) ?? '',
+              content: '',
+              error: 'Invalid item: requires {nodeId: string, content: string}',
+            };
+          }
+          const n = await findNodeByIdAsync(item.nodeId);
+          if (!n || n.type !== 'TEXT') {
+            return {
+              nodeId: item.nodeId,
+              content: item.content,
+              error: `Text node not found: ${item.nodeId}`,
+            };
+          }
+          return { nodeId: item.nodeId, content: item.content, text: n as TextNode };
+        }),
+      );
+
+      // ── Phase 2: collect distinct fonts across the batch (no awaits) ──
+      const fontsToLoad: FontName[] = [];
+      const fontSeen = new Set<string>();
+      const trackFont = (f: FontName): void => {
+        const key = `${f.family}__${f.style}`;
+        if (!fontSeen.has(key)) {
+          fontSeen.add(key);
+          fontsToLoad.push(f);
+        }
+      };
+      for (const r of resolved) {
+        if (!r.text) continue;
+        const textNode = r.text;
+        if (textNode.fontName !== figma.mixed) {
+          trackFont(textNode.fontName as FontName);
+          continue;
+        }
+        // Mixed-font node: getStyledTextSegments returns one entry per
+        // distinct font range (typically 2-5 for realistic mixed text) —
+        // drastically cheaper than walking characters one at a time with
+        // getRangeFontName. Plugin API is the canonical path for this.
+        const segments = textNode.getStyledTextSegments(['fontName']);
+        for (const seg of segments) trackFont(seg.fontName);
+      }
+
+      // Single parallel font load for the whole batch.
+      await Promise.all(fontsToLoad.map((f) => figma.loadFontAsync(f)));
+
+      const results: Array<{ nodeId: string; ok: boolean; error?: string }> = [];
+      let created = 0;
+      for (const r of resolved) {
+        if (r.error) {
+          results.push({ nodeId: r.nodeId, ok: false, error: r.error });
+          continue;
+        }
+        try {
+          applyContentToText(r.text as TextNode, r.content);
+          results.push({ nodeId: r.nodeId, ok: true });
+          created += 1;
+        } catch (err) {
+          results.push({
+            nodeId: r.nodeId,
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
+      return { ok: true, action: 'batch', created, total: items.length, results };
+    }
+
+    // ── Single-item legacy path ──
     const nodeId = params.nodeId as string;
     const content = params.content as string;
+    assertHandler(
+      typeof nodeId === 'string' && typeof content === 'string',
+      'set_text_content requires {nodeId, content} or {items: [...]}',
+    );
     const node = await findNodeByIdAsync(nodeId);
     assertHandler(node && node.type === 'TEXT', `Text node not found: ${nodeId}`, 'NOT_FOUND');
     const text = node as TextNode;
     if (text.fontName !== figma.mixed) {
       await figma.loadFontAsync(text.fontName);
     }
-    text.characters = content;
-    return { ok: true };
+    applyContentToText(text, content);
+    return { ok: true, action: 'single' };
   });
 
   registerHandler('set_text_range', async (params) => {

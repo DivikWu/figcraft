@@ -184,6 +184,7 @@ export function registerEndpointTools(server: McpServer, bridge: Bridge): void {
           bridgeRequestLogic(b, 'set_text_content', {
             nodeId: p.nodeId,
             content: p.content,
+            items: p.items,
           }),
         set_range: (b, p) =>
           bridgeRequestLogic(b, 'set_text_range', {
@@ -236,7 +237,10 @@ export function registerEndpointTools(server: McpServer, bridge: Bridge): void {
           bridgeRequestLogic(b, 'set_variable_binding', {
             nodeId: p.nodeId,
             field: p.field,
+            // Pass variableId through untouched — null/undefined means UNBIND
+            // in the plugin handler. Don't coerce.
             variableId: p.variableId,
+            paintIndex: p.paintIndex,
           }),
         create: (b, p) =>
           bridgeRequestLogic(b, 'create_variable', {

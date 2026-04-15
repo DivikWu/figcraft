@@ -328,43 +328,48 @@ export function registerDesignSystemBuildHandlers(): void {
   // P0-5: bind_component_property
   // ═══════════════════════════════════════════════════════════════
 
-  registerHandler('bind_component_property', async (params) => {
-    const nodeId = params.nodeId as string;
-    assertHandler(nodeId, 'nodeId is required (Component or ComponentSet)');
+  // ── Core per-component binder (extracted so both single-component and
+  //    cross-component batch paths share the same implementation) ──
+  type BindingSpec = {
+    propertyName: string;
+    targetNodeSelector: string;
+    nodeProperty: 'characters' | 'visible' | 'mainComponent';
+  };
+  const validNodeProps = ['characters', 'visible', 'mainComponent'];
 
-    // ── Accept both single binding (legacy) and array of bindings (P0-3) ──
-    // The array form is the preferred shape — wiring a typical Button takes
-    // 4-6 properties and a single call saves 4-6 round-trips through the model.
-    type BindingSpec = {
-      propertyName: string;
-      targetNodeSelector: string;
-      nodeProperty: 'characters' | 'visible' | 'mainComponent';
-    };
-    const rawBindings = params.bindings as BindingSpec[] | undefined;
-    const bindings: BindingSpec[] =
-      rawBindings && Array.isArray(rawBindings)
-        ? rawBindings
-        : [
-            {
-              propertyName: params.propertyName as string,
-              targetNodeSelector: params.targetNodeSelector as string,
-              nodeProperty: params.nodeProperty as 'characters' | 'visible' | 'mainComponent',
-            },
-          ];
-
+  const validateBindingSpecs = (bindings: BindingSpec[]): void => {
     assertHandler(
       bindings.length > 0,
       'bindings array (or single propertyName/targetNodeSelector/nodeProperty) is required',
     );
-    const validProps = ['characters', 'visible', 'mainComponent'];
     for (const b of bindings) {
       assertHandler(b.propertyName, 'propertyName is required for each binding');
       assertHandler(b.targetNodeSelector, 'targetNodeSelector is required for each binding (child node name to match)');
       assertHandler(
-        b.nodeProperty && validProps.includes(b.nodeProperty),
-        `Invalid nodeProperty "${b.nodeProperty}" on binding for "${b.propertyName}". Must be one of: ${validProps.join(', ')}`,
+        b.nodeProperty && validNodeProps.includes(b.nodeProperty),
+        `Invalid nodeProperty "${b.nodeProperty}" on binding for "${b.propertyName}". Must be one of: ${validNodeProps.join(', ')}`,
       );
     }
+  };
+
+  const bindOneComponent = async (
+    nodeId: string,
+    bindings: BindingSpec[],
+  ): Promise<{
+    ok: boolean;
+    bindingsProcessed: number;
+    variantsTargeted: number;
+    totalBound: number;
+    totalNotFound: number;
+    results: Array<{ propertyName: string; bound: number; notFound: number }>;
+    errors?: Array<{ variantName: string; propertyName: string; error: string }>;
+    notFoundHint?: {
+      missingSelectors: string[];
+      availableChildren: Array<{ name: string; type: string }>;
+      suggestion: string;
+    };
+  }> => {
+    validateBindingSpecs(bindings);
 
     const node = await findNodeByIdAsync(nodeId);
     assertHandler(
@@ -508,6 +513,90 @@ export function registerDesignSystemBuildHandlers(): void {
       errors: errors.length > 0 ? errors : undefined,
       notFoundHint,
     };
+  };
+
+  registerHandler('bind_component_property', async (params) => {
+    // ── Cross-component batch mode (items[]) ──
+    // When an agent has N independent Components/ComponentSets that each need
+    // their own bindings (e.g. 8 "Default" state components under 8 different
+    // parent buttons each wanting Icon Left / Icon Right visibility wired up),
+    // the legacy single-nodeId path forces N round-trips. items[] collapses
+    // them into one call. Per-item errors do not block siblings.
+    if (Array.isArray(params.items)) {
+      const items = params.items as Array<{ nodeId: string; bindings: BindingSpec[] }>;
+      assertHandler(items.length > 0, 'items array must not be empty');
+      assertHandler(items.length <= 20, 'Maximum 20 components per batch');
+
+      type ItemResult = {
+        nodeId: string;
+        ok: boolean;
+        bindingsProcessed?: number;
+        variantsTargeted?: number;
+        totalBound?: number;
+        totalNotFound?: number;
+        results?: Array<{ propertyName: string; bound: number; notFound: number }>;
+        errors?: Array<{ variantName: string; propertyName: string; error: string }>;
+        notFoundHint?: {
+          missingSelectors: string[];
+          availableChildren: Array<{ name: string; type: string }>;
+          suggestion: string;
+        };
+        error?: string;
+      };
+      const outItems: ItemResult[] = [];
+      let created = 0;
+      for (const item of items) {
+        if (!item || typeof item.nodeId !== 'string' || !Array.isArray(item.bindings)) {
+          outItems.push({
+            nodeId: (item && item.nodeId) || '',
+            ok: false,
+            error: 'Invalid item: requires {nodeId: string, bindings: BindingSpec[]}',
+          });
+          continue;
+        }
+        try {
+          const r = await bindOneComponent(item.nodeId, item.bindings);
+          outItems.push({ nodeId: item.nodeId, ...r });
+          if (r.ok) created += 1;
+        } catch (err) {
+          outItems.push({
+            nodeId: item.nodeId,
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
+      return {
+        ok: outItems.every((i) => i.ok),
+        action: 'batch',
+        created,
+        total: items.length,
+        items: outItems,
+      };
+    }
+
+    // ── Single-component legacy path ──
+    const nodeId = params.nodeId as string;
+    assertHandler(nodeId, 'nodeId is required (Component or ComponentSet) — or pass items[] for cross-component batch');
+
+    // ── Accept both single binding (legacy) and array of bindings (P0-3) ──
+    // The array form is the preferred shape — wiring a typical Button takes
+    // 4-6 properties and a single call saves 4-6 round-trips through the model.
+    const rawBindings = params.bindings as BindingSpec[] | undefined;
+    const bindings: BindingSpec[] =
+      rawBindings && Array.isArray(rawBindings)
+        ? rawBindings
+        : [
+            {
+              propertyName: params.propertyName as string,
+              targetNodeSelector: params.targetNodeSelector as string,
+              nodeProperty: params.nodeProperty as 'characters' | 'visible' | 'mainComponent',
+            },
+          ];
+
+    const single = await bindOneComponent(nodeId, bindings);
+    return { action: 'single', ...single };
   });
 
   // ═══════════════════════════════════════════════════════════════

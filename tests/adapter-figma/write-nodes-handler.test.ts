@@ -294,4 +294,139 @@ describe('write-nodes handler (patch/delete)', () => {
       expect(setTextStyleIdAsyncSpy).not.toHaveBeenCalled();
     });
   });
+
+  // ── Fix 2: set_text_content items[] batch path ──
+  // Previously set_text_content only supported {nodeId, content} — multi-text
+  // scenarios (e.g. Disabled variant state with 3 text nodes) required N
+  // sequential calls. The batch path accepts items:[{nodeId, content}] with
+  // deduped font preloading and per-item error collection.
+  describe('set_text_content items[] batch (Fix 2)', () => {
+    function createTextNode(id: string, opts: { font?: { family: string; style: string }; content?: string } = {}) {
+      const textNode = {
+        id,
+        type: 'TEXT' as const,
+        name: `Text ${id}`,
+        parent: null,
+        characters: opts.content ?? '',
+        fontName: opts.font ?? { family: 'Inter', style: 'Regular' },
+        resize: vi.fn(),
+        remove: vi.fn(),
+        setPluginData: vi.fn(),
+      };
+      return textNode;
+    }
+
+    function registerTextNodes(nodes: Array<ReturnType<typeof createTextNode>>) {
+      (figma.getNodeByIdAsync as ReturnType<typeof vi.fn>).mockImplementation(async (nodeId: string) => {
+        return nodes.find((n) => n.id === nodeId) ?? null;
+      });
+    }
+
+    it('applies content to every item and returns batch outcome', async () => {
+      const nodes = [createTextNode('text:10'), createTextNode('text:11'), createTextNode('text:12')];
+      registerTextNodes(nodes);
+
+      const handler = handlers.get('set_text_content');
+      const response = (await handler!({
+        items: [
+          { nodeId: 'text:10', content: 'Label A' },
+          { nodeId: 'text:11', content: 'Label B' },
+          { nodeId: 'text:12', content: 'Label C' },
+        ],
+      })) as {
+        ok: boolean;
+        action: string;
+        created: number;
+        total: number;
+        results: Array<{ nodeId: string; ok: boolean; error?: string }>;
+      };
+
+      expect(response.action).toBe('batch');
+      expect(response.created).toBe(3);
+      expect(response.total).toBe(3);
+      expect(response.results.every((r) => r.ok)).toBe(true);
+      expect(nodes[0].characters).toBe('Label A');
+      expect(nodes[1].characters).toBe('Label B');
+      expect(nodes[2].characters).toBe('Label C');
+    });
+
+    it('deduplicates font loads across items with the same fontName', async () => {
+      const nodes = [
+        createTextNode('text:20', { font: { family: 'Inter', style: 'Regular' } }),
+        createTextNode('text:21', { font: { family: 'Inter', style: 'Regular' } }),
+        createTextNode('text:22', { font: { family: 'Inter', style: 'Regular' } }),
+      ];
+      registerTextNodes(nodes);
+
+      const handler = handlers.get('set_text_content');
+      await handler!({
+        items: [
+          { nodeId: 'text:20', content: 'A' },
+          { nodeId: 'text:21', content: 'B' },
+          { nodeId: 'text:22', content: 'C' },
+        ],
+      });
+
+      // Three items share one font — loadFontAsync should fire exactly once.
+      expect(figma.loadFontAsync).toHaveBeenCalledTimes(1);
+      expect(figma.loadFontAsync).toHaveBeenCalledWith({ family: 'Inter', style: 'Regular' });
+    });
+
+    it('collects per-item errors without aborting the batch', async () => {
+      const nodes = [createTextNode('text:30'), createTextNode('text:32')];
+      registerTextNodes(nodes);
+
+      const handler = handlers.get('set_text_content');
+      const response = (await handler!({
+        items: [
+          { nodeId: 'text:30', content: 'OK' },
+          { nodeId: 'text:31', content: 'Missing' },
+          { nodeId: 'text:32', content: 'Also OK' },
+        ],
+      })) as {
+        ok: boolean;
+        created: number;
+        total: number;
+        results: Array<{ nodeId: string; ok: boolean; error?: string }>;
+      };
+
+      expect(response.total).toBe(3);
+      expect(response.created).toBe(2);
+      expect(response.results[0].ok).toBe(true);
+      expect(response.results[1].ok).toBe(false);
+      expect(response.results[1].error).toContain('text:31');
+      expect(response.results[2].ok).toBe(true);
+      // Successful items must still be written despite a sibling failure.
+      expect(nodes[0].characters).toBe('OK');
+      expect(nodes[1].characters).toBe('Also OK');
+    });
+
+    it('rejects an empty items array', async () => {
+      const handler = handlers.get('set_text_content');
+      await expect(handler!({ items: [] })).rejects.toThrow(/items array must not be empty/i);
+    });
+
+    it('enforces the 50-item batch limit', async () => {
+      const items = Array.from({ length: 51 }, (_, i) => ({
+        nodeId: `text:${i}`,
+        content: `${i}`,
+      }));
+      const handler = handlers.get('set_text_content');
+      await expect(handler!({ items })).rejects.toThrow(/Maximum 50 text nodes per batch/);
+    });
+
+    it('falls back to single-item path when items[] is absent', async () => {
+      const nodes = [createTextNode('text:40')];
+      registerTextNodes(nodes);
+
+      const handler = handlers.get('set_text_content');
+      const response = (await handler!({ nodeId: 'text:40', content: 'Legacy' })) as {
+        ok: boolean;
+        action: string;
+      };
+
+      expect(response.action).toBe('single');
+      expect(nodes[0].characters).toBe('Legacy');
+    });
+  });
 });

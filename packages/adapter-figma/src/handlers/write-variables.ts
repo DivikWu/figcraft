@@ -220,7 +220,12 @@ export function registerWriteVariableHandlers(): void {
   registerHandler('set_variable_binding', async (params) => {
     const nodeId = params.nodeId as string;
     const field = params.field as string;
-    const variableId = params.variableId as string;
+    // variableId is optional: null / undefined / empty string means "unbind"
+    // the existing variable binding on this field. Without this, once an agent
+    // binds the wrong variable there is no way to revert without going into
+    // the Figma UI — the whole write-side unbind path was missing.
+    const rawVariableId = params.variableId as string | null | undefined;
+    const isUnbind = rawVariableId == null || rawVariableId === '';
 
     const node = await findNodeByIdAsync(nodeId);
     assertHandler(
@@ -229,14 +234,20 @@ export function registerWriteVariableHandlers(): void {
       'NOT_FOUND',
     );
 
-    const variable = await figma.variables.getVariableByIdAsync(variableId);
-    assertHandler(variable, `Variable not found: ${variableId}`, 'NOT_FOUND');
+    let variable: Variable | null = null;
+    if (!isUnbind) {
+      variable = await figma.variables.getVariableByIdAsync(rawVariableId as string);
+      assertHandler(variable, `Variable not found: ${rawVariableId}`, 'NOT_FOUND');
+    }
 
     try {
       if ((field === 'fills' || field === 'strokes') && 'fills' in node) {
         const paintIndex = (params.paintIndex as number) ?? 0;
         const paints = [...((node as GeometryMixin)[field] as Paint[])];
         if (paints[paintIndex]) {
+          // setBoundVariableForPaint accepts `null` to REMOVE the color binding
+          // from the paint (Plugin API native — returns a "bare" paint with
+          // boundVariables.color stripped).
           paints[paintIndex] = figma.variables.setBoundVariableForPaint(
             paints[paintIndex] as SolidPaint,
             'color',
@@ -245,13 +256,16 @@ export function registerWriteVariableHandlers(): void {
           (node as GeometryMixin)[field] = paints;
         }
       } else {
+        // Plugin API: setBoundVariable(field, null) clears the binding.
         (node as SceneNode).setBoundVariable(field as VariableBindableNodeField, variable);
       }
     } catch (err) {
-      throw new HandlerError(`Cannot bind field "${field}": ${err instanceof Error ? err.message : String(err)}`);
+      throw new HandlerError(
+        `Cannot ${isUnbind ? 'unbind' : 'bind'} field "${field}": ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
 
-    return { ok: true };
+    return { ok: true, action: isUnbind ? 'unbound' : 'bound' };
   });
 
   registerHandler('set_explicit_variable_mode', async (params) => {
