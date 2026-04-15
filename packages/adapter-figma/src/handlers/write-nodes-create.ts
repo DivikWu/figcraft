@@ -1556,6 +1556,9 @@ async function setupText(text: TextNode, p: Record<string, unknown>, ctx: Create
     const styleMatch = getTextStyleId(fontSize, fontHints);
     if (styleMatch) {
       try {
+        // Preload the style's font before binding — setTextStyleIdAsync changes the
+        // node's font, and subsequent writes (textAutoResize, etc.) require it loaded.
+        await figma.loadFontAsync({ family: styleMatch.fontFamily, style: styleMatch.fontWeight });
         await setTextStyleIdAsync(text, styleMatch.id);
         ctx.libraryBindings.push(`textStyle:${styleMatch.name}`);
       } catch {

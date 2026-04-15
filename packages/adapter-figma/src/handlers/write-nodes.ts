@@ -697,6 +697,7 @@ export function registerWriteNodeHandlers(): void {
                   const styleMatch = getTextStyleId(currentFontSize, { fontFamily: fn.family, fontWeight: fn.style });
                   if (styleMatch) {
                     try {
+                      await figma.loadFontAsync({ family: styleMatch.fontFamily, style: styleMatch.fontWeight });
                       await (textNode as any).setTextStyleIdAsync(styleMatch.id);
                     } catch {
                       /* skip */
@@ -717,6 +718,7 @@ export function registerWriteNodeHandlers(): void {
                 const styleMatch = getTextStyleId(props.fontSize as number, fontHints);
                 if (styleMatch) {
                   try {
+                    await figma.loadFontAsync({ family: styleMatch.fontFamily, style: styleMatch.fontWeight });
                     await (textNode as any).setTextStyleIdAsync(styleMatch.id);
                   } catch {
                     /* skip */

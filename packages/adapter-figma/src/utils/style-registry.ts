@@ -238,30 +238,40 @@ export async function ensureLoaded(library: string): Promise<void> {
 /**
  * Get a text style matching the given fontSize.
  * When multiple styles share the same fontSize, optionally match by fontFamily/fontWeight.
- * Falls back to the first registered style at that size.
+ *
+ * Fallback behaviour:
+ * - When `hints.fontFamily` is provided, only styles from the SAME font family are
+ *   considered. This prevents auto-binding a GT Walsheim style when the caller
+ *   explicitly requested Inter — which would change the node's font and cause
+ *   "unloaded font" errors on subsequent property writes.
+ * - When no hints are provided, falls back to the first registered style at that size.
  */
 export function getTextStyleId(
   fontSize: number,
   hints?: { fontFamily?: string; fontWeight?: string },
-): { id: string; name: string } | null {
+): { id: string; name: string; fontFamily: string; fontWeight: string } | null {
   const entries = textStyleMap.get(fontSize);
   if (!entries || entries.length === 0) return null;
-  if (entries.length === 1 || !hints) return entries[0];
+  if (!hints) return entries[0];
 
   // Try to match by fontFamily + fontWeight for best precision
   if (hints.fontFamily && hints.fontWeight) {
     const exact = entries.find((e) => e.fontFamily === hints.fontFamily && e.fontWeight === hints.fontWeight);
     if (exact) return exact;
   }
-  // Fall back to fontWeight match only
-  if (hints.fontWeight) {
-    const byWeight = entries.find((e) => e.fontWeight === hints.fontWeight);
-    if (byWeight) return byWeight;
-  }
-  // Fall back to fontFamily match only
+  // Fall back to fontFamily match only (preserve font family intent)
   if (hints.fontFamily) {
     const byFamily = entries.find((e) => e.fontFamily === hints.fontFamily);
     if (byFamily) return byFamily;
+    // No style in this font family at this size — do NOT fall back to a different
+    // font family. Binding a mismatched style silently changes the node's font,
+    // causing "Cannot write to node with unloaded font" on subsequent writes.
+    return null;
+  }
+  // Fall back to fontWeight match only (no family constraint)
+  if (hints.fontWeight) {
+    const byWeight = entries.find((e) => e.fontWeight === hints.fontWeight);
+    if (byWeight) return byWeight;
   }
   return entries[0];
 }
