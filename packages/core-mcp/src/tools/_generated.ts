@@ -71,7 +71,7 @@ export function registerGeneratedTools(
   if (shouldRegisterGeneratedTool(include, 'create_text')) {
     server.tool(
     'create_text',
-    "Create a text node with specified content, font, size, and color. Supports token auto-binding (fontColorVariableName, textStyleName), smart defaults (auto FILL width + HEIGHT resize inside vertical auto-layout), and font fallback chain.",
+    "Create a text node with specified content, font, size, and color. Supports token auto-binding (fontColorVariableId — PREFERRED, fontColorVariableName, textStyleName), smart defaults (auto FILL width + HEIGHT resize inside vertical auto-layout), and font fallback chain. ID-first path: pass fontColorVariableId from get_design_context defaults.*.id — zero name resolution, zero fragility. Use fontColorVariableName only when the ID is not available.",
     {
       content: z.string().optional().describe("Text content to display"),
       name: z.string().optional().describe("Node name (defaults to content)"),
@@ -83,7 +83,8 @@ export function registerGeneratedTools(
       fontStyle: z.string().optional().describe("Font style e.g. \"Bold\", \"Italic\" (default: \"Regular\")"),
       fontWeight: z.number().optional().describe("100-900 (default: 400). Ignored when fontStyle is set."),
       fill: z.string().optional().describe("Text color as hex (e.g. '#000000') or variable/style name — auto-binds"),
-      fontColorVariableName: z.string().optional().describe("Bind text color to a variable by name (e.g. 'text/primary')"),
+      fontColorVariableId: z.string().optional().describe("PREFERRED — bind text color to a variable by ID (e.g. \"VariableID:123:456\" from get_design_context defaults.textPrimary.id). Zero name resolution, zero fragility. Use this whenever you have the ID from a prior get_design_context call."),
+      fontColorVariableName: z.string().optional().describe("Bind text color to a variable by name (e.g. 'text/primary'). FALLBACK — use fontColorVariableId instead when you have the ID. Name lookup tolerates case and separator variants (/, ., -, _) but is still fragile across libraries."),
       fontColorStyleName: z.string().optional().describe("Apply paint style for text color"),
       textStyleName: z.string().optional().describe("Apply text style by name — overrides fontSize/fontWeight"),
       lineHeight: z.number().optional().describe("Line height in pixels"),
@@ -384,8 +385,8 @@ export function registerGeneratedTools(
       parentId: z.string().optional().describe("Parent node ID"),
       children: z.array(z.object({
           type: z.enum(['frame', 'text', 'rectangle', 'ellipse', 'instance', 'svg', 'icon']).optional().describe("Child node type"),
-        }).passthrough()).optional().describe("Inline child nodes [{type, ...params, componentPropertyName?}]. Text children with componentPropertyName auto-create TEXT component properties. Text children also accept textStyleName, fontColorVariableId (preferred), fontColorVariableName. Icon children accept colorVariableName for icon color binding."),
-      properties: z.array(z.unknown()).optional().describe("Non-text component properties: [{propertyName, type:'BOOLEAN'|'INSTANCE_SWAP'|'SLOT', defaultValue}]. TEXT properties are created automatically from children with componentPropertyName."),
+        }).passthrough()).optional().describe("Inline child nodes [{type, ...params, componentPropertyName?, componentPropertyReferences?}]. Text children with componentPropertyName auto-create TEXT component properties. Text children also accept textStyleName, fontColorVariableId (preferred), fontColorVariableName. Icon children accept colorVariableName for icon color binding.\nP2 — BOOLEAN visibility binding: any child may declare `componentPropertyReferences: { visible: \"<BooleanPropName>\" }` to bind its visibility to a BOOLEAN property declared in `properties[]`. The child MUST have a `name` field so the target can be located in the component tree. The main-component node's visible state is synced to the property's defaultValue automatically (variants can override). Example:\n  children: [{ type: \"icon\", name: \"Icon\", icon: \"lucide:arrow-right\",\n               componentPropertyReferences: { visible: \"Icon\" } }]\n  properties: [{ type: \"BOOLEAN\", propertyName: \"Icon\", defaultValue: false }]\nWithout the reference, a BOOLEAN property is orphaned — it shows in instance panels but flipping it has no effect. figcraft emits a warning when this happens."),
+      properties: z.array(z.unknown()).optional().describe("Non-text component properties: [{propertyName, type:'BOOLEAN'|'INSTANCE_SWAP'|'SLOT', defaultValue}]. TEXT properties are created automatically from children with componentPropertyName.\nNOTE on BOOLEAN: `defaultValue` sets the instance-level initial value when consumers drop a new instance. It ONLY affects the design when combined with `componentPropertyReferences: { visible: \"<propertyName>\" }` on a child (see `children` param). An unbound BOOLEAN property is orphaned — figcraft warns about it and the toggle has no runtime effect."),
       items: z.array(z.unknown()).optional().describe("Batch mode: array of create_component param objects. When provided, creates multiple components in one call. Each item accepts the same params as create_component (name, fill, fillVariableName, children, etc.). Per-item errors do not block others. Max 20 components per batch. Returns {created, total, items: [{id, name, ok, error?}]}."),
       dryRun: z.boolean().optional().describe("When true, validates params without creating. Returns inferences and correctedPayload."),
     },

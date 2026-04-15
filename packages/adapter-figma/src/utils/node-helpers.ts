@@ -257,6 +257,12 @@ export interface TokenBindingFailure {
 
 export interface ApplyFillResult {
   autoBound: string | null;
+  /**
+   * P0-B: when autoBound was resolved via NAME (not ID), the resolved variable's
+   * Figma ID so the caller can emit a "next time use fillVariableId:<id>" typed
+   * hint. Undefined when binding was by ID, via style, or failed.
+   */
+  autoBoundId?: string;
   /** Hint for agent self-correction when no exact match found */
   colorHint?: string;
   /** Structured failure info when token binding fails */
@@ -266,6 +272,8 @@ export interface ApplyFillResult {
 /** Stroke application result — mirrors ApplyFillResult for consistency. */
 export interface ApplyStrokeResult {
   autoBound: string | null;
+  /** Same semantics as ApplyFillResult.autoBoundId — set only on name-path success. */
+  autoBoundId?: string;
   colorHint?: string;
   bindingFailure?: TokenBindingFailure;
 }
@@ -381,6 +389,75 @@ async function withDidYouMean(hint: string, requestedName: string, type: 'COLOR'
   return `${hint} Did you mean: ${suggestions.map((n) => `"${n}"`).join(', ')}?`;
 }
 
+// ─── Sentinel: visual marker for text-role token binding failures ───
+//
+// When a text-role fill fails to resolve a variable/style, Figma's default
+// text fill is SOLID BLACK (rgb 0,0,0). On a dark button background that
+// looks identical to an intentional hardcoded color and the failure is
+// invisible in screenshots. The harness rule (token-binding-failures.ts)
+// surfaces failures as `_nextSteps`, but agents that skip `export_image`
+// and rely on visual confirmation miss the problem entirely.
+//
+// Fix: on text-role failure, write a hot-magenta fill + tag the node with
+// plugin data. The color is loud enough to spot in any screenshot; the tag
+// lets `lint_fix_all` / `audit_node` machine-detect the unresolved binding.
+//
+// Scoped to text roles only — frame/border failures keep Figma defaults to
+// avoid false positives on intentional no-fill or transparent surfaces.
+// `#FF00D4` (slightly off pure #FF00FF) reduces collision risk with
+// intentional magenta designs.
+export const SENTINEL_TEXT_FAIL_FILL: SolidPaint = {
+  type: 'SOLID',
+  color: { r: 1, g: 0, b: 0.831 },
+};
+export const SENTINEL_PLUGIN_KEY = 'figcraft:sentinel';
+export const SENTINEL_PLUGIN_VALUE = 'token-binding-failure';
+const SENTINEL_TEXT_ROLES = new Set(['textColor', 'headingColor', 'textSecondary']);
+const SENTINEL_HINT_PREFIX = '⚠️ Sentinel magenta applied (token binding failed, text left visually obvious) — ';
+
+/**
+ * Write sentinel magenta fill + plugin data tag on text-role failure returns.
+ * Returns true if the sentinel was applied so the caller can prepend the hint.
+ *
+ * Exported for unit-test access; use `withSentinel` in production code paths.
+ */
+export function writeSentinelIfText(node: SceneNode & MinimalFillsMixin, role: string): boolean {
+  if (!SENTINEL_TEXT_ROLES.has(role)) return false;
+  try {
+    node.fills = [SENTINEL_TEXT_FAIL_FILL];
+    if ('setPluginData' in node) {
+      (node as unknown as { setPluginData: (k: string, v: string) => void }).setPluginData(
+        SENTINEL_PLUGIN_KEY,
+        SENTINEL_PLUGIN_VALUE,
+      );
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Wrap an ApplyFillResult failure return with the text sentinel. No-op when:
+ * - autoBound !== null (success path)
+ * - role is not a text role (frame/border failures stay silent per design)
+ * - bindingFailure is absent (non-token input error — leave untouched)
+ *
+ * Exported for unit-test access.
+ */
+export function withSentinel(
+  result: ApplyFillResult,
+  node: SceneNode & MinimalFillsMixin,
+  role: string,
+): ApplyFillResult {
+  if (result.autoBound !== null) return result;
+  if (!result.bindingFailure) return result;
+  const applied = writeSentinelIfText(node, role);
+  if (!applied) return result;
+  const base = result.colorHint ?? `Binding failed for "${result.bindingFailure.requested}".`;
+  return { ...result, colorHint: SENTINEL_HINT_PREFIX + base };
+}
+
 /**
  * Apply a fill to a node: hex color → solid paint, then try to match a Paint Style.
  * If no fill is specified and library mode is active, auto-bind the default color variable.
@@ -438,11 +515,15 @@ export async function applyFill(
         `⛔ Variable "${raw.name}" (ID ${fill._variableId}) is a ${raw.resolvedType} variable, not a COLOR. ` +
         `${raw.resolvedType === 'FLOAT' ? 'Pass it to numeric fields (cornerRadius, itemSpacing, padding*) via their *VariableId params, not fill.' : ''}` +
         `Use a COLOR variable ID for fill. Run variables_ep(method:"list", type:"COLOR") to see available color variables.`;
-      return {
-        autoBound: null,
-        colorHint,
-        bindingFailure: { requested: fill._variableId, type: 'variable', action: 'skipped' },
-      };
+      return withSentinel(
+        {
+          autoBound: null,
+          colorHint,
+          bindingFailure: { requested: fill._variableId, type: 'variable', action: 'skipped' },
+        },
+        node,
+        role,
+      );
     }
     // Not found at all — list a few local COLOR candidates so the agent has
     // concrete next-step options instead of a dead-end "not found" message.
@@ -463,11 +544,15 @@ export async function applyFill(
       `⛔ Variable ID "${fill._variableId}" not found. ` +
       `Possible causes: (a) ID typo, (b) variable from an unsubscribed library, (c) ID refers to a deleted variable.${candidates} ` +
       `Run variables_ep(method:"list", type:"COLOR") to enumerate all COLOR variables, or pass fillVariableName:"<name>" to look up by name.`;
-    return {
-      autoBound: null,
-      colorHint,
-      bindingFailure: { requested: fill._variableId, type: 'variable', action: 'skipped' },
-    };
+    return withSentinel(
+      {
+        autoBound: null,
+        colorHint,
+        bindingFailure: { requested: fill._variableId, type: 'variable', action: 'skipped' },
+      },
+      node,
+      role,
+    );
   }
 
   // Handle { _variable: "name" } — variable binding with 3-level resolution
@@ -478,6 +563,9 @@ export async function applyFill(
       textColor: ['ALL_FILLS', 'TEXT_FILL'],
       border: ['STROKE_COLOR', 'ALL_SCOPES'],
     };
+    // P0-B: track resolved variable ID on name-path success so the caller can emit
+    // a "next time use fillVariableId" typed hint.
+    let autoBoundId: string | undefined;
     try {
       const variable = await findColorVariableByName(fill._variable, ROLE_SCOPE_HINTS[role], library);
       if (variable) {
@@ -488,6 +576,7 @@ export async function applyFill(
           fills[0] = figma.variables.setBoundVariableForPaint(fills[0] as SolidPaint, 'color', variable);
           node.fills = fills;
           autoBound = `var:${variable.name}`;
+          autoBoundId = variable.id;
         }
       } else {
         // P0-2 parallel: same diagnostic style as the bare-string fill fall-through
@@ -504,55 +593,79 @@ export async function applyFill(
           `Workaround: pass fill:{_variableId:"VariableID:<id>"} to bind by ID directly, or call search_design_system(query:"${fill._variable}") to discover available variables.`;
         // P2: append did-you-mean suggestions from local COLOR variables.
         colorHint = await withDidYouMean(baseHint, fill._variable, 'COLOR');
-        return {
-          autoBound,
-          colorHint,
-          bindingFailure: { requested: fill._variable, type: 'variable', action: 'skipped' },
-        };
+        return withSentinel(
+          {
+            autoBound,
+            colorHint,
+            bindingFailure: { requested: fill._variable, type: 'variable', action: 'skipped' },
+          },
+          node,
+          role,
+        );
       }
     } catch (err) {
       // 缺陷 P1a: surface semantic errors with precise hints before falling back.
       if (err instanceof ScopeMismatchError) {
-        return {
-          autoBound: null,
-          colorHint: formatScopeMismatchHint(
-            err,
-            fill._variable,
-            role as 'background' | 'textColor' | 'border',
-            ((): string[] => {
-              const hints: Record<string, string[]> = {
-                background: ['ALL_FILLS', 'FRAME_FILL', 'SHAPE_FILL'],
-                textColor: ['ALL_FILLS', 'TEXT_FILL'],
-                border: ['STROKE_COLOR', 'ALL_SCOPES'],
-              };
-              return hints[role] ?? [];
-            })(),
-          ),
-          bindingFailure: { requested: fill._variable, type: 'variable', action: 'scope-mismatch' },
-        };
+        return withSentinel(
+          {
+            autoBound: null,
+            colorHint: formatScopeMismatchHint(
+              err,
+              fill._variable,
+              role as 'background' | 'textColor' | 'border',
+              ((): string[] => {
+                const hints: Record<string, string[]> = {
+                  background: ['ALL_FILLS', 'FRAME_FILL', 'SHAPE_FILL'],
+                  textColor: ['ALL_FILLS', 'TEXT_FILL'],
+                  border: ['STROKE_COLOR', 'ALL_SCOPES'],
+                };
+                return hints[role] ?? [];
+              })(),
+            ),
+            bindingFailure: { requested: fill._variable, type: 'variable', action: 'scope-mismatch' },
+          },
+          node,
+          role,
+        );
       }
       if (err instanceof AmbiguousMatchError) {
-        return {
-          autoBound: null,
-          colorHint: formatAmbiguousMatchHint(err, fill._variable),
-          bindingFailure: { requested: fill._variable, type: 'variable', action: 'ambiguous' },
-        };
+        return withSentinel(
+          {
+            autoBound: null,
+            colorHint: formatAmbiguousMatchHint(err, fill._variable),
+            bindingFailure: { requested: fill._variable, type: 'variable', action: 'ambiguous' },
+          },
+          node,
+          role,
+        );
       }
       if (err instanceof ResolvedTypeMismatchError) {
-        return {
-          autoBound: null,
-          colorHint: formatResolvedTypeMismatchHint(err, fill._variable, role as 'background' | 'textColor' | 'border'),
-          bindingFailure: { requested: fill._variable, type: 'variable', action: 'skipped' },
-        };
+        return withSentinel(
+          {
+            autoBound: null,
+            colorHint: formatResolvedTypeMismatchHint(
+              err,
+              fill._variable,
+              role as 'background' | 'textColor' | 'border',
+            ),
+            bindingFailure: { requested: fill._variable, type: 'variable', action: 'skipped' },
+          },
+          node,
+          role,
+        );
       }
       colorHint = err instanceof Error ? err.message : `Variable "${fill._variable}" lookup failed.`;
-      return {
-        autoBound,
-        colorHint,
-        bindingFailure: { requested: fill._variable, type: 'variable', action: 'skipped' },
-      };
+      return withSentinel(
+        {
+          autoBound,
+          colorHint,
+          bindingFailure: { requested: fill._variable, type: 'variable', action: 'skipped' },
+        },
+        node,
+        role,
+      );
     }
-    return { autoBound, colorHint };
+    return { autoBound, autoBoundId, colorHint };
   }
 
   // Handle { _style: "name" } — direct style binding
@@ -570,7 +683,11 @@ export async function applyFill(
     } else {
       const available = getAvailablePaintStyleNames(10);
       colorHint = `Style "${fill._style}" not found.${available.length > 0 ? ` Available: ${available.join(', ')}` : ''}`;
-      return { autoBound, colorHint, bindingFailure: { requested: fill._style, type: 'style', action: 'skipped' } };
+      return withSentinel(
+        { autoBound, colorHint, bindingFailure: { requested: fill._style, type: 'style', action: 'skipped' } },
+        node,
+        role,
+      );
     }
     return { autoBound, colorHint };
   }
@@ -593,37 +710,51 @@ export async function applyFill(
           if (fills[0]) {
             fills[0] = figma.variables.setBoundVariableForPaint(fills[0] as SolidPaint, 'color', variable);
             node.fills = fills;
-            return { autoBound: `var:${variable.name}` };
+            // P0-B: return the variable ID so the caller can emit a "next time use
+            // fillVariableId" typed hint.
+            return { autoBound: `var:${variable.name}`, autoBoundId: variable.id };
           }
         }
       } catch (err) {
         // Semantic errors from the lookup chain — surface them instead of silently
         // falling through so the agent can self-correct in one round-trip.
         if (err instanceof ScopeMismatchError) {
-          return {
-            autoBound: null,
-            colorHint: formatScopeMismatchHint(
-              err,
-              fill,
-              role as 'background' | 'textColor' | 'border',
-              ROLE_SCOPE_HINTS[role],
-            ),
-            bindingFailure: { requested: fill, type: 'variable', action: 'scope-mismatch' },
-          };
+          return withSentinel(
+            {
+              autoBound: null,
+              colorHint: formatScopeMismatchHint(
+                err,
+                fill,
+                role as 'background' | 'textColor' | 'border',
+                ROLE_SCOPE_HINTS[role],
+              ),
+              bindingFailure: { requested: fill, type: 'variable', action: 'scope-mismatch' },
+            },
+            node,
+            role,
+          );
         }
         if (err instanceof AmbiguousMatchError) {
-          return {
-            autoBound: null,
-            colorHint: formatAmbiguousMatchHint(err, fill),
-            bindingFailure: { requested: fill, type: 'variable', action: 'ambiguous' },
-          };
+          return withSentinel(
+            {
+              autoBound: null,
+              colorHint: formatAmbiguousMatchHint(err, fill),
+              bindingFailure: { requested: fill, type: 'variable', action: 'ambiguous' },
+            },
+            node,
+            role,
+          );
         }
         if (err instanceof ResolvedTypeMismatchError) {
-          return {
-            autoBound: null,
-            colorHint: formatResolvedTypeMismatchHint(err, fill, role as 'background' | 'textColor' | 'border'),
-            bindingFailure: { requested: fill, type: 'variable', action: 'skipped' },
-          };
+          return withSentinel(
+            {
+              autoBound: null,
+              colorHint: formatResolvedTypeMismatchHint(err, fill, role as 'background' | 'textColor' | 'border'),
+              bindingFailure: { requested: fill, type: 'variable', action: 'skipped' },
+            },
+            node,
+            role,
+          );
         }
         /* other variable lookup failure — try style */
       }
@@ -654,7 +785,18 @@ export async function applyFill(
         `Workaround: pass fillVariableId:"VariableID:<id>" to bind by ID directly.`;
       // P2: append did-you-mean suggestions from local COLOR variables.
       colorHint = await withDidYouMean(baseHint, fill, 'COLOR');
-      return { autoBound: null, colorHint };
+      // P0-A: this was the only failure path missing a structured bindingFailure,
+      // so the harness token-binding-failures rule couldn't see it. Add it now so
+      // the rule fires + the sentinel can wrap the return consistently.
+      return withSentinel(
+        {
+          autoBound: null,
+          colorHint,
+          bindingFailure: { requested: fill, type: 'variable', action: 'skipped' },
+        },
+        node,
+        role,
+      );
     }
 
     node.fills = [{ type: 'SOLID', color: hexToFigmaRgb(fill) }];
@@ -798,7 +940,8 @@ export async function applyStroke(
           node.strokes = strokes;
         }
         (node as any).strokeWeight = strokeWeight ?? 1;
-        return { autoBound: `var:${variable.name}` };
+        // P0-B: return ID for "next time use strokeVariableId" hint.
+        return { autoBound: `var:${variable.name}`, autoBoundId: variable.id };
       }
     } catch (err) {
       // Surface semantic lookup errors so AI can self-correct (mirrors applyFill).
@@ -886,7 +1029,8 @@ export async function applyStroke(
             node.strokes = strokes;
           }
           (node as any).strokeWeight = strokeWeight ?? 1;
-          return { autoBound: `var:${variable.name}` };
+          // P0-B: return ID for "next time use strokeVariableId" hint.
+          return { autoBound: `var:${variable.name}`, autoBoundId: variable.id };
         }
       } catch (err) {
         // Surface semantic lookup errors — consistent with applyFill + { _variable } path above.

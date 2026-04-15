@@ -79,7 +79,7 @@ Use `create_frame` with `type:"instance"` in children:
 | Build manually | Import from design system |
 |----------------|--------------------------|
 | Page wrapper frame | **Components**: buttons, cards, inputs, toggles, tabs, etc. |
-| Section container frames | **Variables**: colors (`fillVariableName`), spacing, radii |
+| Section container frames | **Variables**: colors (`fillVariableId` PREFERRED / `fillVariableName`), spacing, radii |
 | Layout structure (rows, columns) | **Text styles**: `textStyleName: "body-md"` |
 | Dividers, spacers | **Effect styles**: `effectStyleName: "elevation-200"` |
 
@@ -99,24 +99,30 @@ Use `create_frame` with `type:"instance"` in children:
 - **`componentSetKey`** — imports a full variant set (use with `variantProperties`)
 - **`componentId`** — references a local component by node ID
 
-### Example: Login Screen
+### Example: Login Screen (ID-first — preferred)
+
+**Before creating**: call `get_design_context` to grab variable IDs from `defaults.*.id` — each subsequent call that uses the ID path skips name resolution entirely.
 
 ```json
+// Assume get_design_context returned:
+//   defaults.surfacePrimary.id = "VariableID:123:45"
+//   defaults.textPrimary.id    = "VariableID:123:67"
+//   defaults.textSecondary.id  = "VariableID:123:68"
 {
   "name": "Screen / Login",
   "width": 402, "height": 874,
   "layoutMode": "VERTICAL",
   "primaryAxisAlignItems": "SPACE_BETWEEN",
   "role": "screen",
-  "fillVariableName": "surface/primary",
+  "fillVariableId": "VariableID:123:45",
   "children": [
     {
       "type": "frame", "name": "Top Content",
       "layoutMode": "VERTICAL", "itemSpacing": 32,
       "padding": 24, "paddingTop": 80,
       "children": [
-        { "type": "text", "content": "Welcome back", "textStyleName": "display-md", "fontColorVariableName": "text/primary" },
-        { "type": "text", "content": "Sign in to your account", "textStyleName": "body-md", "fontColorVariableName": "text/secondary" },
+        { "type": "text", "content": "Welcome back", "textStyleName": "display-md", "fontColorVariableId": "VariableID:123:67" },
+        { "type": "text", "content": "Sign in to your account", "textStyleName": "body-md", "fontColorVariableId": "VariableID:123:68" },
         {
           "type": "instance", "componentKey": "INPUT_KEY",
           "properties": { "Placeholder": "your@email.com", "Size": "lg" }
@@ -159,7 +165,7 @@ All 4 tools below are core — no `load_toolset` needed.
 
 ```
 1. create_section(name:"Button") → organize components (auto-positions below existing content)
-2. create_component → one base variant (library mode: use fillVariableName/fontColorVariableName)
+2. create_component → one base variant (library mode: prefer fillVariableId/fontColorVariableId from get_design_context; fall back to *Name only when ID unavailable)
 3. nodes(method:"clone", items:[...]) → clone base for each variant
 4. nodes(method:"update", items:[...]) → rename variants (e.g. "Size=Small, Style=Primary")
 5. create_component_set → combine + auto-layout + auto-position (all automatic)
@@ -167,9 +173,60 @@ All 4 tools below are core — no `load_toolset` needed.
 
 For component property management (add_component_property, bind_component_property), `load_toolset("components-advanced")`.
 
+### Example: Button with icon toggle (inline BOOLEAN auto-wire)
+
+This is the canonical shape for a Button that has a toggleable leading/trailing icon. BOOLEAN visibility binding happens **inline in create_component** — declare the property in `properties[]` AND reference it from the child via `componentPropertyReferences`. figcraft wires `target.componentPropertyReferences.visible = propKey` automatically + syncs the main-component node's `visible` state with `defaultValue`.
+
+```json
+create_component({
+  name: "Button / Primary / Default",
+  role: "button",
+  layoutMode: "HORIZONTAL",
+  primaryAxisAlignItems: "CENTER",
+  counterAxisAlignItems: "CENTER",
+  padding: 12, paddingLeft: 16, paddingRight: 16,
+  itemSpacing: 8,
+  cornerRadius: 8,
+  fillVariableId: "VariableID:123:45",
+  children: [
+    {
+      type: "text",
+      name: "Label",
+      content: "Click me",
+      componentPropertyName: "Label",
+      textStyleName: "body-md",
+      fontColorVariableId: "VariableID:123:67"
+    },
+    {
+      type: "icon",
+      name: "Icon",
+      icon: "lucide:arrow-right",
+      size: 16,
+      colorVariableName: "text/primary",
+      componentPropertyReferences: { visible: "Icon" }
+    }
+  ],
+  properties: [
+    { type: "BOOLEAN", propertyName: "Icon", defaultValue: false }
+  ]
+})
+```
+
+**What this does:**
+- `Label` TEXT property auto-wires to the text child's `characters` (via `componentPropertyName`)
+- `Icon` BOOLEAN property auto-wires to the icon child's `visible` (via `componentPropertyReferences.visible`)
+- Main component shows the icon as hidden (`defaultValue: false` → `target.visible = false`)
+- Instances default to "Icon = off" and flipping the toggle in the instance panel works immediately
+
+**Common mistakes figcraft now warns about:**
+- Declaring a BOOLEAN property without referencing it from any child → orphaned property, toggle has no effect
+- Referencing a BOOLEAN property from a child without declaring it in `properties[]` → reference dropped silently by Figma
+- Declaring `componentPropertyReferences` on a child without a `name` field → target cannot be located post-creation
+
 ### Key Rules
 
-- **Token binding (library mode)**: Use `fillVariableName` for background, `fontColorVariableName` on text children for text color. Do NOT hardcode `fill:"#FFFFFF"` for text on colored backgrounds — use `fontColorVariableName:"text/primary-inverse"` or omit fill to let auto-binding resolve.
+- **Token binding (library mode, ID-first)**: Prefer `fillVariableId` / `fontColorVariableId` from `get_design_context.defaults.*.id` — zero name resolution, zero fragility. Fall back to `fillVariableName` / `fontColorVariableName` only when the ID is not available. When you bind by name, figcraft returns a `"next time use fontColorVariableId"` typed hint with the resolved ID — use it on subsequent calls. Do NOT hardcode `fill:"#FFFFFF"` for text on colored backgrounds — text binding failures now write a magenta sentinel fill so silent black-on-black bugs are visually obvious, but the correct fix is still to bind a text token.
+- **BOOLEAN visibility properties**: always declare BOTH `properties:[{type:"BOOLEAN", ...}]` AND the matching `componentPropertyReferences:{visible:"PropName"}` on the child whose visibility you want to control. The child MUST have a `name` field. figcraft auto-wires + syncs node visibility with defaultValue.
 - **Variant naming**: Each component must follow `Property=Value, Property=Value` format (e.g., `"Size=Small, Style=Primary, State=Default"`).
 - **Variant cap**: `create_component_set` enforces a soft 30-variant cap. Pass `variantLimit:0` to disable for legitimate large matrices. Consider extracting high-cardinality axes (icons, colors) into `INSTANCE_SWAP` properties instead.
 - For full component library builds (multiple components + variables + theming), switch to [figcraft-generate-library](../figcraft-generate-library/SKILL.md).
@@ -194,7 +251,7 @@ For full design system builds (10+ components + variables + theming), switch to 
 1. **layoutMode inference** — auto-set to VERTICAL when padding/spacing/alignment/children are present
 2. **Sizing defaults** — cross-axis FILL, primary-axis HUG inside auto-layout parents
 3. **FILL ordering** — internally sets FILL after appendChild (avoids Figma API error)
-4. **Token auto-binding** — `fillVariableName`/`strokeVariableName` matched to library variables
+4. **Token auto-binding** — `fillVariableId`/`strokeVariableId` (PREFERRED, from `get_design_context`) or `fillVariableName`/`strokeVariableName` (fallback) matched to library variables
 5. **Conflict detection** — rejects contradictory params (e.g., FILL + explicit width)
 6. **Per-child error cleanup** — failed child creation auto-removes orphan nodes
 

@@ -166,6 +166,12 @@ interface CreateContext {
   tokenBindingFailures: TokenBindingFailure[];
   /** Typed hints emitted directly (bypassing StructuredHint conversion). */
   typedHints: Hint[];
+  /**
+   * P0-B: dedupe tracker for "next time use ID" teaching hints. Keyed by
+   * `${field}|${variableId}` so a batch that resolves the same variable across
+   * many nodes emits only one hint per field+ID combination.
+   */
+  idHintsSeen: Set<string>;
   /** Detected target platform for font resolution. */
   platform: Platform;
 }
@@ -182,8 +188,36 @@ async function initCreateContext(): Promise<CreateContext> {
     warnings: [],
     tokenBindingFailures: [],
     typedHints: [],
+    idHintsSeen: new Set(),
     platform: 'unknown',
   };
+}
+
+/**
+ * P0-B: when a fill/stroke/text-color binding was resolved via NAME (autoBoundId
+ * is set), emit a typed hint teaching the agent to pass the variable ID next
+ * time for zero-lookup binding. Deduped via ctx.idHintsSeen so batches don't
+ * flood the response with identical hints.
+ *
+ * No-op when:
+ * - autoBoundId is undefined (ID path, style path, or failure)
+ * - autoBound is null (binding failed — different signal path)
+ * - a hint for this (field, ID) pair was already emitted this call
+ */
+function teachIdForNextTime(
+  ctx: CreateContext,
+  result: { autoBound: string | null; autoBoundId?: string },
+  field: 'fillVariableId' | 'strokeVariableId' | 'fontColorVariableId',
+): void {
+  if (!result.autoBound || !result.autoBoundId) return;
+  const dedupKey = `${field}|${result.autoBoundId}`;
+  if (ctx.idHintsSeen.has(dedupKey)) return;
+  ctx.idHintsSeen.add(dedupKey);
+  const name = result.autoBound.replace(/^var:/, '');
+  ctx.typedHints.push({
+    type: 'suggest',
+    message: `Resolved '${name}' → ${result.autoBoundId}. Next time pass ${field}: '${result.autoBoundId}' for zero-lookup binding (no name resolution, no fragility).`,
+  });
 }
 
 // ─── Alias normalization: fillVariableName/fillStyleName → fill ───
@@ -941,6 +975,7 @@ async function setupFrame(
       stylesPreloaded: true,
     });
     if (fillResult.autoBound) ctx.libraryBindings.push(fillResult.autoBound);
+    teachIdForNextTime(ctx, fillResult, 'fillVariableId');
     if (fillResult.colorHint) ctx.warnings.push(fillResult.colorHint);
     if (fillResult.bindingFailure) ctx.tokenBindingFailures.push(fillResult.bindingFailure);
     // When not in library mode but fill is a hex color, try matching local variables/styles
@@ -961,6 +996,7 @@ async function setupFrame(
         stylesPreloaded: true,
       });
       if (fillResult.autoBound) ctx.libraryBindings.push(fillResult.autoBound);
+      teachIdForNextTime(ctx, fillResult, 'fillVariableId');
       if (fillResult.colorHint) ctx.warnings.push(fillResult.colorHint);
       if (fillResult.bindingFailure) ctx.tokenBindingFailures.push(fillResult.bindingFailure);
     } else if (isPresentation) {
@@ -1023,6 +1059,7 @@ async function setupFrame(
   if (p.strokeColor != null) {
     const sr = await applyStroke(frame, p.strokeColor as any, (p.strokeWeight as number) ?? 1, ctx.useLib, ctx.library);
     if (sr.autoBound) ctx.libraryBindings.push(sr.autoBound);
+    teachIdForNextTime(ctx, sr, 'strokeVariableId');
     if (sr.colorHint) ctx.warnings.push(sr.colorHint);
     if (sr.bindingFailure) ctx.tokenBindingFailures.push(sr.bindingFailure);
   } else {
@@ -1353,6 +1390,7 @@ async function setupText(text: TextNode, p: Record<string, unknown>, ctx: Create
       stylesPreloaded: true,
     });
     if (fillResult.autoBound) ctx.libraryBindings.push(fillResult.autoBound);
+    teachIdForNextTime(ctx, fillResult, 'fontColorVariableId');
     if (fillResult.colorHint) ctx.warnings.push(fillResult.colorHint);
     if (fillResult.bindingFailure) ctx.tokenBindingFailures.push(fillResult.bindingFailure);
     // When not in library mode but fill is a hex color, try matching local variables/styles
@@ -1371,6 +1409,7 @@ async function setupText(text: TextNode, p: Record<string, unknown>, ctx: Create
       stylesPreloaded: true,
     });
     if (fillResult.autoBound) ctx.libraryBindings.push(fillResult.autoBound);
+    teachIdForNextTime(ctx, fillResult, 'fontColorVariableId');
     if (fillResult.colorHint) ctx.warnings.push(fillResult.colorHint);
     if (fillResult.bindingFailure) ctx.tokenBindingFailures.push(fillResult.bindingFailure);
   }
@@ -1545,16 +1584,28 @@ async function createShapeChild(
   (node as any).name = (child.name as string) ?? defaultName;
   (node as any).resize((child.width as number) ?? 100, (child.height as number) ?? 100);
 
-  const fillInput = child.fillVariableName
-    ? { _variable: child.fillVariableName }
-    : child.fillStyleName
-      ? { _style: child.fillStyleName }
-      : child.fill;
+  // P0-B: rectangle/ellipse inline children now support fillVariableId (ID-first).
+  const fillInput = child.fillVariableId
+    ? { _variableId: child.fillVariableId }
+    : child.fillVariableName
+      ? { _variable: child.fillVariableName }
+      : child.fillStyleName
+        ? { _style: child.fillStyleName }
+        : child.fill;
   if (fillInput != null) {
     const fr = await applyFill(node as any, fillInput as any, 'background', ctx.useLib, ctx.library);
     if (fr.autoBound) ctx.libraryBindings.push(fr.autoBound);
+    teachIdForNextTime(ctx, fr, 'fillVariableId');
+    // P0-B consistency fix: previously this branch dropped colorHint / bindingFailure,
+    // so rectangle/ellipse child fill failures were invisible to the harness rule.
+    if (fr.colorHint) ctx.warnings.push(fr.colorHint);
+    if (fr.bindingFailure) ctx.tokenBindingFailures.push(fr.bindingFailure);
   }
-  const strokeInput = child.strokeVariableName ? { _variable: child.strokeVariableName } : child.strokeColor;
+  const strokeInput = child.strokeVariableId
+    ? { _variableId: child.strokeVariableId }
+    : child.strokeVariableName
+      ? { _variable: child.strokeVariableName }
+      : child.strokeColor;
   if (strokeInput != null) {
     const sr = await applyStroke(
       node as any,
@@ -1564,6 +1615,7 @@ async function createShapeChild(
       ctx.library,
     );
     if (sr.autoBound) ctx.libraryBindings.push(sr.autoBound);
+    teachIdForNextTime(ctx, sr, 'strokeVariableId');
     if (sr.colorHint) ctx.warnings.push(sr.colorHint);
     if (sr.bindingFailure) ctx.tokenBindingFailures.push(sr.bindingFailure);
   }

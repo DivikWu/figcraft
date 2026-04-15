@@ -111,15 +111,22 @@ Follow the creation workflow from [figma-create-ui](../figma-create-ui/SKILL.md)
 
 1. **Create wrapper frame** with `role: "screen"`, fixed size, vertical auto-layout
 2. **Build each section** using `create_frame` with `children` — one call per section
-3. **Use design system assets** discovered in Step 2:
-   - `fillVariableName` / `strokeVariableName` for colors
+3. **Use design system assets** discovered in Step 2 — **ID-first is preferred**:
+   - **`fillVariableId` / `strokeVariableId` / `fontColorVariableId`** for colors (PREFERRED — zero name resolution, from `get_design_context` `defaults.*.id` or `search_design_system` result IDs)
+   - `fillVariableName` / `fontColorVariableName` as fallback when ID not available
    - `textStyleName` for typography
    - `effectStyleName` for shadows
    - `type: "instance"` with `componentSetKey` + `variantProperties` for components
 
-**Example: Hero section using discovered assets**
+**Why ID-first**: Name lookup is fragile across libraries (unpublished variables, unsubscribed collections, separator variants). Passing the variable ID directly from `get_design_context.defaults.surfacePrimary.id` bypasses all name resolution and never fails silently. If you resolve a variable by name on one call, figcraft returns a `"next time use fillVariableId"` hint with the ID — use it.
+
+**Example: Hero section using discovered assets (ID-first)**
 
 ```json
+// Assume get_design_context returned:
+//   defaults.surfacePrimary.id = "VariableID:123:45"
+//   defaults.textPrimary.id    = "VariableID:123:67"
+
 create_frame({
   name: "Hero Section",
   parentId: "<wrapper-id>",
@@ -129,13 +136,13 @@ create_frame({
   itemSpacing: 24,
   primaryAxisAlignItems: "CENTER",
   counterAxisAlignItems: "CENTER",
-  fillVariableName: "surface/primary",
+  fillVariableId: "VariableID:123:45",
   children: [
     {
       type: "text",
       content: "Build something amazing",
       textStyleName: "Heading/H1",
-      fontColorVariableName: "text/primary",
+      fontColorVariableId: "VariableID:123:67",
       textAlignHorizontal: "CENTER"
     },
     {
@@ -189,7 +196,7 @@ When updating rather than creating from scratch:
 | Build manually | Import from design system |
 |----------------|--------------------------|
 | Page wrapper frame | **Components** via `type: "instance"` |
-| Section container frames | **Variables** via `fillVariableName`, etc. |
+| Section container frames | **Variables** via `fillVariableId` (preferred) / `fillVariableName` |
 | Layout grids (rows, columns) | **Text styles** via `textStyleName` |
 | Decorative elements | **Effect styles** via `effectStyleName` |
 

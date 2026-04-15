@@ -844,8 +844,10 @@ create_frame:
   #   session=[design-decisions, record-creation-debt]
   description: >-
     Create a frame node with optional auto-layout, fills, stroke, corner radius, and parent.
-    Supports token auto-binding (fillVariableName, strokeVariableName), smart defaults,
-    and inline children for building entire node trees in one call.
+    Supports token auto-binding (fillVariableId — PREFERRED, fillVariableName, strokeVariableId,
+    strokeVariableName), smart defaults, and inline children for building entire node trees in one call.
+    ID-first path: pass fillVariableId/strokeVariableId from get_design_context defaults.*.id —
+    zero name resolution, zero fragility.
 
     Opinion Engine (automatic inferences — no manual handling needed):
     1. layoutMode → auto-inferred as VERTICAL when padding/spacing/alignment/children present
@@ -854,7 +856,7 @@ create_frame:
     4. Parent promotion → when children declare FILL/HUG but parent has no layoutMode, auto-promotes to VERTICAL
     5. Cross-level FILL→HUG downgrade → when parent HUGs on cross-axis, child FILL is downgraded to HUG (prevents 0-collapse)
     6. FILL+width conflict detection → rejects contradictory params (e.g. FILL + explicit width)
-    7. Token auto-binding → fillVariableName/strokeVariableName matched to library variables/styles
+    7. Token auto-binding → fillVariableId (zero lookup) > fillVariableName (name lookup) > fill (hex fallback)
     8. Font preloading → all text fonts collected and loaded in parallel before creation
     9. Per-child error cleanup → failed child creation auto-removes orphan nodes
     10. Auto-focus → viewport scrolls to created node; use export_image for visual verification
@@ -885,13 +887,22 @@ create_frame:
     height:
       type: number
       description: "Height in px (omit to shrink-to-content via HUG when auto-layout)"
-    # ── Fill (5 formats: hex, variableName, styleName, Paint[], or omit for transparent) ──
+    # ── Fill (6 formats: hex, variableId, variableName, styleName, Paint[], or omit for transparent) ──
     fill:
       type: string
       description: "Fill color as hex (e.g. '#FFFFFF') or variable/style name — auto-binds to matching token"
+    fillVariableId:
+      type: string
+      description: >-
+        PREFERRED — bind fill to a variable by ID (e.g. "VariableID:123:456" from
+        get_design_context defaults.*.id). Zero name resolution, zero fragility. Use
+        this whenever you have the ID from a prior get_design_context call.
     fillVariableName:
       type: string
-      description: "Bind fill to a color variable by name (e.g. 'bg/primary')"
+      description: >-
+        Bind fill to a color variable by name (e.g. 'bg/primary'). FALLBACK — use
+        fillVariableId instead when you have the ID. Name lookup tolerates case and
+        separator variants (/, ., -, _) but is still fragile across libraries.
     fillStyleName:
       type: string
       description: "Apply paint style by name (e.g. 'Surface/Primary')"
@@ -904,9 +915,16 @@ create_frame:
     strokeColor:
       type: string
       description: "Stroke color hex — auto-binds to matching variable/style"
+    strokeVariableId:
+      type: string
+      description: >-
+        PREFERRED — bind stroke to a variable by ID. Zero name resolution, zero fragility.
+        Use this whenever you have the ID from a prior get_design_context call.
     strokeVariableName:
       type: string
-      description: "Bind stroke to a color variable by name"
+      description: >-
+        Bind stroke to a color variable by name. FALLBACK — use strokeVariableId when
+        the ID is available.
     strokeWeight:
       type: number
       description: "Stroke thickness (default: 1 when stroke specified)"
@@ -1069,10 +1087,12 @@ create_frame:
             description: "Child node type"
       description: >-
         Inline child nodes to create recursively. Each item: {type:'frame'|'text'|'rectangle'|'ellipse'|'instance'|'svg'|'star'|'polygon'|'icon', ...params, children?}.
-        Frame children accept all create_frame params. Text children accept all create_text params (incl. textCase, textDecoration).
-        ⛔ Library mode: text children should use fontColorVariableName (e.g. 'text/primary-inverse')
-        instead of fill:'#hex'. Omitting fill triggers auto-binding to library text color tokens.
-        Rectangle/ellipse children accept: name, width, height, fill, fillVariableName, fillStyleName, strokeColor, strokeVariableName, strokeWeight, cornerRadius (rect only), opacity, rotation.
+        Frame children accept all create_frame params (incl. fillVariableId/strokeVariableId — PREFERRED over *Name).
+        Text children accept all create_text params (incl. fontColorVariableId — PREFERRED, fontColorVariableName, textCase, textDecoration).
+        ⛔ Library mode: text children should use fontColorVariableId (from get_design_context defaults.*.id) or
+        fontColorVariableName (e.g. 'text/primary-inverse') instead of fill:'#hex'. Omitting fill triggers auto-binding
+        to library text color tokens.
+        Rectangle/ellipse children accept: name, width, height, fill, fillVariableId (preferred), fillVariableName, fillStyleName, strokeColor, strokeVariableId (preferred), strokeVariableName, strokeWeight, cornerRadius (rect only), opacity, rotation.
         Instance children accept: componentId (local node ID), componentKey (library component key), or componentSetKey (library component set key) — at least one required. Also: name, width, height, variantProperties, properties, layoutSizingHorizontal/Vertical. For library components, prefer componentKey or componentSetKey over componentId.
         SVG children accept: svg (required), name, width, height.
         Icon children accept: icon (required, "prefix:name" e.g. "lucide:home"), size (default: 24), fill (hex color), colorVariableName, name.
@@ -1157,8 +1177,10 @@ create_text:
   # harness: guards=[design-preflight] recovery=[connection-lost]
   description: >-
     Create a text node with specified content, font, size, and color.
-    Supports token auto-binding (fontColorVariableName, textStyleName), smart defaults
-    (auto FILL width + HEIGHT resize inside vertical auto-layout), and font fallback chain.
+    Supports token auto-binding (fontColorVariableId — PREFERRED, fontColorVariableName, textStyleName),
+    smart defaults (auto FILL width + HEIGHT resize inside vertical auto-layout), and font fallback chain.
+    ID-first path: pass fontColorVariableId from get_design_context defaults.*.id — zero name resolution,
+    zero fragility. Use fontColorVariableName only when the ID is not available.
   toolset: core
   write: true
   access: create
@@ -1191,13 +1213,22 @@ create_text:
     fontWeight:
       type: number
       description: "100-900 (default: 400). Ignored when fontStyle is set."
-    # ── Color (5 formats: hex, variableName, styleName, or omit for default) ──
+    # ── Color (6 formats: hex, variableId, variableName, styleName, or omit for default) ──
     fill:
       type: string
       description: "Text color as hex (e.g. '#000000') or variable/style name — auto-binds"
+    fontColorVariableId:
+      type: string
+      description: >-
+        PREFERRED — bind text color to a variable by ID (e.g. "VariableID:123:456" from
+        get_design_context defaults.textPrimary.id). Zero name resolution, zero fragility.
+        Use this whenever you have the ID from a prior get_design_context call.
     fontColorVariableName:
       type: string
-      description: "Bind text color to a variable by name (e.g. 'text/primary')"
+      description: >-
+        Bind text color to a variable by name (e.g. 'text/primary'). FALLBACK — use
+        fontColorVariableId instead when you have the ID. Name lookup tolerates case
+        and separator variants (/, ., -, _) but is still fragile across libraries.
     fontColorStyleName:
       type: string
       description: "Apply paint style for text color"
@@ -2832,16 +2863,36 @@ create_component:
             values: [frame, text, rectangle, ellipse, instance, svg, icon]
             description: "Child node type"
       description: >-
-        Inline child nodes [{type, ...params, componentPropertyName?}].
+        Inline child nodes [{type, ...params, componentPropertyName?, componentPropertyReferences?}].
         Text children with componentPropertyName auto-create TEXT component properties.
         Text children also accept textStyleName, fontColorVariableId (preferred), fontColorVariableName.
         Icon children accept colorVariableName for icon color binding.
+
+        P2 — BOOLEAN visibility binding: any child may declare
+        `componentPropertyReferences: { visible: "<BooleanPropName>" }` to bind
+        its visibility to a BOOLEAN property declared in `properties[]`. The
+        child MUST have a `name` field so the target can be located in the
+        component tree. The main-component node's visible state is synced to
+        the property's defaultValue automatically (variants can override).
+        Example:
+          children: [{ type: "icon", name: "Icon", icon: "lucide:arrow-right",
+                       componentPropertyReferences: { visible: "Icon" } }]
+          properties: [{ type: "BOOLEAN", propertyName: "Icon", defaultValue: false }]
+        Without the reference, a BOOLEAN property is orphaned — it shows in
+        instance panels but flipping it has no effect. figcraft emits a
+        warning when this happens.
     # ── Component properties ──
     properties:
       type: array
       description: >-
         Non-text component properties: [{propertyName, type:'BOOLEAN'|'INSTANCE_SWAP'|'SLOT', defaultValue}].
         TEXT properties are created automatically from children with componentPropertyName.
+
+        NOTE on BOOLEAN: `defaultValue` sets the instance-level initial value when
+        consumers drop a new instance. It ONLY affects the design when combined with
+        `componentPropertyReferences: { visible: "<propertyName>" }` on a child (see
+        `children` param). An unbound BOOLEAN property is orphaned — figcraft warns
+        about it and the toggle has no runtime effect.
     # ── Batch mode ──
     items:
       type: array
