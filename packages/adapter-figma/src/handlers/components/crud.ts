@@ -82,6 +82,7 @@ async function createSingleComponent(
   stripPublishableMetadata(frameParams);
   delete frameParams.properties;
   delete frameParams.items; // never pass batch param to create_frame
+  delete frameParams.contentWrapper; // component-only param, not for create_frame
 
   // Step 1: Create frame via create_frame handler (gets Opinion Engine for free)
   let frameResult: Record<string, unknown>;
@@ -110,6 +111,38 @@ async function createSingleComponent(
     frameNode && frameNode.type === 'FRAME',
     `Frame creation failed: node ${frameResult.id} not found or not a FRAME`,
   );
+
+  // ── Content wrapper: wrap children in a transparent "Content" frame ──
+  if (itemParams.contentWrapper && (frameNode as FrameNode).children.length >= 2) {
+    try {
+      const frame = frameNode as FrameNode;
+      const wrapper = figma.createFrame();
+      wrapper.name = 'Content';
+      wrapper.fills = [];
+      if (frame.layoutMode !== 'NONE') {
+        wrapper.layoutMode = frame.layoutMode;
+        wrapper.primaryAxisAlignItems = frame.primaryAxisAlignItems;
+        wrapper.counterAxisAlignItems = frame.counterAxisAlignItems;
+        wrapper.itemSpacing = frame.itemSpacing;
+        if (frame.layoutWrap === 'WRAP') {
+          wrapper.layoutWrap = 'WRAP';
+          wrapper.counterAxisSpacing = frame.counterAxisSpacing;
+        }
+      }
+      const children = [...frame.children];
+      frame.appendChild(wrapper);
+      for (const child of children) {
+        wrapper.appendChild(child);
+      }
+      if (frame.layoutMode !== 'NONE') {
+        wrapper.layoutSizingHorizontal = 'FILL';
+        wrapper.layoutSizingVertical = 'HUG';
+        frame.itemSpacing = 0;
+      }
+    } catch {
+      /* contentWrapper restructure failure should not block component creation */
+    }
+  }
 
   // ── Diagnostic: capture frame state BEFORE createComponentFromNode (P0-1 / P1-1) ──
   // Temporary probe to nail the real root cause during verification. Remove once

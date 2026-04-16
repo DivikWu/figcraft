@@ -2783,6 +2783,12 @@ create_component:
     role:
       type: string
       description: "Semantic role (e.g. 'button', 'input', 'card'). Stored as plugin data for lint identification."
+    contentWrapper:
+      type: boolean
+      description: >-
+        Wrap inline children in a transparent "Content" frame (default: false).
+        The Content frame inherits layoutMode, alignment, and itemSpacing from the component.
+        Use for components with structural variants (e.g. loading state replaces children).
     width:
       type: number
       description: "Width in px (omit for HUG)"
