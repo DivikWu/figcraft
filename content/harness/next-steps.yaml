@@ -69,9 +69,49 @@
       DO NOT call icon_create then nodes.update to splice the icon in — that's 2 extra calls
       plus manual parenting. If an icon child fails, the response's _warnings array reports
       which icon and why; the SVG placeholder keeps creation from breaking.
+      NOTE: colorVariableName only works for FILL-based icons. For stroke-based icons
+      (lucide, tabler, etc.), colorVariableName is silently skipped due to scope mismatch —
+      use post-creation bind_component_property with nodeProperty:"iconColor" instead
+      (see the ⛔ ICON COLOR BINDING step in this list).
     - >-
       For post-creation variable binding (e.g. binding existing node fills to variables by ID),
       call variables_ep(method:"batch_bind") — NOT nodes(method:"update", patches:[{props:{fillVariableId:...}}]).
       patch_nodes only accepts raw Figma props (fills, strokes arrays, etc.); variable binding
       goes through variables_ep. This is now surfaced as a self-correcting error if you try
       the wrong path.
+    - >-
+      ⛔ ICON COLOR BINDING — `colorVariableName` on icon children is SILENTLY SKIPPED when
+      the variable's scopes don't include STROKE_COLOR (most text/* variables only have
+      TEXT_FILL/SHAPE_FILL). Stroke-based icons (lucide, tabler, etc.) need stroke binding,
+      not fill binding. The ONLY reliable path for icon color is POST-CREATION binding via
+      bind_component_property with nodeProperty:"iconColor" — this walks Vector descendants
+      and rebinds fills AND strokes regardless of scope. You MUST call this after
+      create_component_set, grouped by Type using variantFilter. Separate std and Loading
+      variants because they have different child names: for std variants (Default/Active/Disabled),
+      bind Icon-left and Icon-right; for Loading variants, bind Spinner. Example (std):
+      bind_component_property({nodeId:"<setId>", variantFilter:{Type:"Emphasis"},
+      bindings:[{targetNodeSelector:"Icon-left", nodeProperty:"iconColor",
+      value:"<textInverse ID from get_mode defaults>"},
+      {targetNodeSelector:"Icon-right", nodeProperty:"iconColor",
+      value:"<same ID>"}]}).
+      Example (loading):
+      bind_component_property({nodeId:"<setId>", variantFilter:{Type:"Emphasis", State:"Loading"},
+      bindings:[{targetNodeSelector:"Spinner", nodeProperty:"iconColor",
+      value:"<same ID>"}]}).
+      Check _tokenBindingFailures in the create_component response — if ANY icon color
+      bindings were skipped, this step is mandatory.
+    - >-
+      ⛔ EXPLICIT PARAMS IN BATCH — When using create_component items:[] batch mode,
+      ALWAYS explicitly declare itemSpacing, padding (paddingLeft/Right/Top/Bottom),
+      and cornerRadius in EVERY item. Do NOT rely on Opinion Engine inference across
+      batches — different items may receive different inferred values (e.g. itemSpacing
+      inferred as 8 in one batch vs 4 in another), causing inconsistency within the
+      same ComponentSet. Rule of thumb: if a property should be identical across all
+      variants, it must be explicitly set in every item.
+    - >-
+      ⛔ FULL-WIDTH BUTTONS IN COMPONENT SETS — ComponentSet uses absolute positioning
+      internally, so variants CANNOT use layoutSizingHorizontal:"FILL". For buttons
+      designed to be full-width (e.g. Core/CTA buttons), set an explicit fixed width
+      (e.g. width:360) on each variant to visually represent the intended full-width
+      behavior. Consumers will override with FILL when placing instances inside
+      auto-layout parents.

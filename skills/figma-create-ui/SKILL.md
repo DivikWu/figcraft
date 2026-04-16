@@ -161,17 +161,21 @@ When the task is creating **new reusable components** (buttons, inputs, cards wi
 
 ### Workflow
 
-All 4 tools below are core — no `load_toolset` needed.
+All 5 tools below are core — no `load_toolset` needed.
 
 ```
 1. create_section(name:"Button") → organize components (auto-positions below existing content)
-2. create_component → one base variant (library mode: prefer fillVariableId/fontColorVariableId from get_design_context; fall back to *Name only when ID unavailable)
-3. nodes(method:"clone", items:[...]) → clone base for each variant
-4. nodes(method:"update", items:[...]) → rename variants (e.g. "Size=Small, Style=Primary")
-5. create_component_set → combine + auto-layout + auto-position (all automatic)
+2. create_component({items:[...]}) → batch-create variants (library mode: prefer fillVariableId/fontColorVariableId from get_design_context; fall back to *Name only when ID unavailable)
+   ⛔ EXPLICIT PARAMS: itemSpacing, padding, cornerRadius MUST be set in every item — do NOT rely on Opinion Engine inference across batches
+   ⛔ ICON COLOR: colorVariableName on stroke-based icons (lucide etc.) will be silently skipped due to scope mismatch — plan for post-creation binding
+   ⛔ BOOLEAN: children with visibility toggles MUST declare componentPropertyReferences:{visible:"PropName"} inline — properties:[] alone is orphaned
+   ⛔ FULL-WIDTH: use explicit width (e.g. 360) for full-width button variants — FILL is not supported inside ComponentSet
+3. create_component_set → combine + auto-layout + auto-position
+4. bind_component_property({nodeId:"<setId>", variantFilter:{Type:"Emphasis"}, bindings:[...]}) → post-creation icon color binding per Type group using nodeProperty:"iconColor"
+5. export_image → verify a representative variant's icon color and visibility BEFORE proceeding
 ```
 
-For component property management (add_component_property, bind_component_property), `load_toolset("components-advanced")`.
+For component property management (add_component_property, update_component_property), `load_toolset("components-advanced")`. Note: `bind_component_property` is a core tool — no toolset loading needed.
 
 ### Variant Matrix Planning (MANDATORY for ≥8 variants)
 
@@ -208,7 +212,7 @@ Without this matrix you will:
 - miss that Loading is a structural variant (see below)
 - write 31 cells of padding=0 because the base had no padding default
 
-After the matrix is filled in, build in this order: (1) base for each Type, (2) clone States from each Type base, (3) `bind_component_property` with `variantFilter` to re-bind iconColor/fill per Type slice, (4) handle Loading separately.
+After the matrix is filled in, build in this order: (1) batch-create all std variants per Type×Size×State using `create_component({items:[...]})`, (2) batch-create all Loading variants separately (different children structure), (3) `create_component_set` to combine all, (4) `bind_component_property` with `variantFilter` to bind iconColor per Type slice.
 
 **Loading is a STRUCTURAL variant, not a visual variant.** Loading replaces `children` with a spinner — it's not just a different color/state of the standard structure. Build Loading variants separately:
 
@@ -242,7 +246,10 @@ If you try to clone Default → Loading and then "hide icon-left, hide label, sh
 ### Key Rules
 
 - **Token binding (library mode, ID-first)**: Prefer `fillVariableId` / `fontColorVariableId` from `get_design_context.defaults.*.id`. Fall back to `*Name` only when the ID is unavailable. figcraft returns a "next time use `fontColorVariableId`" typed hint after a successful name lookup — use it on subsequent calls. Text binding failures write a magenta sentinel fill so black-on-black bugs are visible in screenshots.
-- **BOOLEAN visibility binding**: declare `properties:[{type:"BOOLEAN", propertyName:"Icon", defaultValue:false}]` AND `componentPropertyReferences:{visible:"Icon"}` on the child whose visibility you want to control. The child must have a `name` field. figcraft auto-wires + syncs node visibility with `defaultValue`. See `create_component` schema for the full example.
+- **Icon color binding (post-creation MANDATORY)**: `colorVariableName` on icon children is silently skipped when the variable's scopes exclude `STROKE_COLOR` (most `text/*` variables). After `create_component_set`, you MUST call `bind_component_property` with `nodeProperty:"iconColor"` per Type group using `variantFilter`. This is the ONLY reliable path for stroke-based icons (lucide, tabler, etc.). Skipping this step leaves all icons hardcoded black — visually broken on dark backgrounds.
+- **BOOLEAN visibility binding**: declare `properties:[{type:"BOOLEAN", propertyName:"Icon", defaultValue:false}]` AND `componentPropertyReferences:{visible:"Icon"}` on the child whose visibility you want to control. Both sides are required — property alone creates an orphaned toggle that does nothing; reference alone is a no-op. The child must have a `name` field. figcraft auto-wires + syncs node visibility with `defaultValue`. See `create_component` schema for the full example.
+- **Explicit params in batch mode**: When using `create_component({items:[...]})`, explicitly set `itemSpacing`, `padding*`, and `cornerRadius` in every item. Opinion Engine inference can produce different values across batches (e.g. `itemSpacing: 8` vs `4`), causing inconsistency within the same ComponentSet.
+- **Full-width buttons in ComponentSet**: Variants inside a ComponentSet cannot use `layoutSizingHorizontal:"FILL"` (Figma platform limitation — ComponentSet uses absolute positioning). Use explicit `width` (e.g. `360`) to represent full-width intent. Consumers apply FILL when placing instances.
 - **Variant naming**: Each component must follow `Property=Value, Property=Value` format (e.g., `"Size=Small, Style=Primary, State=Default"`).
 - **Variant cap**: `create_component_set` enforces a soft 30-variant cap. Pass `variantLimit:0` to disable for legitimate large matrices. Consider extracting high-cardinality axes (icons, colors) into `INSTANCE_SWAP` properties instead.
 - **Batch cap**: `create_component({items:[...]})` is capped at **10 items per call** (lowered from 20 after timeout incidents). For 32-variant components, split into ⌈N/10⌉ sequential calls.
