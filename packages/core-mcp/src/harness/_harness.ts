@@ -24,7 +24,8 @@ export const RECOVERY_PATTERNS: RecoveryPattern[] = [
     ],
     errorType: 'connection_lost',
     suggestion:
-      'Lost connection to Figma plugin. Check that the FigCraft plugin is running in Figma. Try calling ping to verify connection.',
+      'STOP — FigCraft plugin is not connected. Do NOT fall back to other MCP servers (figma-desktop, figma-remote) — they lack the tools this workflow requires. Tell user: open Figma → Plugins → FigCraft → wait for connection, then retry.',
+    doNotRetry: true,
   },
   {
     name: 'request-timeout',
