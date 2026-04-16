@@ -146,8 +146,8 @@ describe('tokenBindingFailuresRule', () => {
     // Our 3 steps are at the front, followed by nextStepsRule's original steps.
     expect(steps.length).toBeGreaterThan(3);
     expect(steps[0]).toMatch(/NOT applied/);
-    // nextStepsRule's create_component guidance about Size variants should still be present.
-    expect(steps.some((s) => /Size variants/.test(s))).toBe(true);
+    // nextStepsRule's create_component guidance about size variants should still be present.
+    expect(steps.some((s) => /SIZE VARIANTS/i.test(s))).toBe(true);
   });
 
   it('is a no-op on error responses', async () => {

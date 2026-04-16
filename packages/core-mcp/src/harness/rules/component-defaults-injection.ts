@@ -73,3 +73,34 @@ export const trackSectionCreation: HarnessRule = {
     return PASS;
   },
 };
+
+/** Session-update rule: clear cached section ID if a delete operation removes it. */
+export const clearDeletedSection: HarnessRule = {
+  name: 'clear-deleted-section',
+  tools: ['*'],
+  phase: 'session-update',
+  priority: 101,
+
+  async execute(ctx): Promise<HarnessAction> {
+    if (!ctx.session.lastSectionId) return PASS;
+    if (ctx.error) return PASS;
+
+    const method = ctx.bridgeMethod;
+    if (method !== 'delete_nodes' && method !== 'delete_node') return PASS;
+
+    // Extract deleted IDs from params
+    const deletedIds = new Set<string>();
+    const { nodeId, nodeIds } = ctx.params;
+    if (typeof nodeId === 'string') deletedIds.add(nodeId);
+    if (Array.isArray(nodeIds)) {
+      for (const id of nodeIds) {
+        if (typeof id === 'string') deletedIds.add(id);
+      }
+    }
+
+    if (deletedIds.has(ctx.session.lastSectionId)) {
+      ctx.session.lastSectionId = null;
+    }
+    return PASS;
+  },
+};

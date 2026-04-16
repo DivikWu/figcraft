@@ -324,7 +324,27 @@ export function registerWriteNodeHandlers(): void {
     }
     await Promise.all([...fontsToLoad].map((f) => figma.loadFontAsync(JSON.parse(f))));
 
-    // 2. Apply operations sequentially
+    // 2a. Guard: warn if fontSize/fontName operations target a text-style-bound node.
+    // Figma's setRangeFontSize/setRangeFontName silently DETACH the text style binding
+    // (the node keeps the visual appearance but loses the style reference). This is
+    // Figma API behavior, not a bug — but agents frequently hit it when trying to
+    // derive size variants from a base component. Warn upfront so agents can use
+    // separate textStyleName bindings instead.
+    const warnings: string[] = [];
+    const hasStyleDetachingOp = operations.some((op) => op.type === 'fontSize' || op.type === 'fontName');
+    if (hasStyleDetachingOp) {
+      const tsi = (textNode as any).textStyleId as string | typeof figma.mixed | undefined;
+      if (tsi && tsi !== '' && tsi !== figma.mixed) {
+        warnings.push(
+          `⚠️ This text node is bound to text style "${tsi}". The fontSize/fontName operation will ` +
+            `silently DETACH this binding — the node keeps its visual appearance but loses the style ` +
+            `reference. To change size, create a separate component with a different textStyleName ` +
+            `instead. To rebind after detachment: nodes(method:"update", patches:[{nodeId:"${nodeId}", props:{textStyleId:"${tsi}"}}]).`,
+        );
+      }
+    }
+
+    // 2b. Apply operations sequentially
     const results: Array<{ index: number; ok: boolean; error?: string }> = [];
     for (let i = 0; i < operations.length; i++) {
       const op = operations[i];
@@ -366,7 +386,13 @@ export function registerWriteNodeHandlers(): void {
       }
     }
 
-    return { ok: results.every((r) => r.ok), characterCount: textNode.characters.length, results };
+    const out: Record<string, unknown> = {
+      ok: results.every((r) => r.ok),
+      characterCount: textNode.characters.length,
+      results,
+    };
+    if (warnings.length > 0) out._warnings = warnings;
+    return out;
   });
 
   registerHandler('patch_nodes', async (params) => {

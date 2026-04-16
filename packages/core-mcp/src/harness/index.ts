@@ -15,6 +15,7 @@ import { HarnessPipeline } from './pipeline.js';
 import { createAutoSaveRule } from './rules/auto-save.js';
 import { createAutoVerifyRule } from './rules/auto-verify.js';
 import {
+  clearDeletedSection,
   componentDefaultsInjection,
   componentDefaultsPostEnrich,
   trackSectionCreation,
@@ -87,6 +88,7 @@ export function createHarnessPipeline(bridge: Bridge): HarnessPipeline {
   pipeline.register(recordVerificationRule);
   pipeline.register(errorJournalRule);
   pipeline.register(trackSectionCreation);
+  pipeline.register(clearDeletedSection);
 
   console.error(`[FigCraft harness] pipeline initialized with ${pipeline.ruleCount} rules`);
   return pipeline;

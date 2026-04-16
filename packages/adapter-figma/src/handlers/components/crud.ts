@@ -5,8 +5,9 @@
  *   - `createSingleComponent`: the single-component creation pipeline shared
  *     by the single-mode and batch-mode paths of `create_component`. Delegates
  *     to `create_frame` for the frame body, then converts and wires properties.
- *   - `collectVisibleRefs`: walks inline children to gather BOOLEAN visibility
- *     references. Exported (via the barrel) for unit testing.
+ *
+ * Property wiring (TEXT, BOOLEAN, INSTANCE_SWAP, SLOT) is in wire-properties.ts.
+ * `collectVisibleRefs` (pure helper for BOOLEAN visibility) is also there.
  */
 
 import { simplifyNode } from '../../adapters/node-simplifier.js';
@@ -15,53 +16,11 @@ import { assertHandler, assertNodeType, HandlerError } from '../../utils/handler
 import { assertOnCurrentPage, findNodeByIdAsync } from '../../utils/node-lookup.js';
 import { applyPublishableMetadata, stripPublishableMetadata } from '../../utils/publishable-metadata.js';
 import { quickLintSummary } from '../lint-inline.js';
+import { wireProperties } from './wire-properties.js';
 
-// ─── BOOLEAN component property visibility binding ───
-
-interface VisibleRefDecl {
-  propName: string;
-  childName: string;
-}
-
-export interface VisibleRefCollectorResult {
-  refs: VisibleRefDecl[];
-  warnings: string[];
-}
-
-/**
- * Walk inline children and collect every `componentPropertyReferences.visible`
- * declaration. Children declaring a ref must have a `name` field (used by
- * `component.findAll` post-creation to locate the target); unnamed refs are
- * dropped with a warning. Pure function — exported for unit testing.
- */
-export function collectVisibleRefs(children: unknown): VisibleRefCollectorResult {
-  const refs: VisibleRefDecl[] = [];
-  const warnings: string[] = [];
-  if (!Array.isArray(children)) return { refs, warnings };
-
-  function walk(defs: unknown[]): void {
-    for (const def of defs) {
-      if (!def || typeof def !== 'object') continue;
-      const d = def as Record<string, unknown>;
-      const raw = d.componentPropertyReferences as Record<string, unknown> | undefined;
-      const visibleProp = raw && typeof raw === 'object' ? raw.visible : undefined;
-      if (typeof visibleProp === 'string') {
-        const childName = typeof d.name === 'string' ? d.name : '';
-        if (!childName) {
-          warnings.push(
-            `⛔ componentPropertyReferences.visible = "${visibleProp}" requires a 'name' field on the child.`,
-          );
-        } else {
-          refs.push({ propName: visibleProp, childName });
-        }
-      }
-      if (Array.isArray(d.children)) walk(d.children as unknown[]);
-    }
-  }
-
-  walk(children as unknown[]);
-  return { refs, warnings };
-}
+export type { VisibleRefCollectorResult } from './wire-properties.js';
+// Re-export for barrel (components.ts) and tests.
+export { collectVisibleRefs } from './wire-properties.js';
 
 // ─── Single-component creation pipeline (shared by create_component single + batch) ───
 
@@ -112,6 +71,11 @@ async function createSingleComponent(
     `Frame creation failed: node ${frameResult.id} not found or not a FRAME`,
   );
 
+  // 缺陷 P0b: local property-warning collector — declared early so contentWrapper
+  // and later property-creation steps can all push into the same array.
+  const propertyWarnings: string[] = [];
+  const propertiesAdded: string[] = [];
+
   // ── Content wrapper: wrap children in a transparent "Content" frame ──
   if (itemParams.contentWrapper !== false && (frameNode as FrameNode).children.length >= 2) {
     try {
@@ -139,22 +103,13 @@ async function createSingleComponent(
         wrapper.layoutSizingVertical = 'HUG';
         frame.itemSpacing = 0;
       }
-    } catch {
-      /* contentWrapper restructure failure should not block component creation */
+    } catch (err) {
+      propertyWarnings.push(
+        `contentWrapper restructure failed: ${err instanceof Error ? err.message : String(err)}. ` +
+          `Children were NOT wrapped — component structure may differ from intent.`,
+      );
     }
   }
-
-  // ── Diagnostic: capture frame state BEFORE createComponentFromNode (P0-1 / P1-1) ──
-  // Temporary probe to nail the real root cause during verification. Remove once
-  // both sizing drift and cornerRadius drift are confirmed stable.
-  const preFrame = frameNode as FrameNode;
-  const preState = {
-    w: preFrame.width,
-    h: preFrame.height,
-    hSize: (preFrame as any).layoutSizingHorizontal as string | undefined,
-    vSize: (preFrame as any).layoutSizingVertical as string | undefined,
-    cr: (preFrame as any).cornerRadius as number | symbol | undefined,
-  };
 
   const component = figma.createComponentFromNode(frameNode as SceneNode);
   // Apply all 3 PublishableMixin metadata fields uniformly. The length guard
@@ -210,206 +165,10 @@ async function createSingleComponent(
     }
   }
 
-  // Diagnostic log — compare pre/post width, height, layoutSizing, cornerRadius.
-  // Emits only when a drift is detected so the console stays quiet in the
-  // happy path. Temporary; remove once P0-1 and P1-1 are confirmed stable.
-  {
-    const post = {
-      w: component.width,
-      h: component.height,
-      hSize: (component as any).layoutSizingHorizontal as string | undefined,
-      vSize: (component as any).layoutSizingVertical as string | undefined,
-      cr: (component as any).cornerRadius as number | symbol | undefined,
-    };
-    const drift =
-      preState.w !== post.w ||
-      preState.h !== post.h ||
-      preState.hSize !== post.hSize ||
-      preState.vSize !== post.vSize ||
-      preState.cr !== post.cr;
-    if (drift) {
-      console.warn(
-        `[FigCraft] create_component drift: pre=${JSON.stringify(preState)} post=${JSON.stringify(post)} requested=${JSON.stringify({ w: itemParams.width, h: itemParams.height, cr: itemParams.cornerRadius })}`,
-      );
-    }
-  }
-
-  // 缺陷 P0b: local property-warning collector.
-  // Previously the inline property-creation path at steps 3-4 silently swallowed
-  // all errors (`catch { /* skip */ }`), so agents had no idea when a property
-  // failed to register. Each failed property now pushes a descriptive hint that
-  // gets merged into _warnings / _typedHints at the end so the agent can self-correct.
-  const propertyWarnings: string[] = [];
-  const propertiesAdded: string[] = [];
-
-  // Step 3a: collect inline componentPropertyReferences.visible declarations
-  // so Step 4 can auto-wire them when the matching BOOLEAN property lands.
-  const { refs: visibleRefs, warnings: visibleRefWarnings } = collectVisibleRefs(itemParams.children);
-  for (const w of visibleRefWarnings) propertyWarnings.push(w);
-  const usedVisibleRefs = new Set<string>();
-
-  // Step 3: Bind text children to component TEXT properties via componentPropertyName
-  if (Array.isArray(itemParams.children)) {
-    const textBindings: Array<{ propName: string; textContent: string }> = [];
-    (function collect(defs: Array<Record<string, unknown>>) {
-      for (const def of defs) {
-        if (def.componentPropertyName && (def.type === 'text' || !def.type)) {
-          textBindings.push({
-            propName: def.componentPropertyName as string,
-            textContent: (def.content as string) ?? (def.text as string) ?? '',
-          });
-        }
-        if (Array.isArray(def.children)) collect(def.children as Array<Record<string, unknown>>);
-      }
-    })(itemParams.children as Array<Record<string, unknown>>);
-
-    for (const { propName, textContent } of textBindings) {
-      const textNode = component.findOne(
-        (n) => n.type === 'TEXT' && (n.name === propName || (n as TextNode).characters === textContent),
-      ) as TextNode | null;
-      if (!textNode) {
-        propertyWarnings.push(
-          `⛔ TEXT property "${propName}" — no matching text child found (name === "${propName}" or characters === "${textContent}"). ` +
-            `Check the child's componentPropertyName matches the text node's name or content.`,
-        );
-        continue;
-      }
-      try {
-        const propKey = component.addComponentProperty(propName, 'TEXT', textNode.characters);
-        textNode.componentPropertyReferences = { characters: propKey };
-        propertiesAdded.push(propName);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        // Common case: property already exists (e.g. duplicated componentPropertyName
-        // across multiple text children). Surface it so agents can deduplicate.
-        propertyWarnings.push(
-          `⛔ TEXT property "${propName}" failed to register: ${msg}. ` +
-            `Common cause: duplicate componentPropertyName across multiple text children — each TEXT property name must be unique within the component.`,
-        );
-      }
-    }
-  }
-
-  // Step 4: Add non-text component properties (BOOLEAN, INSTANCE_SWAP, SLOT)
-  // Mirrors the validation from the standalone add_component_property handler.
-  if (Array.isArray(itemParams.properties)) {
-    const existingProps = new Set(Object.keys(component.componentPropertyDefinitions));
-    for (const prop of itemParams.properties as Array<Record<string, unknown>>) {
-      const propName = prop.propertyName as string;
-      const propType = prop.type as string;
-      const defaultValue = prop.defaultValue;
-      const preferredValues = prop.preferredValues;
-
-      if (!propName || !propType) {
-        propertyWarnings.push(
-          `⛔ component property missing required fields — need {propertyName, type, defaultValue}. Got: ${JSON.stringify(prop)}`,
-        );
-        continue;
-      }
-      if (propType === 'TEXT') continue; // TEXT properties are created via componentPropertyName on children
-
-      // Validation parity with standalone add_component_property handler (components/properties.ts)
-      if (propType === 'VARIANT') {
-        propertyWarnings.push(
-          `⛔ component property "${propName}" type VARIANT is auto-managed by create_component_set / combineAsVariants — ` +
-            `do not declare it via properties:[]. Define variant axes in the variant set's name scheme instead.`,
-        );
-        continue;
-      }
-      if (propType === 'INSTANCE_SWAP' && !preferredValues) {
-        propertyWarnings.push(
-          `⛔ component property "${propName}" (INSTANCE_SWAP) requires preferredValues. ` +
-            `Pass preferredValues:[{type:"COMPONENT", key:"<componentKey>"}]. Use search_design_system to find component keys.`,
-        );
-        continue;
-      }
-      if (propType === 'BOOLEAN' && typeof defaultValue !== 'boolean') {
-        propertyWarnings.push(
-          `⛔ component property "${propName}" (BOOLEAN) defaultValue must be true/false, got ${typeof defaultValue}: ${JSON.stringify(defaultValue)}. ` +
-            `Pass the literal boolean, not the string "true"/"false".`,
-        );
-        continue;
-      }
-      // Strip Figma's #id:id suffix for the duplicate check so agents can use bare names.
-      const bareExisting = new Set(
-        [...existingProps].map((k) => {
-          const h = k.indexOf('#');
-          return h >= 0 ? k.slice(0, h) : k;
-        }),
-      );
-      if (bareExisting.has(propName)) {
-        propertyWarnings.push(
-          `⛔ component property "${propName}" already exists — skipped. Use update_component_property to change it, or delete_component_property first.`,
-        );
-        continue;
-      }
-
-      try {
-        const options: ComponentPropertyOptions | undefined = preferredValues
-          ? { preferredValues: preferredValues as InstanceSwapPreferredValue[] }
-          : undefined;
-        const propKey = component.addComponentProperty(
-          propName,
-          propType as ComponentPropertyType,
-          defaultValue as any,
-          options,
-        );
-        propertiesAdded.push(propName);
-        existingProps.add(propName);
-
-        // BOOLEAN auto-wire: locate children that declared
-        // componentPropertyReferences.visible = "<propName>" and bind them.
-        // Otherwise the property would be orphaned (toggle does nothing).
-        if (propType === 'BOOLEAN') {
-          const matches = visibleRefs.filter((r) => r.propName === propName);
-          if (matches.length === 0) {
-            propertyWarnings.push(
-              `⚠️ BOOLEAN property "${propName}" has no bound child — flipping this toggle in instances will have no effect. ` +
-                `Declare componentPropertyReferences: { visible: "${propName}" } on a child.`,
-            );
-          } else {
-            for (const match of matches) {
-              usedVisibleRefs.add(match.propName);
-              const targets = component.findAll((n) => n.name === match.childName);
-              for (const target of targets) {
-                const existingRefs =
-                  ((target as SceneNode & { componentPropertyReferences?: Record<string, string> })
-                    .componentPropertyReferences as Record<string, string> | undefined) ?? {};
-                (
-                  target as SceneNode & { componentPropertyReferences?: Record<string, string> }
-                ).componentPropertyReferences = { ...existingRefs, visible: propKey };
-                // Sync node visible with defaultValue so the main component
-                // preview matches the declared default. Variants override.
-                if ('visible' in target) {
-                  (target as SceneNode).visible = defaultValue === true;
-                }
-              }
-            }
-          }
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        propertyWarnings.push(
-          `⛔ component property "${propName}" (${propType}) failed to register: ${msg}. ` +
-            `Common causes: defaultValue type mismatch (BOOLEAN needs true/false, TEXT needs string), ` +
-            `name conflict, or unsupported type on this component type.`,
-        );
-      }
-    }
-  }
-
-  // Reverse orphan: a child declared componentPropertyReferences.visible but
-  // no matching BOOLEAN property landed (either absent from properties[] or
-  // no properties[] at all). Figma silently ignores unknown prop keys so
-  // this is a real mistake the agent can't detect otherwise.
-  for (const ref of visibleRefs) {
-    if (!usedVisibleRefs.has(ref.propName)) {
-      propertyWarnings.push(
-        `⚠️ Child "${ref.childName}" references BOOLEAN property "${ref.propName}" but no such property was declared. ` +
-          `Add { type: "BOOLEAN", propertyName: "${ref.propName}", defaultValue: false } to properties[].`,
-      );
-    }
-  }
+  // Steps 3-4: Wire component properties (TEXT, BOOLEAN, INSTANCE_SWAP, SLOT)
+  const wireResult = wireProperties(component, itemParams);
+  for (const w of wireResult.warnings) propertyWarnings.push(w);
+  for (const p of wireResult.propertiesAdded) propertiesAdded.push(p);
 
   // Step 5: Post-creation lint — catch hardcoded tokens and other violations immediately
   const simplified = simplifyNode(component);

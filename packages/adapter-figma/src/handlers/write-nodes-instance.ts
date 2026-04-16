@@ -279,6 +279,7 @@ export function registerInstanceHandlers(): void {
 
     // exposeText: auto-discover text children and create TEXT properties
     const exposeText = params.exposeText !== false; // default true
+    const propertyWarnings: string[] = [];
     if (exposeText) {
       const textNodes: TextNode[] = [];
       function findTexts(n: BaseNode): void {
@@ -308,13 +309,21 @@ export function registerInstanceHandlers(): void {
           if (key) {
             t.componentPropertyReferences = { characters: key };
           }
-        } catch {
-          /* skip duplicate names */
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          propertyWarnings.push(
+            `⚠️ TEXT property "${propName}" failed to register: ${msg}. ` +
+              `Common cause: duplicate property name. The text node "${t.characters}" was not wired.`,
+          );
         }
       }
     }
 
-    return simplifyNode(component);
+    const result = simplifyNode(component);
+    if (propertyWarnings.length > 0) {
+      (result as unknown as Record<string, unknown>)._warnings = propertyWarnings;
+    }
+    return result;
   });
 
   // ─── Batch create instances ───
