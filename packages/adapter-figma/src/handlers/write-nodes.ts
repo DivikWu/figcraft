@@ -833,11 +833,16 @@ export function registerWriteNodeHandlers(): void {
         const node = await findNodeByIdAsync(item.id);
         assertHandler(node, `Node not found: ${item.id}`, 'NOT_FOUND');
         assertOnCurrentPage(node, item.id);
-        // Pre-validate parent before cloning to avoid orphaned clones
+        // Resolve target parent: explicit parentId > source node's parent.
+        // Figma's native clone() parents under currentPage by default,
+        // but users almost always expect the clone next to the source node.
+        // Falling back to node.parent matches Figma UI's Ctrl+D behavior.
         let targetParent: BaseNode | null = null;
         if (item.parentId) {
           targetParent = await findNodeByIdAsync(item.parentId);
           if (targetParent) assertOnCurrentPage(targetParent, item.parentId);
+        } else if (node.parent && node.parent.type !== 'PAGE') {
+          targetParent = node.parent;
         }
         const clone = (node as SceneNode).clone();
         if (item.name) clone.name = item.name;

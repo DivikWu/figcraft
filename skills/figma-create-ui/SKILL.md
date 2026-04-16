@@ -177,7 +177,22 @@ For component property management (add_component_property, bind_component_proper
 
 ⛔ **When the target component has 8 or more variants, you MUST output a markdown difference matrix BEFORE calling any `create_component` / `nodes(method:"clone")` / `bind_component_property`.** Skipping this step is the single largest failure mode for multi-variant component creation — it produces clone-then-patch chains where each fix exposes another inconsistency, and the agent burns 10+ rounds chasing variant drift.
 
-The matrix has one row per variant and one column per "axis of difference":
+⛔ **Before filling the matrix, define each unique structure as a children tree.** A structure label like "std" is NOT sufficient — you must specify the full nesting with layoutMode, sizing, and alignment for every level. Example:
+
+```
+Structure "std" (button with optional icons):
+Button (HORIZONTAL, CENTER, FILL, padding 16)
+└── Content (HORIZONTAL, CENTER, FILL, itemSpacing 4)
+    ├── Icon-left (16px, BOOLEAN hidden)
+    ├── Label (HUG)
+    └── Icon-right (16px, BOOLEAN hidden)
+
+Structure "spinner-only" (loading state):
+Button (HORIZONTAL, CENTER, FILL)
+└── Spinner (20px SVG)
+```
+
+The `structure` column in the matrix references these defined trees by name:
 
 | Variant | base fill | textColor | iconColor | padding | structure | notes |
 |---------|-----------|-----------|-----------|---------|-----------|-------|
