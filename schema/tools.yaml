@@ -2786,9 +2786,9 @@ create_component:
     contentWrapper:
       type: boolean
       description: >-
-        Wrap inline children in a transparent "Content" frame (default: false).
+        Wrap inline children in a transparent "Content" frame (default: true).
         The Content frame inherits layoutMode, alignment, and itemSpacing from the component.
-        Use for components with structural variants (e.g. loading state replaces children).
+        Pass false to disable (e.g. for simple components without structural variants).
     width:
       type: number
       description: "Width in px (omit for HUG)"

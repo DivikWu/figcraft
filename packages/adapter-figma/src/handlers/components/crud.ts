@@ -113,7 +113,7 @@ async function createSingleComponent(
   );
 
   // ── Content wrapper: wrap children in a transparent "Content" frame ──
-  if (itemParams.contentWrapper && (frameNode as FrameNode).children.length >= 2) {
+  if (itemParams.contentWrapper !== false && (frameNode as FrameNode).children.length >= 2) {
     try {
       const frame = frameNode as FrameNode;
       const wrapper = figma.createFrame();
