@@ -23,6 +23,8 @@ ping                                          → verify plugin connection
 text_scan(nodeId: "...")                      → discover all text nodes in target frame/page
 ```
 
+**If `ping` fails (plugin not connected):** STOP. Do not fall back to other MCP servers. Tell user: open Figma → Plugins → FigCraft → wait for connection, then retry.
+
 Categorize discovered text by role:
 - Headings (large font, bold)
 - Body text (paragraph content)

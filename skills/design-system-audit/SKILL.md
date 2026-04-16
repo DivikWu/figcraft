@@ -24,6 +24,8 @@ get_mode                                      → verify connection + get design
 load_toolset("components-advanced")           → component audit tools
 ```
 
+**If `get_mode` fails (plugin not connected):** STOP. Do not fall back to other MCP servers. Tell user: open Figma → Plugins → FigCraft → wait for connection, then retry.
+
 Note: `variables_ep` and `styles_ep` are core tools — always available, no toolset loading needed.
 
 ### Step 2: Inventory — What Exists

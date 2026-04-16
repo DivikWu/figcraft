@@ -33,6 +33,8 @@ Use this skill to create or update full-page screens in Figma by **reusing the d
 get_mode  → verifies connection, gets _workflow, lists available components/variables
 ```
 
+**If `get_mode` fails (plugin not connected):** STOP. Do not fall back to other MCP servers. Tell user: open Figma → Plugins → FigCraft → wait for connection, then retry.
+
 Complete `_workflow.designPreflight` → present design proposal → **WAIT for user confirmation**.
 
 This step also reveals whether the file has a library selected, local components, or both. Use this to plan your discovery strategy in Step 2.

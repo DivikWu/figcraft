@@ -22,6 +22,8 @@ Compare a DTCG (W3C Design Token Community Group) JSON spec against Figma Librar
 ping                                          → verify plugin connection
 ```
 
+**If `ping` fails (plugin not connected):** STOP. Do not fall back to other MCP servers. Tell user: open Figma → Plugins → FigCraft → wait for connection, then retry.
+
 Ask the user for the DTCG JSON file path (e.g., `tokens/design-tokens.json`).
 
 ### Step 2: Load Token Tools

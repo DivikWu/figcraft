@@ -44,7 +44,7 @@ This skill provides a structured workflow for translating Figma designs into pro
 
 ## Prerequisites
 
-- figcraft plugin connected to the target Figma file (call `ping` or `get_mode` to verify)
+- figcraft plugin connected to the target Figma file (call `ping` or `get_mode` to verify). **If ping fails → STOP. Do not fall back to other MCP servers.** Tell user: open Figma → Plugins → FigCraft → wait for connection, then retry.
 - A target node ID — either from a Figma URL the user provided, from `get_selection`, or from `get_current_page`
 - Project should have an established design system or component library (preferred)
 

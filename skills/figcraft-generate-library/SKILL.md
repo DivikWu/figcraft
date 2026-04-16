@@ -33,11 +33,12 @@ Every design system build follows this phase order. Skipping or reordering phase
 
 ```
 Phase 0: DISCOVERY (always first — no writes yet)
-  0a. Analyze codebase → extract tokens, components, naming conventions
-  0b. Inspect Figma file → get_document_info, get_current_page, variables_ep(method:"list"), components(method:"list")
-  0c. Search subscribed libraries → search_design_system for reusable assets
-  0d. Lock v1 scope → agree on exact token set + component list before any creation
-  0e. Map code → Figma → resolve conflicts (code and Figma disagree = ask user)
+  0a. Verify plugin connection → call get_mode (if it fails → STOP, do not fall back)
+  0b. Analyze codebase → extract tokens, components, naming conventions
+  0c. Inspect Figma file → get_document_info, get_current_page, variables_ep(method:"list"), components(method:"list")
+  0d. Search subscribed libraries → search_design_system for reusable assets
+  0e. Lock v1 scope → agree on exact token set + component list before any creation
+  0f. Map code → Figma → resolve conflicts (code and Figma disagree = ask user)
   ✋ USER CHECKPOINT: present full plan, await explicit approval
 
 Phase 1: FOUNDATIONS (tokens first — always before components)

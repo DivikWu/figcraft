@@ -23,6 +23,8 @@ ping                                          → verify plugin connection
 load_toolset("annotations")                   → enable annotation tools
 ```
 
+**If `ping` fails (plugin not connected):** STOP. Do not fall back to other MCP servers. Tell user: open Figma → Plugins → FigCraft → wait for connection, then retry.
+
 ### Step 2: Inspect the Design
 
 ```

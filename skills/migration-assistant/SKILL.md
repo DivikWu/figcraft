@@ -25,6 +25,8 @@ load_toolset("tokens")                        → token diff/sync
 load_toolset("components-advanced")           → component swapping
 ```
 
+**If `ping` fails (plugin not connected):** STOP. Do not fall back to other MCP servers. Tell user: open Figma → Plugins → FigCraft → wait for connection, then retry.
+
 ### Step 2: Discover Current State
 
 Inventory the existing design system:

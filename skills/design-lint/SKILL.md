@@ -13,6 +13,8 @@ Lint Figma designs against 40 quality rules across 5 categories (token complianc
 - If the task is **human-driven design critique**, switch to [design-review](../design-review/SKILL.md).
 - If the task is **creating new UI**, switch to [figma-create-ui](../figma-create-ui/SKILL.md).
 
+**If `ping` fails (plugin not connected):** STOP the workflow. Do not fall back to other MCP servers. Tell user: open Figma → Plugins → FigCraft → wait for connection, then retry.
+
 ## Workflow — Quick Mode (Default)
 
 For most cases, the one-step workflow is sufficient:

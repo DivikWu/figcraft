@@ -29,6 +29,12 @@ ping                          → verify plugin connection
 get_mode                      → determine mode + selected library
 ```
 
+**If `ping` fails (plugin not connected):** STOP the review workflow. Do NOT fall back to other MCP servers (figma-desktop, figma-remote) — they lack `audit_node`, `lint_fix_all`, and `get_design_guidelines`, making a meaningful design review impossible. Instead, inform the user:
+
+1. The FigCraft plugin must be running in Figma for design review
+2. Open the Figma file → Plugins → FigCraft → wait for channel ID
+3. Then retry the review
+
 ### Step 2: Identify Review Targets
 
 ```

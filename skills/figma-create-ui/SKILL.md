@@ -22,7 +22,7 @@ This SKILL.md is a **lightweight entry point**. The detailed, context-aware crea
 
 ## Workflow
 
-1. **`get_mode`** → read `_workflow` (designPreflight + creationSteps + references)
+1. **`get_mode`** → read `_workflow` (designPreflight + creationSteps + references). **If `get_mode` fails (plugin not connected) → STOP. Do not fall back to other MCP servers.** Tell user: open Figma → Plugins → FigCraft → wait for connection, then retry.
 2. **Complete `_workflow.designPreflight`** → present design proposal to user → ⛔ **WAIT for explicit confirmation**
 3. **`get_current_page(maxDepth=1)`** → inspect existing content, find placement position
 4. **`create_frame` + `children`** → build the design declaratively (one call per screen/element)
