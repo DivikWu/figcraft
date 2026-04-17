@@ -109,7 +109,7 @@ Standalone tools (not grouped into endpoints): `ping`, `get_mode`, `set_mode`, `
 ## Dynamic Toolsets
 
 <!-- @inject-start: ide-shared/toolsets.md -->
-Core tools (39) are always enabled — including `create_component`, `create_component_set`, `create_component_from_node`, `layout_component_set`, `create_section`, `get_design_context`, `variables_ep`, and `styles_ep`. Load additional toolsets as needed via `load_toolset`:
+Core tools (41) are always enabled — including `create_component`, `create_component_set`, `update_component`, `create_component_from_node`, `layout_component_set`, `create_section`, `get_design_context`, `variables_ep`, and `styles_ep`. Load additional toolsets as needed via `load_toolset`:
 
 | Toolset | When to load |
 |---------|-------------|

@@ -2979,7 +2979,7 @@ update_component:
     Accepts both COMPONENT and COMPONENT_SET nodes — both extend PublishableMixin,
     so description/descriptionMarkdown apply uniformly. For multi-variant components,
     pass the COMPONENT_SET id — its description is what shows in the Figma assets panel.
-  toolset: components-advanced
+  toolset: core
   write: true
   access: edit
   handler: bridge
