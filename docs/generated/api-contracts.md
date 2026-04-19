@@ -99,17 +99,19 @@ Covered flat/custom tools: 111
   "nodeId": "1:23",
   "nodeName": "Login Button",
   "nodeType": "FRAME",
-  "qualityScore": 85,
+  "qualityScore": 94,
   "summary": {
     "totalChecked": 12,
     "violations": 2,
     "errors": 0,
-    "warnings": 2,
+    "unsafes": 0,
+    "heuristics": 2,
+    "styles": 0,
     "autoFixable": 1
   },
   "violations": [],
   "structuralNotes": [],
-  "recommendation": "Fix 1 auto-fixable warning, then review the remaining warning manually."
+  "recommendation": "Fix 1 auto-fixable issue, then review the remaining manually."
 }
 ```
 
