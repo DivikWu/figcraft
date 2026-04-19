@@ -96,7 +96,16 @@ export function registerLintHandlers(): void {
         targetNodes = [...selection];
         scope = { type: 'selection', count: targetNodes.length, names: targetNodes.slice(0, 5).map((n) => n.name) };
       } else {
-        targetNodes = [...figma.currentPage.children];
+        // Default page-level scope: filter out remote library components.
+        // Remote components are the library author's responsibility — auditing
+        // them here produces noise for consumers with no authority to fix.
+        // Local components (any publishStatus) are kept as-is: they're the
+        // user's own work and worth scanning. Explicit selection (above)
+        // bypasses this filter — user's intent always wins.
+        targetNodes = [...figma.currentPage.children].filter((n) => {
+          if (n.type !== 'COMPONENT' && n.type !== 'COMPONENT_SET') return true;
+          return !(n as ComponentNode | ComponentSetNode).remote;
+        });
         scope = { type: 'page', count: targetNodes.length };
       }
     }

@@ -234,8 +234,10 @@ export async function buildLintContextFromStorage(): Promise<LintContext> {
   ]);
 
   // In inline lint we don't have tokenContext from MCP — use empty maps.
-  // Token-based rules (spec-color, hardcoded-token, etc.) will be severity-downgraded
-  // by the engine when no tokens are present, which is acceptable for post-create lint.
+  // Token-based rules (spec-color, hardcoded-token, etc.) will be filtered
+  // out entirely by the engine when no tokens AND no library is selected,
+  // which is acceptable for post-create lint (no authoritative source to
+  // check against).
   const ctx: LintContext = {
     colorTokens: new Map(),
     spacingTokens: new Map(),
