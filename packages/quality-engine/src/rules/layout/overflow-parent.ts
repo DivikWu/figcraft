@@ -17,6 +17,22 @@ const VECTOR_TYPES = new Set(['VECTOR', 'LINE', 'ELLIPSE', 'STAR', 'POLYGON', 'B
 const ICON_MAX_SIZE = 48;
 
 /**
+ * Ratio above which a child overflow is almost certainly an intentional
+ * carousel / scrollable tab bar rather than a layout mistake. STRETCH
+ * would destroy the design in these cases (squish a 2000px carousel to
+ * 375px), so we downgrade to a heuristic suggestion and drop autofix.
+ */
+const CAROUSEL_RATIO = 1.5;
+
+/** Does the parent declare prototype scroll on the given axis? */
+function scrollsOnAxis(parent: AbstractNode, axis: 'HORIZONTAL' | 'VERTICAL'): boolean {
+  const d = parent.overflowDirection;
+  if (!d || d === 'NONE') return false;
+  if (d === 'BOTH') return true;
+  return d === axis;
+}
+
+/**
  * Detect children that are icons or vector graphics and should keep fixed size.
  * These nodes must NOT be auto-fixed with layoutAlign: STRETCH — stretching
  * distorts their aspect ratio.
@@ -86,6 +102,24 @@ export const overflowParentRule: LintRule = {
       // Cross-axis overflow check
       // In VERTICAL layout, cross-axis is width; in HORIZONTAL, cross-axis is height
       if (isVertical && innerW != null && child.width > innerW + 1) {
+        // Parent declares horizontal scroll intent — not a bug.
+        if (scrollsOnAxis(node, 'HORIZONTAL')) continue;
+
+        const ratio = child.width / Math.max(innerW, 1);
+        if (ratio >= CAROUSEL_RATIO) {
+          // Likely a carousel / scrollable row. STRETCH would squish it — no auto-fix.
+          violations.push({
+            nodeId: child.id,
+            nodeName: child.name,
+            rule: 'overflow-parent',
+            severity: 'heuristic',
+            currentValue: `width ${Math.round(child.width)}px far exceeds parent inner width ${Math.round(innerW)}px (${ratio.toFixed(1)}×)`,
+            suggestion: `"${child.name}" is ${ratio.toFixed(1)}× wider than "${node.name}". If this is a horizontal scroll/carousel, set overflowDirection: HORIZONTAL on the parent (Prototype panel). Otherwise reduce "${child.name}" width.`,
+            autoFixable: false,
+          });
+          continue;
+        }
+
         violations.push({
           nodeId: child.id,
           nodeName: child.name,
@@ -100,6 +134,30 @@ export const overflowParentRule: LintRule = {
           },
         });
       } else if (!isVertical && innerH != null && child.height > innerH + 1) {
+        // Parent declares vertical scroll intent — not a bug.
+        if (scrollsOnAxis(node, 'VERTICAL')) continue;
+        // Single-line text inside a HORIZONTAL auto-layout commonly reports height slightly
+        // greater than its parent due to line-height ascender/descender metrics — visually
+        // fine, and layoutAlign: STRETCH wouldn't change text height anyway (driven by
+        // fontSize × lineHeight, not cross-axis alignment). Skip to avoid useless fixes.
+        if (child.type === 'TEXT' && child.characters != null && !child.characters.includes('\n')) {
+          continue;
+        }
+
+        const ratio = child.height / Math.max(innerH, 1);
+        if (ratio >= CAROUSEL_RATIO) {
+          violations.push({
+            nodeId: child.id,
+            nodeName: child.name,
+            rule: 'overflow-parent',
+            severity: 'heuristic',
+            currentValue: `height ${Math.round(child.height)}px far exceeds parent inner height ${Math.round(innerH)}px (${ratio.toFixed(1)}×)`,
+            suggestion: `"${child.name}" is ${ratio.toFixed(1)}× taller than "${node.name}". If this is a vertical scroll area, set overflowDirection: VERTICAL on the parent (Prototype panel). Otherwise reduce "${child.name}" height.`,
+            autoFixable: false,
+          });
+          continue;
+        }
+
         violations.push({
           nodeId: child.id,
           nodeName: child.name,

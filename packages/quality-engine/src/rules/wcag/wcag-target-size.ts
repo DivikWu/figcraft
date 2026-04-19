@@ -7,20 +7,24 @@ import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation 
 
 const MIN_TARGET_SIZE = DESIGN_CONSTANTS.touch.minSize;
 
-/** Node names that suggest interactive elements. */
+/**
+ * Node names that suggest interactive elements. Patterns use word boundaries
+ * to avoid matching substrings like "Tabs - Light" (layout wrapper), "Table",
+ * "Tablet", or a plain text glyph named "Tab".
+ */
 const INTERACTIVE_PATTERNS = [
-  /button/i,
-  /btn/i,
-  /link/i,
-  /tab/i,
-  /toggle/i,
-  /checkbox/i,
-  /radio/i,
-  /switch/i,
-  /input/i,
-  /icon.*button/i,
-  /clickable/i,
-  /touchable/i,
+  /\bbutton\b/i,
+  /\bbtn\b/i,
+  /\blink\b/i,
+  /\btab\b/i,
+  /\btoggle\b/i,
+  /\bcheckbox\b/i,
+  /\bradio\b/i,
+  /\bswitch\b/i,
+  /\binput\b/i,
+  /icon[-_\s]*button/i,
+  /\bclickable\b/i,
+  /\btouchable\b/i,
 ];
 
 export const wcagTargetSizeRule: LintRule = {
@@ -35,6 +39,12 @@ export const wcagTargetSizeRule: LintRule = {
   },
 
   check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
+    // TEXT nodes are never the click target — the wrapping FRAME/COMPONENT is.
+    // Flagging a glyph named "Tab" inside a Tab component would blame the label
+    // for the parent's size, and auto-fix wrapping would nest a container that
+    // already exists. Skip text entirely; the container gets checked on its own.
+    if (node.type === 'TEXT') return [];
+
     // Only check nodes that look interactive
     const isInteractive = INTERACTIVE_PATTERNS.some((p) => p.test(node.name));
     if (!isInteractive) return [];
@@ -65,19 +75,6 @@ export const wcagTargetSizeRule: LintRule = {
     if (!v.fixData) return null;
     const cw = v.fixData.currentWidth as number;
     const ch = v.fixData.currentHeight as number;
-    const nodeType = v.fixData.nodeType as string | undefined;
-
-    // TEXT nodes should be wrapped in a container rather than resized directly
-    if (nodeType === 'TEXT') {
-      return {
-        kind: 'deferred',
-        strategy: 'wrap-touch-target',
-        data: {
-          minWidth: Math.max(MIN_TARGET_SIZE, cw),
-          minHeight: MIN_TARGET_SIZE,
-        },
-      };
-    }
 
     return {
       kind: 'resize',

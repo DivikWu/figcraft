@@ -12,6 +12,13 @@
 
 import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
 
+function isAsciiOnly(s: string): boolean {
+  for (let i = 0; i < s.length; i++) {
+    if (s.charCodeAt(i) > 127) return false;
+  }
+  return true;
+}
+
 function pickFixResize(node: AbstractNode): string {
   // If parent has auto-layout, width is managed by the layout engine.
   // Only expand height so text wraps within the allocated width.
@@ -35,6 +42,10 @@ export const textOverflowRule: LintRule = {
     if (node.type !== 'TEXT') return [];
     if (node.width == null || !node.characters) return [];
 
+    // Designer has explicitly opted into truncation (maxLines + ending ellipsis).
+    // This is intentional design, not an overflow bug — skip.
+    if (node.textTruncation === 'ENDING') return [];
+
     const violations: LintViolation[] = [];
     const fixResize = pickFixResize(node);
 
@@ -53,14 +64,17 @@ export const textOverflowRule: LintRule = {
       return violations; // Don't double-report
     }
 
-    // Method 2: Heuristic — estimate text width from character count
+    // Method 2: Heuristic — estimate text width from character count.
+    // Only safe for ASCII-dominant strings; the 0.6 × fontSize approximation
+    // severely undercounts CJK / emoji glyph widths and causes false positives.
     const isSingleLine = !node.characters.includes('\n');
+    const asciiOnly = isAsciiOnly(node.characters);
     const estimatedCharWidth = (node.fontSize ?? 16) * 0.6;
     const estimatedTextWidth = node.characters.length * estimatedCharWidth;
 
     // Flag if estimated text width significantly exceeds the node width
     // (text is being clipped to a smaller area)
-    if (isSingleLine && estimatedTextWidth > 500 && node.width < estimatedTextWidth * 0.5) {
+    if (isSingleLine && asciiOnly && estimatedTextWidth > 500 && node.width < estimatedTextWidth * 0.5) {
       violations.push({
         nodeId: node.id,
         nodeName: node.name,

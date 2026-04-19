@@ -193,6 +193,15 @@ export function simplifyNode(
   if ('clipsContent' in node) {
     const frame = node as FrameNode;
     if (frame.clipsContent) base.clipsContent = true;
+    else base.clipsContent = false; // preserve explicit opt-out (lint rules rely on the distinction)
+  }
+
+  // Prototype scroll direction — declares intentional overflow on an axis
+  if ('overflowDirection' in node) {
+    const proto = node as FrameNode;
+    if (proto.overflowDirection && proto.overflowDirection !== 'NONE') {
+      base.overflowDirection = proto.overflowDirection;
+    }
   }
 
   // Stroke weight
@@ -224,6 +233,12 @@ export function simplifyNode(
     }
     if (text.textAutoResize) {
       base.textAutoResize = text.textAutoResize;
+    }
+    if ('textTruncation' in text && text.textTruncation) {
+      base.textTruncation = text.textTruncation;
+    }
+    if ('maxLines' in text) {
+      base.maxLines = text.maxLines;
     }
     // Full detail: include font details
     if (effectiveDetail === 'full') {
