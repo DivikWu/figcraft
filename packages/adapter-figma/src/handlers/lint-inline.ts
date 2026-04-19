@@ -8,7 +8,7 @@
 
 import type { AbstractNode, LintContext, LintOptions, LintViolation } from '@figcraft/quality-engine';
 import { runLint } from '@figcraft/quality-engine';
-import { PLUGIN_DATA_KEYS } from '../constants.js';
+import { PLUGIN_DATA_KEYS, STORAGE_KEYS } from '../constants.js';
 import { registerCache } from '../utils/cache-manager.js';
 import { figmaRgbaToHex } from '../utils/color.js';
 import { applyFixDescriptor, builtInDeferredStrategies } from '../utils/fix-applicator.js';
@@ -19,13 +19,19 @@ import { getCachedModeLibrary } from './write-nodes.js';
  * Used to build skipRules set so quality-engine doesn't re-check rules
  * already handled by pre-creation validation.
  */
-export const PRE_RULE_TO_LINT_RULE: Record<string, string> = {
-  'button-structure-pre': 'button-structure',
+export const PRE_RULE_TO_LINT_RULE: Record<string, string | string[]> = {
+  // button-structure-pre covers the whole variant family — skip all of them
+  'button-structure-pre': [
+    'button-solid-structure',
+    'button-outline-structure',
+    'button-ghost-structure',
+    'button-text-structure',
+    'button-icon-structure',
+  ],
   'input-structure-pre': 'input-field-structure',
   'hug-stretch-paradox': 'unbounded-hug',
   'form-consistency-pre': 'form-consistency',
   'screen-shell-pre': 'screen-shell-invalid',
-  'system-bar-fullbleed-pre': 'system-bar-fullbleed',
   'cta-width-pre': 'cta-width-inconsistent',
   'mobile-dimensions-pre': 'mobile-dimensions',
   'no-spacer-frame': 'spacer-frame',
@@ -51,12 +57,40 @@ export function figmaNodeToAbstract(node: SceneNode): AbstractNode {
     /* ignore */
   }
 
+  // Interactive declaration (plugin data) — cast through unknown since kind/state
+  // are validated downstream; invalid strings surface as low-confidence noise.
+  try {
+    const ikind = node.getPluginData(PLUGIN_DATA_KEYS.INTERACTIVE_KIND);
+    if (ikind) {
+      result.interactive = {
+        kind: ikind as NonNullable<AbstractNode['interactive']>['kind'],
+        state: (node.getPluginData(PLUGIN_DATA_KEYS.INTERACTIVE_STATE) || undefined) as
+          | NonNullable<AbstractNode['interactive']>['state']
+          | undefined,
+        variant: node.getPluginData(PLUGIN_DATA_KEYS.INTERACTIVE_VARIANT) || undefined,
+        confidence: 1,
+        declared: true,
+      };
+    }
+  } catch {
+    /* ignore */
+  }
+
+  // Prototype reactions presence bit
+  try {
+    const r = (node as unknown as { reactions?: unknown[] }).reactions;
+    if (Array.isArray(r) && r.length > 0) result.reactions = true;
+  } catch {
+    /* ignore */
+  }
+
   // Geometry
   if ('width' in node) result.width = (node as any).width;
   if ('height' in node) result.height = (node as any).height;
   if ('x' in node) result.x = (node as any).x;
   if ('y' in node) result.y = (node as any).y;
   if ('opacity' in node) result.opacity = (node as any).opacity;
+  if ('visible' in node) result.visible = (node as any).visible;
 
   // Fills
   if ('fills' in node) {
@@ -126,6 +160,10 @@ export function figmaNodeToAbstract(node: SceneNode): AbstractNode {
   if ('counterAxisAlignItems' in node) result.counterAxisAlignItems = (node as any).counterAxisAlignItems;
   if ('clipsContent' in node) result.clipsContent = (node as any).clipsContent;
   if ('layoutAlign' in node) result.layoutAlign = (node as any).layoutAlign;
+  if ('overflowDirection' in node) {
+    const od = (node as any).overflowDirection;
+    if (od && od !== 'NONE') result.overflowDirection = od;
+  }
 
   // Text
   if (node.type === 'TEXT') {
@@ -141,6 +179,12 @@ export function figmaNodeToAbstract(node: SceneNode): AbstractNode {
     result.lineHeight = textNode.lineHeight;
     result.letterSpacing = textNode.letterSpacing;
     result.textAutoResize = textNode.textAutoResize;
+    if ('textTruncation' in textNode && textNode.textTruncation) {
+      result.textTruncation = textNode.textTruncation;
+    }
+    if ('maxLines' in textNode) {
+      result.maxLines = (textNode as TextNode).maxLines;
+    }
   }
 
   // Bindings
@@ -208,6 +252,15 @@ export async function buildLintContextFromStorage(): Promise<LintContext> {
 
   const [currentMode, currentLibrary] = (await getCachedModeLibrary()) as ['library' | 'spec', string | undefined];
 
+  // Read user's saved language preference so inline lint produces localized suggestions
+  let lang: 'en' | 'zh' | undefined;
+  try {
+    const saved = (await figma.clientStorage.getAsync(STORAGE_KEYS.LANG)) as 'en' | 'zh' | undefined;
+    if (saved === 'en' || saved === 'zh') lang = saved;
+  } catch {
+    /* default to en */
+  }
+
   // In inline lint we don't have tokenContext from MCP — use empty maps.
   // Token-based rules (spec-color, hardcoded-token, etc.) will be severity-downgraded
   // by the engine when no tokens are present, which is acceptable for post-create lint.
@@ -219,6 +272,7 @@ export async function buildLintContextFromStorage(): Promise<LintContext> {
     variableIds: new Map(),
     mode: currentMode,
     selectedLibrary: currentLibrary || null,
+    lang,
   };
   _cachedLintCtx = ctx;
   _lintCtxTimestamp = now;
@@ -386,9 +440,13 @@ export async function runInlineLintAndFix(
     maxViolations?: number;
     includeRemainingViolations?: boolean;
     minSeverity?: 'error' | 'unsafe' | 'heuristic' | 'style' | 'verbose';
+    profile?: 'draft' | 'review' | 'publish';
+    lang?: 'en' | 'zh';
   } = {},
 ): Promise<InlineLintResult> {
-  const ctx = await buildLintContextFromStorage();
+  const baseCtx = await buildLintContextFromStorage();
+  // Spread to avoid mutating the shared cached ctx when overriding lang
+  const ctx: LintContext = options.lang ? { ...baseCtx, lang: options.lang } : baseCtx;
 
   // Collect root SceneNodes
   const rootNodes: SceneNode[] = [];
@@ -425,6 +483,7 @@ export async function runInlineLintAndFix(
     maxViolations: options.maxViolations ?? 200,
     minSeverity: options.minSeverity ?? 'heuristic',
     skipRules: options.skipRules,
+    profile: options.profile,
   };
   const initialReport = runLint(abstractNodes, ctx, lintOptions);
 

@@ -83,6 +83,9 @@ export interface CompressedNode {
   lineHeight?: unknown;
   letterSpacing?: unknown;
   textAutoResize?: string;
+  textTruncation?: string;
+  maxLines?: number | null;
+  overflowDirection?: string;
   // Variable/Style bindings
   boundVariables?: Record<string, unknown>;
   fillStyleId?: string;
@@ -97,6 +100,21 @@ export interface CompressedNode {
   truncated?: boolean;
   /** Number of direct children omitted due to limits. */
   truncatedChildCount?: number;
+  /** Presence bit for Figma prototype reactions (full graph is not serialized). */
+  reactions?: boolean;
+  /**
+   * Declared interactive metadata read from plugin data at extraction time.
+   * Structurally compatible with `InteractiveMeta` in @figcraft/quality-engine;
+   * kind/state are stored as strings here to keep shared free of lint enums.
+   */
+  interactive?: {
+    kind: string;
+    state?: string;
+    variant?: string;
+    confidence?: number;
+    declared?: boolean;
+    signals?: string[];
+  };
 }
 
 // NOTE: OperationMode and BatchResult were removed — never imported.

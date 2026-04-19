@@ -130,6 +130,25 @@ export function simplifyNode(
   base.role = 'getPluginData' in node ? node.getPluginData(PLUGIN_DATA_KEYS.ROLE) || undefined : undefined;
   base.lintIgnore = 'getPluginData' in node ? node.getPluginData(PLUGIN_DATA_KEYS.LINT_IGNORE) || undefined : undefined;
 
+  // ── Interactive declaration (plugin data) + prototype reactions presence ──
+  if ('getPluginData' in node) {
+    const ikind = node.getPluginData(PLUGIN_DATA_KEYS.INTERACTIVE_KIND) || undefined;
+    if (ikind) {
+      base.interactive = {
+        kind: ikind,
+        state: node.getPluginData(PLUGIN_DATA_KEYS.INTERACTIVE_STATE) || undefined,
+        variant: node.getPluginData(PLUGIN_DATA_KEYS.INTERACTIVE_VARIANT) || undefined,
+        confidence: 1,
+        declared: true,
+      };
+    }
+  }
+  // Prototype reactions — only serialize presence bit, not the graph
+  if ('reactions' in node) {
+    const r = (node as unknown as { reactions?: unknown[] }).reactions;
+    if (Array.isArray(r) && r.length > 0) base.reactions = true;
+  }
+
   // Fills & strokes
   if ('fills' in node && node.fills !== figma.mixed) {
     const fills = node.fills as readonly Paint[];
@@ -193,6 +212,15 @@ export function simplifyNode(
   if ('clipsContent' in node) {
     const frame = node as FrameNode;
     if (frame.clipsContent) base.clipsContent = true;
+    else base.clipsContent = false; // preserve explicit opt-out (lint rules rely on the distinction)
+  }
+
+  // Prototype scroll direction — declares intentional overflow on an axis
+  if ('overflowDirection' in node) {
+    const proto = node as FrameNode;
+    if (proto.overflowDirection && proto.overflowDirection !== 'NONE') {
+      base.overflowDirection = proto.overflowDirection;
+    }
   }
 
   // Stroke weight
@@ -224,6 +252,12 @@ export function simplifyNode(
     }
     if (text.textAutoResize) {
       base.textAutoResize = text.textAutoResize;
+    }
+    if ('textTruncation' in text && text.textTruncation) {
+      base.textTruncation = text.textTruncation;
+    }
+    if ('maxLines' in text) {
+      base.maxLines = text.maxLines;
     }
     // Full detail: include font details
     if (effectiveDetail === 'full') {

@@ -9,12 +9,30 @@
  */
 
 import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
+import { tr } from '../../types.js';
 
 /** Leaf types that should never be STRETCH-ed — they have intrinsic dimensions. */
 const VECTOR_TYPES = new Set(['VECTOR', 'LINE', 'ELLIPSE', 'STAR', 'POLYGON', 'BOOLEAN_OPERATION', 'GROUP']);
 
 /** Max dimension (px) for a child to be considered icon-like. */
 const ICON_MAX_SIZE = 48;
+
+/**
+ * Ratio above which a child overflow is almost certainly an intentional
+ * carousel / scrollable tab bar rather than a layout mistake. STRETCH would
+ * destroy the design in these cases (e.g. squish a 2000px-wide carousel
+ * into a 375px screen), so we downgrade to a heuristic suggestion and drop
+ * the auto-fix.
+ */
+const CAROUSEL_RATIO = 1.5;
+
+/** Does the parent declare prototype scroll on the given axis? */
+function scrollsOnAxis(parent: AbstractNode, axis: 'HORIZONTAL' | 'VERTICAL'): boolean {
+  const d = parent.overflowDirection;
+  if (!d || d === 'NONE') return false;
+  if (d === 'BOTH') return true;
+  return d === axis;
+}
 
 /**
  * Detect children that are icons or vector graphics and should keep fixed size.
@@ -63,7 +81,7 @@ export const overflowParentRule: LintRule = {
     phase: ['layout'],
   },
 
-  check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
+  check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     // Only check containers with auto-layout (non-AL containers use absolute positioning)
     if (node.type !== 'FRAME' && node.type !== 'COMPONENT') return [];
     if (!node.layoutMode || node.layoutMode === 'NONE') return [];
@@ -86,13 +104,40 @@ export const overflowParentRule: LintRule = {
       // Cross-axis overflow check
       // In VERTICAL layout, cross-axis is width; in HORIZONTAL, cross-axis is height
       if (isVertical && innerW != null && child.width > innerW + 1) {
+        // Parent declares horizontal scroll intent — not a bug.
+        if (scrollsOnAxis(node, 'HORIZONTAL')) continue;
+
+        const ratio = child.width / Math.max(innerW, 1);
+        if (ratio >= CAROUSEL_RATIO) {
+          // Likely a carousel / scrollable row. STRETCH would squish it — no auto-fix.
+          // Nudge designer to declare scroll intent or reduce width.
+          violations.push({
+            nodeId: child.id,
+            nodeName: child.name,
+            rule: 'overflow-parent',
+            severity: 'heuristic',
+            currentValue: `width ${Math.round(child.width)}px far exceeds parent inner width ${Math.round(innerW)}px (${ratio.toFixed(1)}×)`,
+            suggestion: tr(
+              ctx.lang,
+              `"${child.name}" is ${ratio.toFixed(1)}× wider than "${node.name}". If this is a horizontal scroll/carousel, set overflowDirection: HORIZONTAL on the parent (Prototype panel). Otherwise reduce "${child.name}" width.`,
+              `「${child.name}」比「${node.name}」宽 ${ratio.toFixed(1)} 倍。如为横向滚动/轮播,请在父级 Prototype 面板设 overflowDirection: HORIZONTAL;否则请减小「${child.name}」宽度。`,
+            ),
+            autoFixable: false,
+          });
+          continue;
+        }
+
         violations.push({
           nodeId: child.id,
           nodeName: child.name,
           rule: 'overflow-parent',
           severity: 'unsafe',
           currentValue: `width ${Math.round(child.width)}px exceeds parent inner width ${Math.round(innerW)}px`,
-          suggestion: `"${child.name}" overflows "${node.name}" horizontally. Set layoutAlign: STRETCH or reduce width.`,
+          suggestion: tr(
+            ctx.lang,
+            `"${child.name}" overflows "${node.name}" horizontally. Set layoutAlign: STRETCH or reduce width.`,
+            `「${child.name}」在横向超出「${node.name}」。请设置 layoutAlign: STRETCH 或减小宽度。`,
+          ),
           autoFixable: true,
           fixData: {
             fix: 'stretch',
@@ -100,13 +145,45 @@ export const overflowParentRule: LintRule = {
           },
         });
       } else if (!isVertical && innerH != null && child.height > innerH + 1) {
+        // Parent declares vertical scroll intent — not a bug.
+        if (scrollsOnAxis(node, 'VERTICAL')) continue;
+        // Single-line text inside a HORIZONTAL auto-layout commonly reports height slightly
+        // greater than its parent due to line-height ascender/descender metrics — visually
+        // fine, and layoutAlign: STRETCH wouldn't change text height anyway (driven by
+        // fontSize × lineHeight, not cross-axis alignment). Skip to avoid useless fixes.
+        if (child.type === 'TEXT' && child.characters != null && !child.characters.includes('\n')) {
+          continue;
+        }
+
+        const ratio = child.height / Math.max(innerH, 1);
+        if (ratio >= CAROUSEL_RATIO) {
+          violations.push({
+            nodeId: child.id,
+            nodeName: child.name,
+            rule: 'overflow-parent',
+            severity: 'heuristic',
+            currentValue: `height ${Math.round(child.height)}px far exceeds parent inner height ${Math.round(innerH)}px (${ratio.toFixed(1)}×)`,
+            suggestion: tr(
+              ctx.lang,
+              `"${child.name}" is ${ratio.toFixed(1)}× taller than "${node.name}". If this is a vertical scroll area, set overflowDirection: VERTICAL on the parent (Prototype panel). Otherwise reduce "${child.name}" height.`,
+              `「${child.name}」比「${node.name}」高 ${ratio.toFixed(1)} 倍。如为纵向滚动区域,请在父级 Prototype 面板设 overflowDirection: VERTICAL;否则请减小「${child.name}」高度。`,
+            ),
+            autoFixable: false,
+          });
+          continue;
+        }
+
         violations.push({
           nodeId: child.id,
           nodeName: child.name,
           rule: 'overflow-parent',
           severity: 'unsafe',
           currentValue: `height ${Math.round(child.height)}px exceeds parent inner height ${Math.round(innerH)}px`,
-          suggestion: `"${child.name}" overflows "${node.name}" vertically. Set layoutAlign: STRETCH or reduce height.`,
+          suggestion: tr(
+            ctx.lang,
+            `"${child.name}" overflows "${node.name}" vertically. Set layoutAlign: STRETCH or reduce height.`,
+            `「${child.name}」在纵向超出「${node.name}」。请设置 layoutAlign: STRETCH 或减小高度。`,
+          ),
           autoFixable: true,
           fixData: {
             fix: 'stretch',

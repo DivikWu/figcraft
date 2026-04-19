@@ -13,10 +13,10 @@ import type {
 } from '@figcraft/quality-engine';
 import { getAvailableRules, runLint } from '@figcraft/quality-engine';
 import type { CompressedNode } from '@figcraft/shared';
-import { simplifyNode } from '../adapters/node-simplifier.js';
-import { LOCAL_LIBRARY } from '../constants.js';
+import { createContext, simplifyNode } from '../adapters/node-simplifier.js';
+import { LOCAL_LIBRARY, STORAGE_KEYS } from '../constants.js';
 import { registerHandler } from '../registry.js';
-import { hexToFigmaRgb } from '../utils/color.js';
+import { figmaRgbaToHex, hexToFigmaRgb } from '../utils/color.js';
 import { getAvailableLibraryCollectionsCached } from '../utils/design-context.js';
 import type { DeferredStrategyHandler } from '../utils/fix-applicator.js';
 import { applyFixDescriptor, builtInDeferredStrategies } from '../utils/fix-applicator.js';
@@ -33,6 +33,87 @@ let _cachedTokenMaps: Pick<
   'colorTokens' | 'spacingTokens' | 'radiusTokens' | 'typographyTokens' | 'variableIds'
 > | null = null;
 
+/**
+ * Scan the current file's local spec sources into a lint-compatible token map.
+ * Covers BOTH local variables (COLOR/FLOAT) AND local paint/text styles, so lint
+ * detection aligns with the `library-color-bind` auto-fix path which scans local
+ * variables. Variables take priority over paint styles when both share a name.
+ */
+async function scanLocalStylesAsTokens(): Promise<{
+  colorTokens: Map<string, string>;
+  radiusTokens: Map<string, number>;
+  typographyTokens: Map<string, { fontSize?: number; fontFamily?: string; fontWeight?: string }>;
+  variableIds: Map<string, string>;
+}> {
+  const colorTokens = new Map<string, string>();
+  const radiusTokens = new Map<string, number>();
+  const typographyTokens = new Map<string, { fontSize?: number; fontFamily?: string; fontWeight?: string }>();
+  const variableIds = new Map<string, string>();
+
+  // 1. Local variables — the modern system, preferred source for auto-fix
+  try {
+    const collections = await figma.variables.getLocalVariableCollectionsAsync();
+    for (const col of collections) {
+      const modeId = col.modes[0]?.modeId;
+      if (!modeId) continue;
+      for (const varId of col.variableIds) {
+        const variable = await figma.variables.getVariableByIdAsync(varId);
+        if (!variable) continue;
+        const val = variable.valuesByMode[modeId];
+        if (variable.resolvedType === 'COLOR' && isRgbaLike(val)) {
+          const hex = figmaRgbaToHex(val);
+          colorTokens.set(variable.name, hex);
+          variableIds.set(variable.name, variable.id);
+        } else if (variable.resolvedType === 'FLOAT' && typeof val === 'number') {
+          // Heuristic: treat "radius"/"corner" named FLOATs as radius tokens
+          if (/radius|corner/i.test(variable.name)) {
+            radiusTokens.set(variable.name, val);
+            variableIds.set(variable.name, variable.id);
+          }
+        }
+      }
+    }
+  } catch {
+    /* ignore — treat as empty */
+  }
+
+  // 2. Local paint styles — fill in any names not already covered by variables
+  try {
+    const paintStyles = await figma.getLocalPaintStylesAsync();
+    for (const s of paintStyles) {
+      if (colorTokens.has(s.name)) continue; // variables win on collision
+      const solid = s.paints.find((p) => p.type === 'SOLID' && p.visible !== false) as SolidPaint | undefined;
+      if (!solid) continue;
+      const hex = figmaRgbaToHex({
+        r: solid.color.r,
+        g: solid.color.g,
+        b: solid.color.b,
+        a: solid.opacity ?? 1,
+      });
+      colorTokens.set(s.name, hex);
+      // No variableIds entry — paint-style matches are detection-only for now
+    }
+  } catch {
+    /* ignore */
+  }
+
+  // 3. Local text styles
+  try {
+    const textStyles = await figma.getLocalTextStylesAsync();
+    for (const s of textStyles) {
+      typographyTokens.set(s.name, {
+        fontSize: s.fontSize,
+        fontFamily: s.fontName?.family,
+        fontWeight: s.fontName?.style,
+      });
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return { colorTokens, radiusTokens, typographyTokens, variableIds };
+}
+
 export function registerLintHandlers(): void {
   registerHandler('lint_check', async (params) => {
     const nodeIds = params.nodeIds as string[] | undefined;
@@ -43,6 +124,17 @@ export function registerLintHandlers(): void {
     const maxViolations = params.maxViolations as number | undefined;
     const annotate = params.annotate as boolean | undefined;
     const minSeverity = params.minSeverity as 'error' | 'unsafe' | 'heuristic' | 'style' | 'verbose' | undefined;
+    const profile = params.profile as 'draft' | 'review' | 'publish' | undefined;
+    // Language for localized suggestion text — param overrides, otherwise read user's saved language
+    let lang = params.lang as 'en' | 'zh' | undefined;
+    if (!lang) {
+      try {
+        const saved = (await figma.clientStorage.getAsync(STORAGE_KEYS.LANG)) as 'en' | 'zh' | undefined;
+        if (saved === 'en' || saved === 'zh') lang = saved;
+      } catch {
+        /* default to en */
+      }
+    }
 
     // Token context (passed from MCP Server or loaded from cache)
     const tokenContext = params.tokenContext as
@@ -57,23 +149,52 @@ export function registerLintHandlers(): void {
 
     // Read current mode and selected library from cache (avoids repeated clientStorage reads)
     const [currentMode, currentLibrary] = (await getCachedModeLibrary()) as ['library' | 'spec', string | undefined];
+    const isLocalStyles = currentLibrary === LOCAL_LIBRARY;
 
-    // Build lint context — cache Maps when tokenContext is unchanged (common in iterative workflows)
-    const tokenContextKey = tokenContext ? JSON.stringify(tokenContext) : null;
-    if (tokenContextKey !== _cachedTokenContextKey || _cachedTokenMaps === null) {
-      _cachedTokenContextKey = tokenContextKey;
-      _cachedTokenMaps = {
-        colorTokens: new Map(Object.entries(tokenContext?.colorTokens ?? {})),
+    // Build lint context — the token maps come from one of three sources based on the
+    // library selection made in the plugin UI (None / Local file styles / Team library):
+    //   - Team library or None: use tokenContext param (from MCP Server), with caching
+    //   - Local file styles: scan current file's local paint/text styles as canonical tokens
+    //     (bypasses cache — local styles can change between lint runs)
+    let tokenMaps: NonNullable<typeof _cachedTokenMaps>;
+    if (isLocalStyles) {
+      const localTokens = await scanLocalStylesAsTokens();
+      // External tokenContext (if any) is merged on top of local sources — rare but
+      // supports "local styles + DTCG spec" hybrid workflows.
+      tokenMaps = {
+        colorTokens: new Map([...localTokens.colorTokens, ...Object.entries(tokenContext?.colorTokens ?? {})]),
         spacingTokens: new Map(Object.entries(tokenContext?.spacingTokens ?? {})),
-        radiusTokens: new Map(Object.entries(tokenContext?.radiusTokens ?? {})),
-        typographyTokens: new Map(Object.entries(tokenContext?.typographyTokens ?? {})),
-        variableIds: new Map(Object.entries(tokenContext?.variableIds ?? {})),
+        radiusTokens: new Map([...localTokens.radiusTokens, ...Object.entries(tokenContext?.radiusTokens ?? {})]),
+        typographyTokens: new Map([
+          ...localTokens.typographyTokens,
+          ...Object.entries(tokenContext?.typographyTokens ?? {}),
+        ]),
+        // variableIds enables auto-fix via bind-variable-to-paint for local variables;
+        // paint-style matches remain detection-only (no variable ID to bind to).
+        variableIds: new Map([...localTokens.variableIds, ...Object.entries(tokenContext?.variableIds ?? {})]),
       };
+      // Invalidate cache so next non-local call re-builds from scratch
+      _cachedTokenContextKey = null;
+      _cachedTokenMaps = null;
+    } else {
+      const tokenContextKey = tokenContext ? JSON.stringify(tokenContext) : null;
+      if (tokenContextKey !== _cachedTokenContextKey || _cachedTokenMaps === null) {
+        _cachedTokenContextKey = tokenContextKey;
+        _cachedTokenMaps = {
+          colorTokens: new Map(Object.entries(tokenContext?.colorTokens ?? {})),
+          spacingTokens: new Map(Object.entries(tokenContext?.spacingTokens ?? {})),
+          radiusTokens: new Map(Object.entries(tokenContext?.radiusTokens ?? {})),
+          typographyTokens: new Map(Object.entries(tokenContext?.typographyTokens ?? {})),
+          variableIds: new Map(Object.entries(tokenContext?.variableIds ?? {})),
+        };
+      }
+      tokenMaps = _cachedTokenMaps;
     }
     const ctx: LintContext = {
-      ..._cachedTokenMaps,
+      ...tokenMaps,
       mode: currentMode,
       selectedLibrary: currentLibrary || null,
+      lang,
     };
 
     // Collect nodes to lint
@@ -106,7 +227,12 @@ export function registerLintHandlers(): void {
     }
 
     // Convert to abstract nodes
-    const abstractNodes = targetNodes.map((n) => compressedToAbstract(simplifyNode(n)));
+    // Use 'full' detail so boundVariables / style IDs / component props are preserved —
+    // lint rules depend on these to correctly distinguish "bound" vs "hardcoded" values.
+    // Without 'full', hardcoded-token falsely fires on nodes that ARE bound to variables.
+    const abstractNodes = targetNodes.map((n) =>
+      compressedToAbstract(simplifyNode(n, 0, undefined, createContext(undefined, undefined, 'full'))),
+    );
 
     // Enrich nodes with per-mode variable colors for dark mode contrast checks
     await enrichVariableModeColors(abstractNodes);
@@ -119,6 +245,7 @@ export function registerLintHandlers(): void {
       limit,
       maxViolations,
       minSeverity,
+      profile,
     });
 
     // Annotate if requested
@@ -795,10 +922,13 @@ function compressedToAbstract(node: CompressedNode): AbstractNode {
     clipsContent: node.clipsContent,
     strokeWeight: node.strokeWeight,
     layoutAlign: node.layoutAlign,
+    overflowDirection: node.overflowDirection,
     x: node.x,
     y: node.y,
     characters: node.characters,
     textAutoResize: node.textAutoResize,
+    textTruncation: node.textTruncation,
+    maxLines: node.maxLines,
     boundVariables: node.boundVariables,
     fillStyleId: node.fillStyleId,
     textStyleId: node.textStyleId,
@@ -807,6 +937,9 @@ function compressedToAbstract(node: CompressedNode): AbstractNode {
     componentPropertyDefinitions: node.componentPropertyDefinitions,
     componentPropertyReferences: node.componentPropertyReferences,
     lintIgnore: node.lintIgnore,
+    visible: node.visible,
+    reactions: node.reactions,
+    interactive: node.interactive as AbstractNode['interactive'],
     children: node.children?.map(compressedToAbstract),
   };
 }
