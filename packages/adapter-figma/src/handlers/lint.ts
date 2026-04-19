@@ -23,7 +23,7 @@ import { applyFixDescriptor, builtInDeferredStrategies } from '../utils/fix-appl
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
 import { ensureLoaded, getTextStyleId } from '../utils/style-registry.js';
 import { isRgbaLike, isVariableAlias, setSpacingProp } from '../utils/type-guards.js';
-import { getCachedModeLibrary } from './write-nodes.js';
+import { getCachedLang, getCachedModeLibrary } from './write-nodes.js';
 
 // Cache last-built LintContext Maps to avoid redundant Map construction on repeated calls
 // with the same tokenContext (common in iterative lint workflows).
@@ -56,7 +56,10 @@ export function registerLintHandlers(): void {
       | undefined;
 
     // Read current mode and selected library from cache (avoids repeated clientStorage reads)
-    const [currentMode, currentLibrary] = (await getCachedModeLibrary()) as ['library' | 'spec', string | undefined];
+    const [[currentMode, currentLibrary], currentLang] = await Promise.all([
+      getCachedModeLibrary() as Promise<['library' | 'spec', string | undefined]>,
+      getCachedLang(),
+    ]);
 
     // Build lint context — cache Maps when tokenContext is unchanged (common in iterative workflows)
     const tokenContextKey = tokenContext ? JSON.stringify(tokenContext) : null;
@@ -74,6 +77,7 @@ export function registerLintHandlers(): void {
       ..._cachedTokenMaps,
       mode: currentMode,
       selectedLibrary: currentLibrary || null,
+      lang: currentLang,
     };
 
     // Collect nodes to lint

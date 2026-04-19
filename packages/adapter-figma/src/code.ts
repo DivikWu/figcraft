@@ -37,7 +37,7 @@ import { registerStorageHandlers } from './handlers/storage.js';
 import { registerStyleHandlers } from './handlers/styles.js';
 import { registerVariableHandlers } from './handlers/variables.js';
 // ─── P2 handlers (write) ───
-import { registerWriteNodeHandlers } from './handlers/write-nodes.js';
+import { invalidateLangCache, registerWriteNodeHandlers } from './handlers/write-nodes.js';
 import { registerCreateHandlers } from './handlers/write-nodes-create.js';
 import { registerInstanceHandlers } from './handlers/write-nodes-instance.js';
 import { registerWriteStyleHandlers } from './handlers/write-styles.js';
@@ -359,6 +359,7 @@ figma.ui.on(
       figma.ui.postMessage({ type: 'restore-lang', lang: lang || 'en' });
     } else if (msg.type === 'save-lang') {
       await figma.clientStorage.setAsync(LANG_STORAGE_KEY, (msg as { lang?: string }).lang || 'en');
+      invalidateLangCache();
     } else if (msg.type === 'get-channel') {
       const saved = await figma.clientStorage.getAsync(CHANNEL_STORAGE_KEY);
       if (saved) {

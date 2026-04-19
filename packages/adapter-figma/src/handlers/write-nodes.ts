@@ -24,6 +24,7 @@ import { ensureLoaded, getTextStyleId } from '../utils/style-registry.js';
 
 const MODE_STORAGE_KEY = STORAGE_KEYS.MODE;
 const LIBRARY_STORAGE_KEY = STORAGE_KEYS.LIBRARY;
+const LANG_STORAGE_KEY = STORAGE_KEYS.LANG;
 
 // ─── Font resolution with fuzzy matching ───
 
@@ -171,6 +172,30 @@ export async function getCachedModeLibrary(): Promise<[string, string | undefine
 export function invalidateModeCache(): void {
   _cachedMode = null;
   _cacheTimestamp = 0;
+}
+
+let _cachedLang: 'en' | 'zh' | null = null;
+let _langCacheTimestamp = 0;
+
+/**
+ * Return the user's preferred language for lint messages.
+ * Read from clientStorage (set by UI settings panel); defaults to 'en'.
+ */
+export async function getCachedLang(): Promise<'en' | 'zh'> {
+  const now = Date.now();
+  if (_cachedLang !== null && now - _langCacheTimestamp < CACHE_TTL_MS) {
+    return _cachedLang;
+  }
+  const raw = (await figma.clientStorage.getAsync(LANG_STORAGE_KEY)) as string | undefined;
+  _cachedLang = raw === 'zh' ? 'zh' : 'en';
+  _langCacheTimestamp = now;
+  return _cachedLang;
+}
+
+/** Invalidate the lang cache (called when user switches language). */
+export function invalidateLangCache(): void {
+  _cachedLang = null;
+  _langCacheTimestamp = 0;
 }
 
 // Register with centralized cache manager

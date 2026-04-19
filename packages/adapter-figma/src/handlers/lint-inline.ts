@@ -12,7 +12,7 @@ import { PLUGIN_DATA_KEYS } from '../constants.js';
 import { registerCache } from '../utils/cache-manager.js';
 import { figmaRgbaToHex } from '../utils/color.js';
 import { applyFixDescriptor, builtInDeferredStrategies } from '../utils/fix-applicator.js';
-import { getCachedModeLibrary } from './write-nodes.js';
+import { getCachedLang, getCachedModeLibrary } from './write-nodes.js';
 
 /**
  * Map from validateTree/inferStructure rule names to quality-engine rule names.
@@ -216,7 +216,10 @@ export async function buildLintContextFromStorage(): Promise<LintContext> {
     return _cachedLintCtx;
   }
 
-  const [currentMode, currentLibrary] = (await getCachedModeLibrary()) as ['library' | 'spec', string | undefined];
+  const [[currentMode, currentLibrary], currentLang] = await Promise.all([
+    getCachedModeLibrary() as Promise<['library' | 'spec', string | undefined]>,
+    getCachedLang(),
+  ]);
 
   // In inline lint we don't have tokenContext from MCP — use empty maps.
   // Token-based rules (spec-color, hardcoded-token, etc.) will be severity-downgraded
@@ -229,6 +232,7 @@ export async function buildLintContextFromStorage(): Promise<LintContext> {
     variableIds: new Map(),
     mode: currentMode,
     selectedLibrary: currentLibrary || null,
+    lang: currentLang,
   };
   _cachedLintCtx = ctx;
   _lintCtxTimestamp = now;
