@@ -13,7 +13,7 @@ import type {
 } from '@figcraft/quality-engine';
 import { getAvailableRules, runLint } from '@figcraft/quality-engine';
 import type { CompressedNode } from '@figcraft/shared';
-import { simplifyNode } from '../adapters/node-simplifier.js';
+import { createContext, simplifyNode } from '../adapters/node-simplifier.js';
 import { LOCAL_LIBRARY } from '../constants.js';
 import { registerHandler } from '../registry.js';
 import { hexToFigmaRgb } from '../utils/color.js';
@@ -109,8 +109,16 @@ export function registerLintHandlers(): void {
       truncatedNodes = true;
     }
 
-    // Convert to abstract nodes
-    const abstractNodes = targetNodes.map((n) => compressedToAbstract(simplifyNode(n)));
+    // Convert to abstract nodes.
+    // Lint rules depend on node-level boundVariables, componentPropertyDefinitions,
+    // componentPropertyReferences, and text fontName/lineHeight/letterSpacing —
+    // all gated behind `detail: 'full'` in the simplifier. Without this, rules
+    // like hardcoded-token misreport violations after successful auto-fix (the
+    // new binding is invisible to the next lint pass) and component-bindings
+    // never triggers on real Figma data.
+    const abstractNodes = targetNodes.map((n) =>
+      compressedToAbstract(simplifyNode(n, 0, undefined, createContext(undefined, undefined, 'full'))),
+    );
 
     // Enrich nodes with per-mode variable colors for dark mode contrast checks
     await enrichVariableModeColors(abstractNodes);
