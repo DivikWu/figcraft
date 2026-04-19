@@ -49,8 +49,6 @@ function _buildDesktopScreen(options: {
 }
 
 export const screenBenchmarkRules = [
-  'header-fragmented',
-  'header-out-of-band',
   'cta-width-inconsistent',
   'section-spacing-collapse',
   'screen-bottom-overflow',
@@ -223,8 +221,8 @@ export const screenBenchmarkCases: ScreenBenchmarkCase[] = [
     id: 'auth-sign-in-broken',
     name: 'Broken auth screen',
     expected: 'flagged',
-    minViolations: 4,
-    requiredRules: ['header-out-of-band', 'cta-width-inconsistent', 'screen-bottom-overflow', 'social-row-cramped'],
+    minViolations: 3,
+    requiredRules: ['cta-width-inconsistent', 'screen-bottom-overflow', 'social-row-cramped'],
     nodes: [
       benchmarkNode({
         id: 'screen:1',
@@ -418,8 +416,8 @@ export const screenBenchmarkCases: ScreenBenchmarkCase[] = [
     id: 'pricing-broken',
     name: 'Broken pricing screen',
     expected: 'flagged',
-    minViolations: 3,
-    requiredRules: ['header-out-of-band', 'section-spacing-collapse', 'screen-bottom-overflow'],
+    minViolations: 2,
+    requiredRules: ['section-spacing-collapse', 'screen-bottom-overflow'],
     nodes: [
       benchmarkNode({
         id: 'screen:1',

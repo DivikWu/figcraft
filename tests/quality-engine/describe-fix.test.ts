@@ -17,7 +17,7 @@ import { unboundedHugRule } from '../../packages/quality-engine/src/rules/layout
 import { hardcodedTokenRule } from '../../packages/quality-engine/src/rules/spec/hardcoded-token.js';
 import { specBorderRadiusRule } from '../../packages/quality-engine/src/rules/spec/spec-border-radius.js';
 // ─── Structure rules ───
-import { buttonStructureRule } from '../../packages/quality-engine/src/rules/structure/button-structure.js';
+import { buttonSolidStructureRule } from '../../packages/quality-engine/src/rules/structure/button-solid-structure.js';
 import { inputFieldStructureRule } from '../../packages/quality-engine/src/rules/structure/input-field-structure.js';
 // ─── WCAG (untested) ───
 import { wcagLineHeightRule } from '../../packages/quality-engine/src/rules/wcag/wcag-line-height.js';
@@ -238,14 +238,14 @@ describe('unbounded-hug describeFix', () => {
   });
 });
 
-// ─── button-structure ───
+// ─── button-solid-structure ───
 
-describe('button-structure describeFix', () => {
+describe('button-solid-structure describeFix', () => {
   it('returns set-properties for layout fix', () => {
-    const fix = buttonStructureRule.describeFix!({
+    const fix = buttonSolidStructureRule.describeFix!({
       nodeId: '1:1',
       nodeName: 'Button',
-      rule: 'button-structure',
+      rule: 'button-solid-structure',
       severity: 'heuristic',
       currentValue: 'no layout',
       suggestion: 'fix',
@@ -267,10 +267,10 @@ describe('button-structure describeFix', () => {
   });
 
   it('returns set-properties for padding fix', () => {
-    const fix = buttonStructureRule.describeFix!({
+    const fix = buttonSolidStructureRule.describeFix!({
       nodeId: '1:1',
       nodeName: 'Button',
-      rule: 'button-structure',
+      rule: 'button-solid-structure',
       severity: 'heuristic',
       currentValue: 'low padding',
       suggestion: 'fix',
@@ -286,10 +286,10 @@ describe('button-structure describeFix', () => {
   });
 
   it('returns resize for height fix', () => {
-    const fix = buttonStructureRule.describeFix!({
+    const fix = buttonSolidStructureRule.describeFix!({
       nodeId: '1:1',
       nodeName: 'Button',
-      rule: 'button-structure',
+      rule: 'button-solid-structure',
       severity: 'heuristic',
       currentValue: 'short',
       suggestion: 'fix',
@@ -305,10 +305,10 @@ describe('button-structure describeFix', () => {
   });
 
   it('returns null for unknown fix type', () => {
-    const fix = buttonStructureRule.describeFix!({
+    const fix = buttonSolidStructureRule.describeFix!({
       nodeId: '1:1',
       nodeName: 'Button',
-      rule: 'button-structure',
+      rule: 'button-solid-structure',
       severity: 'heuristic',
       currentValue: 'broken',
       suggestion: 'fix',
@@ -319,10 +319,10 @@ describe('button-structure describeFix', () => {
   });
 
   it('returns null when fixData is missing', () => {
-    const fix = buttonStructureRule.describeFix!({
+    const fix = buttonSolidStructureRule.describeFix!({
       nodeId: '1:1',
       nodeName: 'Button',
-      rule: 'button-structure',
+      rule: 'button-solid-structure',
       severity: 'heuristic',
       currentValue: 'broken',
       suggestion: 'fix',

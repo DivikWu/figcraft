@@ -25,7 +25,7 @@ keyDecisions:
 pitfalls:
   - "screen-bottom-overflow: cart with many items pushes CTA below viewport"
   - "form-consistency: shipping/payment inputs inconsistent with other forms"
-  - "button-structure: CTA not full-width or < 48px height"
+  - "button-solid-structure: CTA not full-width or < 48px height"
   - "text-overflow: long product names overflow item row"
   - "cta-width-inconsistent: different CTA widths across checkout screens"
   - "mobile-dimensions: screens not matching 402×874"

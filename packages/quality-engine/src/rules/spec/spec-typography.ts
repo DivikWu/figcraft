@@ -3,6 +3,7 @@
  */
 
 import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
+import { tr } from '../../types.js';
 
 export const specTypographyRule: LintRule = {
   name: 'spec-typography',
@@ -18,6 +19,8 @@ export const specTypographyRule: LintRule = {
   check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     if (node.type !== 'TEXT') return [];
     if (node.textStyleId) return []; // already using a style
+    // Text inside a COMPONENT/INSTANCE: the component author controls typography.
+    if (node.insideComponentSubtree) return [];
 
     const violations: LintViolation[] = [];
 
@@ -34,7 +37,11 @@ export const specTypographyRule: LintRule = {
             fontFamily: node.fontName?.family,
           },
           expectedValue: match.tokenName,
-          suggestion: `"${node.name}" uses custom font settings — apply text style "${match.tokenName}" instead`,
+          suggestion: tr(
+            ctx.lang,
+            `"${node.name}" uses custom font settings — apply text style "${match.tokenName}" instead`,
+            `「${node.name}」使用了自定义字体设置——建议应用文字样式「${match.tokenName}」`,
+          ),
           autoFixable: true,
           fixData: { tokenName: match.tokenName },
         });

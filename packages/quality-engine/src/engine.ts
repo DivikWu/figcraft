@@ -6,7 +6,6 @@ import { elevationConsistencyRule } from './rules/layout/elevation-consistency.j
 import { elevationHierarchyRule } from './rules/layout/elevation-hierarchy.js';
 import { emptyContainerRule } from './rules/layout/empty-container.js';
 // Layout
-import { fixedInAutolayoutRule } from './rules/layout/fixed-in-autolayout.js';
 import { maxNestingDepthRule } from './rules/layout/max-nesting-depth.js';
 import { mobileDimensionsRule } from './rules/layout/mobile-dimensions.js';
 import { noAutolayoutRule } from './rules/layout/no-autolayout.js';
@@ -14,7 +13,6 @@ import { overflowParentRule } from './rules/layout/overflow-parent.js';
 import { screenBottomOverflowRule } from './rules/layout/screen-bottom-overflow.js';
 import { sectionSpacingCollapseRule } from './rules/layout/section-spacing-collapse.js';
 import { spacerFrameRule } from './rules/layout/spacer-frame.js';
-import { systemBarFullbleedRule } from './rules/layout/system-bar-fullbleed.js';
 import { textOverflowRule } from './rules/layout/text-overflow.js';
 import { unboundedHugRule } from './rules/layout/unbounded-hug.js';
 // Naming
@@ -25,15 +23,17 @@ import { noTextStyleRule } from './rules/spec/no-text-style.js';
 import { specBorderRadiusRule } from './rules/spec/spec-border-radius.js';
 // Token / spec compliance
 import { specColorRule } from './rules/spec/spec-color.js';
-import { specSpacingRule } from './rules/spec/spec-spacing.js';
 import { specTypographyRule } from './rules/spec/spec-typography.js';
 // Structure
-import { buttonStructureRule } from './rules/structure/button-structure.js';
+import { buttonGhostStructureRule } from './rules/structure/button-ghost-structure.js';
+import { buttonIconStructureRule } from './rules/structure/button-icon-structure.js';
+import { buttonOutlineStructureRule } from './rules/structure/button-outline-structure.js';
+import { buttonSolidStructureRule } from './rules/structure/button-solid-structure.js';
+import { buttonTextStructureRule } from './rules/structure/button-text-structure.js';
 import { componentBindingsRule } from './rules/structure/component-bindings.js';
+import { linkStandaloneStructureRule } from './rules/structure/link-standalone-structure.js';
 import { ctaWidthInconsistentRule } from './rules/structure/cta-width-inconsistent.js';
 import { formConsistencyRule } from './rules/structure/form-consistency.js';
-import { headerFragmentedRule } from './rules/structure/header-fragmented.js';
-import { headerOutOfBandRule } from './rules/structure/header-out-of-band.js';
 import { inputFieldStructureRule } from './rules/structure/input-field-structure.js';
 import { navOvercrowdedRule } from './rules/structure/nav-overcrowded.js';
 import { nestedInteractiveShellRule } from './rules/structure/nested-interactive-shell.js';
@@ -47,7 +47,9 @@ import { wcagLineHeightRule } from './rules/wcag/wcag-line-height.js';
 import { wcagNonTextContrastRule } from './rules/wcag/wcag-non-text-contrast.js';
 import { wcagTargetSizeRule } from './rules/wcag/wcag-target-size.js';
 import { wcagTextSizeRule } from './rules/wcag/wcag-text-size.js';
-import { getRuleFrequencyOrder } from './stats.js';
+import { classifyInteractive } from './interactive/classifier.js';
+import type { InteractiveKind } from './interactive/taxonomy.js';
+import { getRuleFrequencyOrder, recordInteractiveClassification } from './stats.js';
 import type {
   AbstractNode,
   LintContext,
@@ -59,53 +61,90 @@ import type {
 } from './types.js';
 import { downgradeSeverity, getContextSeverity, SEVERITY_ORDER } from './types.js';
 
+// NOTE: Rules with `suppressesInSubtree` must appear BEFORE the rules they
+// suppress so that same-node suppression works. Cascade-parent rules go first.
 const ALL_RULES: LintRule[] = [
-  // Token compliance (require tokens/library to activate)
+  // ── Cascade-parent rules (run first so suppression takes effect) ──
+  screenShellInvalidRule, // suppresses layout + header + overflow rules in subtree
+  rootMisclassifiedInteractiveRule, // suppresses button/input structure in subtree
+  nestedInteractiveShellRule, // suppresses button/input structure in subtree
+  noAutolayoutRule, // suppresses overflow-parent + unbounded-hug in subtree
+  // ── Token compliance (require tokens/library to activate) ──
   specColorRule,
   specTypographyRule,
-  specSpacingRule,
   specBorderRadiusRule,
   hardcodedTokenRule,
   noTextStyleRule,
-  // WCAG accessibility (always active)
+  // ── WCAG accessibility (always active) ──
   wcagContrastRule,
   wcagTargetSizeRule,
   wcagTextSizeRule,
   wcagLineHeightRule,
   wcagNonTextContrastRule,
-  // Layout structure (always active)
-  fixedInAutolayoutRule,
+  // ── Layout structure (always active) ──
   emptyContainerRule,
   spacerFrameRule,
   maxNestingDepthRule,
-  buttonStructureRule,
+  // ── Variant-aware interactive rules (classifier-driven) ──
+  buttonSolidStructureRule,
+  buttonOutlineStructureRule,
+  buttonGhostStructureRule,
+  buttonTextStructureRule,
+  buttonIconStructureRule,
+  linkStandaloneStructureRule,
   textOverflowRule,
   formConsistencyRule,
   ctaWidthInconsistentRule,
   overflowParentRule,
   unboundedHugRule,
-  noAutolayoutRule,
   sectionSpacingCollapseRule,
-  headerFragmentedRule,
-  headerOutOfBandRule,
-  rootMisclassifiedInteractiveRule,
-  nestedInteractiveShellRule,
-  screenShellInvalidRule,
   screenBottomOverflowRule,
   socialRowCrampedRule,
   navOvercrowdedRule,
   statsRowCrampedRule,
   inputFieldStructureRule,
   mobileDimensionsRule,
-  systemBarFullbleedRule,
   elevationConsistencyRule,
   elevationHierarchyRule,
-  // Naming (always active)
+  // ── Naming (always active) ──
   defaultNameRule,
   placeholderTextRule,
-  // Component (always active)
+  // ── Component (always active) ──
   componentBindingsRule,
 ];
+
+/**
+ * Lint profile — workflow stage determining which rules matter.
+ *
+ * - `draft`:   iterating UI; suppresses naming, content, and component-binding noise
+ *              that's expected to be incomplete mid-design
+ * - `review`:  default; full rule set at normal severity (current behavior)
+ * - `publish`: pre-release; upgrades naming / content / binding rules so nothing
+ *              ships with "Frame 1" / "Lorem ipsum" / unconnected component props
+ */
+export type LintProfile = 'draft' | 'review' | 'publish';
+
+/** Rule names that only matter at publish time (stripped out in draft/review). */
+const PUBLISH_ONLY_RULES = new Set<string>(['component-bindings']);
+
+/** Rule names that are noise during drafting — hidden in draft profile. */
+const DRAFT_SKIP_RULES = new Set<string>([
+  'default-name',
+  'placeholder-text',
+  'component-bindings',
+  'empty-container',
+  'elevation-consistency',
+  'max-nesting-depth',
+]);
+
+/** Rules whose severity is upgraded by one level in publish profile. */
+const PUBLISH_UPGRADE_RULES = new Set<string>([
+  'default-name',
+  'placeholder-text',
+  'component-bindings',
+  'no-text-style',
+  'hardcoded-token',
+]);
 
 export interface LintOptions {
   rules?: string[];
@@ -118,6 +157,19 @@ export interface LintOptions {
   minSeverity?: LintSeverity;
   /** Rule names to skip (used to avoid re-checking rules already handled by pre-creation validation). */
   skipRules?: Set<string>;
+  /**
+   * Workflow profile controlling which rules run and at what severity.
+   * Default: 'review' (current behavior). Use 'draft' during design iteration
+   * and 'publish' before shipping to upgrade naming / content / binding rules.
+   */
+  profile?: LintProfile;
+}
+
+/** Upgrade a severity by one level (inverse of downgradeSeverity). */
+function upgradeSeverity(severity: LintSeverity): LintSeverity {
+  const order: LintSeverity[] = ['error', 'unsafe', 'heuristic', 'style', 'verbose'];
+  const idx = order.indexOf(severity);
+  return order[Math.max(idx - 1, 0)];
 }
 
 export interface LintReport {
@@ -144,9 +196,63 @@ function extractSolidFillHex(node: AbstractNode): string | undefined {
   return solidFill?.color;
 }
 
+/**
+ * True when the node's topmost visible fill is a complex type (IMAGE, VIDEO,
+ * GRADIENT_*) — meaning any text layered on this node sits over an image,
+ * video, or gradient backdrop whose numeric contrast can't be reliably
+ * computed without pixel sampling. Figma's `fills[]` is bottom-to-top, so
+ * the last visible entry is what users see.
+ */
+function topmostFillIsComplex(node: AbstractNode): boolean {
+  if (!node.fills || node.fills.length === 0) return false;
+  // fills[] is bottom-to-top. Find the topmost visible fill.
+  for (let i = node.fills.length - 1; i >= 0; i--) {
+    const f = node.fills[i];
+    if (f.visible === false) continue;
+    const t = f.type;
+    return (
+      t === 'IMAGE' ||
+      t === 'VIDEO' ||
+      t === 'GRADIENT_LINEAR' ||
+      t === 'GRADIENT_RADIAL' ||
+      t === 'GRADIENT_ANGULAR' ||
+      t === 'GRADIENT_DIAMOND'
+    );
+  }
+  return false;
+}
+
+/** Heuristic: is this node a screen root? */
+const SCREEN_NAME_RE =
+  /welcome|sign.?in|sign.?up|forgot\s+password|create\s+account|screen|page|onboarding|settings|profile|dashboard|checkout|pricing|empty\s+state|home|landing|detail|list/i;
+
+/**
+ * Detect platform classification for a screen-like node.
+ * Returns undefined if this isn't a screen root (let inherited value stick).
+ * Mobile: width ≤ 500 (covers 375/390/402/412/430 common mobile widths).
+ * Desktop: width > 500 (covers tablet/web/desktop).
+ */
+function detectPlatform(node: AbstractNode): 'mobile' | 'desktop' | undefined {
+  const isScreenLike =
+    node.role === 'screen' || node.role === 'page' || (SCREEN_NAME_RE.test(node.name) && (node.width ?? 0) >= 300);
+  if (!isScreenLike) return undefined;
+  if (node.width == null) return undefined;
+  return node.width <= 500 ? 'mobile' : 'desktop';
+}
+
 /** Run lint rules on a flat list of abstract nodes. */
 export function runLint(nodes: AbstractNode[], ctx: LintContext, options: LintOptions = {}): LintReport {
+  const profile: LintProfile = options.profile ?? 'review';
   let activeRules = ALL_RULES;
+
+  // Profile-level rule filtering
+  if (profile === 'draft') {
+    activeRules = activeRules.filter((r) => !DRAFT_SKIP_RULES.has(r.name));
+  } else if (profile === 'review') {
+    activeRules = activeRules.filter((r) => !PUBLISH_ONLY_RULES.has(r.name));
+  }
+  // profile === 'publish': run everything (no filtering)
+
   if (options.categories) {
     activeRules = activeRules.filter((r) => options.categories!.includes(r.category));
   }
@@ -174,15 +280,77 @@ export function runLint(nodes: AbstractNode[], ctx: LintContext, options: LintOp
   const allViolations: LintViolation[] = [];
   const maxV = options.maxViolations ?? Infinity;
   let earlyExit = false;
+  // Cascade suppression: stack of suppressed rule names for the current subtree.
+  // When a rule with `suppressesInSubtree` fires on a node, its target rules are
+  // added to the suppression frame for that node's descendants, then removed on
+  // the way back up.
+  const suppressionStack: Array<Set<string>> = [];
+  const isCurrentlySuppressed = (ruleName: string): boolean => {
+    for (const frame of suppressionStack) if (frame.has(ruleName)) return true;
+    return false;
+  };
 
-  function walk(node: AbstractNode) {
+  function walk(node: AbstractNode, parentInteractiveKind?: InteractiveKind) {
     if (earlyExit) return;
-    // Node-level lint exclusion via lintIgnore field
+    // Hidden nodes (and their entire subtree) are skipped — designers hide layers
+    // as reference / alternate states; linting them produces noise on intentionally
+    // invisible content.
+    if (node.visible === false) return;
+    // Classify interactive kind once per node (memoize on node.interactive).
+    // Phase 0: telemetry only — no existing rule consumes node.interactive yet.
+    // Declared meta short-circuits inside the classifier.
+    if (!node.interactive || node.interactive.declared !== true) {
+      const result = classifyInteractive(node, parentInteractiveKind);
+      if (result.kind) {
+        node.interactive = {
+          kind: result.kind,
+          state: result.state,
+          variant: result.variant,
+          confidence: result.confidence,
+          signals: result.signals,
+          declared: false,
+        };
+      } else {
+        // Record the null classification for telemetry without mutating node.interactive
+        recordInteractiveClassification(null, result.confidence, false, result.signals);
+      }
+    }
+    if (node.interactive) {
+      recordInteractiveClassification(
+        node.interactive.kind,
+        node.interactive.confidence,
+        node.interactive.declared === true,
+        node.interactive.signals,
+      );
+    }
+    // Node-level lint exclusion via lintIgnore field. Syntax supports:
+    //  - '*'              — skip all rules
+    //  - exact rule name  — e.g. 'button-solid-structure'
+    //  - wildcard prefix  — e.g. 'button-*' matches any rule name starting with 'button-'
     const ignoreAll = node.lintIgnore === '*';
-    const ignoreSet =
-      !ignoreAll && node.lintIgnore ? new Set(node.lintIgnore.split(',').map((s) => s.trim())) : undefined;
+    const ignoreEntries =
+      !ignoreAll && node.lintIgnore
+        ? node.lintIgnore
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : undefined;
+    const ignoreExact = ignoreEntries ? new Set(ignoreEntries.filter((e) => !e.endsWith('*'))) : undefined;
+    const ignorePrefixes = ignoreEntries
+      ? ignoreEntries.filter((e) => e.endsWith('*')).map((e) => e.slice(0, -1))
+      : undefined;
+    const matchesIgnore = (ruleName: string): boolean => {
+      if (ignoreExact?.has(ruleName)) return true;
+      if (ignorePrefixes?.some((p) => ruleName.startsWith(p))) return true;
+      return false;
+    };
+    // Suppressions collected at this node — apply to descendants and also to
+    // later rules evaluated on this same node (cascade-parent must run first
+    // in activeRules order for same-node suppression to take effect).
+    const subtreeSuppressions = new Set<string>();
     for (const rule of activeRules) {
-      if (ignoreAll || ignoreSet?.has(rule.name)) continue;
+      if (ignoreAll || matchesIgnore(rule.name)) continue;
+      if (isCurrentlySuppressed(rule.name) || subtreeSuppressions.has(rule.name)) continue;
       const violations = rule.check(node, ctx);
       // Apply context-based severity downgrade for token rules
       for (const v of violations) {
@@ -199,6 +367,15 @@ export function runLint(nodes: AbstractNode[], ctx: LintContext, options: LintOp
           if (!v.baseSeverity) v.baseSeverity = v.severity;
           v.severity = contextSev;
         }
+        // Publish profile: upgrade naming/content/binding rules so they surface
+        // at review-visible severity levels.
+        if (profile === 'publish' && PUBLISH_UPGRADE_RULES.has(rule.name)) {
+          const upgraded = upgradeSeverity(v.severity);
+          if (upgraded !== v.severity) {
+            if (!v.baseSeverity) v.baseSeverity = v.severity;
+            v.severity = upgraded;
+          }
+        }
         // Generate fix descriptor from rule, then derive fixCall
         if (v.autoFixable && !v.fixDescriptor && rule.describeFix) {
           v.fixDescriptor = rule.describeFix(v) ?? undefined;
@@ -210,6 +387,10 @@ export function runLint(nodes: AbstractNode[], ctx: LintContext, options: LintOp
         if (SEVERITY_RANK[v.severity] <= minRank) {
           allViolations.push(v);
         }
+      }
+      // If this rule fired and declares subtree suppressions, stage them for children
+      if (violations.length > 0 && rule.suppressesInSubtree?.length) {
+        for (const name of rule.suppressesInSubtree) subtreeSuppressions.add(name);
       }
       if (allViolations.length >= maxV) {
         earlyExit = true;
@@ -226,19 +407,45 @@ export function runLint(nodes: AbstractNode[], ctx: LintContext, options: LintOp
       // Propagate parent layout mode for text overflow fix strategy.
       const effectiveLayoutMode = node.layoutMode ?? node.parentLayoutMode;
       // Propagate parent itemSpacing for WCAG 2.5.8 spacing-exception.
-      // Only propagate one level (direct parent) — siblings-of-siblings don't apply.
+      // Only propagate one level (direct parent, and only when parent is auto-layout)
+      // — siblings-of-siblings / ABSOLUTE parents don't have a consistent sibling gap.
       const effectiveItemSpacing = node.layoutMode ? node.itemSpacing : undefined;
       // Propagate per-mode background colors for dark mode contrast checks.
       const effectiveBgModes = node.variableModeColors ?? node.parentBgModeColors;
+      // Propagate platform from screen-like ancestors (sticky — inherited wins).
+      // Used by platform-aware rules (e.g. wcag-text-size: 10px mobile vs 12px desktop).
+      const effectivePlatform = node.platform ?? detectPlatform(node);
+      // Mark descendants of COMPONENT/INSTANCE. Token-binding / spec-compliance
+      // rules use this to skip internal leaves — binding belongs at the
+      // component boundary, not on every vector inside.
+      const nextInsideComponent =
+        node.insideComponentSubtree === true || node.type === 'COMPONENT' || node.type === 'INSTANCE';
+      // Mark descendants that sit over a complex (non-SOLID) backdrop. Drives
+      // contrast-rule skips when the actual rendered background is an image /
+      // video / gradient whose pixel-level contrast can't be computed.
+      const parentIsComplex = topmostFillIsComplex(node);
+      const overComplexBase = node.overComplexBg === true || parentIsComplex;
+      let earlierSiblingIsComplex = false;
+      const hasSuppressions = subtreeSuppressions.size > 0;
+      if (hasSuppressions) suppressionStack.push(subtreeSuppressions);
       for (const child of node.children) {
-        if (earlyExit) return;
+        if (earlyExit) break;
         if (effectiveBg) child.parentBgColor = effectiveBg;
         if (effectiveBgModes) child.parentBgModeColors = effectiveBgModes;
         if (effectiveWidth != null) child.parentWidth = effectiveWidth;
         if (effectiveLayoutMode) child.parentLayoutMode = effectiveLayoutMode;
         if (effectiveItemSpacing != null) child.parentItemSpacing = effectiveItemSpacing;
-        walk(child);
+        if (effectivePlatform) child.platform = effectivePlatform;
+        if (nextInsideComponent) child.insideComponentSubtree = true;
+        if (overComplexBase || earlierSiblingIsComplex) child.overComplexBg = true;
+        walk(child, node.interactive?.kind);
+        // Earlier-sibling rule: children are drawn bottom-to-top in children
+        // array order. A later child sits VISUALLY on top of earlier children,
+        // so an earlier sibling with a complex fill becomes the backdrop for
+        // later siblings at this parent level.
+        if (topmostFillIsComplex(child)) earlierSiblingIsComplex = true;
       }
+      if (hasSuppressions) suppressionStack.pop();
     }
   }
 
@@ -436,7 +643,14 @@ const PREFLIGHT_RULE_MAP: Record<keyof PreflightAudit, string[]> = {
   colorConsistency: ['hardcoded-token', 'spec-color'],
   typographyBound: ['no-text-style', 'spec-typography'],
   semanticNaming: ['default-name'],
-  touchTargets: ['wcag-target-size', 'button-structure'],
+  touchTargets: [
+    'wcag-target-size',
+    'button-solid-structure',
+    'button-outline-structure',
+    'button-ghost-structure',
+    'button-text-structure',
+    'button-icon-structure',
+  ],
   contentRealistic: ['placeholder-text'],
   emptyContainers: ['empty-container'],
 };

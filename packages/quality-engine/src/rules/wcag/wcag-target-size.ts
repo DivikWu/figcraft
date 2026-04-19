@@ -2,10 +2,19 @@
  * WCAG target size rule — interactive elements should be >= 44x44px.
  */
 
-import { DESIGN_CONSTANTS } from '../../constants.js';
 import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
+import { isButtonKind, isLinkKind } from '../../interactive/taxonomy.js';
 
-const MIN_TARGET_SIZE = DESIGN_CONSTANTS.touch.minSize;
+/**
+ * WCAG 2.5.8 Target Size (Minimum, Level AA) — the hard accessibility floor is
+ * 24×24 CSS px. The 44×44 comfort threshold is WCAG 2.5.5 (AAA) / Apple HIG —
+ * still recommended but not the hard-fail. We enforce only the AA floor here
+ * and let kind-specific button rules own the comfort threshold (they know the
+ * touch/desktop platform + what size is appropriate for the variant).
+ */
+const MIN_TARGET_SIZE = 24;
+/** Comfort / auto-fix target (WCAG 2.5.5 AAA + Apple HIG 44×44). */
+const FIX_TARGET_SIZE = 44;
 
 /**
  * Node names that suggest interactive elements. Patterns use word boundaries
@@ -45,6 +54,15 @@ export const wcagTargetSizeRule: LintRule = {
     // already exists. Skip text entirely; the container gets checked on its own.
     if (node.type === 'TEXT') return [];
 
+    // Classifier-owned kinds: defer to the kind-specific structure rules (button-*,
+    // link-standalone-structure) which know the correct comfort threshold per
+    // variant and handle the WCAG 2.5.8 spacing exception. Double-flagging would
+    // add noise without adding information.
+    if (node.interactive?.declared === true) {
+      const kind = node.interactive.kind;
+      if (isButtonKind(kind) || isLinkKind(kind)) return [];
+    }
+
     // Only check nodes that look interactive
     const isInteractive = INTERACTIVE_PATTERNS.some((p) => p.test(node.name));
     if (!isInteractive) return [];
@@ -59,8 +77,8 @@ export const wcagTargetSizeRule: LintRule = {
           nodeName: node.name,
           rule: 'wcag-target-size',
           severity: 'heuristic',
-          currentValue: `${w}x${h}`,
-          expectedValue: `>= ${MIN_TARGET_SIZE}x${MIN_TARGET_SIZE}`,
+          currentValue: `${w}×${h}`,
+          expectedValue: `>= ${MIN_TARGET_SIZE}×${MIN_TARGET_SIZE}`,
           suggestion: `"${node.name}" is only ${w}×${h}px — make it at least ${MIN_TARGET_SIZE}×${MIN_TARGET_SIZE}px so it's easy to tap`,
           autoFixable: true,
           fixData: { currentWidth: w, currentHeight: h },
@@ -78,8 +96,8 @@ export const wcagTargetSizeRule: LintRule = {
 
     return {
       kind: 'resize',
-      ...(cw < MIN_TARGET_SIZE ? { width: MIN_TARGET_SIZE } : {}),
-      ...(ch < MIN_TARGET_SIZE ? { height: MIN_TARGET_SIZE } : {}),
+      ...(cw < MIN_TARGET_SIZE ? { width: FIX_TARGET_SIZE } : {}),
+      ...(ch < MIN_TARGET_SIZE ? { height: FIX_TARGET_SIZE } : {}),
     };
   },
 };

@@ -3,6 +3,7 @@
  */
 
 import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
+import { tr } from '../../types.js';
 
 export const specBorderRadiusRule: LintRule = {
   name: 'spec-border-radius',
@@ -18,8 +19,17 @@ export const specBorderRadiusRule: LintRule = {
   check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     if (ctx.radiusTokens.size === 0) return [];
     if (node.role === 'presentation') return [];
+    // Screen root frames carry cornerRadius for the physical device mockup
+    // (iPhone/Android device corners) — not a design-token value. Skip them.
+    if (node.role === 'screen' || node.role === 'page') return [];
+    // Descendants of COMPONENT/INSTANCE: corner radius is component-author scope.
+    if (node.insideComponentSubtree) return [];
     if (node.cornerRadius === undefined) return [];
-    if (node.boundVariables?.cornerRadius) return [];
+    const bv = node.boundVariables ?? {};
+    // Figma stores cornerRadius bindings under per-corner keys even when the UI
+    // appears to bind a single uniform radius — check all 5 keys.
+    if (bv.cornerRadius || bv.topLeftRadius || bv.topRightRadius || bv.bottomLeftRadius || bv.bottomRightRadius)
+      return [];
 
     const violations: LintViolation[] = [];
 
@@ -47,7 +57,11 @@ export const specBorderRadiusRule: LintRule = {
             severity: 'error',
             currentValue: radius,
             expectedValue: `${closest.tokenName}: ${closest.tokenValue}`,
-            suggestion: `"${node.name}" corner radius is ${radius}px — use token "${closest.tokenName}" (${closest.tokenValue}px) instead`,
+            suggestion: tr(
+              ctx.lang,
+              `"${node.name}" corner radius is ${radius}px — use token "${closest.tokenName}" (${closest.tokenValue}px) instead`,
+              `「${node.name}」圆角为 ${radius}px——建议使用 Token「${closest.tokenName}」(${closest.tokenValue}px)`,
+            ),
             autoFixable: true,
             fixData: {
               tokenName: closest.tokenName,

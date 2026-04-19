@@ -1248,7 +1248,6 @@
       en: {
         'spec-color': 'Color not from tokens',
         'spec-typography': 'Text style not from tokens',
-        'spec-spacing': 'Spacing not from tokens',
         'spec-border-radius': 'Corner radius not from tokens',
         'hardcoded-token': 'Hardcoded value (no variable)',
         'no-text-style': 'Missing text style',
@@ -1256,7 +1255,6 @@
         'wcag-target-size': 'Tap target too small',
         'wcag-text-size': 'Text too small to read',
         'wcag-line-height': 'Line height causes overlap',
-        'fixed-in-autolayout': 'Fixed position in auto layout',
         'empty-container': 'Empty frame / group',
         'max-nesting-depth': 'Too deeply nested',
         'default-name': 'Default layer name',
@@ -1265,7 +1263,6 @@
       zh: {
         'spec-color': '颜色未使用 Token',
         'spec-typography': '文字样式未使用 Token',
-        'spec-spacing': '间距未使用 Token',
         'spec-border-radius': '圆角未使用 Token',
         'hardcoded-token': '硬编码值（未绑定变量）',
         'no-text-style': '缺少文字样式',
@@ -1273,7 +1270,6 @@
         'wcag-target-size': '点击区域过小',
         'wcag-text-size': '文字过小，不易阅读',
         'wcag-line-height': '行高过小，文字可能重叠',
-        'fixed-in-autolayout': '自动布局中使用了固定定位',
         'empty-container': '空容器',
         'max-nesting-depth': '嵌套层级过深',
         'default-name': '未重命名的图层',
@@ -1289,7 +1285,6 @@
       en: {
         'spec-color': 'Color doesn\'t match any token — pick one from the library',
         'spec-typography': 'Text style doesn\'t match any token — apply one from the library',
-        'spec-spacing': 'Spacing doesn\'t match any token — use a standard value',
         'spec-border-radius': 'Corner radius doesn\'t match any token — use a standard value',
         'hardcoded-token': 'This value isn\'t linked to a variable — bind it to the library',
         'no-text-style': 'No text style applied — pick one from the library',
@@ -1297,7 +1292,6 @@
         'wcag-target-size': 'Tap area is under 44×44px — make it bigger',
         'wcag-text-size': 'Text is under 12px — increase for readability',
         'wcag-line-height': 'Line height is too tight — text lines may overlap',
-        'fixed-in-autolayout': 'Absolute position inside auto layout — may break the flow',
         'empty-container': 'Empty container — remove or add content',
         'max-nesting-depth': 'Nested too deep — try flattening the layers',
         'default-name': 'Still using a default name — rename to something descriptive',
@@ -1306,7 +1300,6 @@
       zh: {
         'spec-color': '颜色不在 Token 中，请从库中选择',
         'spec-typography': '文字样式不在 Token 中，请从库中应用',
-        'spec-spacing': '间距不在 Token 中，请使用标准值',
         'spec-border-radius': '圆角不在 Token 中，请使用标准值',
         'hardcoded-token': '该值未绑定变量，请关联到库',
         'no-text-style': '未应用文字样式，请从库中选择',
@@ -1314,7 +1307,6 @@
         'wcag-target-size': '点击区域不足 44×44px，请增大',
         'wcag-text-size': '文字小于 12px，请增大以便阅读',
         'wcag-line-height': '行高过小，文字可能重叠',
-        'fixed-in-autolayout': '自动布局中使用了固定定位，可能影响布局',
         'empty-container': '空容器，请移除或添加内容',
         'max-nesting-depth': '嵌套过深，建议精简图层结构',
         'default-name': '仍在使用默认名称，请重命名',
@@ -2238,7 +2230,7 @@
       lintRunBtn.textContent = t('lint.running');
       lintRunBtn.classList.add('loading');
       // Send lint_check request through the plugin sandbox (cap at 500 violations for UI responsiveness)
-      parent.postMessage({ pluginMessage: { type: 'ui-lint-check', maxViolations: 500 } }, '*');
+      parent.postMessage({ pluginMessage: { type: 'ui-lint-check', maxViolations: 500, lang: currentLang } }, '*');
     });
 
     lintFixBtn.addEventListener('click', function() {

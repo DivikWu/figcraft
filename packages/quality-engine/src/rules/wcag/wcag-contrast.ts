@@ -7,6 +7,7 @@
  */
 
 import type { AbstractNode, LintContext, LintRule, LintViolation } from '../../types.js';
+import { tr } from '../../types.js';
 import { hexToRgbTuple } from '../../utils/color.js';
 import { contrastRatioTuple, isLargeText } from './wcag-helpers.js';
 
@@ -31,9 +32,13 @@ export const wcagContrastRule: LintRule = {
     tags: ['text'],
   },
 
-  check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
+  check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     if (node.type !== 'TEXT') return [];
     if (!node.fills || node.fills.length === 0) return [];
+    // Text over image / video / gradient — backdrop is pixel-level and can't
+    // be reliably measured without sampling. axe-core / Stark / Adee all
+    // take the same "skip if backdrop is uncertain" stance.
+    if (node.overComplexBg) return [];
 
     const fgFill = node.fills.find((f) => f.type === 'SOLID' && f.visible !== false);
     if (!fgFill?.color) return [];
@@ -58,7 +63,11 @@ export const wcagContrastRule: LintRule = {
           severity: 'unsafe',
           currentValue: `${ratio.toFixed(2)}:1`,
           expectedValue: `>= ${threshold}:1`,
-          suggestion: `"${node.name}" text color may be hard to read — contrast is only ${ratio.toFixed(2)}:1 against its background (needs at least ${threshold}:1)`,
+          suggestion: tr(
+            ctx.lang,
+            `"${node.name}" text color may be hard to read — contrast is only ${ratio.toFixed(2)}:1 against its background (needs at least ${threshold}:1)`,
+            `「${node.name}」文字颜色可能难以阅读——与背景对比度仅 ${ratio.toFixed(2)}:1(至少需要 ${threshold}:1)`,
+          ),
           autoFixable: false,
         });
       }
@@ -76,7 +85,11 @@ export const wcagContrastRule: LintRule = {
           severity: 'unsafe',
           currentValue: `${worstRatio.toFixed(2)}:1`,
           expectedValue: `>= ${threshold}:1`,
-          suggestion: `"${node.name}" text color may be hard to read — contrast is only ${worstRatio.toFixed(2)}:1 (needs at least ${threshold}:1)`,
+          suggestion: tr(
+            ctx.lang,
+            `"${node.name}" text color may be hard to read — contrast is only ${worstRatio.toFixed(2)}:1 (needs at least ${threshold}:1)`,
+            `「${node.name}」文字颜色可能难以阅读——对比度仅 ${worstRatio.toFixed(2)}:1(至少需要 ${threshold}:1)`,
+          ),
           autoFixable: false,
         });
       }
@@ -102,7 +115,11 @@ export const wcagContrastRule: LintRule = {
             severity: 'unsafe',
             currentValue: `${ratio.toFixed(2)}:1 (${mode} mode)`,
             expectedValue: `>= ${threshold}:1`,
-            suggestion: `"${node.name}" fails contrast in ${mode} mode — ${ratio.toFixed(2)}:1 (needs ${threshold}:1). Check that both text and background variables resolve to adequate contrast in all modes.`,
+            suggestion: tr(
+              ctx.lang,
+              `"${node.name}" fails contrast in ${mode} mode — ${ratio.toFixed(2)}:1 (needs ${threshold}:1). Check that both text and background variables resolve to adequate contrast in all modes.`,
+              `「${node.name}」在 ${mode} 模式下对比度不足——${ratio.toFixed(2)}:1(需要 ${threshold}:1)。请检查文字和背景变量在所有模式下都具有足够对比度。`,
+            ),
             autoFixable: false,
           });
         }

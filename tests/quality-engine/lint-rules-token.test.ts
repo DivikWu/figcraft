@@ -1,5 +1,5 @@
 /**
- * Tests for token-related lint rules: spec-color, spec-typography, spec-spacing, spec-border-radius.
+ * Tests for token-related lint rules: spec-color, spec-typography, spec-border-radius.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -7,7 +7,6 @@ import { hardcodedTokenRule } from '../../packages/quality-engine/src/rules/spec
 import { noTextStyleRule } from '../../packages/quality-engine/src/rules/spec/no-text-style.js';
 import { specBorderRadiusRule } from '../../packages/quality-engine/src/rules/spec/spec-border-radius.js';
 import { specColorRule } from '../../packages/quality-engine/src/rules/spec/spec-color.js';
-import { specSpacingRule } from '../../packages/quality-engine/src/rules/spec/spec-spacing.js';
 import { specTypographyRule } from '../../packages/quality-engine/src/rules/spec/spec-typography.js';
 import type { AbstractNode, LintContext } from '../../packages/quality-engine/src/types.js';
 
@@ -193,80 +192,6 @@ describe('spec-typography', () => {
       fontName: { family: 'Inter', style: 'Regular' },
     });
     const v = specTypographyRule.check(node, typoCtx);
-    expect(v).toHaveLength(0);
-  });
-});
-
-// ─── spec-spacing ───
-
-describe('spec-spacing', () => {
-  const spacingCtx: LintContext = {
-    ...emptyCtx,
-    spacingTokens: new Map([
-      ['spacing/sm', 8],
-      ['spacing/md', 16],
-      ['spacing/lg', 24],
-    ]),
-  };
-
-  it('flags non-token itemSpacing', () => {
-    const node = makeNode({
-      type: 'FRAME',
-      layoutMode: 'VERTICAL',
-      itemSpacing: 15,
-    });
-    const v = specSpacingRule.check(node, spacingCtx);
-    expect(v).toHaveLength(1);
-    expect(v[0].rule).toBe('spec-spacing');
-    expect(v[0].autoFixable).toBe(true);
-  });
-
-  it('flags non-token padding', () => {
-    const node = makeNode({
-      type: 'FRAME',
-      paddingLeft: 15,
-      paddingTop: 15,
-    });
-    const v = specSpacingRule.check(node, spacingCtx);
-    expect(v.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('passes exact token match', () => {
-    const node = makeNode({
-      type: 'FRAME',
-      layoutMode: 'VERTICAL',
-      itemSpacing: 16,
-    });
-    const v = specSpacingRule.check(node, spacingCtx);
-    // Exact match should not flag
-    const itemSpacingViolations = v.filter((vi) => String(vi.currentValue).includes('itemSpacing'));
-    expect(itemSpacingViolations).toHaveLength(0);
-  });
-
-  it('skips zero spacing', () => {
-    const node = makeNode({
-      type: 'FRAME',
-      layoutMode: 'VERTICAL',
-      itemSpacing: 0,
-    });
-    const v = specSpacingRule.check(node, spacingCtx);
-    expect(v).toHaveLength(0);
-  });
-
-  it('skips bound variables', () => {
-    const node = makeNode({
-      type: 'FRAME',
-      itemSpacing: 15,
-      boundVariables: { itemSpacing: { id: 'var:1' } },
-    });
-    const v = specSpacingRule.check(node, spacingCtx);
-    const itemSpacingViolations = v.filter((vi) => String(vi.currentValue).includes('itemSpacing'));
-    expect(itemSpacingViolations).toHaveLength(0);
-  });
-
-  it('returns empty when no spacing tokens', () => {
-    const node = makeNode({ type: 'FRAME', itemSpacing: 15 });
-    const v = specSpacingRule.check(node, emptyCtx);
     expect(v).toHaveLength(0);
   });
 });

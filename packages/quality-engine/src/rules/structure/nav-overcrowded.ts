@@ -1,4 +1,6 @@
 import type { AbstractNode, LintContext, LintRule, LintViolation } from '../../types.js';
+import { tr } from '../../types.js';
+import { checkRowCramped, describeRowCrampedFix } from './row-cramped-helper.js';
 
 function isNavLike(node: AbstractNode): boolean {
   if (node.role === 'nav') return true;
@@ -12,40 +14,22 @@ export const navOvercrowdedRule: LintRule = {
   category: 'layout',
   severity: 'heuristic',
 
-  check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
-    if (node.type !== 'FRAME' && node.type !== 'COMPONENT') return [];
-    if (!isNavLike(node)) return [];
-    if (node.layoutMode !== 'HORIZONTAL') return [];
-    if (!node.children || node.children.length < 2) return [];
-
-    const availableWidth = node.width ?? node.parentWidth;
-    if (availableWidth == null) return [];
-
-    const spacing = node.itemSpacing ?? 0;
-    const paddingLeft = node.paddingLeft ?? 0;
-    const paddingRight = node.paddingRight ?? 0;
-    const childWidths = node.children.map((child) => child.width).filter((width): width is number => width != null);
-    if (childWidths.length !== node.children.length) return [];
-
-    const requiredWidth =
-      paddingLeft +
-      paddingRight +
-      childWidths.reduce((sum, width) => sum + width, 0) +
-      spacing * Math.max(0, node.children.length - 1);
-
-    if (requiredWidth <= availableWidth + 4) return [];
-
-    return [
+  check(node: AbstractNode, ctx: LintContext): LintViolation[] {
+    return checkRowCramped(
+      node,
       {
-        nodeId: node.id,
-        nodeName: node.name,
-        rule: 'nav-overcrowded',
-        severity: 'heuristic',
-        currentValue: `needs ${Math.round(requiredWidth)}px but only has ${Math.round(availableWidth)}px`,
-        suggestion: `"${node.name}" is too crowded for its navigation items. Reduce item count, shorten labels, or switch to a more spacious navigation pattern.`,
-        autoFixable: false,
-        fixData: { overflow: Math.round(requiredWidth - availableWidth) },
+        ruleName: 'nav-overcrowded',
+        detect: isNavLike,
+        buildSuggestion: (name, lang) =>
+          tr(
+            lang,
+            `"${name}" is too crowded for its navigation items. Reduce item count, shorten labels, or switch to a more spacious navigation pattern.`,
+            `「${name}」导航项过于拥挤。请减少项数、缩短标签,或改用更宽松的导航形态。`,
+          ),
       },
-    ];
+      ctx,
+    );
   },
+
+  describeFix: describeRowCrampedFix,
 };

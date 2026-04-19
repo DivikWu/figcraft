@@ -11,6 +11,7 @@
  */
 
 import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
+import { tr } from '../../types.js';
 
 // Unified spacer detection — matches all known AI-generated spacer naming patterns
 export const SPACER_RE =
@@ -36,7 +37,7 @@ export const spacerFrameRule: LintRule = {
     phase: ['layout'],
   },
 
-  check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
+  check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     if (node.type !== 'FRAME') return [];
     if (!isEmptyOrInvisible(node)) return [];
 
@@ -56,7 +57,11 @@ export const spacerFrameRule: LintRule = {
         rule: 'spacer-frame',
         severity: 'style',
         currentValue: `${node.width ?? '?'}×${node.height ?? '?'} empty frame`,
-        suggestion: `"${node.name}" looks like a spacing hack. Group related elements into semantic auto-layout frames with itemSpacing instead.`,
+        suggestion: tr(
+          ctx.lang,
+          `"${node.name}" looks like a spacing hack. Group related elements into semantic auto-layout frames with itemSpacing instead.`,
+          `「${node.name}」像是手写的间距 hack。请把相关元素放入有语义的自动布局容器,用 itemSpacing 控制间距。`,
+        ),
         autoFixable: true,
         fixData: {
           action: 'remove-spacer',

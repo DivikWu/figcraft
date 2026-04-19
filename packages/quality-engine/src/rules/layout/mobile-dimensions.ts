@@ -10,6 +10,7 @@
 
 import { DESIGN_CONSTANTS, SCREEN_NAME_RE } from '../../constants.js';
 import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
+import { tr } from '../../types.js';
 
 /** Known standard mobile dimensions [width, height]. */
 const STANDARD_DIMS: Array<{ platform: string; width: number; height: number }> = [
@@ -18,12 +19,12 @@ const STANDARD_DIMS: Array<{ platform: string; width: number; height: number }> 
 ];
 
 /** Legacy dimensions that should be flagged. */
-const LEGACY_DIMS: Array<{ width: number; height: number; suggestion: string }> = [
-  { width: 390, height: 844, suggestion: 'Legacy iPhone 14 size. Use 402×874 (iPhone 16 Pro) instead.' },
-  { width: 375, height: 812, suggestion: 'Legacy iPhone X/11 Pro size. Use 402×874 (iPhone 16 Pro) instead.' },
-  { width: 360, height: 800, suggestion: 'Legacy Android size. Use 412×915 instead.' },
-  { width: 360, height: 780, suggestion: 'Legacy Android size. Use 412×915 instead.' },
-  { width: 393, height: 852, suggestion: 'Legacy iPhone 15 size. Use 402×874 (iPhone 16 Pro) instead.' },
+const LEGACY_DIMS: Array<{ width: number; height: number; en: string; zh: string }> = [
+  { width: 390, height: 844, en: 'Legacy iPhone 14 size. Use 402×874 (iPhone 16 Pro) instead.', zh: 'iPhone 14 旧尺寸。建议改用 402×874(iPhone 16 Pro)。' },
+  { width: 375, height: 812, en: 'Legacy iPhone X/11 Pro size. Use 402×874 (iPhone 16 Pro) instead.', zh: 'iPhone X / 11 Pro 旧尺寸。建议改用 402×874(iPhone 16 Pro)。' },
+  { width: 360, height: 800, en: 'Legacy Android size. Use 412×915 instead.', zh: 'Android 旧尺寸。建议改用 412×915。' },
+  { width: 360, height: 780, en: 'Legacy Android size. Use 412×915 instead.', zh: 'Android 旧尺寸。建议改用 412×915。' },
+  { width: 393, height: 852, en: 'Legacy iPhone 15 size. Use 402×874 (iPhone 16 Pro) instead.', zh: 'iPhone 15 旧尺寸。建议改用 402×874(iPhone 16 Pro)。' },
 ];
 
 function isScreenLike(node: AbstractNode): boolean {
@@ -50,22 +51,18 @@ export const mobileDimensionsRule: LintRule = {
     tags: ['screen'],
   },
 
-  check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
+  check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     if (!isScreenLike(node)) return [];
     if (!isMobileSized(node)) return [];
 
     const w = node.width ?? 0;
     const h = node.height ?? 0;
 
-    // Check if it matches a standard dimension — if so, no violation
-    for (const std of STANDARD_DIMS) {
-      if (w === std.width && h === std.height) return [];
-    }
-
-    // Check if it matches a known legacy dimension
+    // Only flag explicit legacy sizes we want to migrate away from.
+    // Designers legitimately use many other mobile sizes (SE, Pro Max, foldables,
+    // custom web viewports) — flagging "not exactly 402×874" is noise, not signal.
     for (const legacy of LEGACY_DIMS) {
       if (w === legacy.width && h === legacy.height) {
-        // Determine the best standard to suggest
         const isIosLike = w <= 400;
         const target = isIosLike ? STANDARD_DIMS[0] : STANDARD_DIMS[1];
         return [
@@ -76,7 +73,11 @@ export const mobileDimensionsRule: LintRule = {
             severity: 'style',
             currentValue: `${w}×${h}`,
             expectedValue: `${target.width}×${target.height}`,
-            suggestion: `"${node.name}" uses ${legacy.suggestion}`,
+            suggestion: tr(
+              ctx.lang,
+              `"${node.name}" uses ${legacy.en}`,
+              `「${node.name}」使用了${legacy.zh}`,
+            ),
             autoFixable: true,
             fixData: { fix: 'resize', width: target.width, height: target.height },
           },
@@ -84,22 +85,7 @@ export const mobileDimensionsRule: LintRule = {
       }
     }
 
-    // Non-standard but not a known legacy — flag as info, not auto-fixable
-    // (auto-resizing could break existing content layout)
-    const isIosLike = w <= 406;
-    const target = isIosLike ? STANDARD_DIMS[0] : STANDARD_DIMS[1];
-    return [
-      {
-        nodeId: node.id,
-        nodeName: node.name,
-        rule: 'mobile-dimensions',
-        severity: 'style',
-        currentValue: `${w}×${h}`,
-        expectedValue: `${target.width}×${target.height}`,
-        suggestion: `"${node.name}" uses non-standard mobile dimensions ${w}×${h}. Consider ${target.platform} standard: ${target.width}×${target.height}.`,
-        autoFixable: false,
-      },
-    ];
+    return [];
   },
 
   describeFix(v): FixDescriptor | null {

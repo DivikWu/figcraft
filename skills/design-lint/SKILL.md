@@ -90,11 +90,8 @@ These 16 rules cannot be auto-fixed and need manual attention:
 
 - `wcag-contrast` — adjust colors for ≥ 4.5:1 contrast ratio
 - `wcag-non-text-contrast` — non-text elements need ≥ 3:1 contrast
-- `fixed-in-autolayout` — remove absolute positioning from auto-layout children
 - `empty-container` — add content or remove empty frames
 - `max-nesting-depth` — simplify hierarchy (> 6 levels deep)
-- `header-fragmented` — group header elements into a dedicated container
-- `header-out-of-band` — move header to top of screen
 - `root-misclassified-interactive` — screen roots should not be interactive shells
 - `nested-interactive-shell` — unwrap nested interactive elements
 - `social-row-cramped` / `nav-overcrowded` / `stats-row-cramped` — increase container width

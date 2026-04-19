@@ -5563,7 +5563,7 @@ set_lint_ignore:
     rules:
       type: string
       required: true
-      description: 'Comma-separated rule names to ignore (e.g. "button-structure,wcag-target-size") or "*" for all. Empty string to clear.'
+      description: 'Comma-separated rule names or prefix wildcards to ignore (e.g. "button-*,wcag-target-size") or "*" for all. Empty string to clear.'
   response:
     type: object
     fields:
@@ -7495,6 +7495,17 @@ styles_ep:
           type: unknown
         letterSpacing:
           type: unknown
+        textDecoration:
+          type: string
+          description: "Text decoration: NONE, UNDERLINE, STRIKETHROUGH"
+        textCase:
+          type: string
+          description: "Text case: ORIGINAL, UPPER, LOWER, TITLE, SMALL_CAPS, SMALL_CAPS_FORCED"
+        bindings:
+          type: array
+          description: "Bind variables to text style fields. Array of {field, variableId}. Fields: fontFamily, fontSize, fontStyle, fontWeight, letterSpacing, lineHeight, paragraphSpacing, paragraphIndent"
+          items:
+            type: object
     update_effect:
       description: Update an existing effect style
       maps_to: update_effect_style

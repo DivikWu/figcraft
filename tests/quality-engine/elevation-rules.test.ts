@@ -42,7 +42,7 @@ describe('elevation-consistency', () => {
     const v = elevationConsistencyRule.check(node, emptyCtx);
     expect(v).toHaveLength(1);
     expect(v[0].rule).toBe('elevation-consistency');
-    expect(v[0].severity).toBe('heuristic');
+    expect(v[0].severity).toBe('verbose');
     expect(v[0].currentValue).toContain('2 with shadow');
   });
 

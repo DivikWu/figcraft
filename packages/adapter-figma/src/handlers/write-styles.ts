@@ -164,6 +164,22 @@ export function registerWriteStyleHandlers(): void {
         ts.letterSpacing = ls as LetterSpacing;
       }
     }
+    if (params.textDecoration != null) {
+      ts.textDecoration = params.textDecoration as TextDecoration;
+    }
+    if (params.textCase != null) {
+      ts.textCase = params.textCase as TextCase;
+    }
+    // Bind variables to text style fields
+    if (params.bindings != null) {
+      const bindings = params.bindings as Array<{ field: string; variableId: string }>;
+      for (const binding of bindings) {
+        const variable = await figma.variables.getVariableByIdAsync(binding.variableId);
+        if (variable) {
+          ts.setBoundVariable(binding.field as any, variable);
+        }
+      }
+    }
     return { id: ts.id, name: ts.name, fontSize: ts.fontSize };
   });
 

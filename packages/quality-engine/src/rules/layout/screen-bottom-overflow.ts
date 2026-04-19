@@ -1,5 +1,6 @@
 import { SCREEN_NAME_RE } from '../../constants.js';
 import type { AbstractNode, LintContext, LintRule, LintViolation } from '../../types.js';
+import { tr } from '../../types.js';
 
 function isScreenLike(node: AbstractNode): boolean {
   return node.role === 'screen' || SCREEN_NAME_RE.test(node.name);
@@ -11,7 +12,7 @@ export const screenBottomOverflowRule: LintRule = {
   category: 'layout',
   severity: 'unsafe',
 
-  check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
+  check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     if (node.type !== 'FRAME' && node.type !== 'COMPONENT') return [];
     if (!isScreenLike(node)) return [];
     if (node.height == null || !node.children || node.children.length === 0) return [];
@@ -27,7 +28,11 @@ export const screenBottomOverflowRule: LintRule = {
           rule: 'screen-bottom-overflow',
           severity: 'unsafe',
           currentValue: `bottom edge ${Math.round(bottom)}px exceeds screen height ${Math.round(node.height)}px`,
-          suggestion: `"${child.name}" extends beyond the bottom of "${node.name}". Reduce vertical space usage or move the section upward.`,
+          suggestion: tr(
+            ctx.lang,
+            `"${child.name}" extends beyond the bottom of "${node.name}". Reduce vertical space usage or move the section upward.`,
+            `「${child.name}」超出「${node.name}」底部。请减少纵向空间占用,或把该区块往上移。`,
+          ),
           autoFixable: false,
         });
       }

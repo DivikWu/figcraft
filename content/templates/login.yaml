@@ -20,7 +20,7 @@ keyDecisions:
   padding: horizontal 24px; safe areas use dedicated transparent frames (Status Bar 54px, Home Indicator 34px), NOT padding
   inputStructure: HORIZONTAL auto-layout frame with stroke, no standalone text — always wrapped in frame
 pitfalls:
-  - "button-structure: CTA height < 48px or missing auto-layout"
+  - "button-solid-structure: CTA height < 48px or missing auto-layout"
   - "input-field-structure: input missing stroke or cornerRadius"
   - "text-overflow: long email addresses overflow input frame"
   - "screen-bottom-overflow: form + social login + links overflow viewport"

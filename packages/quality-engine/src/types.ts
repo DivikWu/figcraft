@@ -2,6 +2,16 @@
  * Lint engine types — abstract node, rules, violations.
  */
 
+import type { InteractiveKind, InteractiveMeta } from './interactive/taxonomy.js';
+
+/** Supported UI languages for violation messages. */
+export type Lang = 'en' | 'zh';
+
+/** Pick localized message by language (defaults to English when unset). */
+export function tr(lang: Lang | undefined, en: string, zh: string): string {
+  return lang === 'zh' ? zh : en;
+}
+
 /** Simplified node for lint analysis (decoupled from Figma API). */
 export interface AbstractNode {
   id: string;
@@ -84,6 +94,18 @@ export interface AbstractNode {
   parentItemSpacing?: number;
   // Lint exclusion: comma-separated rule names or '*' to skip all rules
   lintIgnore?: string;
+  /** Interactive classification (populated by classifier before rule execution). */
+  interactive?: InteractiveMeta;
+  /** True if the node sits inside a COMPONENT/INSTANCE subtree — propagated by engine. */
+  insideComponentSubtree?: boolean;
+  /** Detected platform ('ios' | 'android' | 'web' | 'mobile' | 'desktop'), propagated from screen-like ancestors. */
+  platform?: string;
+  /** Prototype reactions (hover / click / pressed). Populated when available from the source. */
+  reactions?: unknown[];
+  /** True if this node is drawn over a non-SOLID (image/video/gradient) backdrop — propagated by engine. */
+  overComplexBg?: boolean;
+  /** Visibility flag — false means hidden (skipped by lint traversal). */
+  visible?: boolean;
 }
 
 export interface LintContext {
@@ -101,6 +123,8 @@ export interface LintContext {
   mode?: 'library' | 'spec';
   /** Selected library name (only relevant in library mode). */
   selectedLibrary?: string | null;
+  /** UI language for violation messages ('en' | 'zh', default 'en'). */
+  lang?: Lang;
 }
 
 /**
@@ -200,6 +224,13 @@ export interface LintRule {
   describeFix?(violation: LintViolation): FixDescriptor | null;
   /** AI knowledge layer — tells AI how to prevent this violation. */
   ai?: RuleAI;
+  /**
+   * When this rule fires on a node, suppress the named rules on that node and
+   * all its descendants. Used by cascade-parent rules (e.g. screen-shell-invalid
+   * suppresses layout rules in its subtree — no point flagging inner layout
+   * when the shell itself is wrong). Must run BEFORE the suppressed rules.
+   */
+  suppressesInSubtree?: string[];
 }
 
 /** LintRule that MUST implement describeFix — use for compile-time guarantee on fixable rules. */

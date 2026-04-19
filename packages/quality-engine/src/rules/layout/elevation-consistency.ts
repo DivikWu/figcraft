@@ -8,6 +8,7 @@
  */
 
 import type { AbstractNode, LintContext, LintRule, LintViolation } from '../../types.js';
+import { tr } from '../../types.js';
 
 function hasVisibleDropShadow(node: AbstractNode): boolean {
   return !!node.effects?.some((e) => e.type === 'DROP_SHADOW' && e.visible !== false);
@@ -18,14 +19,14 @@ export const elevationConsistencyRule: LintRule = {
   description:
     'Sibling elements in the same container should share a consistent elevation strategy (all shadows or all flat).',
   category: 'layout',
-  severity: 'heuristic',
+  severity: 'verbose',
   ai: {
     preventionHint:
       'Choose one elevation strategy per container: flat (borders only) or elevated (shadows). Do not mix.',
     phase: ['styling'],
   },
 
-  check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
+  check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     // Only check auto-layout containers with 2+ children
     if (!node.layoutMode || !node.children || node.children.length < 2) return [];
 
@@ -53,9 +54,13 @@ export const elevationConsistencyRule: LintRule = {
           nodeId: node.id,
           nodeName: node.name,
           rule: 'elevation-consistency',
-          severity: 'heuristic',
+          severity: 'verbose',
           currentValue: `${withShadow.length} with shadow (${shadowNames}), ${withoutShadow.length} flat (${flatNames})`,
-          suggestion: `"${node.name}" mixes elevated and flat children. Add shadows to all cards or remove them for consistency.`,
+          suggestion: tr(
+            ctx.lang,
+            `"${node.name}" mixes elevated and flat children. Add shadows to all cards or remove them for consistency.`,
+            `「${node.name}」子节点阴影使用不一致。请统一为所有卡片加阴影或全部去阴影。`,
+          ),
           autoFixable: false,
         },
       ];

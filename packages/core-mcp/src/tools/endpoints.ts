@@ -349,6 +349,9 @@ export function registerEndpointTools(server: McpServer, bridge: Bridge): void {
             fontSize: p.fontSize,
             lineHeight: p.lineHeight,
             letterSpacing: p.letterSpacing,
+            textDecoration: p.textDecoration,
+            textCase: p.textCase,
+            bindings: p.bindings,
           }),
         update_effect: (b, p) =>
           bridgeRequestLogic(b, 'update_effect_style', {

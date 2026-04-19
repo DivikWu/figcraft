@@ -54,7 +54,7 @@ Rules:
 - MUST keep interactive content within safe areas
 - Status bar area: 54px top (Dynamic Island devices), 44px (notch devices), 20px (legacy)
 - Home indicator: 34px bottom on Face ID devices
-- System bar frames MUST be full-bleed: `paddingLeft: 0, paddingRight: 0, paddingTop: 0` (matches lint rule `system-bar-fullbleed`)
+- System bar frames should be full-bleed: `paddingLeft: 0, paddingRight: 0, paddingTop: 0` on the screen root so the status bar sits flush at the top edge
 - Content padding: 16px horizontal minimum
 - **Figma implementation**: safe areas MUST be visible transparent frames with `layoutMode: "HORIZONTAL"` (no fill, no stroke), NOT padding or hidden elements
   - Status Bar: `{ type: 'frame', name: 'Status Bar', layoutMode: 'HORIZONTAL', height: 54 }` as first child of screen

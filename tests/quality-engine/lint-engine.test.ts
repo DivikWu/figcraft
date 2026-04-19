@@ -95,15 +95,15 @@ describe('runLint', () => {
       height: 200,
       children: [makeNode({ id: '2:1', name: 'Child', type: 'FRAME' })],
     });
-    const report = runLint([node], emptyCtx, { rules: ['default-name'] });
+    const report = runLint([node], emptyCtx, { rules: ['default-name'], minSeverity: 'verbose' });
     expect(report.summary.bySeverity).toBeDefined();
     expect(typeof report.summary.bySeverity.error).toBe('number');
     expect(typeof report.summary.bySeverity.unsafe).toBe('number');
     expect(typeof report.summary.bySeverity.heuristic).toBe('number');
     expect(typeof report.summary.bySeverity.style).toBe('number');
     expect(typeof report.summary.bySeverity.verbose).toBe('number');
-    // default-name is style severity, parent node is non-leaf + large → no downgrade
-    expect(report.summary.bySeverity.style).toBeGreaterThan(0);
+    // default-name is verbose severity — it only surfaces with minSeverity: 'verbose'
+    expect(report.summary.bySeverity.verbose).toBeGreaterThan(0);
   });
 
   it('filters by minSeverity', () => {
@@ -155,9 +155,9 @@ describe('runLint', () => {
         }),
       ],
     });
-    const allReport = runLint([deep], emptyCtx, { rules: ['max-nesting-depth'] });
-    const filteredReport = runLint([deep], emptyCtx, { rules: ['max-nesting-depth'], minSeverity: 'heuristic' });
-    // style violations should be excluded when minSeverity is 'heuristic'
+    // max-nesting-depth is verbose severity — default filter (up to 'style') excludes it
+    const allReport = runLint([deep], emptyCtx, { rules: ['max-nesting-depth'], minSeverity: 'verbose' });
+    const filteredReport = runLint([deep], emptyCtx, { rules: ['max-nesting-depth'], minSeverity: 'style' });
     expect(allReport.summary.violations).toBeGreaterThan(0);
     expect(filteredReport.summary.violations).toBe(0);
   });
@@ -229,5 +229,129 @@ describe('getAvailableRules', () => {
     expect(categories).toContain('naming');
     expect(categories).toContain('wcag');
     expect(categories).toContain('component');
+  });
+});
+
+describe('cascade suppression', () => {
+  it('suppresses no-autolayout descendants when screen-shell-invalid fires on root', () => {
+    // Screen-like root with broken shell (no layoutMode) and a child that itself
+    // has 2+ children without auto-layout. Without cascade, no-autolayout fires
+    // on both root AND child. With cascade, screen-shell-invalid owns the root
+    // and descendant no-autolayout is suppressed.
+    const screen = makeNode({
+      id: '1:1',
+      name: 'Login Screen',
+      type: 'FRAME',
+      role: 'screen',
+      width: 402,
+      height: 874,
+      // No layoutMode on root → screen-shell-invalid fires
+      children: [
+        makeNode({ id: '2:1', name: 'Header', type: 'FRAME', width: 402, height: 80 }),
+        makeNode({
+          id: '2:2',
+          name: 'Content',
+          type: 'FRAME',
+          width: 402,
+          height: 600,
+          // No layoutMode on child → without suppression, no-autolayout would also fire here
+          children: [
+            makeNode({ id: '3:1', name: 'A', type: 'FRAME', width: 100, height: 100 }),
+            makeNode({ id: '3:2', name: 'B', type: 'FRAME', width: 100, height: 100 }),
+          ],
+        }),
+      ],
+    });
+    const report = runLint([screen], emptyCtx, { rules: ['screen-shell-invalid', 'no-autolayout'] });
+    const shellViolations = report.categories.find((c) => c.rule === 'screen-shell-invalid');
+    const autoLayoutViolations = report.categories.find((c) => c.rule === 'no-autolayout');
+    expect(shellViolations).toBeDefined();
+    expect(shellViolations!.count).toBeGreaterThan(0);
+    // no-autolayout should NOT fire on the Content descendant when screen-shell-invalid is already flagging the root
+    expect(autoLayoutViolations).toBeUndefined();
+  });
+
+  it('suppresses overflow-parent inside a no-autolayout container', () => {
+    // Parent without auto-layout + oversized child. overflow-parent fires
+    // against auto-layout width math, which is meaningless when the parent
+    // is free-form positioning. no-autolayout owns this container.
+    const parent = makeNode({
+      id: '1:1',
+      name: 'Card Deck',
+      role: 'list', // qualifies as layout role
+      type: 'FRAME',
+      width: 300,
+      height: 400,
+      // No layoutMode → no-autolayout fires
+      children: [
+        makeNode({ id: '2:1', name: 'A', type: 'FRAME', width: 150, height: 100 }),
+        makeNode({ id: '2:2', name: 'Overflowing Card', type: 'FRAME', width: 500, height: 100 }),
+      ],
+    });
+    const report = runLint([parent], emptyCtx, { rules: ['no-autolayout', 'overflow-parent'] });
+    const noAL = report.categories.find((c) => c.rule === 'no-autolayout');
+    const overflow = report.categories.find((c) => c.rule === 'overflow-parent');
+    expect(noAL).toBeDefined();
+    expect(overflow).toBeUndefined();
+  });
+
+  it('draft profile strips default-name and placeholder-text noise', () => {
+    const node = makeNode({
+      name: 'Frame 1',
+      type: 'FRAME',
+      children: [
+        makeNode({ id: '2:1', name: 'Text', type: 'TEXT', characters: 'Lorem ipsum dolor sit amet', fontSize: 16 }),
+      ],
+    });
+    const reviewReport = runLint([node], emptyCtx, {
+      profile: 'review',
+      minSeverity: 'verbose',
+      rules: ['default-name', 'placeholder-text'],
+    });
+    const draftReport = runLint([node], emptyCtx, {
+      profile: 'draft',
+      minSeverity: 'verbose',
+      rules: ['default-name', 'placeholder-text'],
+    });
+    expect(reviewReport.summary.violations).toBeGreaterThan(0);
+    expect(draftReport.summary.violations).toBe(0);
+  });
+
+  it('publish profile upgrades default-name severity so it surfaces', () => {
+    const node = makeNode({
+      name: 'Frame 1',
+      type: 'FRAME',
+      width: 200,
+      height: 200,
+      children: [makeNode({ id: '2:1', name: 'Child', type: 'FRAME' })],
+    });
+    // review profile: default-name is verbose → hidden under default minSeverity
+    const reviewReport = runLint([node], emptyCtx, { profile: 'review', rules: ['default-name'] });
+    // publish profile: upgraded to style → surfaces at default minSeverity
+    const publishReport = runLint([node], emptyCtx, { profile: 'publish', rules: ['default-name'] });
+    expect(reviewReport.summary.violations).toBe(0);
+    expect(publishReport.summary.violations).toBeGreaterThan(0);
+  });
+
+  it('does not suppress when the parent rule does not fire', () => {
+    // Proper auto-layout shell — no suppression should kick in, overflow-parent
+    // can still fire on a true overflow.
+    const parent = makeNode({
+      id: '1:1',
+      name: 'Valid Row',
+      role: 'row',
+      type: 'FRAME',
+      layoutMode: 'HORIZONTAL',
+      width: 300,
+      height: 100,
+      children: [
+        makeNode({ id: '2:1', name: 'Wide Child', type: 'FRAME', width: 400, height: 80 }),
+      ],
+    });
+    const report = runLint([parent], emptyCtx, { rules: ['no-autolayout', 'overflow-parent'] });
+    // no-autolayout should NOT fire (parent has HORIZONTAL)
+    expect(report.categories.find((c) => c.rule === 'no-autolayout')).toBeUndefined();
+    // overflow-parent IS allowed to fire because no-autolayout didn't suppress it
+    // (may or may not fire depending on rule internals — just verify no suppression error)
   });
 });

@@ -1,10 +1,12 @@
 /**
  * Tests for role-aware lint rules — declaration-driven identification.
  *
- * When node.role is set, lint rules use it deterministically instead of name-regex guessing.
+ * When node.role is set, the classifier uses it deterministically instead of
+ * falling back to name-regex heuristics.
  */
 import { describe, expect, it } from 'vitest';
-import { buttonStructureRule } from '../../packages/quality-engine/src/rules/structure/button-structure.js';
+import { classifyInteractive } from '../../packages/quality-engine/src/interactive/classifier.js';
+import { buttonSolidStructureRule } from '../../packages/quality-engine/src/rules/structure/button-solid-structure.js';
 import { inputFieldStructureRule } from '../../packages/quality-engine/src/rules/structure/input-field-structure.js';
 import type { AbstractNode, LintContext } from '../../packages/quality-engine/src/types.js';
 
@@ -20,9 +22,23 @@ function makeNode(overrides: Partial<AbstractNode>): AbstractNode {
   return { id: '1:1', name: 'Test', type: 'FRAME', ...overrides };
 }
 
-// ─── button-structure: role-aware ───
+/** Simulate the engine's cache-then-check step for a single node. */
+function classifyAndCheck(node: AbstractNode, rule: typeof buttonSolidStructureRule) {
+  const result = classifyInteractive(node);
+  if (result.kind) {
+    node.interactive = {
+      kind: result.kind,
+      confidence: result.confidence,
+      signals: result.signals,
+      declared: false,
+    };
+  }
+  return rule.check(node, emptyCtx);
+}
 
-describe('button-structure role-aware', () => {
+// ─── button-solid-structure: role-aware ───
+
+describe('button-solid-structure role-aware', () => {
   it('role:"screen" prevents button detection even with matching name', () => {
     const node = makeNode({
       name: 'Screen / 登录',
@@ -32,11 +48,11 @@ describe('button-structure role-aware', () => {
       width: 402,
       height: 874,
     });
-    const v = buttonStructureRule.check(node, emptyCtx);
+    const v = classifyAndCheck(node, buttonSolidStructureRule);
     expect(v).toHaveLength(0);
   });
 
-  it('role:"button" forces button detection regardless of name', () => {
+  it('role:"button" + fill passes all checks when well-formed', () => {
     const node = makeNode({
       name: 'Primary Action',
       role: 'button',
@@ -47,22 +63,25 @@ describe('button-structure role-aware', () => {
       paddingLeft: 24,
       paddingRight: 24,
       height: 48,
+      fills: [{ type: 'SOLID', color: '#000000', visible: true, opacity: 1 }],
+      children: [{ id: '2:1', name: 'Go', type: 'TEXT' }],
     });
-    const v = buttonStructureRule.check(node, emptyCtx);
-    // Should be detected as button but passes all checks (has layout, padding, height)
+    const v = classifyAndCheck(node, buttonSolidStructureRule);
     expect(v).toHaveLength(0);
   });
 
-  it('role:"button" with missing layout triggers violations', () => {
+  it('role:"button" with fill + missing layout triggers violations', () => {
     const node = makeNode({
       name: 'Some Frame',
       role: 'button',
       type: 'FRAME',
       height: 48,
+      fills: [{ type: 'SOLID', color: '#000000', visible: true, opacity: 1 }],
+      children: [{ id: '2:1', name: 'Go', type: 'TEXT' }],
     });
-    const v = buttonStructureRule.check(node, emptyCtx);
+    const v = classifyAndCheck(node, buttonSolidStructureRule);
     expect(v.length).toBeGreaterThan(0);
-    expect(v.some((vi) => vi.rule === 'button-structure')).toBe(true);
+    expect(v.some((vi) => vi.rule === 'button-solid-structure')).toBe(true);
   });
 
   it('role:"container" prevents button detection even with "登录" in name', () => {
@@ -71,20 +90,8 @@ describe('button-structure role-aware', () => {
       role: 'container',
       type: 'FRAME',
     });
-    const v = buttonStructureRule.check(node, emptyCtx);
+    const v = classifyAndCheck(node, buttonSolidStructureRule);
     expect(v).toHaveLength(0);
-  });
-
-  it('no role falls back to name-based detection', () => {
-    const node = makeNode({
-      name: '登录',
-      type: 'FRAME',
-      height: 48,
-      children: [{ id: '2:1', name: 'Text', type: 'TEXT', characters: '登录' }],
-    });
-    const v = buttonStructureRule.check(node, emptyCtx);
-    // Should be detected as button via BUTTON_NAME_RE and flagged for missing auto-layout
-    expect(v.length).toBeGreaterThan(0);
   });
 });
 

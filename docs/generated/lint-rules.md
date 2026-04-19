@@ -8,12 +8,12 @@
 
 | Category | Rules | Auto-fixable |
 | --- | ---: | ---: |
-| Token Compliance | 6 | 6 |
+| Token Compliance | 5 | 5 |
 | WCAG Accessibility | 5 | 3 |
-| Layout & Structure | 26 | 13 |
+| Layout & Structure | 27 | 20 |
 | Naming & Content | 2 | 0 |
 | Component | 1 | 0 |
-| **Total** | **40** | **22** |
+| **Total** | **40** | **28** |
 
 ## Token Compliance
 
@@ -21,9 +21,8 @@
 | --- | --- | :---: | --- |
 | `spec-color` | error | ✅ | Detect colors that don't match any design token — suggests the closest token to use. |
 | `spec-typography` | error | ✅ | Detect text layers with custom font settings that should use a typography token. |
-| `spec-spacing` | error | ✅ | Detect padding or gap values that don't match any spacing token. |
 | `spec-border-radius` | error | ✅ | Detect corner radius values that don't match any radius token. |
-| `hardcoded-token` | heuristic | ✅ | Detect fill colors or corner radii that aren't linked to a shared library variable. |
+| `hardcoded-token` | heuristic | ✅ | Detect fill colors or corner radii that aren't linked to a spec source (library variable, local variable, or local style). |
 | `no-text-style` | heuristic | ✅ | Detect text layers that don't use a shared text style. |
 
 ## WCAG Accessibility
@@ -31,54 +30,55 @@
 | Rule | Severity | Fix | Description |
 | --- | --- | :---: | --- |
 | `wcag-contrast` | unsafe | — | Check that text has enough contrast against its background for readability (WCAG AA). |
-| `wcag-target-size` | heuristic | ✅ | Check that buttons and interactive elements are large enough to tap easily (at least 44×44px). |
-| `wcag-text-size` | heuristic | ✅ | Detect text smaller than 12px — very small text can be hard to read for many users. |
+| `wcag-target-size` | heuristic | ✅ | Fallback touch-target check for unclassified interactive-looking nodes — WCAG 2.5.8 AA minimum 24×24 with Spacing exception. |
+| `wcag-text-size` | heuristic | ✅ | Detect text smaller than the platform minimum (10px mobile, 12px desktop) — very small text can be hard to read for many users. |
 | `wcag-line-height` | heuristic | ✅ | Check that line height is large enough to prevent text lines from overlapping. |
-| `wcag-non-text-contrast` | heuristic | — | Non-text UI components need at least 3:1 contrast against adjacent colors (WCAG 1.4.11). |
+| `wcag-non-text-contrast` | heuristic | — | Solid/outline buttons need ≥ 3:1 contrast between their surface (fill or stroke) and the adjacent background (WCAG 1.4.11). |
 
 ## Layout & Structure
 
 | Rule | Severity | Fix | Description |
 | --- | --- | :---: | --- |
-| `fixed-in-autolayout` | unsafe | — | Detect layers set to absolute position inside an auto layout frame, which may break the layout. |
-| `empty-container` | style | — | Detect empty frames or groups that have no visible content inside. |
+| `screen-shell-invalid` | error | ✅ | Screen roots should use a stable vertical shell with explicit viewport dimensions. |
+| `root-misclassified-interactive` | error | — | Screen roots must not be treated as button/input shells. |
+| `nested-interactive-shell` | error | — | Interactive shells should not be wrapped inside another interactive shell. |
+| `no-autolayout` | heuristic | ✅ | Detect frames with multiple children but no auto-layout, causing overlapping or non-responsive layouts. |
+| `empty-container` | verbose | — | Detect empty frames or groups that have no visible content inside. |
 | `spacer-frame` | style | ✅ | Detect empty frames used as spacing hacks. Use auto-layout itemSpacing with semantic grouping instead. |
-| `max-nesting-depth` | style | — | Detect layers nested more than 6 levels deep — simplifying the hierarchy makes designs easier to maintain. |
-| `button-structure` | heuristic | ✅ | Buttons must be auto-layout frames with centered text, adequate padding and height. |
+| `max-nesting-depth` | verbose | — | Detect layers nested more than 6 levels deep — simplifying the hierarchy makes designs easier to maintain. |
+| `button-solid-structure` | heuristic | ✅ | Filled CTA buttons must be auto-layout frames with adequate padding and touch target. |
+| `button-outline-structure` | heuristic | ✅ | Outline buttons must have a visible stroke, auto-layout, padding and height. |
+| `button-ghost-structure` | heuristic | ✅ | Ghost (transparent) buttons need padding for a usable hit target and an affordance signal. |
+| `button-text-structure` | heuristic | ✅ | Text buttons need a usable tap target without being forced into a framed container. |
+| `button-icon-structure` | heuristic | ✅ | Icon-only buttons need ≥ 24×24 tap target (WCAG 2.5.8 AA, or smaller via Spacing exception) and an accessible label. |
+| `link-standalone-structure` | heuristic | ✅ | Standalone links need a tap-friendly line-box on mobile (or satisfy WCAG 2.5.8 Spacing exception via surrounding itemSpacing). |
 | `text-overflow` | heuristic | ✅ | Detect text nodes that overflow or are clipped by their parent container. |
 | `form-consistency` | heuristic | ✅ | Form containers should have consistent child widths — all interactive children should use layoutAlign: STRETCH. |
 | `cta-width-inconsistent` | heuristic | ✅ | Primary CTA buttons inside forms should match the dominant field width instead of appearing noticeably narrower. |
 | `overflow-parent` | unsafe | ✅ | Detect children that overflow their parent container bounds. |
 | `unbounded-hug` | unsafe | ✅ | Detect frames with HUG sizing that contain FILL/STRETCH children, causing layout collapse. |
-| `no-autolayout` | heuristic | ✅ | Detect frames with multiple children but no auto-layout, causing overlapping or non-responsive layouts. |
 | `section-spacing-collapse` | heuristic | ✅ | Major vertical section stacks should keep a healthy itemSpacing rhythm instead of collapsing sections together. |
-| `header-fragmented` | heuristic | — | Screen-level header elements should be grouped into a dedicated header container instead of floating as separate top-level children. |
-| `header-out-of-band` | heuristic | — | Header containers should stay near the top of the screen instead of floating deep into the content area. |
-| `root-misclassified-interactive` | error | — | Screen roots must not be treated as button/input shells. |
-| `nested-interactive-shell` | error | — | Interactive shells should not be wrapped inside another interactive shell. |
-| `screen-shell-invalid` | error | ✅ | Screen roots should use a stable vertical shell with explicit viewport dimensions. |
 | `screen-bottom-overflow` | unsafe | — | Screen children should stay within the visible viewport instead of extending past the bottom edge. |
-| `social-row-cramped` | heuristic | — | Social login rows should have enough horizontal room for their children instead of compressing or clipping them. |
-| `nav-overcrowded` | heuristic | — | Navigation rows should have enough horizontal room for their items instead of crowding or clipping controls. |
-| `stats-row-cramped` | heuristic | — | Stats rows should have enough width for each metric card instead of squeezing them into an unreadable strip. |
+| `social-row-cramped` | heuristic | ✅ | Social login rows should have enough horizontal room for their children instead of compressing or clipping them. |
+| `nav-overcrowded` | heuristic | ✅ | Navigation rows should have enough horizontal room for their items instead of crowding or clipping controls. |
+| `stats-row-cramped` | heuristic | ✅ | Stats rows should have enough width for each metric card instead of squeezing them into an unreadable strip. |
 | `input-field-structure` | heuristic | ✅ | Input fields must be auto-layout frames with stroke, corner radius, padding, and a text child. |
 | `mobile-dimensions` | style | ✅ | Mobile screen frames should use standard dimensions: iOS 402×874, Android 412×915. |
-| `system-bar-fullbleed` | unsafe | ✅ | Screens with system bars must have paddingLeft/Right/Top = 0 for full-bleed layout. |
-| `elevation-consistency` | heuristic | — | Sibling elements in the same container should share a consistent elevation strategy (all shadows or all flat). |
+| `elevation-consistency` | verbose | — | Sibling elements in the same container should share a consistent elevation strategy (all shadows or all flat). |
 | `elevation-hierarchy` | heuristic | — | Child elements should not have stronger shadows than their parent container. |
 
 ## Naming & Content
 
 | Rule | Severity | Fix | Description |
 | --- | --- | :---: | --- |
-| `default-name` | style | — | Detect layers still using Figma's auto-generated names like "Frame 1" or "Rectangle 2". |
-| `placeholder-text` | heuristic | — | Detect placeholder or generic text content (Lorem ipsum, "Title", "Button") that should be replaced with realistic copy. |
+| `default-name` | verbose | — | Detect layers still using Figma's auto-generated names like "Frame 1" or "Rectangle 2". |
+| `placeholder-text` | verbose | — | Detect placeholder or generic text content (Lorem ipsum, "Title", "Button") that should be replaced with realistic copy. |
 
 ## Component
 
 | Rule | Severity | Fix | Description |
 | --- | --- | :---: | --- |
-| `component-bindings` | heuristic | — | Detect component properties that are defined but not connected to any child layer. |
+| `component-bindings` | style | — | Detect component properties that are defined but not connected to any child layer. |
 
 ## AI Prevention Hints
 
@@ -86,30 +86,32 @@ These hints are injected into AI prompts to prevent violations during creation.
 
 | Rule | Hint |
 | --- | --- |
+| `no-autolayout` | Containers with 2+ children must always set layoutMode (HORIZONTAL or VERTICAL) |
 | `spec-color` | Use fillVariableName or strokeVariableName to bind colors to design tokens instead of hardcoding hex values |
 | `spec-typography` | Apply a shared text style token instead of setting fontSize/fontFamily manually |
-| `spec-spacing` | Use spacing token variables for padding and itemSpacing instead of arbitrary values |
 | `spec-border-radius` | Bind corner radius to a radius token variable instead of hardcoding pixel values |
-| `hardcoded-token` | Bind fill colors with fillVariableName and corner radii with variable references from the shared library |
+| `hardcoded-token` | Bind fill colors with fillVariableName (or fillStyleName for local styles) and corner radii with variable references — never hardcode hex values or raw numbers |
 | `no-text-style` | Apply a shared text style instead of setting fontSize/fontFamily directly |
 | `wcag-contrast` | Ensure text has at least 4.5:1 contrast ratio against its background (3:1 for large text ≥18px or ≥14px bold) |
-| `wcag-target-size` | Interactive elements (buttons, links, toggles) must be at least 44×44px for touch targets |
-| `wcag-text-size` | Text fontSize must be ≥12px for readability |
+| `wcag-target-size` | Interactive elements must be at least 24×24px (WCAG 2.5.8 AA); 44×44 preferred per iOS HIG / Material. Declare interactiveKind so the variant-specific rule can apply the correct contract. |
+| `wcag-text-size` | Text fontSize must be ≥10px on mobile screens, ≥12px on desktop/tablet/web |
 | `wcag-line-height` | Set lineHeight to at least 1× the fontSize to prevent overlapping text lines |
-| `wcag-non-text-contrast` | Ensure non-text UI elements (borders, icons, form controls) have at least 3:1 contrast ratio against their background. |
-| `fixed-in-autolayout` | Do not use layoutPositioning: ABSOLUTE inside auto-layout frames — it breaks flow; use a wrapper frame instead |
+| `wcag-non-text-contrast` | Solid button fill and outline button stroke must contrast ≥ 3:1 with the parent background so the button surface is identifiable. Other surfaces (image containers, cards, ghost buttons) are out of scope for WCAG 1.4.11. |
 | `empty-container` | Every container must have at least one visible child — do not create empty wrapper frames |
 | `spacer-frame` | No empty Spacer frames — use semantic groups with itemSpacing instead |
-| `button-structure` | All buttons must be auto-layout frames (HORIZONTAL) with centered text, explicit height (≥44px), and internal padding (≥16px horizontal) — no bare text nodes, no overlapping decorative shapes |
+| `button-solid-structure` | Solid buttons: auto-layout FRAME/COMPONENT with layoutMode HORIZONTAL, paddingLeft/Right ≥ 16, height ≥ 44 mobile / 36 desktop, primary+counter axis CENTER. |
+| `button-outline-structure` | Outline buttons: auto-layout FRAME/COMPONENT with visible stroke (weight ≥ 1), paddingLeft/Right ≥ 16, height ≥ 44 mobile / 36 desktop. |
+| `button-ghost-structure` | Ghost buttons: FRAME with reactions or state variants, paddingLeft/Right ≥ 8, height ≥ 40. Must have hover/pressed variants for affordance. |
+| `button-text-structure` | Text buttons: plain TEXT with reactions, line-box height ≥ 24, or wrap in an auto-layout frame with padding to reach 44×44 touch target. Do NOT force a filled frame. |
+| `button-icon-structure` | Icon buttons: square FRAME ≥ 24×24 (WCAG AA); 44×44 preferred per iOS HIG / Material. Wrap a VECTOR/SVG; give the frame a descriptive name or accessibility annotation so screen readers can announce the action. |
+| `link-standalone-structure` | Standalone links: line-box height ≥ 24px on mobile, OR parent auto-layout itemSpacing ≥ (12 − height/2) so WCAG 2.5.8 Spacing exception applies. Color binding is enforced by hardcoded-token on the TEXT node. |
 | `text-overflow` | No text overflow or truncation — every text node must fit within its parent container |
 | `form-consistency` | Form children (inputs, buttons, dividers) must all use layoutAlign: STRETCH for consistent width |
 | `overflow-parent` | Responsive children (inputs, buttons, dividers, content sections) use layoutAlign: STRETCH to fill parent width |
 | `unbounded-hug` | HUG containers must not contain STRETCH children — use FILL parent or set child to fixed/HUG sizing |
-| `no-autolayout` | Containers with 2+ children must always set layoutMode (HORIZONTAL or VERTICAL) |
 | `section-spacing-collapse` | Section stacks (screen/body/content) need itemSpacing ≥12px to maintain visual rhythm |
 | `input-field-structure` | All input fields must be auto-layout frames with stroke (border), corner radius, internal padding, and placeholder text child — set layoutAlign: STRETCH |
 | `mobile-dimensions` | Mobile screen dimensions: iOS 402×874, Android 412×915 (no legacy sizes) |
-| `system-bar-fullbleed` | System bars (iOS/Android status bar) must be full-bleed: page-level paddingLeft/Right/Top = 0, primaryAxisAlignItems = MIN |
 | `elevation-consistency` | Choose one elevation strategy per container: flat (borders only) or elevated (shadows). Do not mix. |
 | `elevation-hierarchy` | Child elements should not have stronger shadows than their parent container. |
 | `default-name` | Every frame must have a descriptive name reflecting its purpose (e.g. "Login Form", "Email Input") — no "Frame 1" defaults |

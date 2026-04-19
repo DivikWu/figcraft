@@ -243,7 +243,7 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
     "pitfalls": [
       "screen-bottom-overflow: cart with many items pushes CTA below viewport",
       "form-consistency: shipping/payment inputs inconsistent with other forms",
-      "button-structure: CTA not full-width or < 48px height",
+      "button-solid-structure: CTA not full-width or < 48px height",
       "text-overflow: long product names overflow item row",
       "cta-width-inconsistent: different CTA widths across checkout screens",
       "mobile-dimensions: screens not matching 402×874"
@@ -826,7 +826,7 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
       "inputStructure": "HORIZONTAL auto-layout frame with stroke, no standalone text — always wrapped in frame"
     },
     "pitfalls": [
-      "button-structure: CTA height < 48px or missing auto-layout",
+      "button-solid-structure: CTA height < 48px or missing auto-layout",
       "input-field-structure: input missing stroke or cornerRadius",
       "text-overflow: long email addresses overflow input frame",
       "screen-bottom-overflow: form + social login + links overflow viewport",
@@ -1233,7 +1233,7 @@ export const UI_PATTERNS: Record<string, UiPattern> = {
       "empty-container: avatar placeholder empty — use type:\"frame\" (circle, gray fill) with lucide:circle-user-round icon centered inside, NOT type:\"rectangle\"",
       "text-overflow: bio text > 2 lines overflows",
       "wcag-contrast: muted handle/bio text below 4.5:1 — use #6B7280 minimum",
-      "button-structure: action buttons missing auto-layout or < 48px height",
+      "button-solid-structure: action buttons missing auto-layout or < 48px height",
       "share-button-icon: share/more button should use lucide:ellipsis or lucide:share icon, NOT \"...\" text",
       "action-row-stroke: wrapper frame around buttons may inherit default strokeWeight:1 — set strokes:[] to clear",
       "menu-item-spacing: NEVER use SPACE_BETWEEN on menu rows with [icon, FILL-text, chevron] — use primaryAxisAlignItems:MIN + text layoutSizingHorizontal:FILL instead, so itemSpacing controls icon-to-text gap correctly"

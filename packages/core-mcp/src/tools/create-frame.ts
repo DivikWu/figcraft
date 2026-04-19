@@ -24,7 +24,35 @@ export function registerCreateFrame(server: McpServer, bridge: Bridge): void {
         .string()
         .optional()
         .describe(
-          "Semantic role (e.g. 'screen', 'button', 'input'). Stored as plugin data for deterministic lint identification.",
+          "Semantic role (e.g. 'screen', 'button', 'input', 'link'). Stored as plugin data for deterministic lint identification.",
+        ),
+      interactiveKind: z
+        .enum([
+          'button-solid',
+          'button-outline',
+          'button-ghost',
+          'button-text',
+          'button-icon',
+          'button-fab',
+          'link-inline',
+          'link-standalone',
+          'toggle',
+          'switch',
+          'checkbox',
+          'radio',
+          'segmented',
+          'chip-interactive',
+          'tab',
+        ])
+        .optional()
+        .describe(
+          "Declare interactive taxonomy. Drives variant-specific lint (button-solid gets padding/height checks, button-text does NOT, link-standalone checks affordance instead of 44px frame). When role='button' is set without this, kind is inferred from structure (fill → solid, stroke → outline, no fill/stroke + reactions → ghost).",
+        ),
+      interactiveState: z
+        .enum(['default', 'hover', 'pressed', 'focused', 'disabled', 'loading', 'selected'])
+        .optional()
+        .describe(
+          "Interactive state variant for component sets (use with variants). Stored as plugin data for state-set-completeness checks.",
         ),
       x: z.number().optional().describe('X position'),
       y: z.number().optional().describe('Y position'),

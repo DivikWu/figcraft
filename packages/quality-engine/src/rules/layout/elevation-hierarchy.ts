@@ -6,6 +6,7 @@
  */
 
 import type { AbstractNode, LintContext, LintRule, LintViolation } from '../../types.js';
+import { tr } from '../../types.js';
 
 /** Get the maximum drop shadow blur radius for a node, or 0 if no shadows. */
 function maxShadowBlur(node: AbstractNode): number {
@@ -29,7 +30,7 @@ export const elevationHierarchyRule: LintRule = {
     phase: ['styling'],
   },
 
-  check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
+  check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     if (!node.children || node.children.length === 0) return [];
 
     const parentBlur = maxShadowBlur(node);
@@ -47,7 +48,11 @@ export const elevationHierarchyRule: LintRule = {
           rule: 'elevation-hierarchy',
           severity: 'heuristic',
           currentValue: `shadow blur ${childBlur}px (parent: ${parentBlur}px)`,
-          suggestion: `"${child.name}" has a stronger shadow (${childBlur}px) than its parent "${node.name}" (${parentBlur}px). Reduce child shadow to maintain visual hierarchy.`,
+          suggestion: tr(
+            ctx.lang,
+            `"${child.name}" has a stronger shadow (${childBlur}px) than its parent "${node.name}" (${parentBlur}px). Reduce child shadow to maintain visual hierarchy.`,
+            `「${child.name}」阴影(${childBlur}px)比父级「${node.name}」(${parentBlur}px)更强。请减弱子级阴影以保持视觉层次。`,
+          ),
           autoFixable: false,
         });
       }

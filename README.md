@@ -194,8 +194,8 @@ Current lint coverage spans token compliance, WCAG accessibility, layout structu
 
 - Token compliance (6): color, typography, spacing, radius, hardcoded token usage, missing text style
 - WCAG accessibility (5): contrast, target size, text size, line height, non-text contrast
-- Layout structure (17): fixed-in-autolayout, empty container, spacer frames, nesting depth, button structure, text overflow, form consistency, CTA width consistency, overflow parent, HUG/STRETCH paradox, missing auto-layout, section spacing collapse, input field structure, mobile dimensions, system bar fullbleed, elevation consistency, elevation hierarchy
-- Screen quality (9): header fragmentation, header placement, misclassified interactive root, nested interactive shell, invalid screen shell, bottom overflow, social row crowding, nav overcrowding, stats row crowding
+- Layout structure (13): empty container, spacer frames, nesting depth, button variants (solid/outline/ghost/text/icon/link-standalone), text overflow, form consistency, CTA width consistency, overflow parent, HUG/STRETCH paradox, missing auto-layout, section spacing collapse, input field structure, mobile dimensions, elevation consistency, elevation hierarchy
+- Screen quality (5): misclassified interactive root, nested interactive shell, invalid screen shell, bottom overflow, social row crowding, nav overcrowding, stats row crowding
 - Naming (2): default name detection, placeholder text detection
 - Component (1): component binding checks
 

@@ -481,6 +481,34 @@ async function tryLocalColorMatch(
   return null;
 }
 
+// ─── Smart default: infer interactiveKind when role='button' is declared ───
+// Mirrors the classifier's structural heuristics so the created node starts
+// with declared metadata (confidence 1) — no downstream guessing needed.
+function inferButtonVariant(p: Record<string, unknown>): string | null {
+  const hasFill = p.fill != null || p.fillVariableName != null || p.fillStyleName != null;
+  const hasStroke = p.strokeColor != null || p.strokeVariableName != null;
+  const w = typeof p.width === 'number' ? p.width : undefined;
+  const h = typeof p.height === 'number' ? p.height : undefined;
+  const cr = typeof p.cornerRadius === 'number' ? p.cornerRadius : 0;
+  const isSquareish = w != null && h != null && Math.abs(w - h) <= Math.max(4, Math.min(w, h) * 0.15);
+  const isCircular = w != null && h != null && cr >= Math.min(w, h) / 2 - 1;
+
+  // FAB: circular, reasonable size, usually no label
+  if (isCircular && isSquareish && w != null && w >= 48 && w <= 72) return 'button-fab';
+
+  // Icon button: small square, likely only an icon/vector child
+  if (isSquareish && w != null && w <= 48) {
+    const children = Array.isArray(p.children) ? (p.children as Array<Record<string, unknown>>) : [];
+    const hasTextChild = children.some((c) => c.type === 'text');
+    const hasIconChild = children.some((c) => c.type === 'icon' || c.type === 'svg' || c.type === 'vector');
+    if (hasIconChild && !hasTextChild) return 'button-icon';
+  }
+
+  if (hasFill) return 'button-solid';
+  if (hasStroke) return 'button-outline';
+  return 'button-ghost';
+}
+
 // ─── Smart default: infer layoutMode from AL params ───
 function inferLayoutMode(p: Record<string, unknown>, hints: StructuredHint[]): 'HORIZONTAL' | 'VERTICAL' | null {
   const hasALParams =
@@ -992,6 +1020,34 @@ async function setupFrame(
   // ── Semantic role ──
   if (p.role != null) {
     frame.setPluginData(PLUGIN_DATA_KEYS.ROLE, p.role as string);
+  }
+
+  // ── Interactive kind/state/variant declarations ──
+  // Stored as plugin data so the lint classifier short-circuits to the declared
+  // value. When role='button' is set but interactiveKind is missing, we infer
+  // the variant from structure (fill → solid, stroke-only → outline, etc.) so
+  // the agent doesn't need to restate obvious signals.
+  if (p.interactiveKind != null) {
+    frame.setPluginData(PLUGIN_DATA_KEYS.INTERACTIVE_KIND, p.interactiveKind as string);
+  } else if (p.role === 'button') {
+    const inferredKind = inferButtonVariant(p);
+    if (inferredKind) {
+      frame.setPluginData(PLUGIN_DATA_KEYS.INTERACTIVE_KIND, inferredKind);
+      ctx.hints.push({
+        confidence: 'deterministic',
+        field: 'interactiveKind',
+        value: inferredKind,
+        reason: `role='button' + structural signals → ${inferredKind}`,
+      });
+    }
+  } else if (p.role === 'link') {
+    frame.setPluginData(PLUGIN_DATA_KEYS.INTERACTIVE_KIND, 'link-standalone');
+  }
+  if (p.interactiveState != null) {
+    frame.setPluginData(PLUGIN_DATA_KEYS.INTERACTIVE_STATE, p.interactiveState as string);
+  }
+  if (p.interactiveVariant != null) {
+    frame.setPluginData(PLUGIN_DATA_KEYS.INTERACTIVE_VARIANT, p.interactiveVariant as string);
   }
 
   // ── Role-driven defaults: fill missing properties from role semantics ──
@@ -2238,7 +2294,10 @@ async function createSingleFrame(params: Record<string, unknown>, skipLint = fal
             skipRules.add('no-autolayout');
           }
           const mapped = PRE_RULE_TO_LINT_RULE[inf.field];
-          if (mapped) skipRules.add(mapped);
+          if (mapped) {
+            if (Array.isArray(mapped)) mapped.forEach((r) => skipRules.add(r));
+            else skipRules.add(mapped);
+          }
         }
         const lintSummary = await quickLintSummary(frame.id, true, skipRules.size > 0 ? skipRules : undefined);
         if (lintSummary) out._lintSummary = lintSummary;
@@ -2391,7 +2450,10 @@ export function registerCreateHandlers(): void {
             if (inf.field === 'type' && inf.to === 'rectangle') batchSkipRules.add('spacer-frame');
             else if (inf.field === 'layoutMode') batchSkipRules.add('no-autolayout');
             const mapped = PRE_RULE_TO_LINT_RULE[inf.field];
-            if (mapped) batchSkipRules.add(mapped);
+            if (mapped) {
+              if (Array.isArray(mapped)) mapped.forEach((r) => batchSkipRules.add(r));
+              else batchSkipRules.add(mapped);
+            }
           }
           const summaries = await Promise.all(
             createdIds.map((id) => quickLintSummary(id, true, batchSkipRules.size > 0 ? batchSkipRules : undefined)),

@@ -3,6 +3,7 @@
  */
 
 import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
+import { tr } from '../../types.js';
 
 export const specColorRule: LintRule = {
   name: 'spec-color',
@@ -18,6 +19,10 @@ export const specColorRule: LintRule = {
 
   check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     const violations: LintViolation[] = [];
+
+    // Descendants of COMPONENT/INSTANCE: spec compliance is the component
+    // author's concern. Consumers only interact at the instance boundary.
+    if (node.insideComponentSubtree) return violations;
 
     // Presentational containers are display scaffolding — skip token checks
     if (node.role === 'presentation') return violations;
@@ -41,7 +46,11 @@ export const specColorRule: LintRule = {
               severity: 'error',
               currentValue: hex,
               expectedValue: match.tokenValue,
-              suggestion: `"${node.name}" uses ${hex} — switch to token "${match.tokenName}" (${match.tokenValue}) instead`,
+              suggestion: tr(
+                ctx.lang,
+                `"${node.name}" uses ${hex} — switch to token "${match.tokenName}" (${match.tokenValue}) instead`,
+                `「${node.name}」使用了 ${hex}——建议切换到 Token「${match.tokenName}」(${match.tokenValue})`,
+              ),
               autoFixable: !!ctx.variableIds.get(match.tokenName),
               fixData: {
                 property: 'fills',
@@ -68,7 +77,11 @@ export const specColorRule: LintRule = {
               severity: 'error',
               currentValue: hex,
               expectedValue: match.tokenValue,
-              suggestion: `"${node.name}" stroke uses ${hex} — switch to token "${match.tokenName}" instead`,
+              suggestion: tr(
+                ctx.lang,
+                `"${node.name}" stroke uses ${hex} — switch to token "${match.tokenName}" instead`,
+                `「${node.name}」描边使用了 ${hex}——建议切换到 Token「${match.tokenName}」`,
+              ),
               autoFixable: !!ctx.variableIds.get(match.tokenName),
               fixData: {
                 property: 'strokes',
@@ -101,7 +114,10 @@ export const specColorRule: LintRule = {
   },
 };
 
-function findClosestToken(hex: string, tokens: Map<string, string>): { tokenName: string; tokenValue: string } | null {
+export function findClosestToken(
+  hex: string,
+  tokens: Map<string, string>,
+): { tokenName: string; tokenValue: string } | null {
   // Exact match first
   for (const [name, value] of tokens) {
     if (value.toLowerCase() === hex) {
@@ -119,7 +135,7 @@ function findClosestToken(hex: string, tokens: Map<string, string>): { tokenName
     const tRgb = hexToRgb(value);
     if (!tRgb) continue;
     const dist = colorDistance(rgb, tRgb);
-    if (dist < 10 && (!closest || dist < closest.distance)) {
+    if (dist < 5 && (!closest || dist < closest.distance)) {
       closest = { tokenName: name, tokenValue: value, distance: dist };
     }
   }

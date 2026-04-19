@@ -6,7 +6,15 @@
 export const DESIGN_CONSTANTS = {
   button: { minHeight: 44, minHPad: 16 },
   input: { minHPad: 8, defaultRadius: 8 },
-  text: { minSize: 12, minLineHeightRatio: 1.0 },
+  text: {
+    /** Legacy / desktop default (kept for backward compatibility with any callers). */
+    minSize: 12,
+    /** Mobile platform minimum (denser viewing distance, smaller allowed). */
+    mobileMinSize: 10,
+    /** Desktop / web / tablet minimum. */
+    desktopMinSize: 12,
+    minLineHeightRatio: 1.0,
+  },
   touch: { minSize: 44 },
   nesting: { maxDepth: 6 },
   spacing: { minSection: 12, sectionFix: 16 },

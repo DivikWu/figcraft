@@ -18,6 +18,12 @@ export const STORAGE_KEYS = {
 export const PLUGIN_DATA_KEYS = {
   ROLE: 'figcraft_role',
   LINT_IGNORE: 'figcraft_lint_ignore',
+  /** Interactive kind declaration (button-solid, link-inline, etc.). */
+  INTERACTIVE_KIND: 'figcraft_interactive_kind',
+  /** Interactive state declaration (default, hover, disabled, etc.). */
+  INTERACTIVE_STATE: 'figcraft_interactive_state',
+  /** Interactive variant name (free-form, e.g. "Primary/Large"). */
+  INTERACTIVE_VARIANT: 'figcraft_interactive_variant',
 } as const;
 
 /** Plugin version — re-exported from shared single source of truth. */

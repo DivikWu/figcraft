@@ -9,6 +9,7 @@
  */
 
 import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
+import { tr } from '../../types.js';
 
 const FORM_NAME_RE = /form|content|body|fields|inputs|登录|注册|表单|内容/i;
 const INTERACTIVE_RE = /button|btn|input|field|divider|separator|social|action|submit|login|register|按钮|输入|分割/i;
@@ -36,7 +37,7 @@ export const formConsistencyRule: LintRule = {
     tags: ['input', 'button'],
   },
 
-  check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
+  check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     // Only check VERTICAL auto-layout frames that look like forms
     if (node.type !== 'FRAME' && node.type !== 'COMPONENT') return [];
     if (node.layoutMode !== 'VERTICAL') return [];
@@ -68,7 +69,11 @@ export const formConsistencyRule: LintRule = {
             rule: 'form-consistency',
             severity: 'heuristic',
             currentValue: `width ${Math.round(child.width!)}px in ${Math.round(node.width)}px parent "${node.name}"`,
-            suggestion: `"${child.name}" in form "${node.name}" is narrower than siblings. Set layoutAlign: STRETCH for consistent width.`,
+            suggestion: tr(
+              ctx.lang,
+              `"${child.name}" in form "${node.name}" is narrower than siblings. Set layoutAlign: STRETCH for consistent width.`,
+              `「${child.name}」在表单「${node.name}」中比同级更窄。请设置 layoutAlign: STRETCH 以保持宽度一致。`,
+            ),
             autoFixable: true,
             fixData: {
               fix: 'stretch',

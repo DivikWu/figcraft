@@ -6,6 +6,7 @@
  */
 
 import type { AbstractNode, LintContext, LintRule, LintViolation } from '../../types.js';
+import { tr } from '../../types.js';
 
 /** Collect all componentPropertyReferences values from the subtree. */
 function collectReferences(node: AbstractNode): Set<string> {
@@ -29,8 +30,8 @@ export const componentBindingsRule: LintRule = {
   name: 'component-bindings',
   description: 'Detect component properties that are defined but not connected to any child layer.',
   category: 'component',
-  severity: 'heuristic',
-  check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
+  severity: 'style',
+  check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     // Only check COMPONENT nodes with property definitions
     if (node.type !== 'COMPONENT' || !node.componentPropertyDefinitions) return [];
 
@@ -51,10 +52,14 @@ export const componentBindingsRule: LintRule = {
           nodeId: node.id,
           nodeName: node.name,
           rule: 'component-bindings',
-          severity: 'heuristic',
+          severity: 'style',
           currentValue: key,
           expectedValue: 'referenced by child node',
-          suggestion: `Component property "${key}" (${defs[key].type}) is defined on "${node.name}" but not connected to any child layer — remove it or wire it up`,
+          suggestion: tr(
+            ctx.lang,
+            `Component property "${key}" (${defs[key].type}) is defined on "${node.name}" but not connected to any child layer — remove it or wire it up`,
+            `组件属性「${key}」(${defs[key].type}) 在「${node.name}」上定义但未连接到任何子图层——请删除或连接`,
+          ),
           autoFixable: false,
         });
       }

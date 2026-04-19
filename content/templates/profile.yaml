@@ -31,7 +31,7 @@ pitfalls:
   - 'empty-container: avatar placeholder empty — use type:"frame" (circle, gray fill) with lucide:circle-user-round icon centered inside, NOT type:"rectangle"'
   - "text-overflow: bio text > 2 lines overflows"
   - "wcag-contrast: muted handle/bio text below 4.5:1 — use #6B7280 minimum"
-  - "button-structure: action buttons missing auto-layout or < 48px height"
+  - "button-solid-structure: action buttons missing auto-layout or < 48px height"
   - 'share-button-icon: share/more button should use lucide:ellipsis or lucide:share icon, NOT "..." text'
   - "action-row-stroke: wrapper frame around buttons may inherit default strokeWeight:1 — set strokes:[] to clear"
   - 'menu-item-spacing: NEVER use SPACE_BETWEEN on menu rows with [icon, FILL-text, chevron] — use primaryAxisAlignItems:MIN + text layoutSizingHorizontal:FILL instead, so itemSpacing controls icon-to-text gap correctly'

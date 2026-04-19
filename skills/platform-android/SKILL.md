@@ -52,7 +52,7 @@ Default for new Android designs: **412 × 915** (project standard, matches lint 
 Rules:
 - Status bar: 24dp height
 - Navigation bar: 48dp (gesture navigation) or 80dp (3-button navigation)
-- System bar frames MUST be full-bleed: `paddingLeft: 0, paddingRight: 0, paddingTop: 0` (matches lint rule `system-bar-fullbleed`)
+- System bar frames should be full-bleed: `paddingLeft: 0, paddingRight: 0, paddingTop: 0` on the screen root so the status bar sits flush at the top edge
 - Content padding: 16dp horizontal minimum
 - Edge-to-edge: content draws behind system bars with appropriate insets
 - **Figma implementation**: safe areas MUST be visible transparent frames with `layoutMode: "HORIZONTAL"` (no fill, no stroke), NOT padding or hidden elements

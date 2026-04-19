@@ -7,6 +7,7 @@
  */
 
 import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
+import { tr } from '../../types.js';
 
 export const noTextStyleRule: LintRule = {
   name: 'no-text-style',
@@ -26,6 +27,12 @@ export const noTextStyleRule: LintRule = {
     // In spec mode, spec-typography already covers this
     if (ctx.mode === 'spec' && ctx.typographyTokens.size > 0) return [];
     if (node.textStyleId) return [];
+    // Text inside a COMPONENT/INSTANCE: the component author controls text style.
+    if (node.insideComponentSubtree) return [];
+    // Display/hero text (>=28px or explicit display/hero role) often uses custom
+    // settings intentionally — skip to avoid noise on legitimate headline styling.
+    if (node.fontSize != null && node.fontSize >= 28) return [];
+    if (node.role === 'display' || node.role === 'hero' || /display|hero/i.test(node.name)) return [];
 
     return [
       {
@@ -34,7 +41,11 @@ export const noTextStyleRule: LintRule = {
         rule: 'no-text-style',
         severity: 'heuristic',
         currentValue: `fontSize: ${node.fontSize ?? 'mixed'}, fontFamily: ${node.fontName?.family ?? 'unknown'}`,
-        suggestion: `"${node.name}" uses custom font settings — apply a shared text style to keep typography consistent`,
+        suggestion: tr(
+          ctx.lang,
+          `"${node.name}" uses custom font settings — apply a shared text style to keep typography consistent`,
+          `「${node.name}」使用了自定义字体设置——请应用共享文字样式以保持排版一致`,
+        ),
         autoFixable: true,
         fixData: { fontSize: node.fontSize, fontFamily: node.fontName?.family },
       },

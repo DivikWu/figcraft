@@ -12,6 +12,7 @@
  */
 
 import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
+import { tr } from '../../types.js';
 
 /** Check if a node effectively uses HUG sizing on a given axis. */
 function _isHugOnAxis(node: AbstractNode, axis: 'horizontal' | 'vertical'): boolean {
@@ -63,7 +64,7 @@ export const unboundedHugRule: LintRule = {
     phase: ['layout'],
   },
 
-  check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
+  check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     if (node.type !== 'FRAME' && node.type !== 'COMPONENT') return [];
     if (!node.layoutMode || node.layoutMode === 'NONE') return [];
     if (!node.children || node.children.length === 0) return [];
@@ -84,7 +85,11 @@ export const unboundedHugRule: LintRule = {
           rule: 'unbounded-hug',
           severity: 'unsafe',
           currentValue: `HUG on ${crossAxis} axis with STRETCH children`,
-          suggestion: `"${node.name}" HUGs on ${crossAxis} axis but has STRETCH children — children will collapse to 0. Set an explicit ${crossDim} or use layoutAlign: STRETCH on this frame.`,
+          suggestion: tr(
+            ctx.lang,
+            `"${node.name}" HUGs on ${crossAxis} axis but has STRETCH children — children will collapse to 0. Set an explicit ${crossDim} or use layoutAlign: STRETCH on this frame.`,
+            `「${node.name}」在${crossAxis === 'horizontal' ? '横向' : '纵向'}使用 HUG 但子节点用 STRETCH——子节点会坍缩为 0。请设置明确的 ${crossDim},或在该 frame 上用 layoutAlign: STRETCH。`,
+          ),
           autoFixable: true,
           fixData: {
             fix: 'stretch-self',
@@ -107,7 +112,11 @@ export const unboundedHugRule: LintRule = {
           rule: 'unbounded-hug',
           severity: 'style',
           currentValue: 'HUG on both axes (no explicit width or height)',
-          suggestion: `"${node.name}" has no explicit dimensions — it will shrink to content size. If this is inside an auto-layout parent, consider layoutAlign: STRETCH on the cross-axis.`,
+          suggestion: tr(
+            ctx.lang,
+            `"${node.name}" has no explicit dimensions — it will shrink to content size. If this is inside an auto-layout parent, consider layoutAlign: STRETCH on the cross-axis.`,
+            `「${node.name}」没有明确尺寸——会缩到内容大小。如果在自动布局父级内,建议在交叉轴上设置 layoutAlign: STRETCH。`,
+          ),
           autoFixable: true,
           fixData: {
             fix: 'stretch-cross-axis',

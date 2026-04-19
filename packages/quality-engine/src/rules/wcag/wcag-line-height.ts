@@ -6,6 +6,7 @@
 
 import { DESIGN_CONSTANTS } from '../../constants.js';
 import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
+import { tr } from '../../types.js';
 
 const MIN_LINE_HEIGHT_RATIO = DESIGN_CONSTANTS.text.minLineHeightRatio;
 
@@ -20,7 +21,7 @@ export const wcagLineHeightRule: LintRule = {
     tags: ['text'],
   },
 
-  check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
+  check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     if (node.type !== 'TEXT') return [];
     if (!node.fontSize) return [];
     if (!node.lineHeight || typeof node.lineHeight !== 'object') return [];
@@ -50,7 +51,11 @@ export const wcagLineHeightRule: LintRule = {
         severity: 'heuristic',
         currentValue: `${effectiveLineHeight.toFixed(1)}px (${ratio.toFixed(2)}x)`,
         expectedValue: `>= ${node.fontSize.toFixed(1)}px (${MIN_LINE_HEIGHT_RATIO}x)`,
-        suggestion: `"${node.name}" line height is only ${ratio.toFixed(2)}× the font size — text lines will overlap. Increase line height to at least ${node.fontSize.toFixed(0)}px`,
+        suggestion: tr(
+          ctx.lang,
+          `"${node.name}" line height is only ${ratio.toFixed(2)}× the font size — text lines will overlap. Increase line height to at least ${node.fontSize.toFixed(0)}px`,
+          `「${node.name}」行高仅为字号的 ${ratio.toFixed(2)} 倍——文本会重叠。请增加行高到至少 ${node.fontSize.toFixed(0)}px`,
+        ),
         autoFixable: true,
         fixData: { lineHeight: Math.ceil(node.fontSize * MIN_LINE_HEIGHT_RATIO) },
       },

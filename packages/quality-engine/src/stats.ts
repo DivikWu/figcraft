@@ -93,4 +93,62 @@ export function resetStats(): void {
   for (const key of Object.keys(stats)) {
     delete stats[key];
   }
+  for (const key of Object.keys(interactiveStats)) {
+    delete interactiveStats[key];
+  }
+  interactiveStats.__null__ = { count: 0, confidenceSum: 0, declaredCount: 0, inferredCount: 0, lastSignals: [] };
+}
+
+// ─── Interactive classifier telemetry ────────────────────────────────
+// Session-scoped distribution over classified InteractiveKind — used during
+// Phase 0 rollout to tune classifier weights against real files. Not persisted.
+
+export interface InteractiveStatEntry {
+  count: number;
+  confidenceSum: number;
+  declaredCount: number;
+  inferredCount: number;
+  /** Most recent signals list for quick debugging (bounded). */
+  lastSignals: string[];
+}
+
+const interactiveStats: Record<string, InteractiveStatEntry> = {
+  __null__: { count: 0, confidenceSum: 0, declaredCount: 0, inferredCount: 0, lastSignals: [] },
+};
+
+/**
+ * Record one classification outcome. `kind === null` tracks ambiguous /
+ * low-confidence nodes so we can tune thresholds.
+ */
+export function recordInteractiveClassification(
+  kind: string | null,
+  confidence: number,
+  declared: boolean,
+  signals: readonly string[] | undefined,
+): void {
+  const key = kind ?? '__null__';
+  if (!interactiveStats[key]) {
+    interactiveStats[key] = { count: 0, confidenceSum: 0, declaredCount: 0, inferredCount: 0, lastSignals: [] };
+  }
+  const entry = interactiveStats[key];
+  entry.count++;
+  entry.confidenceSum += confidence;
+  if (declared) entry.declaredCount++;
+  else entry.inferredCount++;
+  if (signals && signals.length > 0) entry.lastSignals = signals.slice(0, 8);
+}
+
+/** Get current session's classifier distribution, keyed by kind (or "__null__"). */
+export function getInteractiveClassificationStats(): Record<
+  string,
+  InteractiveStatEntry & { avgConfidence: number }
+> {
+  const out: Record<string, InteractiveStatEntry & { avgConfidence: number }> = {};
+  for (const [key, entry] of Object.entries(interactiveStats)) {
+    out[key] = {
+      ...entry,
+      avgConfidence: entry.count > 0 ? entry.confidenceSum / entry.count : 0,
+    };
+  }
+  return out;
 }

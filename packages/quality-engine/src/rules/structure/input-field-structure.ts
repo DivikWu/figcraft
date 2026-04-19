@@ -16,6 +16,7 @@
 
 import { DESIGN_CONSTANTS, SCREEN_NAME_RE } from '../../constants.js';
 import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
+import { tr } from '../../types.js';
 
 const INPUT_NAME_RE = /input|field|text.?field|search.?bar|email.?field|password.?field|输入|搜索框/i;
 
@@ -82,7 +83,7 @@ export const inputFieldStructureRule: LintRule = {
     tags: ['input'],
   },
 
-  check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
+  check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     if (!looksLikeInput(node)) return [];
     const violations: LintViolation[] = [];
 
@@ -94,7 +95,11 @@ export const inputFieldStructureRule: LintRule = {
         rule: 'input-field-structure',
         severity: 'heuristic',
         currentValue: `${node.type} used as input field`,
-        suggestion: `"${node.name}" looks like an input field but is a ${node.type}. Convert to an auto-layout frame with stroke, cornerRadius, padding, and a text child.`,
+        suggestion: tr(
+          ctx.lang,
+          `"${node.name}" looks like an input field but is a ${node.type}. Convert to an auto-layout frame with stroke, cornerRadius, padding, and a text child.`,
+          `「${node.name}」像输入框但实际是 ${node.type}。请转换为带描边、圆角、padding 和文本子节点的自动布局 frame。`,
+        ),
         autoFixable: false,
       });
       return violations;
@@ -111,7 +116,11 @@ export const inputFieldStructureRule: LintRule = {
         rule: 'input-field-structure',
         severity: 'heuristic',
         currentValue: 'no auto-layout',
-        suggestion: `"${node.name}" is an input field without auto-layout. Set layoutMode: "HORIZONTAL", counterAxisAlignItems: "CENTER".`,
+        suggestion: tr(
+          ctx.lang,
+          `"${node.name}" is an input field without auto-layout. Set layoutMode: "HORIZONTAL", counterAxisAlignItems: "CENTER".`,
+          `「${node.name}」是输入框但没有自动布局。请设置 layoutMode: "HORIZONTAL",counterAxisAlignItems: "CENTER"。`,
+        ),
         autoFixable: true,
         fixData: {
           fix: 'layout',
@@ -130,7 +139,11 @@ export const inputFieldStructureRule: LintRule = {
         rule: 'input-field-structure',
         severity: 'heuristic',
         currentValue: 'no stroke',
-        suggestion: `"${node.name}" input field has no visible stroke (border). Add a stroke to indicate the input boundary.`,
+        suggestion: tr(
+          ctx.lang,
+          `"${node.name}" input field has no visible stroke (border). Add a stroke to indicate the input boundary.`,
+          `「${node.name}」输入框没有可见描边(边框)。请添加描边以标识输入区边界。`,
+        ),
         autoFixable: false,
       });
     }
@@ -146,7 +159,11 @@ export const inputFieldStructureRule: LintRule = {
         rule: 'input-field-structure',
         severity: 'style',
         currentValue: 'no corner radius',
-        suggestion: `"${node.name}" input field has no corner radius. Consider adding cornerRadius for a polished look.`,
+        suggestion: tr(
+          ctx.lang,
+          `"${node.name}" input field has no corner radius. Consider adding cornerRadius for a polished look.`,
+          `「${node.name}」输入框没有圆角。建议添加 cornerRadius 让视觉更精致。`,
+        ),
         autoFixable: true,
         fixData: { fix: 'cornerRadius', cornerRadius: DESIGN_CONSTANTS.input.defaultRadius },
       });
@@ -162,7 +179,11 @@ export const inputFieldStructureRule: LintRule = {
           rule: 'input-field-structure',
           severity: 'heuristic',
           currentValue: `horizontal padding ${hPad}px`,
-          suggestion: `"${node.name}" input field has insufficient horizontal padding (${hPad}px < ${MIN_INPUT_HPAD}px).`,
+          suggestion: tr(
+            ctx.lang,
+            `"${node.name}" input field has insufficient horizontal padding (${hPad}px < ${MIN_INPUT_HPAD}px).`,
+            `「${node.name}」输入框的水平内边距不足(${hPad}px < ${MIN_INPUT_HPAD}px)。`,
+          ),
           autoFixable: true,
           fixData: {
             fix: 'padding',
@@ -182,7 +203,11 @@ export const inputFieldStructureRule: LintRule = {
         rule: 'input-field-structure',
         severity: 'style',
         currentValue: 'no text child',
-        suggestion: `"${node.name}" input field has no text child for placeholder text.`,
+        suggestion: tr(
+          ctx.lang,
+          `"${node.name}" input field has no text child for placeholder text.`,
+          `「${node.name}」输入框没有用于占位符的文本子节点。`,
+        ),
         autoFixable: false,
       });
     }

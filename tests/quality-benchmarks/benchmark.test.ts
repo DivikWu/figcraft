@@ -219,7 +219,7 @@ const SCENARIOS: BenchmarkScenario[] = [
       'mobile-dimensions', // Screen is 402×874
       'empty-container', // No empty containers
     ],
-    shouldPass: ['button-structure', 'text-overflow', 'no-autolayout'],
+    shouldPass: ['button-solid-structure', 'text-overflow', 'no-autolayout'],
   },
 
   {
@@ -562,7 +562,7 @@ const SCENARIOS: BenchmarkScenario[] = [
       }),
     ],
     mustPass: ['default-name', 'empty-container', 'mobile-dimensions'],
-    shouldPass: ['button-structure', 'stats-row-cramped'],
+    shouldPass: ['button-solid-structure', 'stats-row-cramped'],
   },
 
   {
@@ -679,6 +679,7 @@ const SCENARIOS: BenchmarkScenario[] = [
 
 describe('Quality Benchmarks', () => {
   const allRuleNames = getAvailableRules().map((r) => r.name);
+  const resolveRuleNames = (name: string): string[] => (allRuleNames.includes(name) ? [name] : []);
 
   for (const scenario of SCENARIOS) {
     describe(scenario.name, () => {
@@ -692,9 +693,9 @@ describe('Quality Benchmarks', () => {
 
       for (const ruleName of scenario.mustPass) {
         it(`MUST PASS: ${ruleName}`, () => {
-          // Verify rule exists
-          expect(allRuleNames, `Rule "${ruleName}" not found in engine`).toContain(ruleName);
-          const count = violationsByRule.get(ruleName) ?? 0;
+          const resolved = resolveRuleNames(ruleName);
+          expect(resolved.length, `Rule "${ruleName}" not found in engine`).toBeGreaterThan(0);
+          const count = resolved.reduce((sum, r) => sum + (violationsByRule.get(r) ?? 0), 0);
           expect(count, `${scenario.name} has ${count} "${ruleName}" violation(s)`).toBe(0);
         });
       }
@@ -702,8 +703,9 @@ describe('Quality Benchmarks', () => {
       if (scenario.shouldPass) {
         for (const ruleName of scenario.shouldPass) {
           it(`SHOULD PASS: ${ruleName}`, () => {
-            expect(allRuleNames, `Rule "${ruleName}" not found in engine`).toContain(ruleName);
-            const count = violationsByRule.get(ruleName) ?? 0;
+            const resolved = resolveRuleNames(ruleName);
+            expect(resolved.length, `Rule "${ruleName}" not found in engine`).toBeGreaterThan(0);
+            const count = resolved.reduce((sum, r) => sum + (violationsByRule.get(r) ?? 0), 0);
             // shouldPass allows up to 2 minor violations
             expect(
               count,

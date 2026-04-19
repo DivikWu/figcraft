@@ -65,8 +65,8 @@ describe('wcag preventionHint', () => {
 // ─── wcag-target-size describeFix ───
 
 describe('wcag-target-size describeFix', () => {
-  it('returns resize descriptor for undersized button', () => {
-    const node = makeNode({ name: 'Button', width: 30, height: 30 });
+  it('returns resize descriptor for undersized button (below WCAG 24 floor)', () => {
+    const node = makeNode({ name: 'Button', width: 20, height: 20 });
     const violations = wcagTargetSizeRule.check(node, emptyCtx);
     expect(violations).toHaveLength(1);
     expect(violations[0].autoFixable).toBe(true);
@@ -74,13 +74,14 @@ describe('wcag-target-size describeFix', () => {
     expect(fix).not.toBeNull();
     expect(fix!.kind).toBe('resize');
     if (fix!.kind === 'resize') {
+      // fix suggests the iOS HIG ideal (44), not just the WCAG floor
       expect(fix!.width).toBe(44);
       expect(fix!.height).toBe(44);
     }
   });
 
   it('only resizes the axis that is too small', () => {
-    const node = makeNode({ name: 'Button', width: 100, height: 30 });
+    const node = makeNode({ name: 'Button', width: 100, height: 20 });
     const violations = wcagTargetSizeRule.check(node, emptyCtx);
     expect(violations).toHaveLength(1);
     const fix = wcagTargetSizeRule.describeFix!(violations[0]);
@@ -91,8 +92,8 @@ describe('wcag-target-size describeFix', () => {
     }
   });
 
-  it('skips sufficiently large interactive elements', () => {
-    const node = makeNode({ name: 'Button', width: 100, height: 50 });
+  it('passes 30×30 interactive element (above WCAG 24 floor)', () => {
+    const node = makeNode({ name: 'Button', width: 30, height: 30 });
     const violations = wcagTargetSizeRule.check(node, emptyCtx);
     expect(violations).toHaveLength(0);
   });
@@ -153,55 +154,89 @@ describe('wcag-contrast', () => {
   });
 });
 
-// ─── wcag-non-text-contrast (WCAG 1.4.11) ───
+// ─── wcag-non-text-contrast (WCAG 1.4.11) — scoped to button-solid / button-outline ───
 
 describe('wcag-non-text-contrast', () => {
-  it('flags low-contrast stroke on rectangle', () => {
+  it('flags white-on-white solid button (fill invisible against parent bg)', () => {
+    // The canonical 1.4.11 failure: a filled button whose surface blends
+    // into the background makes the button itself unidentifiable.
     const node = makeNode({
-      type: 'RECTANGLE',
-      width: 100,
-      height: 40,
-      strokes: [{ type: 'SOLID', color: '#e0e0e0', visible: true }],
-      strokeWeight: 1,
+      type: 'FRAME',
+      width: 200,
+      height: 48,
+      fills: [{ type: 'SOLID', color: '#ffffff', visible: true }],
       parentBgColor: '#ffffff',
+      interactive: { kind: 'button-solid', confidence: 1, declared: true },
     });
     const v = wcagNonTextContrastRule.check(node, emptyCtx);
-    expect(v.length).toBeGreaterThan(0);
-    expect(v[0].rule).toBe('wcag-non-text-contrast');
-    expect(v[0].currentValue).toContain('stroke');
+    expect(v).toHaveLength(1);
+    expect(v[0].currentValue).toContain('fill');
   });
 
-  it('passes adequate stroke contrast', () => {
+  it('passes solid button with high-contrast fill', () => {
     const node = makeNode({
-      type: 'RECTANGLE',
-      width: 100,
-      height: 40,
-      strokes: [{ type: 'SOLID', color: '#333333', visible: true }],
-      strokeWeight: 1,
+      type: 'FRAME',
+      width: 200,
+      height: 48,
+      fills: [{ type: 'SOLID', color: '#000000', visible: true }],
       parentBgColor: '#ffffff',
+      interactive: { kind: 'button-solid', confidence: 1, declared: true },
     });
     const v = wcagNonTextContrastRule.check(node, emptyCtx);
     expect(v).toHaveLength(0);
   });
 
-  it('flags low-contrast fill on small element (icon-sized)', () => {
-    const node = makeNode({
-      type: 'ELLIPSE',
-      width: 24,
-      height: 24,
-      fills: [{ type: 'SOLID', color: '#cccccc', visible: true }],
-      parentBgColor: '#ffffff',
-    });
-    const v = wcagNonTextContrastRule.check(node, emptyCtx);
-    expect(v.length).toBeGreaterThan(0);
-    expect(v[0].currentValue).toContain('fill');
-  });
-
-  it('skips fill check on large containers (> 200px)', () => {
+  it('flags outline button whose stroke blends into parent bg', () => {
     const node = makeNode({
       type: 'FRAME',
-      width: 400,
-      height: 300,
+      width: 200,
+      height: 48,
+      strokes: [{ type: 'SOLID', color: '#f5f5f5', visible: true }],
+      strokeWeight: 1,
+      parentBgColor: '#ffffff',
+      interactive: { kind: 'button-outline', confidence: 1, declared: true },
+    });
+    const v = wcagNonTextContrastRule.check(node, emptyCtx);
+    expect(v).toHaveLength(1);
+    expect(v[0].currentValue).toContain('stroke');
+  });
+
+  it('passes outline button with visible stroke', () => {
+    const node = makeNode({
+      type: 'FRAME',
+      width: 200,
+      height: 48,
+      strokes: [{ type: 'SOLID', color: '#333333', visible: true }],
+      strokeWeight: 1,
+      parentBgColor: '#ffffff',
+      interactive: { kind: 'button-outline', confidence: 1, declared: true },
+    });
+    const v = wcagNonTextContrastRule.check(node, emptyCtx);
+    expect(v).toHaveLength(0);
+  });
+
+  it('regression: image container (low-contrast placeholder fill) is NOT flagged', () => {
+    // The user-visible screenshot regression: a 96×96 `image / default`
+    // component instance with a placeholder fill like #f5f5f5 on a colored
+    // card. It's a content holder, not a UI component — 1.4.11 doesn't apply.
+    const node = makeNode({
+      type: 'INSTANCE',
+      name: 'image / default',
+      width: 96,
+      height: 96,
+      fills: [{ type: 'SOLID', color: '#f5f5f5', visible: true }],
+      parentBgColor: '#c8e6c9',
+    });
+    const v = wcagNonTextContrastRule.check(node, emptyCtx);
+    expect(v).toHaveLength(0);
+  });
+
+  it('regression: a decorative card with low-contrast fill is NOT flagged', () => {
+    const node = makeNode({
+      type: 'FRAME',
+      name: 'Card',
+      width: 200,
+      height: 100,
       fills: [{ type: 'SOLID', color: '#f5f5f5', visible: true }],
       parentBgColor: '#ffffff',
     });
@@ -209,7 +244,20 @@ describe('wcag-non-text-contrast', () => {
     expect(v).toHaveLength(0);
   });
 
-  it('skips TEXT nodes (handled by wcag-contrast)', () => {
+  it('regression: a button-ghost (no surface) is NOT flagged even with low-contrast fill', () => {
+    const node = makeNode({
+      type: 'FRAME',
+      width: 100,
+      height: 40,
+      fills: [{ type: 'SOLID', color: '#f5f5f5', visible: true }],
+      parentBgColor: '#ffffff',
+      interactive: { kind: 'button-ghost', confidence: 1, declared: true },
+    });
+    const v = wcagNonTextContrastRule.check(node, emptyCtx);
+    expect(v).toHaveLength(0);
+  });
+
+  it('skips TEXT nodes (handled by wcag-contrast for 1.4.3)', () => {
     const node = makeNode({
       type: 'TEXT',
       fontSize: 14,
@@ -220,30 +268,15 @@ describe('wcag-non-text-contrast', () => {
     expect(v).toHaveLength(0);
   });
 
-  it('returns empty when no parentBgColor', () => {
+  it('returns empty when no parentBgColor is propagated', () => {
     const node = makeNode({
-      type: 'RECTANGLE',
-      width: 50,
-      height: 50,
-      strokes: [{ type: 'SOLID', color: '#e0e0e0', visible: true }],
-      strokeWeight: 1,
+      type: 'FRAME',
+      width: 200,
+      height: 48,
+      fills: [{ type: 'SOLID', color: '#ffffff', visible: true }],
+      interactive: { kind: 'button-solid', confidence: 1, declared: true },
     });
     const v = wcagNonTextContrastRule.check(node, emptyCtx);
     expect(v).toHaveLength(0);
-  });
-
-  it('checks both stroke and fill on small nodes', () => {
-    const node = makeNode({
-      type: 'RECTANGLE',
-      width: 100,
-      height: 40,
-      strokes: [{ type: 'SOLID', color: '#e0e0e0', visible: true }],
-      strokeWeight: 1,
-      fills: [{ type: 'SOLID', color: '#eeeeee', visible: true }],
-      parentBgColor: '#ffffff',
-    });
-    const v = wcagNonTextContrastRule.check(node, emptyCtx);
-    // Should flag both stroke and fill
-    expect(v.length).toBe(2);
   });
 });

@@ -321,8 +321,11 @@ figma.ui.on(
       try {
         const handler = handlers.get('lint_check');
         if (handler) {
-          const maxV = (msg as { maxViolations?: number }).maxViolations;
-          const result = await handler({ maxViolations: maxV ?? 500 });
+          const { maxViolations: maxV, lang } = msg as {
+            maxViolations?: number;
+            lang?: 'en' | 'zh';
+          };
+          const result = await handler({ maxViolations: maxV ?? 500, lang });
           figma.ui.postMessage({ type: 'lint-result', report: result });
         }
       } catch (err) {

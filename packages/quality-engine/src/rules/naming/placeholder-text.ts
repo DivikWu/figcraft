@@ -5,6 +5,7 @@
  */
 
 import type { AbstractNode, LintContext, LintRule, LintViolation } from '../../types.js';
+import { tr } from '../../types.js';
 
 const LOREM_PATTERNS = [
   /^lorem\s+ipsum/i,
@@ -44,7 +45,7 @@ export const placeholderTextRule: LintRule = {
   description:
     'Detect placeholder or generic text content (Lorem ipsum, "Title", "Button") that should be replaced with realistic copy.',
   category: 'naming',
-  severity: 'heuristic',
+  severity: 'verbose',
   ai: {
     preventionHint:
       'Use realistic, contextually appropriate text. Never use "Lorem ipsum", "Title", "Button", or "Text goes here".',
@@ -52,7 +53,7 @@ export const placeholderTextRule: LintRule = {
     tags: ['text'],
   },
 
-  check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
+  check(node: AbstractNode, ctx: LintContext): LintViolation[] {
     if (node.type !== 'TEXT') return [];
     const chars = (node.characters ?? '').trim();
     if (!chars) return [];
@@ -65,9 +66,13 @@ export const placeholderTextRule: LintRule = {
             nodeId: node.id,
             nodeName: node.name,
             rule: 'placeholder-text',
-            severity: 'heuristic',
+            severity: 'verbose',
             currentValue: chars.length > 40 ? `${chars.slice(0, 40)}…` : chars,
-            suggestion: `"${truncate(chars)}" looks like placeholder text — replace with realistic content`,
+            suggestion: tr(
+              ctx.lang,
+              `"${truncate(chars)}" looks like placeholder text — replace with realistic content`,
+              `「${truncate(chars)}」看起来是占位文本——请替换为真实内容`,
+            ),
             autoFixable: false,
           },
         ];
@@ -81,9 +86,13 @@ export const placeholderTextRule: LintRule = {
           nodeId: node.id,
           nodeName: node.name,
           rule: 'placeholder-text',
-          severity: 'heuristic',
+          severity: 'verbose',
           currentValue: chars,
-          suggestion: `"${chars}" is too generic — use specific, contextual text instead`,
+          suggestion: tr(
+            ctx.lang,
+            `"${chars}" is too generic — use specific, contextual text instead`,
+            `「${chars}」过于通用——请使用具体、贴合场景的文本`,
+          ),
           autoFixable: false,
         },
       ];
