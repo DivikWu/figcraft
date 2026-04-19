@@ -295,42 +295,23 @@ describe('cascade suppression', () => {
     expect(overflow).toBeUndefined();
   });
 
-  it('draft profile strips default-name and placeholder-text noise', () => {
+  it('component-bindings runs by default and flags unused component properties', () => {
+    // Regression guard: component-bindings was previously gated behind the unused
+    // `publish` profile and never ran in production. Any future mechanism that
+    // re-gates it out of the default activeRules path should fail this test.
+    // Intentionally pass no `rules` filter — exercise the default path.
     const node = makeNode({
-      name: 'Frame 1',
-      type: 'FRAME',
-      children: [
-        makeNode({ id: '2:1', name: 'Text', type: 'TEXT', characters: 'Lorem ipsum dolor sit amet', fontSize: 16 }),
-      ],
+      name: 'Button',
+      type: 'COMPONENT',
+      componentPropertyDefinitions: {
+        label: { type: 'TEXT', defaultValue: 'Click' },
+      },
+      children: [makeNode({ id: '2:1', name: 'Label', type: 'TEXT', characters: 'Click', fontSize: 16 })],
     });
-    const reviewReport = runLint([node], emptyCtx, {
-      profile: 'review',
-      minSeverity: 'verbose',
-      rules: ['default-name', 'placeholder-text'],
-    });
-    const draftReport = runLint([node], emptyCtx, {
-      profile: 'draft',
-      minSeverity: 'verbose',
-      rules: ['default-name', 'placeholder-text'],
-    });
-    expect(reviewReport.summary.violations).toBeGreaterThan(0);
-    expect(draftReport.summary.violations).toBe(0);
-  });
-
-  it('publish profile upgrades default-name severity so it surfaces', () => {
-    const node = makeNode({
-      name: 'Frame 1',
-      type: 'FRAME',
-      width: 200,
-      height: 200,
-      children: [makeNode({ id: '2:1', name: 'Child', type: 'FRAME' })],
-    });
-    // review profile: default-name is verbose → hidden under default minSeverity
-    const reviewReport = runLint([node], emptyCtx, { profile: 'review', rules: ['default-name'] });
-    // publish profile: upgraded to style → surfaces at default minSeverity
-    const publishReport = runLint([node], emptyCtx, { profile: 'publish', rules: ['default-name'] });
-    expect(reviewReport.summary.violations).toBe(0);
-    expect(publishReport.summary.violations).toBeGreaterThan(0);
+    const report = runLint([node], emptyCtx);
+    const componentBindings = report.categories.find((c) => c.rule === 'component-bindings');
+    expect(componentBindings).toBeDefined();
+    expect(componentBindings!.count).toBeGreaterThan(0);
   });
 
   it('does not suppress when the parent rule does not fire', () => {

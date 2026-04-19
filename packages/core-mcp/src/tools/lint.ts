@@ -64,12 +64,6 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         .enum(['error', 'unsafe', 'heuristic', 'style', 'verbose'])
         .optional()
         .describe('Minimum severity to include (default: all). Use "warning" to hide hints/info.'),
-      profile: z
-        .enum(['draft', 'review', 'publish'])
-        .optional()
-        .describe(
-          'Workflow profile (default: "review"). "draft" hides naming/content/binding noise during iteration. "publish" upgrades those severities for pre-release gate.',
-        ),
       lang: z
         .enum(['en', 'zh'])
         .optional()
@@ -85,7 +79,6 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
       annotate,
       useStoredTokens,
       minSeverity,
-      profile,
       lang,
     }) => {
       const tokenContext = await loadTokenContext(bridge, useStoredTokens);
@@ -100,7 +93,6 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         annotate,
         tokenContext,
         minSeverity,
-        profile,
         lang,
       });
 
@@ -171,16 +163,12 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         .optional()
         .describe('Stop collecting after this many violations (performance optimization for large pages)'),
       dryRun: z.boolean().optional().describe('Preview mode: return fixable violations without applying fixes'),
-      profile: z
-        .enum(['draft', 'review', 'publish'])
-        .optional()
-        .describe('Workflow profile (default: "review"). See lint_check for semantics.'),
       lang: z
         .enum(['en', 'zh'])
         .optional()
         .describe("Language for suggestion text (default: user's plugin language preference)."),
     },
-    async ({ nodeIds, rules, categories, useStoredTokens, annotate, maxViolations, dryRun, profile, lang }) => {
+    async ({ nodeIds, rules, categories, useStoredTokens, annotate, maxViolations, dryRun, lang }) => {
       const tokenContext = await loadTokenContext(bridge, useStoredTokens);
 
       // Step 1: lint_check
@@ -192,7 +180,6 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
           categories,
           tokenContext,
           maxViolations,
-          profile,
           lang,
         },
         HEAVY_REQUEST_TIMEOUT_MS,
@@ -243,7 +230,6 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
           categories,
           tokenContext,
           annotate: true,
-          profile,
           lang,
         });
       }
@@ -404,16 +390,12 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
       fix: z.boolean().optional().describe('Auto-fix violations (default: true)'),
       exportImage: z.boolean().optional().describe('Include screenshot (default: true)'),
       exportScale: z.number().optional().describe('Image scale factor (default: 0.5)'),
-      profile: z
-        .enum(['draft', 'review', 'publish'])
-        .optional()
-        .describe('Workflow profile (default: "review"). See lint_check for semantics.'),
       lang: z
         .enum(['en', 'zh'])
         .optional()
         .describe("Language for suggestion text (default: user's plugin language preference)."),
     },
-    async ({ nodeId, fix = true, exportImage = true, exportScale = 0.5, profile, lang }) => {
+    async ({ nodeId, fix = true, exportImage = true, exportScale = 0.5, lang }) => {
       const nodeIds = nodeId ? [nodeId] : undefined;
 
       // Step 1: lint (with optional fix)
@@ -421,7 +403,6 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         'lint_check',
         {
           nodeIds,
-          profile,
           lang,
         },
         HEAVY_REQUEST_TIMEOUT_MS,

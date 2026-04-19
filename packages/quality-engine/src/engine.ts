@@ -113,39 +113,6 @@ const ALL_RULES: LintRule[] = [
   componentBindingsRule,
 ];
 
-/**
- * Lint profile — workflow stage determining which rules matter.
- *
- * - `draft`:   iterating UI; suppresses naming, content, and component-binding noise
- *              that's expected to be incomplete mid-design
- * - `review`:  default; full rule set at normal severity (current behavior)
- * - `publish`: pre-release; upgrades naming / content / binding rules so nothing
- *              ships with "Frame 1" / "Lorem ipsum" / unconnected component props
- */
-export type LintProfile = 'draft' | 'review' | 'publish';
-
-/** Rule names that only matter at publish time (stripped out in draft/review). */
-const PUBLISH_ONLY_RULES = new Set<string>(['component-bindings']);
-
-/** Rule names that are noise during drafting — hidden in draft profile. */
-const DRAFT_SKIP_RULES = new Set<string>([
-  'default-name',
-  'placeholder-text',
-  'component-bindings',
-  'empty-container',
-  'elevation-consistency',
-  'max-nesting-depth',
-]);
-
-/** Rules whose severity is upgraded by one level in publish profile. */
-const PUBLISH_UPGRADE_RULES = new Set<string>([
-  'default-name',
-  'placeholder-text',
-  'component-bindings',
-  'no-text-style',
-  'hardcoded-token',
-]);
-
 export interface LintOptions {
   rules?: string[];
   categories?: LintRuleCategory[];
@@ -157,19 +124,6 @@ export interface LintOptions {
   minSeverity?: LintSeverity;
   /** Rule names to skip (used to avoid re-checking rules already handled by pre-creation validation). */
   skipRules?: Set<string>;
-  /**
-   * Workflow profile controlling which rules run and at what severity.
-   * Default: 'review' (current behavior). Use 'draft' during design iteration
-   * and 'publish' before shipping to upgrade naming / content / binding rules.
-   */
-  profile?: LintProfile;
-}
-
-/** Upgrade a severity by one level (inverse of downgradeSeverity). */
-function upgradeSeverity(severity: LintSeverity): LintSeverity {
-  const order: LintSeverity[] = ['error', 'unsafe', 'heuristic', 'style', 'verbose'];
-  const idx = order.indexOf(severity);
-  return order[Math.max(idx - 1, 0)];
 }
 
 export interface LintReport {
@@ -242,16 +196,7 @@ function detectPlatform(node: AbstractNode): 'mobile' | 'desktop' | undefined {
 
 /** Run lint rules on a flat list of abstract nodes. */
 export function runLint(nodes: AbstractNode[], ctx: LintContext, options: LintOptions = {}): LintReport {
-  const profile: LintProfile = options.profile ?? 'review';
   let activeRules = ALL_RULES;
-
-  // Profile-level rule filtering
-  if (profile === 'draft') {
-    activeRules = activeRules.filter((r) => !DRAFT_SKIP_RULES.has(r.name));
-  } else if (profile === 'review') {
-    activeRules = activeRules.filter((r) => !PUBLISH_ONLY_RULES.has(r.name));
-  }
-  // profile === 'publish': run everything (no filtering)
 
   if (options.categories) {
     activeRules = activeRules.filter((r) => options.categories!.includes(r.category));
@@ -366,15 +311,6 @@ export function runLint(nodes: AbstractNode[], ctx: LintContext, options: LintOp
         if (contextSev !== v.severity) {
           if (!v.baseSeverity) v.baseSeverity = v.severity;
           v.severity = contextSev;
-        }
-        // Publish profile: upgrade naming/content/binding rules so they surface
-        // at review-visible severity levels.
-        if (profile === 'publish' && PUBLISH_UPGRADE_RULES.has(rule.name)) {
-          const upgraded = upgradeSeverity(v.severity);
-          if (upgraded !== v.severity) {
-            if (!v.baseSeverity) v.baseSeverity = v.severity;
-            v.severity = upgraded;
-          }
         }
         // Generate fix descriptor from rule, then derive fixCall
         if (v.autoFixable && !v.fixDescriptor && rule.describeFix) {
