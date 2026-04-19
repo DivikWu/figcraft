@@ -18,7 +18,7 @@ Describe what you want in natural language, and FigCraft + Figma MCP make it hap
 
 - 🎨 **From creation to delivery, fully covered** — Create UI directly in Figma with 116 MCP tools. Build frames, components, variants, icons — check quality right after, fix issues on the spot
 - 🧠 **Opinion Engine** — auto-infers layout direction, sizing, token bindings, and catches parameter conflicts before they hit Figma. You describe *what*, it figures out *how*
-- 🔍 **Automated design audit** — token bindings, color contrast, spacing, component health — all checked in one pass
+- 🔍 **Automated design audit** — token bindings, color contrast, spacing, component health — all checked in one pass · [Full guide →](docs/design-review.md)
 - 🔧 **Lint + fix in one step** — 40 rules covering token compliance, WCAG, layout structure — one command to batch-fix everything flagged
 - 🔄 **Two-way token sync** — DTCG JSON ↔ Figma variables, Light/Dark multi-mode in one step. Changed tokens in code? Just sync
 - 🔀 **Dual mode for any team** — Library mode for Figma shared libraries, Spec mode for DTCG JSON — pick what fits your workflow

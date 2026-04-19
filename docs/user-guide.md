@@ -295,6 +295,8 @@ cwd = "/your/absolute/path/to/figcraft"
 - Frame 命名为 "Frame 1" → `default-name`
 - 容器内 2+ 子元素未设 auto-layout → `no-autolayout`
 
+**详细说明**：职责分离、scope 模型、每条规则含义、已知边界、FAQ → [docs/design-review.md](design-review.md)
+
 ### 4.3 Token 管理
 
 需先加载工具集：`load_toolset("tokens")`
