@@ -80,6 +80,8 @@ export interface AbstractNode {
   parentWidth?: number;
   // Parent layout mode (propagated during lint traversal for overflow fix strategy)
   parentLayoutMode?: string;
+  // Parent itemSpacing (propagated during lint traversal for WCAG 2.5.8 spacing-exception)
+  parentItemSpacing?: number;
   // Lint exclusion: comma-separated rule names or '*' to skip all rules
   lintIgnore?: string;
 }

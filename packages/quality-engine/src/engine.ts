@@ -225,6 +225,9 @@ export function runLint(nodes: AbstractNode[], ctx: LintContext, options: LintOp
       const effectiveWidth = node.width ?? node.parentWidth;
       // Propagate parent layout mode for text overflow fix strategy.
       const effectiveLayoutMode = node.layoutMode ?? node.parentLayoutMode;
+      // Propagate parent itemSpacing for WCAG 2.5.8 spacing-exception.
+      // Only propagate one level (direct parent) — siblings-of-siblings don't apply.
+      const effectiveItemSpacing = node.layoutMode ? node.itemSpacing : undefined;
       // Propagate per-mode background colors for dark mode contrast checks.
       const effectiveBgModes = node.variableModeColors ?? node.parentBgModeColors;
       for (const child of node.children) {
@@ -233,6 +236,7 @@ export function runLint(nodes: AbstractNode[], ctx: LintContext, options: LintOp
         if (effectiveBgModes) child.parentBgModeColors = effectiveBgModes;
         if (effectiveWidth != null) child.parentWidth = effectiveWidth;
         if (effectiveLayoutMode) child.parentLayoutMode = effectiveLayoutMode;
+        if (effectiveItemSpacing != null) child.parentItemSpacing = effectiveItemSpacing;
         walk(child);
       }
     }
