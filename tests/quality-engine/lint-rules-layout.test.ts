@@ -160,6 +160,107 @@ describe('overflow-parent', () => {
     // 120px > 16px inner height, and it's a large frame with text — should still flag
     expect(v).toHaveLength(1);
   });
+
+  // ── Escape valves: intentional scroll / carousel / text metrics ──
+
+  it('skips horizontal overflow when parent declares overflowDirection: HORIZONTAL', () => {
+    const node = makeNode({
+      layoutMode: 'VERTICAL',
+      width: 375,
+      overflowDirection: 'HORIZONTAL',
+      children: [makeNode({ id: '2:1', name: 'Row', width: 800, height: 100 })],
+    });
+    expect(overflowParentRule.check(node, emptyCtx)).toHaveLength(0);
+  });
+
+  it('skips vertical overflow when parent declares overflowDirection: VERTICAL', () => {
+    const node = makeNode({
+      layoutMode: 'HORIZONTAL',
+      height: 200,
+      overflowDirection: 'VERTICAL',
+      children: [makeNode({ id: '2:1', name: 'Column', width: 100, height: 500 })],
+    });
+    expect(overflowParentRule.check(node, emptyCtx)).toHaveLength(0);
+  });
+
+  it('overflowDirection: BOTH covers both axes', () => {
+    const hor = makeNode({
+      layoutMode: 'VERTICAL',
+      width: 300,
+      overflowDirection: 'BOTH',
+      children: [makeNode({ id: '2:1', name: 'Wide', width: 900, height: 50 })],
+    });
+    const ver = makeNode({
+      layoutMode: 'HORIZONTAL',
+      height: 100,
+      overflowDirection: 'BOTH',
+      children: [makeNode({ id: '2:1', name: 'Tall', width: 50, height: 300 })],
+    });
+    expect(overflowParentRule.check(hor, emptyCtx)).toHaveLength(0);
+    expect(overflowParentRule.check(ver, emptyCtx)).toHaveLength(0);
+  });
+
+  it('downgrades to heuristic + drops autofix when child is >= 1.5x parent (carousel pattern)', () => {
+    const node = makeNode({
+      layoutMode: 'VERTICAL',
+      width: 375,
+      children: [
+        // 800 / 375 = 2.13× — clearly a carousel, STRETCH would squish it.
+        makeNode({ id: '2:1', name: 'Tab Row', width: 800, height: 48 }),
+      ],
+    });
+    const v = overflowParentRule.check(node, emptyCtx);
+    expect(v).toHaveLength(1);
+    expect(v[0].severity).toBe('heuristic');
+    expect(v[0].autoFixable).toBe(false);
+    expect(v[0].suggestion).toContain('overflowDirection');
+  });
+
+  it('keeps unsafe + STRETCH autofix for slight overflow (below 1.5x ratio)', () => {
+    const node = makeNode({
+      layoutMode: 'VERTICAL',
+      width: 350,
+      children: [
+        // 400 / 350 = 1.14× — slight overflow, classic layout mistake, STRETCH fixes it.
+        makeNode({ id: '2:1', name: 'Input', width: 400, height: 40 }),
+      ],
+    });
+    const v = overflowParentRule.check(node, emptyCtx);
+    expect(v).toHaveLength(1);
+    expect(v[0].severity).toBe('unsafe');
+    expect(v[0].autoFixable).toBe(true);
+    expect(v[0].fixData?.layoutAlign).toBe('STRETCH');
+  });
+
+  it('exempts single-line TEXT in HORIZONTAL auto-layout (line-height metrics artifact)', () => {
+    // Status bar "Time" / "9:41" — text line-box is slightly taller than parent by font
+    // ascender/descender, not a real overflow.
+    const node = makeNode({
+      layoutMode: 'HORIZONTAL',
+      height: 20,
+      children: [makeNode({ id: '2:1', name: 'Time', type: 'TEXT', width: 50, height: 24, characters: '9:41' })],
+    });
+    expect(overflowParentRule.check(node, emptyCtx)).toHaveLength(0);
+  });
+
+  it('still flags multi-line TEXT vertically overflowing HORIZONTAL parent', () => {
+    // Multi-line text truly overflowing is a real layout issue.
+    const node = makeNode({
+      layoutMode: 'HORIZONTAL',
+      height: 40,
+      children: [
+        makeNode({
+          id: '2:1',
+          name: 'Caption',
+          type: 'TEXT',
+          width: 100,
+          height: 56,
+          characters: 'Line one\nLine two\nLine three',
+        }),
+      ],
+    });
+    expect(overflowParentRule.check(node, emptyCtx)).toHaveLength(1);
+  });
 });
 
 // ─── unbounded-hug ───

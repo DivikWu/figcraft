@@ -1,5 +1,12 @@
 import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
 
+/**
+ * Minimum width for a button to be a plausible CTA candidate. Icon-only
+ * navigation buttons (back arrow, close, menu) are intrinsically small —
+ * they should never be judged against the CTA-matches-input-width contract.
+ */
+const MIN_CTA_CANDIDATE_WIDTH = 100;
+
 function isFormLike(node: AbstractNode): boolean {
   // Role takes precedence — explicit designer intent.
   if (node.role === 'form' || node.role === 'actions') return true;
@@ -9,13 +16,6 @@ function isFormLike(node: AbstractNode): boolean {
   // arrow + title), causing this rule to treat their icon buttons as CTAs.
   return /\b(form|actions)\b/i.test(node.name);
 }
-
-/**
- * Minimum width for a button to be a plausible CTA candidate. Icon-only
- * navigation buttons (back arrow, close, menu) are intrinsically small —
- * they should never be judged against the CTA-matches-input-width contract.
- */
-const MIN_CTA_CANDIDATE_WIDTH = 100;
 
 function isButtonLike(node: AbstractNode): boolean {
   // ── Declaration-driven: role overrides all heuristics ──
