@@ -432,9 +432,6 @@ audit_node:
       type: array
       items: string
       description: "Lint categories to check: token, layout, naming, wcag, component (default: all)"
-    includeChildren:
-      type: boolean
-      description: "Also audit child nodes recursively (default: true)"
   response:
     type: object
     fields:
@@ -460,7 +457,11 @@ audit_node:
             type: number
           errors:
             type: number
-          warnings:
+          unsafes:
+            type: number
+          heuristics:
+            type: number
+          styles:
             type: number
           autoFixable:
             type: number
@@ -477,16 +478,18 @@ audit_node:
     - nodeId: "1:23"
       nodeName: "Login Button"
       nodeType: "FRAME"
-      qualityScore: 85
+      qualityScore: 94  # 100 - heuristics(2)*3
       summary:
         totalChecked: 12
         violations: 2
         errors: 0
-        warnings: 2
+        unsafes: 0
+        heuristics: 2
+        styles: 0
         autoFixable: 1
       violations: []
       structuralNotes: []
-      recommendation: "Fix 1 auto-fixable warning, then review the remaining warning manually."
+      recommendation: "Fix 1 auto-fixable issue, then review the remaining manually."
 
 join_channel:
   description: >-

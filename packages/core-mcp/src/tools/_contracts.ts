@@ -69,7 +69,9 @@ export const GENERATED_TOOL_RESPONSE_SCHEMAS: Record<string, z.ZodTypeAny> = {
         totalChecked: z.number().optional(),
         violations: z.number().optional(),
         errors: z.number().optional(),
-        warnings: z.number().optional(),
+        unsafes: z.number().optional(),
+        heuristics: z.number().optional(),
+        styles: z.number().optional(),
         autoFixable: z.number().optional(),
       }),
       violations: z.array(z.record(z.unknown())).optional(),
@@ -1038,17 +1040,19 @@ export const GENERATED_TOOL_RESPONSE_EXAMPLES: Record<string, unknown[]> = {
       "nodeId": "1:23",
       "nodeName": "Login Button",
       "nodeType": "FRAME",
-      "qualityScore": 85,
+      "qualityScore": 94,
       "summary": {
         "totalChecked": 12,
         "violations": 2,
         "errors": 0,
-        "warnings": 2,
+        "unsafes": 0,
+        "heuristics": 2,
+        "styles": 0,
         "autoFixable": 1
       },
       "violations": [],
       "structuralNotes": [],
-      "recommendation": "Fix 1 auto-fixable warning, then review the remaining warning manually."
+      "recommendation": "Fix 1 auto-fixable issue, then review the remaining manually."
     }
   ],
   'join_channel': [

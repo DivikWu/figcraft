@@ -2,6 +2,7 @@
  * Audit tool — deep single-node quality audit combining lint + design guidelines.
  */
 
+import type { LintSeverity } from '@figcraft/quality-engine';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { Bridge } from '../bridge.js';
@@ -18,29 +19,15 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
         .array(z.string())
         .optional()
         .describe('Lint categories to check: token, layout, naming, wcag, component (default: all)'),
-      includeChildren: z.boolean().optional().describe('Also audit child nodes recursively (default: true)'),
     },
-    async ({ nodeId, categories, includeChildren = true }) => {
-      // Step 1: Run lint on the specific node
+    async ({ nodeId, categories }) => {
+      // Step 1: Run lint on the specific node.
+      // Note: token context (library tokens / DTCG cached tokens) is resolved Plugin-side
+      // from clientStorage in lint_check — no need to pass it from here.
       const lintParams: Record<string, unknown> = {
         nodeIds: [nodeId],
       };
       if (categories) lintParams.categories = categories;
-
-      // Load token context if in library mode
-      let tokenContext: Record<string, unknown> | undefined;
-      try {
-        const modeResult = (await bridge.request('get_mode', {})) as {
-          mode: string;
-          selectedLibrary: string | null;
-          designContext?: { tokens?: Record<string, unknown> };
-        };
-        if (modeResult.mode === 'library' && modeResult.selectedLibrary) {
-          lintParams.tokenContext = {};
-        }
-      } catch {
-        /* proceed without tokens */
-      }
 
       interface LintResult {
         summary: { total: number; violations: number; bySeverity: Record<string, number> };
@@ -52,7 +39,7 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
             nodeId: string;
             nodeName: string;
             rule: string;
-            severity: string;
+            severity: LintSeverity;
             currentValue: unknown;
             expectedValue?: unknown;
             suggestion: string;
@@ -67,7 +54,6 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
       try {
         lintResult = (await bridge.request('lint_check', {
           ...lintParams,
-          tokenContext,
           maxViolations: 100,
         })) as LintResult;
       } catch (err) {
@@ -123,11 +109,14 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
         /* text scan unavailable */
       }
 
-      // Step 3: Build structured audit report
+      // Step 3: Build structured audit report.
+      // Severity buckets must match quality-engine LintSeverity:
+      //   'error' | 'unsafe' | 'heuristic' | 'style' | 'verbose'
       const violations = lintResult?.categories?.flatMap((c) => c.nodes) ?? [];
       const errors = violations.filter((v) => v.severity === 'error');
-      const warnings = violations.filter((v) => v.severity === 'warning');
-      const infos = violations.filter((v) => v.severity === 'info' || v.severity === 'hint');
+      const unsafes = violations.filter((v) => v.severity === 'unsafe');
+      const heuristics = violations.filter((v) => v.severity === 'heuristic');
+      const styles = violations.filter((v) => v.severity === 'style' || v.severity === 'verbose');
       const fixable = violations.filter((v) => v.autoFixable);
 
       // Step 4: Structural checks beyond lint
@@ -144,8 +133,12 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
         );
       }
 
+      // Score weights mirror severity ordering in quality-engine SEVERITY_ORDER
+      // (error=most severe, verbose=least). Verbose rolls into 'styles' bucket per above.
       const lintAvailable = violations.length > 0 || (lintResult?.summary != null && !lintError);
-      const score = lintAvailable ? Math.max(0, 100 - errors.length * 15 - warnings.length * 5 - infos.length * 1) : -1;
+      const score = lintAvailable
+        ? Math.max(0, 100 - errors.length * 15 - unsafes.length * 8 - heuristics.length * 3 - styles.length * 1)
+        : -1;
 
       const report = {
         nodeId: nodeInfo.id,
@@ -158,8 +151,9 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
               totalChecked: lintResult.summary.total,
               violations: lintResult.summary.violations,
               errors: errors.length,
-              warnings: warnings.length,
-              infos: infos.length,
+              unsafes: unsafes.length,
+              heuristics: heuristics.length,
+              styles: styles.length,
               autoFixable: fixable.length,
             }
           : { lintUnavailable: true, error: lintError },
@@ -178,7 +172,7 @@ export function registerAuditTools(server: McpServer, bridge: Bridge): void {
           ? 'Lint check failed — only structural analysis available. Try lint_fix_all on the parent component set instead.'
           : errors.length > 0
             ? "Critical issues found. Run lint_fix_all to auto-fix what's possible, then address remaining errors manually."
-            : warnings.length > 0
+            : unsafes.length > 0 || heuristics.length > 0
               ? 'Some quality issues detected. Consider running lint_fix_all to improve.'
               : 'Node passes quality checks.',
       };

@@ -2,12 +2,27 @@
  * Lint tools — MCP wrappers for check, fix, and rules.
  */
 
-import { auditPreflightCompliance, getStats, recordLintRun } from '@figcraft/quality-engine';
+import type { LintCategory } from '@figcraft/quality-engine';
+import { auditPreflightCompliance, getAvailableRules, getStats, recordLintRun } from '@figcraft/quality-engine';
 import { HEAVY_REQUEST_TIMEOUT_MS } from '@figcraft/shared';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { Bridge } from '../bridge.js';
 import { compactResponse } from './response-helpers.js';
+
+/**
+ * rule.name → rule.category lookup, built once at module load from quality-engine.
+ * Used by compliance_report instead of fragile string-prefix heuristics that
+ * silently misclassified rules like `placeholder-text` (naming) or `empty-container` (layout).
+ *
+ * Fallback to 'layout' should never fire in practice — quality-engine and this
+ * map ship from the same package version. If it does fire, the lint_check
+ * Plugin response carried a rule name unknown to MCP-side quality-engine,
+ * indicating a Plugin/MCP version mismatch.
+ */
+const RULE_CATEGORY_MAP: ReadonlyMap<string, LintCategory> = new Map(
+  getAvailableRules().map((r) => [r.name, r.category as LintCategory]),
+);
 
 /** Load cached tokens and build a token context for lint rules. */
 async function loadTokenContext(
@@ -326,18 +341,11 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
         categories: Array<{ rule: string; description: string; count: number; nodes: Array<{ severity?: string }> }>;
       };
 
-      // Group lint by category
+      // Group lint by category — read each rule's authoritative category from the
+      // quality-engine registry. See RULE_CATEGORY_MAP comment for fallback semantics.
       const lintByCategory: Record<string, { count: number; rules: string[] }> = {};
       for (const cat of lintReport.categories) {
-        const ruleCategory = cat.rule.startsWith('wcag')
-          ? 'wcag'
-          : cat.rule.startsWith('spec-') || cat.rule === 'hardcoded-token' || cat.rule === 'no-text-style'
-            ? 'token'
-            : cat.rule.startsWith('component') || cat.rule === 'no-text-property'
-              ? 'component'
-              : cat.rule === 'default-name' || cat.rule === 'stale-text-name'
-                ? 'naming'
-                : 'layout';
+        const ruleCategory: LintCategory = RULE_CATEGORY_MAP.get(cat.rule) ?? 'layout';
         if (!lintByCategory[ruleCategory]) lintByCategory[ruleCategory] = { count: 0, rules: [] };
         lintByCategory[ruleCategory].count += cat.count;
         lintByCategory[ruleCategory].rules.push(`${cat.rule} (${cat.count})`);
@@ -350,6 +358,11 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
       };
 
       // 3. Compute scores
+      // lintScore: simple pass-rate %.
+      // componentScore: 100 minus 25 points per issue-per-component ratio. The 25-point
+      // weight means a library averaging 1 issue per component still scores 75 (acceptable
+      // but flagged), and a library averaging ≥4 issues/component bottoms out at 0.
+      // Treated as a "library health" signal — not directly comparable to lintScore.
       const lintScore =
         lintReport.summary.total > 0 ? Math.round((lintReport.summary.pass / lintReport.summary.total) * 100) : 100;
       const componentScore =
