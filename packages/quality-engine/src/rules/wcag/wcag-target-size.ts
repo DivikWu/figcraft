@@ -63,7 +63,7 @@ export const wcagTargetSizeRule: LintRule = {
           expectedValue: `>= ${MIN_TARGET_SIZE}x${MIN_TARGET_SIZE}`,
           suggestion: `"${node.name}" is only ${w}×${h}px — make it at least ${MIN_TARGET_SIZE}×${MIN_TARGET_SIZE}px so it's easy to tap`,
           autoFixable: true,
-          fixData: { currentWidth: w, currentHeight: h, nodeType: node.type },
+          fixData: { currentWidth: w, currentHeight: h },
         },
       ];
     }

@@ -472,6 +472,43 @@ describe('text-overflow', () => {
     );
     expect(v).toHaveLength(0);
   });
+
+  it('respects textTruncation: ENDING as explicit opt-in (skips even when text would overflow parent)', () => {
+    // Designer set maxLines + ending ellipsis — this is intentional truncation,
+    // not an overflow bug. Method 1 would otherwise flag width > parentWidth.
+    const v = textOverflowRule.check(
+      makeNode({
+        type: 'TEXT',
+        name: '#Product Name',
+        width: 400,
+        height: 40,
+        characters: 'HADABISEI 3D Collagen Moisturizing Mask',
+        fontSize: 14,
+        parentWidth: 120,
+        textTruncation: 'ENDING',
+        maxLines: 3,
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(0);
+  });
+
+  it('skips Method 2 heuristic for CJK-dominant strings (estimate undercounts CJK widths)', () => {
+    // 50 CJK chars × est 0.6 × 20px = 600px > 500 threshold, node width 200 < 300;
+    // would fire under the old pre-session logic. ASCII guard now suppresses.
+    const v = textOverflowRule.check(
+      makeNode({
+        type: 'TEXT',
+        name: '产品名',
+        width: 200,
+        height: 24,
+        characters: '这是一段非常长的中文产品名称用来模拟商品详情页里实际会出现的超长标题场景需要足够多字',
+        fontSize: 20,
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(0);
+  });
 });
 
 // ─── form-consistency ───
@@ -631,6 +668,53 @@ describe('cta-width-inconsistent', () => {
     );
     expect(v).toHaveLength(0);
   });
+
+  it('skips icon-only nav buttons (< 100px) — not CTA candidates', () => {
+    // "Top Content" holds a 50px Back Button and a title — a Back button is not a
+    // primary CTA and must not be judged against the input width.
+    // Also verifies the tightened isFormLike regex via explicit role: 'form'.
+    const v = ctaWidthInconsistentRule.check(
+      makeNode({
+        name: 'Top Content',
+        role: 'form',
+        type: 'FRAME',
+        layoutMode: 'VERTICAL',
+        width: 350,
+        children: [
+          makeNode({ id: '2:1', name: 'Email Input', role: 'input', type: 'FRAME', width: 350 }),
+          makeNode({
+            id: '2:2',
+            name: 'Back Button',
+            role: 'button',
+            type: 'FRAME',
+            width: 50,
+            fills: [{ type: 'SOLID', color: '#ffffff', visible: true }],
+          }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(0);
+  });
+
+  it('skips non-form containers that only happen to have "Content" in the name', () => {
+    // Pre-session regex matched /content/i and mistreated "Top Content" as a form.
+    // The role-less fallback should require /\b(form|actions)\b/ now.
+    const v = ctaWidthInconsistentRule.check(
+      makeNode({
+        name: 'Top Content',
+        type: 'FRAME',
+        layoutMode: 'VERTICAL',
+        width: 350,
+        children: [
+          makeNode({ id: '2:1', name: 'Email Input', role: 'input', type: 'FRAME', width: 350 }),
+          makeNode({ id: '2:2', name: 'Sign In Button', role: 'button', type: 'FRAME', width: 220 }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(0);
+  });
 });
 
 describe('header-fragmented', () => {
@@ -708,6 +792,98 @@ describe('section-spacing-collapse', () => {
       emptyCtx,
     );
     expect(v).toHaveLength(0);
+  });
+
+  it('passes when children carry their own rhythm signal (visible fill)', () => {
+    // Modern card-style feed: each section has its own background,
+    // so tight parent itemSpacing is fine — cards visually self-separate.
+    const v = sectionSpacingCollapseRule.check(
+      makeNode({
+        name: 'Content',
+        type: 'FRAME',
+        layoutMode: 'VERTICAL',
+        itemSpacing: 8,
+        children: [
+          makeNode({
+            id: '2:1',
+            name: 'Card A',
+            type: 'FRAME',
+            fills: [{ type: 'SOLID', color: '#ffffff', visible: true }],
+          }),
+          makeNode({
+            id: '2:2',
+            name: 'Card B',
+            type: 'FRAME',
+            fills: [{ type: 'SOLID', color: '#ffffff', visible: true }],
+          }),
+          makeNode({
+            id: '2:3',
+            name: 'Card C',
+            type: 'FRAME',
+            fills: [{ type: 'SOLID', color: '#ffffff', visible: true }],
+          }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(0);
+  });
+
+  it('peeks one level into thin COMPONENT wrappers for rhythm signals', () => {
+    // Library components (Product List - Mobile, etc.) often have padding=0
+    // and no fill on their root; visuals live in inner Header/Content wrappers.
+    const v = sectionSpacingCollapseRule.check(
+      makeNode({
+        name: 'Content',
+        type: 'FRAME',
+        layoutMode: 'VERTICAL',
+        itemSpacing: 8,
+        children: [
+          makeNode({
+            id: '2:1',
+            name: 'Product List / Mobile',
+            type: 'COMPONENT',
+            // root is empty shell
+            children: [makeNode({ id: '3:1', name: 'Header', type: 'FRAME', paddingTop: 12, paddingBottom: 12 })],
+          }),
+          makeNode({
+            id: '2:2',
+            name: 'Brand / Campaign',
+            type: 'COMPONENT',
+            children: [makeNode({ id: '3:2', name: 'Header', type: 'FRAME', paddingTop: 16, paddingBottom: 16 })],
+          }),
+          makeNode({
+            id: '2:3',
+            name: 'Story Cover',
+            type: 'COMPONENT',
+            children: [makeNode({ id: '3:3', name: 'Header', type: 'FRAME', paddingTop: 12, paddingBottom: 12 })],
+          }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(0);
+  });
+
+  it('still flags truly empty section stacks even with tight spacing', () => {
+    // Regression guard: empty FRAMEs with no rhythm signal at any level
+    // should still fire — this is the real "sections collapsed together" case.
+    const v = sectionSpacingCollapseRule.check(
+      makeNode({
+        name: 'Auth Screen',
+        role: 'screen',
+        type: 'FRAME',
+        layoutMode: 'VERTICAL',
+        itemSpacing: 6,
+        children: [
+          makeNode({ id: '2:1', name: 'Header', type: 'FRAME' }),
+          makeNode({ id: '2:2', name: 'Body', type: 'FRAME' }),
+          makeNode({ id: '2:3', name: 'Footer', type: 'FRAME' }),
+        ],
+      }),
+      emptyCtx,
+    );
+    expect(v).toHaveLength(1);
   });
 });
 
