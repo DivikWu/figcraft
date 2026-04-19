@@ -28,11 +28,8 @@ export const emptyContainerRule: LintRule = {
       if (node.type === 'FRAME') {
         const isSpacerName = SPACER_RE.test(node.name);
         const hasNoVisibleFill =
-          !node.fills ||
-          node.fills.length === 0 ||
-          node.fills.every((f) => f.visible === false || f.opacity === 0);
-        const isThin =
-          (node.width != null && node.width <= 4) || (node.height != null && node.height <= 4);
+          !node.fills || node.fills.length === 0 || node.fills.every((f) => f.visible === false || f.opacity === 0);
+        const isThin = (node.width != null && node.width <= 4) || (node.height != null && node.height <= 4);
         if (isSpacerName || (hasNoVisibleFill && isThin)) return [];
       }
       return [

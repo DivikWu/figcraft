@@ -20,11 +20,36 @@ const STANDARD_DIMS: Array<{ platform: string; width: number; height: number }> 
 
 /** Legacy dimensions that should be flagged. */
 const LEGACY_DIMS: Array<{ width: number; height: number; en: string; zh: string }> = [
-  { width: 390, height: 844, en: 'Legacy iPhone 14 size. Use 402×874 (iPhone 16 Pro) instead.', zh: 'iPhone 14 旧尺寸。建议改用 402×874(iPhone 16 Pro)。' },
-  { width: 375, height: 812, en: 'Legacy iPhone X/11 Pro size. Use 402×874 (iPhone 16 Pro) instead.', zh: 'iPhone X / 11 Pro 旧尺寸。建议改用 402×874(iPhone 16 Pro)。' },
-  { width: 360, height: 800, en: 'Legacy Android size. Use 412×915 instead.', zh: 'Android 旧尺寸。建议改用 412×915。' },
-  { width: 360, height: 780, en: 'Legacy Android size. Use 412×915 instead.', zh: 'Android 旧尺寸。建议改用 412×915。' },
-  { width: 393, height: 852, en: 'Legacy iPhone 15 size. Use 402×874 (iPhone 16 Pro) instead.', zh: 'iPhone 15 旧尺寸。建议改用 402×874(iPhone 16 Pro)。' },
+  {
+    width: 390,
+    height: 844,
+    en: 'Legacy iPhone 14 size. Use 402×874 (iPhone 16 Pro) instead.',
+    zh: 'iPhone 14 旧尺寸。建议改用 402×874(iPhone 16 Pro)。',
+  },
+  {
+    width: 375,
+    height: 812,
+    en: 'Legacy iPhone X/11 Pro size. Use 402×874 (iPhone 16 Pro) instead.',
+    zh: 'iPhone X / 11 Pro 旧尺寸。建议改用 402×874(iPhone 16 Pro)。',
+  },
+  {
+    width: 360,
+    height: 800,
+    en: 'Legacy Android size. Use 412×915 instead.',
+    zh: 'Android 旧尺寸。建议改用 412×915。',
+  },
+  {
+    width: 360,
+    height: 780,
+    en: 'Legacy Android size. Use 412×915 instead.',
+    zh: 'Android 旧尺寸。建议改用 412×915。',
+  },
+  {
+    width: 393,
+    height: 852,
+    en: 'Legacy iPhone 15 size. Use 402×874 (iPhone 16 Pro) instead.',
+    zh: 'iPhone 15 旧尺寸。建议改用 402×874(iPhone 16 Pro)。',
+  },
 ];
 
 function isScreenLike(node: AbstractNode): boolean {
@@ -73,11 +98,7 @@ export const mobileDimensionsRule: LintRule = {
             severity: 'style',
             currentValue: `${w}×${h}`,
             expectedValue: `${target.width}×${target.height}`,
-            suggestion: tr(
-              ctx.lang,
-              `"${node.name}" uses ${legacy.en}`,
-              `「${node.name}」使用了${legacy.zh}`,
-            ),
+            suggestion: tr(ctx.lang, `"${node.name}" uses ${legacy.en}`, `「${node.name}」使用了${legacy.zh}`),
             autoFixable: true,
             fixData: { fix: 'resize', width: target.width, height: target.height },
           },

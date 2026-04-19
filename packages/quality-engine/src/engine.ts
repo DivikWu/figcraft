@@ -2,6 +2,8 @@
  * Lint engine — runs rules against abstract nodes, collects violations.
  */
 
+import { classifyInteractive } from './interactive/classifier.js';
+import type { InteractiveKind } from './interactive/taxonomy.js';
 import { elevationConsistencyRule } from './rules/layout/elevation-consistency.js';
 import { elevationHierarchyRule } from './rules/layout/elevation-hierarchy.js';
 import { emptyContainerRule } from './rules/layout/empty-container.js';
@@ -31,10 +33,10 @@ import { buttonOutlineStructureRule } from './rules/structure/button-outline-str
 import { buttonSolidStructureRule } from './rules/structure/button-solid-structure.js';
 import { buttonTextStructureRule } from './rules/structure/button-text-structure.js';
 import { componentBindingsRule } from './rules/structure/component-bindings.js';
-import { linkStandaloneStructureRule } from './rules/structure/link-standalone-structure.js';
 import { ctaWidthInconsistentRule } from './rules/structure/cta-width-inconsistent.js';
 import { formConsistencyRule } from './rules/structure/form-consistency.js';
 import { inputFieldStructureRule } from './rules/structure/input-field-structure.js';
+import { linkStandaloneStructureRule } from './rules/structure/link-standalone-structure.js';
 import { navOvercrowdedRule } from './rules/structure/nav-overcrowded.js';
 import { nestedInteractiveShellRule } from './rules/structure/nested-interactive-shell.js';
 import { rootMisclassifiedInteractiveRule } from './rules/structure/root-misclassified-interactive.js';
@@ -47,8 +49,6 @@ import { wcagLineHeightRule } from './rules/wcag/wcag-line-height.js';
 import { wcagNonTextContrastRule } from './rules/wcag/wcag-non-text-contrast.js';
 import { wcagTargetSizeRule } from './rules/wcag/wcag-target-size.js';
 import { wcagTextSizeRule } from './rules/wcag/wcag-text-size.js';
-import { classifyInteractive } from './interactive/classifier.js';
-import type { InteractiveKind } from './interactive/taxonomy.js';
 import { getRuleFrequencyOrder, recordInteractiveClassification } from './stats.js';
 import type {
   AbstractNode,

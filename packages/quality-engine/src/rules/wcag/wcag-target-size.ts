@@ -2,8 +2,8 @@
  * WCAG target size rule — interactive elements should be >= 44x44px.
  */
 
-import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
 import { isButtonKind, isLinkKind } from '../../interactive/taxonomy.js';
+import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
 
 /**
  * WCAG 2.5.8 Target Size (Minimum, Level AA) — the hard accessibility floor is

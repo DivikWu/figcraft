@@ -52,7 +52,7 @@ export function registerCreateFrame(server: McpServer, bridge: Bridge): void {
         .enum(['default', 'hover', 'pressed', 'focused', 'disabled', 'loading', 'selected'])
         .optional()
         .describe(
-          "Interactive state variant for component sets (use with variants). Stored as plugin data for state-set-completeness checks.",
+          'Interactive state variant for component sets (use with variants). Stored as plugin data for state-set-completeness checks.',
         ),
       x: z.number().optional().describe('X position'),
       y: z.number().optional().describe('Y position'),

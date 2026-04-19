@@ -7,7 +7,7 @@
  * legitimate solid-button issues remain surfaced.
  */
 import { describe, expect, it } from 'vitest';
-import { runLint, getAvailableRules } from '../../packages/quality-engine/src/engine.js';
+import { getAvailableRules, runLint } from '../../packages/quality-engine/src/engine.js';
 import type { AbstractNode, LintContext } from '../../packages/quality-engine/src/types.js';
 
 const emptyCtx: LintContext = {
@@ -118,9 +118,7 @@ describe('interactive pipeline', () => {
   it('classifies the "Log in" FRAME as button-solid and passes all checks', () => {
     const nodes = [loginScreen()];
     const report = runLint(nodes, emptyCtx);
-    const btnViolations = report.categories.flatMap((c) =>
-      c.nodes.filter((n) => n.nodeId === '1:4'),
-    );
+    const btnViolations = report.categories.flatMap((c) => c.nodes.filter((n) => n.nodeId === '1:4'));
     expect(btnViolations).toHaveLength(0);
 
     const screen = nodes[0];

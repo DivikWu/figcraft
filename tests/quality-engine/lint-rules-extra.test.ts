@@ -227,8 +227,8 @@ describe('max-nesting-depth', () => {
 
 // ─── button-solid-structure (enhanced) ───
 
-import { textOverflowRule } from '../../packages/quality-engine/src/rules/layout/text-overflow.js';
 import { classifyInteractive } from '../../packages/quality-engine/src/interactive/classifier.js';
+import { textOverflowRule } from '../../packages/quality-engine/src/rules/layout/text-overflow.js';
 import { buttonSolidStructureRule } from '../../packages/quality-engine/src/rules/structure/button-solid-structure.js';
 
 /** Engine cache-then-check emulation for unit tests. */
@@ -376,9 +376,7 @@ describe('button-solid-structure', () => {
   });
 
   it('ignores non-button frames', () => {
-    const v = classifyAndCheck(
-      makeNode({ name: 'Header Section', type: 'FRAME', width: 400, height: 60 }),
-    );
+    const v = classifyAndCheck(makeNode({ name: 'Header Section', type: 'FRAME', width: 400, height: 60 }));
     expect(v).toHaveLength(0);
   });
 

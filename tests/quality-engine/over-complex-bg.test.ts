@@ -59,7 +59,11 @@ describe('overComplexBg propagation — engine walk', () => {
                   id: 'rect-image',
                   name: 'Rectangle 1',
                   type: 'RECTANGLE',
-                  fills: [{ type: 'IMAGE', visible: true } as unknown as AbstractNode['fills'] extends (infer T)[] | undefined ? T : never],
+                  fills: [
+                    { type: 'IMAGE', visible: true } as unknown as AbstractNode['fills'] extends (infer T)[] | undefined
+                      ? T
+                      : never,
+                  ],
                   width: 320,
                   height: 400,
                 }),
@@ -276,8 +280,7 @@ describe('overComplexBg propagation — engine walk', () => {
 
     const report = runLint([page], emptyCtx);
     const violations =
-      report.categories.find((c) => c.rule === 'wcag-non-text-contrast')?.nodes.filter((v) => v.nodeId === 'cta') ??
-      [];
+      report.categories.find((c) => c.rule === 'wcag-non-text-contrast')?.nodes.filter((v) => v.nodeId === 'cta') ?? [];
     // White button over image — backdrop is complex, rule should skip.
     expect(violations).toHaveLength(0);
   });

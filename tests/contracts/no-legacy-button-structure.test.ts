@@ -10,16 +10,14 @@
  * source/content files, this test fails and surfaces the regression before
  * merge. Generated files, docs, and this guard itself are excluded.
  */
-import { describe, expect, it } from 'vitest';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
+import { describe, expect, it } from 'vitest';
 
 const ROOT = resolve(__dirname, '..', '..');
 
-const LEGACY_RULE_FILE = join(
-  ROOT,
-  'packages/quality-engine/src/rules/structure/button-structure.ts',
-);
+const LEGACY_RULE_FILE = join(ROOT, 'packages/quality-engine/src/rules/structure/button-structure.ts');
 
 /** File globs where a match is fatal. Relative to repo root. */
 const SCANNED_DIRS = [
@@ -86,9 +84,7 @@ describe('legacy button-structure: retired', () => {
     }
 
     if (offenders.length > 0) {
-      const msg = offenders
-        .map((o) => `  ${o.file}\n${o.lines.map((l) => `    ${l}`).join('\n')}`)
-        .join('\n');
+      const msg = offenders.map((o) => `  ${o.file}\n${o.lines.map((l) => `    ${l}`).join('\n')}`).join('\n');
       throw new Error(
         `Found references to retired "button-structure" rule. Use the variant rules instead (button-solid-structure, button-outline-structure, ...):\n${msg}`,
       );

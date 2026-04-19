@@ -13,7 +13,8 @@ import { findClosestToken } from './spec-color.js';
 
 export const hardcodedTokenRule: LintRule = {
   name: 'hardcoded-token',
-  description: "Detect fill colors or corner radii that aren't linked to a spec source (library variable, local variable, or local style).",
+  description:
+    "Detect fill colors or corner radii that aren't linked to a spec source (library variable, local variable, or local style).",
   category: 'token',
   severity: 'heuristic',
   ai: {
@@ -62,7 +63,8 @@ export const hardcodedTokenRule: LintRule = {
         // If spec-color would also fire (hex matches or is close to a known token),
         // skip here — spec-color's "switch to token X" suggestion is more actionable.
         const fillHex = fill?.color;
-        const matchesToken = fillHex != null && ctx.colorTokens.size > 0 && !!findClosestToken(fillHex, ctx.colorTokens);
+        const matchesToken =
+          fillHex != null && ctx.colorTokens.size > 0 && !!findClosestToken(fillHex, ctx.colorTokens);
         if (!isDefaultWhite && !matchesToken) {
           const colorStr = fill?.color ?? 'solid';
           const opacityStr =
@@ -90,11 +92,7 @@ export const hardcodedTokenRule: LintRule = {
     // (topLeftRadius / topRightRadius / bottomLeftRadius / bottomRightRadius)
     // even when the UI shows a single uniform binding. Check all 5 keys.
     const radiusBound =
-      bv.cornerRadius ||
-      bv.topLeftRadius ||
-      bv.topRightRadius ||
-      bv.bottomLeftRadius ||
-      bv.bottomRightRadius;
+      bv.cornerRadius || bv.topLeftRadius || bv.topRightRadius || bv.bottomLeftRadius || bv.bottomRightRadius;
     // Screen root frames use cornerRadius for the physical device mockup frame
     // (iPhone/Android screen corners), not as a design token value — skip them.
     const isScreenLike = node.role === 'screen' || node.role === 'page';
@@ -118,8 +116,7 @@ export const hardcodedTokenRule: LintRule = {
       // suggestion is more actionable than the generic "link it to the library".
       const radii = typeof node.cornerRadius === 'number' ? [node.cornerRadius] : node.cornerRadius;
       const tokenValues = Array.from(ctx.radiusTokens.values());
-      const anyNonMatching =
-        ctx.radiusTokens.size > 0 && radii.some((r) => r !== 0 && !tokenValues.includes(r));
+      const anyNonMatching = ctx.radiusTokens.size > 0 && radii.some((r) => r !== 0 && !tokenValues.includes(r));
       if (anyNonMatching) {
         return violations;
       }

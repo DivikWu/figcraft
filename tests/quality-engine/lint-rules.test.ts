@@ -95,37 +95,25 @@ describe('wcag-text-size', () => {
 
   it('allows 10px text on mobile platform', () => {
     // Mobile threshold is 10px — a 10px text should pass
-    const v = wcagTextSizeRule.check(
-      makeNode({ type: 'TEXT', fontSize: 10, platform: 'mobile' }),
-      emptyCtx,
-    );
+    const v = wcagTextSizeRule.check(makeNode({ type: 'TEXT', fontSize: 10, platform: 'mobile' }), emptyCtx);
     expect(v).toHaveLength(0);
   });
 
   it('flags 9px text on mobile (below 10px minimum)', () => {
-    const v = wcagTextSizeRule.check(
-      makeNode({ type: 'TEXT', fontSize: 9, platform: 'mobile' }),
-      emptyCtx,
-    );
+    const v = wcagTextSizeRule.check(makeNode({ type: 'TEXT', fontSize: 9, platform: 'mobile' }), emptyCtx);
     expect(v).toHaveLength(1);
     expect(v[0].fixData?.fontSize).toBe(10);
   });
 
   it('flags 10px text on desktop (below 12px minimum)', () => {
-    const v = wcagTextSizeRule.check(
-      makeNode({ type: 'TEXT', fontSize: 10, platform: 'desktop' }),
-      emptyCtx,
-    );
+    const v = wcagTextSizeRule.check(makeNode({ type: 'TEXT', fontSize: 10, platform: 'desktop' }), emptyCtx);
     expect(v).toHaveLength(1);
     expect(v[0].fixData?.fontSize).toBe(12);
   });
 
   it('falls back to mobile threshold when parentWidth suggests mobile', () => {
     // No explicit platform but parentWidth <= 500 → treat as mobile
-    const v = wcagTextSizeRule.check(
-      makeNode({ type: 'TEXT', fontSize: 10, parentWidth: 402 }),
-      emptyCtx,
-    );
+    const v = wcagTextSizeRule.check(makeNode({ type: 'TEXT', fontSize: 10, parentWidth: 402 }), emptyCtx);
     expect(v).toHaveLength(0);
   });
 });

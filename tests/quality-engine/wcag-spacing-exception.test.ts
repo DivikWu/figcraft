@@ -147,7 +147,7 @@ describe('link-standalone-structure — integrates spacing exception (regression
     expect(linkStandaloneStructureRule.check(node, emptyCtx)).toHaveLength(0);
   });
 
-  it('link with itemSpacing 0 still fires (exception doesn\'t apply)', () => {
+  it("link with itemSpacing 0 still fires (exception doesn't apply)", () => {
     const node = makeNode({
       name: 'Forgot Link',
       type: 'FRAME',

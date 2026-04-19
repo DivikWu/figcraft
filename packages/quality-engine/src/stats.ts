@@ -139,10 +139,7 @@ export function recordInteractiveClassification(
 }
 
 /** Get current session's classifier distribution, keyed by kind (or "__null__"). */
-export function getInteractiveClassificationStats(): Record<
-  string,
-  InteractiveStatEntry & { avgConfidence: number }
-> {
+export function getInteractiveClassificationStats(): Record<string, InteractiveStatEntry & { avgConfidence: number }> {
   const out: Record<string, InteractiveStatEntry & { avgConfidence: number }> = {};
   for (const [key, entry] of Object.entries(interactiveStats)) {
     out[key] = {

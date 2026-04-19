@@ -136,9 +136,10 @@ describe('engine propagation — instance entry node still audited', () => {
     });
 
     const report = runLint([screen], libraryCtx);
-    const hardcodedViolations = report.categories
-      .find((c) => c.rule === 'hardcoded-token')
-      ?.nodes.filter((v) => v.nodeId.startsWith('icon:1:v')) ?? [];
+    const hardcodedViolations =
+      report.categories
+        .find((c) => c.rule === 'hardcoded-token')
+        ?.nodes.filter((v) => v.nodeId.startsWith('icon:1:v')) ?? [];
 
     // No violations on internal vectors — they are inside the instance subtree.
     expect(hardcodedViolations).toHaveLength(0);
@@ -163,7 +164,8 @@ describe('engine propagation — instance entry node still audited', () => {
 
     const report = runLint([screen], libraryCtx);
     const hardcodedViolations =
-      report.categories.find((c) => c.rule === 'hardcoded-token')?.nodes.filter((v) => v.nodeId === 'bare-vector') ?? [];
+      report.categories.find((c) => c.rule === 'hardcoded-token')?.nodes.filter((v) => v.nodeId === 'bare-vector') ??
+      [];
 
     // Bare vector at the page level — should fire normally.
     expect(hardcodedViolations.length).toBeGreaterThan(0);

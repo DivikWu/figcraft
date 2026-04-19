@@ -22,7 +22,8 @@ export interface ClassifyResult {
   declared?: boolean;
 }
 
-const BUTTON_NAME_RE = /^(button|btn|cta|action)(\s|[-_:/.]|$)|^(登录|注册|submit|sign.?in|sign.?up|log.?in|log.?out)$/i;
+const BUTTON_NAME_RE =
+  /^(button|btn|cta|action)(\s|[-_:/.]|$)|^(登录|注册|submit|sign.?in|sign.?up|log.?in|log.?out)$/i;
 /**
  * Whole-word "link" / "links" anywhere in the name. Uses \b so "Linkedin" /
  * "Linkages" / "blink" don't match but "Sign Up Link" / "Forgot Link" /
@@ -66,8 +67,8 @@ function hasSingleTextChild(node: AbstractNode): boolean {
 /** True when node has a VECTOR/BOOLEAN/single svg-ish child — candidate icon button shell. */
 function hasIconLikeChild(node: AbstractNode): boolean {
   if (!node.children || node.children.length === 0) return false;
-  const icons = node.children.filter((c) =>
-    c.type === 'VECTOR' || c.type === 'BOOLEAN_OPERATION' || c.type === 'ELLIPSE' || c.type === 'STAR',
+  const icons = node.children.filter(
+    (c) => c.type === 'VECTOR' || c.type === 'BOOLEAN_OPERATION' || c.type === 'ELLIPSE' || c.type === 'STAR',
   );
   const texts = node.children.filter((c) => c.type === 'TEXT');
   return icons.length >= 1 && texts.length === 0;
@@ -125,7 +126,14 @@ export function classifyInteractive(node: AbstractNode, parentKind?: Interactive
   if (node.role === 'button') {
     signals.push('role=button');
     // Spread to all button-* candidates — structural signals narrow later
-    for (const k of ['button-solid', 'button-outline', 'button-ghost', 'button-text', 'button-icon', 'button-fab'] as InteractiveKind[]) {
+    for (const k of [
+      'button-solid',
+      'button-outline',
+      'button-ghost',
+      'button-text',
+      'button-icon',
+      'button-fab',
+    ] as InteractiveKind[]) {
       addScore(scores, k, 0.5);
     }
   } else if (node.role === 'link') {
@@ -254,7 +262,10 @@ export function classifyInteractive(node: AbstractNode, parentKind?: Interactive
     signals.push('name~link');
     addScore(scores, 'link-standalone', 0.15);
   }
-  if (ICON_NAME_RE.test(node.name) && (node.type === 'FRAME' || node.type === 'COMPONENT' || node.type === 'INSTANCE')) {
+  if (
+    ICON_NAME_RE.test(node.name) &&
+    (node.type === 'FRAME' || node.type === 'COMPONENT' || node.type === 'INSTANCE')
+  ) {
     signals.push('name~icon');
     addScore(scores, 'button-icon', 0.1);
   }

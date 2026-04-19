@@ -344,9 +344,7 @@ describe('cascade suppression', () => {
       layoutMode: 'HORIZONTAL',
       width: 300,
       height: 100,
-      children: [
-        makeNode({ id: '2:1', name: 'Wide Child', type: 'FRAME', width: 400, height: 80 }),
-      ],
+      children: [makeNode({ id: '2:1', name: 'Wide Child', type: 'FRAME', width: 400, height: 80 })],
     });
     const report = runLint([parent], emptyCtx, { rules: ['no-autolayout', 'overflow-parent'] });
     // no-autolayout should NOT fire (parent has HORIZONTAL)

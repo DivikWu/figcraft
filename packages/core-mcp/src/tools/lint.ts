@@ -163,7 +163,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
       lang: z
         .enum(['en', 'zh'])
         .optional()
-        .describe('Language for suggestion text (default: user\'s plugin language preference).'),
+        .describe("Language for suggestion text (default: user's plugin language preference)."),
     },
     async ({ nodeIds, rules, categories, useStoredTokens, annotate, maxViolations, dryRun, profile, lang }) => {
       const tokenContext = await loadTokenContext(bridge, useStoredTokens);
@@ -398,7 +398,7 @@ export function registerLintTools(server: McpServer, bridge: Bridge): void {
       lang: z
         .enum(['en', 'zh'])
         .optional()
-        .describe('Language for suggestion text (default: user\'s plugin language preference).'),
+        .describe("Language for suggestion text (default: user's plugin language preference)."),
     },
     async ({ nodeId, fix = true, exportImage = true, exportScale = 0.5, profile, lang }) => {
       const nodeIds = nodeId ? [nodeId] : undefined;
