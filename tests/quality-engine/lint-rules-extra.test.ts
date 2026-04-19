@@ -71,6 +71,63 @@ describe('hardcoded-token', () => {
     const v = hardcodedTokenRule.check(node, specCtx);
     expect(v).toHaveLength(0);
   });
+
+  it('passes node with per-paint fill binding (fill.boundVariables.color)', () => {
+    // Regression: modern Figma API stores color binding per-paint for TEXT
+    // fills (text/primary), not on node.boundVariables.fills.
+    const node = makeNode({
+      type: 'TEXT',
+      name: 'Welcome back',
+      fills: [
+        {
+          type: 'SOLID',
+          color: '#000000',
+          opacity: 0.87,
+          visible: true,
+          boundVariables: { color: { type: 'VARIABLE_ALIAS', id: 'var:text-primary' } },
+        },
+      ],
+    });
+    const v = hardcodedTokenRule.check(node, libraryCtx);
+    const fillViolations = v.filter((vi) => String(vi.currentValue).includes('fill'));
+    expect(fillViolations).toHaveLength(0);
+  });
+
+  it('skips cornerRadius check on INSTANCE (Figma API does not expose inherited radius bindings)', () => {
+    // Regression: for INSTANCE nodes, node-level bindings (cornerRadius etc.)
+    // are inherited from the master COMPONENT but NOT surfaced on the instance's
+    // boundVariables. Previously this false-positived on every bound button
+    // instance ("Login Button 圆角 8px 未绑定到 Token").
+    const node = makeNode({
+      type: 'INSTANCE',
+      name: 'Login Button',
+      cornerRadius: 8,
+      // boundVariables is empty or absent — Figma does not expose inherited radius bindings here
+    });
+    const v = hardcodedTokenRule.check(node, libraryCtx);
+    const radiusViolations = v.filter((vi) => String(vi.currentValue).includes('cornerRadius'));
+    expect(radiusViolations).toHaveLength(0);
+  });
+
+  it('passes COMPONENT with per-corner radius binding (boundVariables.topLeftRadius)', () => {
+    // Regression: Figma stores cornerRadius binding as four per-corner keys
+    // (topLeftRadius, topRightRadius, bottomLeftRadius, bottomRightRadius)
+    // even when the UI shows one uniform value.
+    const node = makeNode({
+      type: 'COMPONENT',
+      name: 'Login Button',
+      cornerRadius: 8,
+      boundVariables: {
+        topLeftRadius: { id: 'var:radius-md' },
+        topRightRadius: { id: 'var:radius-md' },
+        bottomLeftRadius: { id: 'var:radius-md' },
+        bottomRightRadius: { id: 'var:radius-md' },
+      },
+    });
+    const v = hardcodedTokenRule.check(node, libraryCtx);
+    const radiusViolations = v.filter((vi) => String(vi.currentValue).includes('cornerRadius'));
+    expect(radiusViolations).toHaveLength(0);
+  });
 });
 
 // ─── wcag-target-size ───

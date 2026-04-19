@@ -98,11 +98,20 @@ export const hardcodedTokenRule: LintRule = {
     // Screen root frames use cornerRadius for the physical device mockup frame
     // (iPhone/Android screen corners), not as a design token value — skip them.
     const isScreenLike = node.role === 'screen' || node.role === 'page';
+    // INSTANCE root nodes inherit node-level bindings (cornerRadius, etc.) from
+    // their master COMPONENT, but Figma's Plugin API does NOT surface those
+    // inherited bindings on the instance's `boundVariables` — only paint-level
+    // bindings propagate. Without access to mainComponent.boundVariables we
+    // can't distinguish "inherited bound" from "truly hardcoded", so we skip
+    // the check on instances and trust the component author. This mirrors the
+    // existing `insideComponentSubtree` skip for descendants.
+    const isInstanceBoundary = node.type === 'INSTANCE';
     if (
       node.cornerRadius !== undefined &&
       node.cornerRadius !== 0 &&
       !radiusBound &&
-      !isScreenLike
+      !isScreenLike &&
+      !isInstanceBoundary
     ) {
       // If spec-border-radius would fire on this node (radiusTokens loaded and
       // at least one angle doesn't match any token), skip — its "switch to token X"
