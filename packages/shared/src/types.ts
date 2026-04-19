@@ -83,6 +83,9 @@ export interface CompressedNode {
   lineHeight?: unknown;
   letterSpacing?: unknown;
   textAutoResize?: string;
+  textTruncation?: string;
+  maxLines?: number | null;
+  overflowDirection?: string;
   // Variable/Style bindings
   boundVariables?: Record<string, unknown>;
   fillStyleId?: string;

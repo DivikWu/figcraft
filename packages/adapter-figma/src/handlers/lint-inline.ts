@@ -126,6 +126,10 @@ export function figmaNodeToAbstract(node: SceneNode): AbstractNode {
   if ('counterAxisAlignItems' in node) result.counterAxisAlignItems = (node as any).counterAxisAlignItems;
   if ('clipsContent' in node) result.clipsContent = (node as any).clipsContent;
   if ('layoutAlign' in node) result.layoutAlign = (node as any).layoutAlign;
+  if ('overflowDirection' in node) {
+    const od = (node as any).overflowDirection;
+    if (od && od !== 'NONE') result.overflowDirection = od;
+  }
 
   // Text
   if (node.type === 'TEXT') {
@@ -141,6 +145,12 @@ export function figmaNodeToAbstract(node: SceneNode): AbstractNode {
     result.lineHeight = textNode.lineHeight;
     result.letterSpacing = textNode.letterSpacing;
     result.textAutoResize = textNode.textAutoResize;
+    if ('textTruncation' in textNode && textNode.textTruncation) {
+      result.textTruncation = textNode.textTruncation;
+    }
+    if ('maxLines' in textNode) {
+      result.maxLines = (textNode as TextNode).maxLines;
+    }
   }
 
   // Bindings

@@ -1,11 +1,9 @@
 /**
- * Tests for wrap-touch-target strategy.
+ * Tests for wcag-target-size rule.
  *
- * Validates end-to-end from rule detection → fix descriptor → deferred strategy:
- * - TEXT nodes get deferred 'wrap-touch-target' strategy (not direct resize)
- * - Non-TEXT interactive nodes get direct resize
- * - Various interactive name patterns trigger the rule
- * - Fix descriptor data contains correct minWidth/minHeight
+ * TEXT nodes are explicitly excluded — a glyph is never the click target,
+ * the wrapping FRAME/COMPONENT is. Interactive name patterns use word
+ * boundaries to avoid matching "Tabs / Light" or plain "Tab" label text.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -24,39 +22,24 @@ function makeNode(overrides: Partial<AbstractNode>): AbstractNode {
   return { id: '1:1', name: 'Test', type: 'FRAME', ...overrides };
 }
 
-// ─── wrap-touch-target triggers on TEXT nodes ───
+// ─── TEXT nodes are excluded (glyph is never the click target) ───
 
-describe('wrap-touch-target strategy (TEXT node path)', () => {
-  it('returns deferred wrap-touch-target for undersized TEXT button', () => {
-    const node = makeNode({ name: 'Button Label', type: 'TEXT', width: 36, height: 14 });
-    const violations = wcagTargetSizeRule.check(node, emptyCtx);
-    expect(violations).toHaveLength(1);
-    expect(violations[0].fixData?.nodeType).toBe('TEXT');
+describe('wcag-target-size TEXT exclusion', () => {
+  it('skips undersized TEXT even if its name looks interactive', () => {
+    // The text glyph inside a Tab component — parent container owns the size contract.
+    const node = makeNode({ name: 'Tab', type: 'TEXT', width: 15, height: 20 });
+    expect(wcagTargetSizeRule.check(node, emptyCtx)).toHaveLength(0);
+  });
 
-    const fix = wcagTargetSizeRule.describeFix!(violations[0]);
-    expect(fix).not.toBeNull();
-    expect(fix!.kind).toBe('deferred');
-    if (fix!.kind === 'deferred') {
-      expect(fix!.strategy).toBe('wrap-touch-target');
-      expect(fix!.data.minWidth).toBe(44); // max(44, 36) = 44
-      expect(fix!.data.minHeight).toBe(44);
+  it('skips TEXT regardless of interactive-looking name', () => {
+    for (const name of ['Button Label', 'Link Text', 'Toggle', 'Checkbox']) {
+      const node = makeNode({ name, type: 'TEXT', width: 36, height: 14 });
+      expect(wcagTargetSizeRule.check(node, emptyCtx)).toHaveLength(0);
     }
   });
 
-  it('uses text width when wider than 44px', () => {
-    const node = makeNode({ name: 'Link Text', type: 'TEXT', width: 120, height: 14 });
-    const violations = wcagTargetSizeRule.check(node, emptyCtx);
-    expect(violations).toHaveLength(1);
-
-    const fix = wcagTargetSizeRule.describeFix!(violations[0]);
-    if (fix!.kind === 'deferred') {
-      expect(fix!.data.minWidth).toBe(120); // max(44, 120) = 120
-      expect(fix!.data.minHeight).toBe(44);
-    }
-  });
-
-  it('returns resize (not deferred) for non-TEXT undersized button', () => {
-    const node = makeNode({ name: 'Icon Button', type: 'FRAME', width: 24, height: 24 });
+  it('returns resize for non-TEXT undersized interactive FRAME', () => {
+    const node = makeNode({ name: 'Icon Button', type: 'FRAME', width: 20, height: 20 });
     const violations = wcagTargetSizeRule.check(node, emptyCtx);
     expect(violations).toHaveLength(1);
 
@@ -102,35 +85,31 @@ describe('wcag-target-size interactive patterns', () => {
   });
 });
 
+// ─── name pattern precision (word boundaries) ───
+
+describe('wcag-target-size name pattern precision', () => {
+  it('ignores "Table Row" (Tab is a substring, not a whole word)', () => {
+    const node = makeNode({ name: 'Table Row', type: 'FRAME', width: 10, height: 10 });
+    expect(wcagTargetSizeRule.check(node, emptyCtx)).toHaveLength(0);
+  });
+
+  it('ignores "Untouchables" (touchable as substring, not a whole word)', () => {
+    const node = makeNode({ name: 'Untouchables', type: 'FRAME', width: 10, height: 10 });
+    expect(wcagTargetSizeRule.check(node, emptyCtx)).toHaveLength(0);
+  });
+});
+
 // ─── edge cases ───
 
 describe('wcag-target-size edge cases', () => {
-  it('passes TEXT node that meets minimum size', () => {
+  it('passes TEXT node that meets minimum size (TEXT is always exempt now)', () => {
     const node = makeNode({ name: 'Button', type: 'TEXT', width: 44, height: 44 });
-    const violations = wcagTargetSizeRule.check(node, emptyCtx);
-    expect(violations).toHaveLength(0);
+    expect(wcagTargetSizeRule.check(node, emptyCtx)).toHaveLength(0);
   });
 
-  it('flags when only height is too small on TEXT', () => {
-    const node = makeNode({ name: 'Tab', type: 'TEXT', width: 60, height: 16 });
+  it('flags when only height is too small on a FRAME', () => {
+    const node = makeNode({ name: 'Toggle', type: 'FRAME', width: 60, height: 16 });
     const violations = wcagTargetSizeRule.check(node, emptyCtx);
     expect(violations).toHaveLength(1);
-
-    const fix = wcagTargetSizeRule.describeFix!(violations[0]);
-    if (fix!.kind === 'deferred') {
-      expect(fix!.strategy).toBe('wrap-touch-target');
-      expect(fix!.data.minWidth).toBe(60); // preserve text width
-      expect(fix!.data.minHeight).toBe(44);
-    }
-  });
-
-  it('includes nodeType in fixData for strategy dispatch', () => {
-    const textNode = makeNode({ name: 'Toggle', type: 'TEXT', width: 30, height: 12 });
-    const textV = wcagTargetSizeRule.check(textNode, emptyCtx);
-    expect(textV[0].fixData?.nodeType).toBe('TEXT');
-
-    const frameNode = makeNode({ name: 'Toggle', type: 'FRAME', width: 30, height: 12 });
-    const frameV = wcagTargetSizeRule.check(frameNode, emptyCtx);
-    expect(frameV[0].fixData?.nodeType).toBe('FRAME');
   });
 });

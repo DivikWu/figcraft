@@ -44,7 +44,7 @@ describe('overflow-parent', () => {
       height: 100,
       paddingTop: 10,
       paddingBottom: 10,
-      children: [makeNode({ id: '2:1', name: 'Tall Child', width: 50, height: 120 })],
+      children: [makeNode({ id: '2:1', name: 'Tall Child', width: 50, height: 110 })],
     });
     const v = overflowParentRule.check(node, emptyCtx);
     expect(v).toHaveLength(1);

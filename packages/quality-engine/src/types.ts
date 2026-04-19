@@ -56,8 +56,13 @@ export interface AbstractNode {
   clipsContent?: boolean;
   strokeWeight?: number;
   layoutAlign?: string;
+  /** Prototype scroll direction: 'NONE' | 'HORIZONTAL' | 'VERTICAL' | 'BOTH'. Declares intentional overflow. */
+  overflowDirection?: string;
   // Text layout
   textAutoResize?: string;
+  /** 'DISABLED' | 'ENDING' — ENDING means the designer explicitly opted into truncation. */
+  textTruncation?: string;
+  maxLines?: number | null;
   // Children
   children?: AbstractNode[];
   // Parent background color (hex, propagated during lint traversal for contrast checks)

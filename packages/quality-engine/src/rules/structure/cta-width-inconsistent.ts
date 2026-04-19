@@ -1,8 +1,21 @@
 import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
 
 function isFormLike(node: AbstractNode): boolean {
-  return node.role === 'form' || node.role === 'actions' || /form|actions|footer|content|body/i.test(node.name);
+  // Role takes precedence — explicit designer intent.
+  if (node.role === 'form' || node.role === 'actions') return true;
+  if (node.role) return false;
+  // Name heuristic is narrow on purpose: generic words like "content" / "body" /
+  // "footer" show up on non-form containers (e.g. a Top Content holding a back
+  // arrow + title), causing this rule to treat their icon buttons as CTAs.
+  return /\b(form|actions)\b/i.test(node.name);
 }
+
+/**
+ * Minimum width for a button to be a plausible CTA candidate. Icon-only
+ * navigation buttons (back arrow, close, menu) are intrinsically small —
+ * they should never be judged against the CTA-matches-input-width contract.
+ */
+const MIN_CTA_CANDIDATE_WIDTH = 100;
 
 function isButtonLike(node: AbstractNode): boolean {
   // ── Declaration-driven: role overrides all heuristics ──
@@ -40,7 +53,11 @@ export const ctaWidthInconsistentRule: LintRule = {
     if (!node.children || node.children.length < 2) return [];
 
     const inputs = node.children.filter(isInputLike).filter((child) => child.width != null);
-    const buttons = node.children.filter(isButtonLike).filter((child) => child.width != null);
+    const buttons = node.children
+      .filter(isButtonLike)
+      .filter((child) => child.width != null)
+      // Drop icon-only buttons: they are intrinsically small and not CTA candidates.
+      .filter((child) => (child.width as number) >= MIN_CTA_CANDIDATE_WIDTH);
     if (inputs.length === 0 || buttons.length === 0) return [];
 
     const targetWidth = Math.max(...inputs.map((child) => child.width as number));

@@ -7,8 +7,51 @@ function isSectionStack(node: AbstractNode): boolean {
     node.role === 'body' ||
     node.role === 'content' ||
     node.role === 'actions' ||
-    /screen|page|content|body|form|footer|actions/i.test(node.name)
+    /\b(screen|page|content|body|form|footer|actions)\b/i.test(node.name)
   );
+}
+
+/** Minimum vertical padding on a child for it to count as "self-spaced". */
+const CHILD_SELF_PAD_THRESHOLD = 8;
+
+/** Does this single node carry a direct "self-contained" visual signal? */
+function hasOwnRhythmSignal(node: AbstractNode): boolean {
+  const verticalPad = (node.paddingTop ?? 0) + (node.paddingBottom ?? 0);
+  if (verticalPad >= CHILD_SELF_PAD_THRESHOLD) return true;
+
+  const hasVisibleFill = node.fills?.some((f) => f.visible !== false && f.type !== 'NONE');
+  if (hasVisibleFill) return true;
+
+  const hasStroke = node.strokes?.some((s) => s.visible !== false);
+  if (hasStroke) return true;
+
+  const hasEffect = node.effects?.some((e) => e.visible !== false);
+  if (hasEffect) return true;
+
+  const radius = typeof node.cornerRadius === 'number' ? node.cornerRadius : 0;
+  if (radius > 0) return true;
+
+  return false;
+}
+
+/**
+ * A child is "visually self-contained" when it (or its first layer of inner
+ * wrappers) carries a rhythm signal — own padding, background fill, stroke,
+ * shadow, or rounded corners. Section-level library components often ship a
+ * thin COMPONENT root with padding = 0 and push all visuals into inner
+ * Header/Content wrappers, so peeking one level catches that common case
+ * without flagging truly empty stacks.
+ */
+function isVisuallySelfContained(child: AbstractNode): boolean {
+  if (hasOwnRhythmSignal(child)) return true;
+
+  // Peek one level in — covers thin COMPONENT wrappers that delegate visuals
+  // to direct children (e.g. Header + Content pair). Bounded to the first few
+  // children to keep the check cheap.
+  const innerProbe = child.children?.slice(0, 4);
+  if (innerProbe?.some(hasOwnRhythmSignal)) return true;
+
+  return false;
 }
 
 export const sectionSpacingCollapseRule: LintRule = {
@@ -36,6 +79,13 @@ export const sectionSpacingCollapseRule: LintRule = {
 
     const spacing = node.itemSpacing ?? 0;
     if (spacing >= DESIGN_CONSTANTS.spacing.minSection) return [];
+
+    // If most children are visually self-contained (own padding, fills, strokes,
+    // effects, or radius), visual rhythm is supplied by the cards themselves —
+    // parent itemSpacing 8 is fine. Flagging would push a cosmetic fix that
+    // double-pads the layout.
+    const selfContained = frameLikeChildren.filter(isVisuallySelfContained);
+    if (selfContained.length * 2 >= frameLikeChildren.length) return [];
 
     return [
       {
