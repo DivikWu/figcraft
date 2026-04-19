@@ -97,6 +97,43 @@ describe('wcag-target-size describeFix', () => {
     const violations = wcagTargetSizeRule.check(node, emptyCtx);
     expect(violations).toHaveLength(0);
   });
+
+  // Regression: auto-classified link/button kinds must also be handed off
+  // to the kind-specific structure rules. Previously the fallback only
+  // respected declared=true, so "Forgot Link" / "Sign Up Link" got
+  // double-flagged alongside link-standalone-structure.
+  it('defers to structure rule when classifier auto-labels as link-standalone (confidence >= 0.7)', () => {
+    const node = makeNode({
+      name: 'Forgot Link',
+      width: 354,
+      height: 20,
+      interactive: { kind: 'link-standalone', confidence: 0.7 },
+    });
+    const violations = wcagTargetSizeRule.check(node, emptyCtx);
+    expect(violations).toHaveLength(0);
+  });
+
+  it('defers to structure rule when classifier auto-labels as button-solid (confidence >= 0.7)', () => {
+    const node = makeNode({
+      name: 'Button',
+      width: 20,
+      height: 20,
+      interactive: { kind: 'button-solid', confidence: 0.75 },
+    });
+    const violations = wcagTargetSizeRule.check(node, emptyCtx);
+    expect(violations).toHaveLength(0);
+  });
+
+  it('still flags when classifier confidence is too low to commit (< 0.7, not declared)', () => {
+    const node = makeNode({
+      name: 'Link',
+      width: 354,
+      height: 20,
+      interactive: { kind: 'link-standalone', confidence: 0.5 },
+    });
+    const violations = wcagTargetSizeRule.check(node, emptyCtx);
+    expect(violations).toHaveLength(1);
+  });
 });
 
 // ─── wcag-contrast (AA) ───

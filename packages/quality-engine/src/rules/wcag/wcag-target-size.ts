@@ -57,10 +57,13 @@ export const wcagTargetSizeRule: LintRule = {
     // Classifier-owned kinds: defer to the kind-specific structure rules (button-*,
     // link-standalone-structure) which know the correct comfort threshold per
     // variant and handle the WCAG 2.5.8 spacing exception. Double-flagging would
-    // add noise without adding information.
-    if (node.interactive?.declared === true) {
-      const kind = node.interactive.kind;
-      if (isButtonKind(kind) || isLinkKind(kind)) return [];
+    // add noise without adding information. Honor both declared (plugin data)
+    // and auto-classified commits — the classifier uses the same 0.7 confidence
+    // bar as matchesInteractiveKind in _interactive-gate.
+    const meta = node.interactive;
+    if (meta?.kind && (isButtonKind(meta.kind) || isLinkKind(meta.kind))) {
+      const committed = meta.declared === true || (meta.confidence ?? 0) >= 0.7;
+      if (committed) return [];
     }
 
     // Only check nodes that look interactive
