@@ -2,11 +2,6 @@
  * Lint engine types — abstract node, rules, violations.
  */
 
-import type { InteractiveMeta } from './interactive/taxonomy.js';
-
-export type { InteractiveKind, InteractiveMeta, InteractiveState } from './interactive/taxonomy.js';
-export { INTERACTIVE_KINDS, INTERACTIVE_STATES, isButtonKind, isLinkKind } from './interactive/taxonomy.js';
-
 /** Simplified node for lint analysis (decoupled from Figma API). */
 export interface AbstractNode {
   id: string;
@@ -61,12 +56,8 @@ export interface AbstractNode {
   clipsContent?: boolean;
   strokeWeight?: number;
   layoutAlign?: string;
-  /** Prototype scroll direction: 'NONE' | 'HORIZONTAL' | 'VERTICAL' | 'BOTH'. Declares intentional overflow. */
-  overflowDirection?: string;
   // Text layout
   textAutoResize?: string;
-  textTruncation?: string; // 'DISABLED' | 'ENDING' — ENDING means designer explicitly opted into truncation
-  maxLines?: number | null;
   // Children
   children?: AbstractNode[];
   // Parent background color (hex, propagated during lint traversal for contrast checks)
@@ -84,59 +75,8 @@ export interface AbstractNode {
   parentWidth?: number;
   // Parent layout mode (propagated during lint traversal for overflow fix strategy)
   parentLayoutMode?: string;
-  /**
-   * Parent auto-layout itemSpacing, propagated during lint traversal.
-   * Used by WCAG 2.5.8 Spacing exception: an undersized target whose
-   * surrounding gap ≥ (12 − halfDimension) is considered tap-safe because
-   * the notional 24-px circle doesn't intersect neighboring targets.
-   */
-  parentItemSpacing?: number;
-  /**
-   * True when this node is a descendant of a COMPONENT or INSTANCE — i.e. it
-   * lives inside a component subtree. Spec-compliance rules (hardcoded-token,
-   * spec-color, spec-typography, spec-border-radius, no-text-style) skip
-   * these nodes because token binding belongs at the component/instance
-   * boundary, not on individual internal leaf nodes (vectors, strokes, etc.).
-   * The entry node (COMPONENT or INSTANCE itself) is NOT marked — only its
-   * subtree is.
-   */
-  insideComponentSubtree?: boolean;
-  /**
-   * True when the node is rendered over a complex (non-SOLID) backdrop —
-   * i.e. IMAGE / VIDEO / GRADIENT fill on an ancestor OR on an earlier
-   * sibling at any ancestor level. Contrast rules (wcag-contrast,
-   * wcag-non-text-contrast) skip these nodes because a meaningful numeric
-   * contrast can't be computed without pixel sampling; axe-core / Stark /
-   * Adee all take the same "unable to determine → skip" stance.
-   *
-   * Limitation: does not do bbox overlap between the complex-fill source and
-   * the node. Assumes the complex fill covers enough of the parent to
-   * back this node (common for card-image + content patterns). Small-icon
-   * + disjoint-text layouts may produce false negatives.
-   */
-  overComplexBg?: boolean;
   // Lint exclusion: comma-separated rule names or '*' to skip all rules
   lintIgnore?: string;
-  /** Node-level visibility (false = hidden). Hidden nodes and their entire subtree are skipped by lint. */
-  visible?: boolean;
-  /**
-   * Platform classification propagated from the nearest screen-like ancestor
-   * during traversal. Determined by the root screen's width (≤500 = mobile,
-   * otherwise desktop). Used by platform-aware rules (e.g. wcag-text-size).
-   */
-  platform?: 'mobile' | 'desktop';
-  /**
-   * Presence bit for Figma prototype reactions. Only populated on interactive
-   * candidates (buttons, links, etc.); the full reaction graph is not serialized.
-   */
-  reactions?: boolean;
-  /**
-   * Classification metadata — populated either from plugin data at extraction
-   * time (`declared: true`) or by the engine's classifier during traversal
-   * (`declared: false`). Consumers should skip when `kind` is absent or
-   * `confidence < 0.7` unless `declared` is true.
-   */
-  interactive?: InteractiveMeta;
 }
 
 export interface LintContext {
@@ -154,17 +94,6 @@ export interface LintContext {
   mode?: 'library' | 'spec';
   /** Selected library name (only relevant in library mode). */
   selectedLibrary?: string | null;
-  /**
-   * Language for rule suggestions and descriptions (default: 'en').
-   * Plugin handler populates this from the user's clientStorage language preference;
-   * MCP callers can pass explicitly via the `lang` tool parameter.
-   */
-  lang?: 'en' | 'zh';
-}
-
-/** Pick the language variant of a suggestion/description. Defaults to English. */
-export function tr(lang: 'en' | 'zh' | undefined, en: string, zh: string): string {
-  return lang === 'zh' ? zh : en;
 }
 
 /**
@@ -264,16 +193,6 @@ export interface LintRule {
   describeFix?(violation: LintViolation): FixDescriptor | null;
   /** AI knowledge layer — tells AI how to prevent this violation. */
   ai?: RuleAI;
-  /**
-   * Cascade suppression: when this rule fires on a node, skip these rules
-   * anywhere within that node's subtree. Used to avoid secondary noise when
-   * a structural parent problem makes descendant checks meaningless.
-   *
-   * Example: when `screen-shell-invalid` fires, layout rules inside the screen
-   * will produce bogus violations because the shell itself is broken — suppress
-   * them and let the user fix the root cause first.
-   */
-  suppressesInSubtree?: string[];
 }
 
 /** LintRule that MUST implement describeFix — use for compile-time guarantee on fixable rules. */

@@ -11,14 +11,6 @@
  */
 
 import type { AbstractNode, FixDescriptor, LintContext, LintRule, LintViolation } from '../../types.js';
-import { tr } from '../../types.js';
-
-function isAsciiOnly(s: string): boolean {
-  for (let i = 0; i < s.length; i++) {
-    if (s.charCodeAt(i) > 127) return false;
-  }
-  return true;
-}
 
 function pickFixResize(node: AbstractNode): string {
   // If parent has auto-layout, width is managed by the layout engine.
@@ -39,13 +31,9 @@ export const textOverflowRule: LintRule = {
     tags: ['text'],
   },
 
-  check(node: AbstractNode, ctx: LintContext): LintViolation[] {
+  check(node: AbstractNode, _ctx: LintContext): LintViolation[] {
     if (node.type !== 'TEXT') return [];
     if (node.width == null || !node.characters) return [];
-
-    // Designer has explicitly opted into truncation (maxLines + ending ellipsis).
-    // This is intentional design, not an overflow bug — skip.
-    if (node.textTruncation === 'ENDING') return [];
 
     const violations: LintViolation[] = [];
     const fixResize = pickFixResize(node);
@@ -58,40 +46,28 @@ export const textOverflowRule: LintRule = {
         rule: 'text-overflow',
         severity: 'heuristic',
         currentValue: `text width ${Math.round(node.width)}px exceeds parent ${Math.round(node.parentWidth)}px`,
-        suggestion: tr(
-          ctx.lang,
-          `"${node.name}" text overflows its parent container. Set textAutoResize: ${fixResize}.`,
-          `「${node.name}」文本超出父容器。请设置 textAutoResize: ${fixResize}。`,
-        ),
+        suggestion: `"${node.name}" text overflows its parent container. Set textAutoResize: ${fixResize}.`,
         autoFixable: true,
         fixData: { textAutoResize: fixResize },
       });
       return violations; // Don't double-report
     }
 
-    // Method 2: Heuristic — estimate text width from character count.
-    // Only safe for ASCII-dominant strings; CJK/emoji break the 0.6× fontSize assumption
-    // (CJK glyphs render ~1.0× fontSize → the estimate under-counts width, but more
-    // importantly, CJK strings commonly carry intentional wrapping the estimate can't see).
+    // Method 2: Heuristic — estimate text width from character count
     const isSingleLine = !node.characters.includes('\n');
-    const asciiOnly = isAsciiOnly(node.characters);
     const estimatedCharWidth = (node.fontSize ?? 16) * 0.6;
     const estimatedTextWidth = node.characters.length * estimatedCharWidth;
 
     // Flag if estimated text width significantly exceeds the node width
     // (text is being clipped to a smaller area)
-    if (isSingleLine && asciiOnly && estimatedTextWidth > 500 && node.width < estimatedTextWidth * 0.5) {
+    if (isSingleLine && estimatedTextWidth > 500 && node.width < estimatedTextWidth * 0.5) {
       violations.push({
         nodeId: node.id,
         nodeName: node.name,
         rule: 'text-overflow',
         severity: 'heuristic',
         currentValue: `text "${node.characters.slice(0, 30)}..." (est. ${Math.round(estimatedTextWidth)}px) in ${Math.round(node.width)}px node`,
-        suggestion: tr(
-          ctx.lang,
-          `"${node.name}" text appears clipped. Set textAutoResize: ${fixResize}.`,
-          `「${node.name}」文本可能被裁剪。请设置 textAutoResize: ${fixResize}。`,
-        ),
+        suggestion: `"${node.name}" text appears clipped. Set textAutoResize: ${fixResize}.`,
         autoFixable: true,
         fixData: { textAutoResize: fixResize },
       });
