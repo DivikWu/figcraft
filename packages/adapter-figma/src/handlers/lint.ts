@@ -814,6 +814,8 @@ function compressedToAbstract(node: CompressedNode): AbstractNode {
     componentPropertyDefinitions: node.componentPropertyDefinitions,
     componentPropertyReferences: node.componentPropertyReferences,
     lintIgnore: node.lintIgnore,
+    // Engine skips hidden subtrees via `node.visible === false`.
+    visible: node.visible,
     children: node.children?.map(compressedToAbstract),
   };
 }

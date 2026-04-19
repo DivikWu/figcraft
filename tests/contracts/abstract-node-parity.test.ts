@@ -52,6 +52,7 @@ const REQUIRED_ABSTRACT_NODE_FIELDS: ReadonlySet<string> = new Set([
   'effectStyleId',
   'componentPropertyDefinitions',
   'componentPropertyReferences',
+  'visible',
   'children',
 ]);
 

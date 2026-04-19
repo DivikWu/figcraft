@@ -58,6 +58,11 @@ export function figmaNodeToAbstract(node: SceneNode): AbstractNode {
   if ('y' in node) result.y = (node as any).y;
   if ('opacity' in node) result.opacity = (node as any).opacity;
 
+  // Visibility — engine skips hidden subtrees via `node.visible === false`.
+  // Without copying this, designers' hidden layers (alt states, reference-only
+  // content) get linted and surface as noise.
+  if ('visible' in node) result.visible = (node as any).visible;
+
   // Fills
   if ('fills' in node) {
     const fills = (node as any).fills;
