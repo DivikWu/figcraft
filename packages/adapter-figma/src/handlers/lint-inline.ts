@@ -77,6 +77,13 @@ export function figmaNodeToAbstract(node: SceneNode): AbstractNode {
           });
           entry.opacity = solid.opacity;
         }
+        // Per-paint variable binding — modern Figma API binds on the paint,
+        // not on node.boundVariables.fills. Critical for TEXT fills (text/primary,
+        // text/secondary, etc.) which are always bound this way.
+        const pbv = (f as { boundVariables?: { color?: { type: string; id: string } } }).boundVariables;
+        if (pbv?.color) {
+          entry.boundVariables = { color: { type: pbv.color.type, id: pbv.color.id } };
+        }
         return entry;
       });
     }

@@ -27,7 +27,9 @@ export const specColorRule: LintRule = {
     // Presentational containers are display scaffolding — skip token checks
     if (node.role === 'presentation') return violations;
 
-    // Skip if already bound to a variable
+    // Skip if node-level bindings exist (fills/strokes/cornerRadius bound here).
+    // Per-paint bindings (fill.boundVariables.color) are handled per-fill below —
+    // a node can have one bound fill and one hardcoded fill.
     if (node.boundVariables && Object.keys(node.boundVariables).length > 0) {
       return violations;
     }
@@ -35,6 +37,8 @@ export const specColorRule: LintRule = {
     // Check fills
     if (node.fills && !node.fillStyleId) {
       for (const fill of node.fills) {
+        // Skip per-paint bound fills — the color is a variable reference, not a hex.
+        if (fill.boundVariables?.color) continue;
         if (fill.type === 'SOLID' && fill.color && fill.visible !== false) {
           const hex = fill.color.toLowerCase();
           const match = findClosestToken(hex, ctx.colorTokens);

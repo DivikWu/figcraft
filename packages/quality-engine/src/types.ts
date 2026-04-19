@@ -19,8 +19,20 @@ export interface AbstractNode {
   type: string;
   role?: string;
   // Style values
-  fills?: Array<{ type: string; color?: string; opacity?: number; visible?: boolean }>;
-  strokes?: Array<{ type: string; color?: string; visible?: boolean }>;
+  fills?: Array<{
+    type: string;
+    color?: string;
+    opacity?: number;
+    visible?: boolean;
+    /** Per-paint variable bindings. Modern Figma API binds the color on the paint itself. */
+    boundVariables?: { color?: { type: string; id: string } };
+  }>;
+  strokes?: Array<{
+    type: string;
+    color?: string;
+    visible?: boolean;
+    boundVariables?: { color?: { type: string; id: string } };
+  }>;
   cornerRadius?: number | number[];
   fontSize?: number;
   fontName?: { family: string; style: string };

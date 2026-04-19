@@ -388,6 +388,13 @@ function simplifyPaint(paint: Paint): unknown {
     const s = paint as SolidPaint;
     base.color = figmaRgbaToHex(s.color);
   }
+  // Per-paint variable binding — modern Figma API binds color on the paint,
+  // not on node.boundVariables.fills. Needed by hardcoded-token / spec-color
+  // so they don't false-positive on correctly-bound paints (especially TEXT).
+  const pbv = (paint as { boundVariables?: { color?: { type: string; id: string } } }).boundVariables;
+  if (pbv?.color) {
+    base.boundVariables = { color: { type: pbv.color.type, id: pbv.color.id } };
+  }
   return base;
 }
 

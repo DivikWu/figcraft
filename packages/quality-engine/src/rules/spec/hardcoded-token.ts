@@ -40,21 +40,21 @@ export const hardcodedTokenRule: LintRule = {
     const violations: LintViolation[] = [];
     const bv = node.boundVariables ?? {};
 
-    // Check fills — should be bound to a color variable
-    // Skip if already bound to a paint style, or if fills are bound via variables
+    // Check fills — should be bound to a color variable.
+    // Skip if already bound to a paint style, or if fills are bound via variables.
     //
-    // TODO(plan elegant-wandering-raven C3): users have reported false positives where
-    // a node IS bound (verified via variables_ep.get_bindings) but this rule still
-    // reports "hardcoded fill". Investigation hypothesis: AbstractNode serialization
-    // may be dropping `boundVariables` between Plugin → quality-engine, so by the
-    // time this rule runs the binding is invisible. Fix needs a focused repro on
-    // the 2026-04 Button case before touching the rule itself. Note that the
-    // boolean expression below is also subtly incorrect — `[] || (...)` short-
-    // circuits on truthy empty array — but the direction of the bug doesn't match
-    // the user-reported false positive, so the real cause is upstream.
+    // Binding can live in two places:
+    //   1. node.boundVariables.fills  (legacy / whole-list binding)
+    //   2. fill.boundVariables.color  (modern per-paint binding — always used
+    //      for TEXT fills like text/primary)
+    // Both must be consulted or TEXT nodes false-positive even when bound.
     if (node.fills && !node.fillStyleId) {
       const hasSolidFill = node.fills.some((f) => f.type === 'SOLID' && f.visible !== false);
-      const fillsBound = bv.fills || (Array.isArray(bv.fills) && bv.fills.length > 0);
+      const nodeFillsBound = Array.isArray(bv.fills) ? bv.fills.length > 0 : Boolean(bv.fills);
+      const visibleSolidFills = node.fills.filter((f) => f.type === 'SOLID' && f.visible !== false);
+      const allVisibleSolidFillsBound =
+        visibleSolidFills.length > 0 && visibleSolidFills.every((f) => f.boundVariables?.color != null);
+      const fillsBound = nodeFillsBound || allVisibleSolidFillsBound;
       if (hasSolidFill && !fillsBound) {
         const fill = node.fills.find((f) => f.type === 'SOLID' && f.visible !== false);
         const isDefaultWhite =
