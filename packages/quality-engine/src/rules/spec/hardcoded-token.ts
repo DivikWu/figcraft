@@ -96,13 +96,17 @@ export const hardcodedTokenRule: LintRule = {
     // Screen root frames use cornerRadius for the physical device mockup frame
     // (iPhone/Android screen corners), not as a design token value — skip them.
     const isScreenLike = node.role === 'screen' || node.role === 'page';
-    // INSTANCE root nodes inherit node-level bindings (cornerRadius, etc.) from
-    // their master COMPONENT, but Figma's Plugin API does NOT surface those
-    // inherited bindings on the instance's `boundVariables` — only paint-level
-    // bindings propagate. Without access to mainComponent.boundVariables we
-    // can't distinguish "inherited bound" from "truly hardcoded", so we skip
-    // the check on instances and trust the component author. This mirrors the
-    // existing `insideComponentSubtree` skip for descendants.
+    // Token binding on inheritable node-level properties (cornerRadius, padding,
+    // gap, etc.) is the component author's concern, verified at the master
+    // level — not on every downstream instance. lint_check focuses on "how
+    // local design uses the library", not "is the library internally correct"
+    // — so INSTANCE is skipped here by design (separation of concerns).
+    //
+    // Secondary constraint: Figma's Plugin API doesn't surface inherited
+    // bindings on instances (only per-paint bindings propagate), so even if we
+    // wanted to audit instances we couldn't distinguish "inherited bound" from
+    // "truly hardcoded". But the primary rationale is responsibility, not this
+    // API quirk.
     const isInstanceBoundary = node.type === 'INSTANCE';
     if (
       node.cornerRadius !== undefined &&

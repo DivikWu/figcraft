@@ -59,7 +59,7 @@ import type {
   LintViolation,
   RuleAI,
 } from './types.js';
-import { downgradeSeverity, getContextSeverity, SEVERITY_ORDER } from './types.js';
+import { getContextSeverity, SEVERITY_ORDER } from './types.js';
 
 // NOTE: Rules with `suppressesInSubtree` must appear BEFORE the rules they
 // suppress so that same-node suppression works. Cascade-parent rules go first.
@@ -208,15 +208,20 @@ export function runLint(nodes: AbstractNode[], ctx: LintContext, options: LintOp
     activeRules = activeRules.filter((r) => !options.skipRules!.has(r.name));
   }
 
-  // Determine if token context is sparse (no tokens loaded) — triggers severity downgrade
+  // Token rules require an authoritative source (DTCG tokens or Figma library).
+  // Without a source, the rules produce no meaningful signal — filter them out
+  // entirely rather than downgrading severity (cleaner UX, rules won't appear
+  // in the category breakdown at all).
   const hasTokens =
     ctx.colorTokens.size > 0 ||
     ctx.spacingTokens.size > 0 ||
     ctx.radiusTokens.size > 0 ||
     ctx.typographyTokens.size > 0;
   const hasLibrary = ctx.mode === 'library' && !!ctx.selectedLibrary;
-  // Token rules get downgraded when running without token context AND without a library
-  const shouldDowngradeTokenRules = !hasTokens && !hasLibrary;
+  const hasTokenSource = hasTokens || hasLibrary;
+  if (!hasTokenSource) {
+    activeRules = activeRules.filter((r) => r.category !== 'token');
+  }
 
   // Severity filter (5-level: error=0, unsafe=1, heuristic=2, style=3, verbose=4)
   const SEVERITY_RANK: Record<LintSeverity, number> = { error: 0, unsafe: 1, heuristic: 2, style: 3, verbose: 4 };
@@ -297,15 +302,7 @@ export function runLint(nodes: AbstractNode[], ctx: LintContext, options: LintOp
       if (ignoreAll || matchesIgnore(rule.name)) continue;
       if (isCurrentlySuppressed(rule.name) || subtreeSuppressions.has(rule.name)) continue;
       const violations = rule.check(node, ctx);
-      // Apply context-based severity downgrade for token rules
       for (const v of violations) {
-        if (shouldDowngradeTokenRules && rule.category === 'token') {
-          const downgraded = downgradeSeverity(v.severity);
-          if (downgraded !== v.severity) {
-            v.baseSeverity = v.severity;
-            v.severity = downgraded;
-          }
-        }
         // Context-aware severity: leaf nodes and small nodes get downgraded
         const contextSev = getContextSeverity(v.severity, node);
         if (contextSev !== v.severity) {

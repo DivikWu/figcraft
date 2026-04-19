@@ -162,14 +162,16 @@ describe('runLint', () => {
     expect(filteredReport.summary.violations).toBe(0);
   });
 
-  it('downgrades token rule severity when no tokens and no library', () => {
-    // no-text-style is a heuristic-level token rule that fires regardless of token context
-    // (it checks for missing textStyleId on TEXT nodes)
+  it('filters out token-category rules entirely when no token source is available', () => {
+    // no-text-style is a category='token' rule — should be excluded when there's
+    // no DTCG tokens AND no library selected. New behavior replaces the old
+    // "downgrade severity" logic: rules without an authoritative source are
+    // removed from the active set, not shown with degraded severity.
     const node = makeNode({
       type: 'TEXT',
       name: 'Label',
       fontSize: 16,
-      // no textStyleId → triggers no-text-style
+      // no textStyleId → would trigger no-text-style IF the rule were active
     });
     const ctxWithLibrary: LintContext = {
       colorTokens: new Map(),
@@ -180,19 +182,52 @@ describe('runLint', () => {
       mode: 'library',
       selectedLibrary: 'MyLib',
     };
-    // With library: token downgrade skipped, but TEXT node is a leaf → context downgrade applies
-    // heuristic → style (context-aware: leaf node)
+
+    // Library selected → token rules active, no-text-style fires
+    // (TEXT is a leaf → context downgrade heuristic → style still applies)
     const withLib = runLint([node], ctxWithLibrary, { rules: ['no-text-style'] });
     expect(withLib.summary.violations).toBe(1);
     expect(withLib.categories[0].nodes[0].severity).toBe('style');
     expect(withLib.categories[0].nodes[0].baseSeverity).toBe('heuristic');
 
-    // Without tokens or library: token downgrade + context downgrade both apply
-    // heuristic → style (token) → verbose (context)
+    // No tokens, no library → token rule filtered out entirely → 0 violations
     const withoutCtx = runLint([node], emptyCtx, { rules: ['no-text-style'], minSeverity: 'verbose' });
-    expect(withoutCtx.summary.violations).toBe(1);
-    expect(withoutCtx.categories[0].nodes[0].severity).toBe('verbose');
-    expect(withoutCtx.categories[0].nodes[0].baseSeverity).toBe('heuristic');
+    expect(withoutCtx.summary.violations).toBe(0);
+    expect(withoutCtx.categories).toHaveLength(0);
+  });
+
+  it('keeps non-token rules active when there is no token source', () => {
+    // Sanity: removing token rules should not affect other categories (wcag,
+    // layout, naming, component). Pick a WCAG rule that fires on a small text.
+    const node = makeNode({
+      type: 'TEXT',
+      name: 'Tiny text',
+      fontSize: 8, // below mobile minimum (10px)
+      width: 300,
+      height: 10,
+      characters: 'hi',
+    });
+    const report = runLint([node], emptyCtx, { rules: ['wcag-text-size'] });
+    // wcag-text-size is category='wcag', should still fire without token source
+    expect(report.categories.some((c) => c.rule === 'wcag-text-size')).toBe(true);
+  });
+
+  it('token-category rules all disappear from report when filtered', () => {
+    // With no token source, running without any `rules` filter should produce
+    // a report where none of the category='token' rules appear.
+    const allRules = getAvailableRules();
+    const tokenRuleNames = new Set(allRules.filter((r) => r.category === 'token').map((r) => r.name));
+    expect(tokenRuleNames.size).toBeGreaterThan(0); // sanity
+
+    const node = makeNode({
+      type: 'FRAME',
+      fills: [{ type: 'SOLID', color: '#abcdef' }],
+      cornerRadius: 7,
+    });
+    const report = runLint([node], emptyCtx, { minSeverity: 'verbose' });
+    for (const cat of report.categories) {
+      expect(tokenRuleNames.has(cat.rule)).toBe(false);
+    }
   });
 });
 
