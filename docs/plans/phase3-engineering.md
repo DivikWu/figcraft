@@ -1,11 +1,18 @@
 # Phase 3 工程优化计划
 
-> 临时文档，完成后删除。
+> 状态（2026-04-20）：部分完成，剩余 3.1 和 3.3a 待做，完成后可删除。
 
 ## 已完成
 
 - [x] Phase 1: Biome lint/format + Husky + coverage + CI (`b143b2f`)
 - [x] Phase 2: 60 new tests — describeFix + adapter utils (`d4bee2e`)
+- [x] 3.3b Quality Engine 规则清单（`docs/generated/lint-rules.md` + `scripts/generate-lint-rules-doc.ts`）
+
+## 待办
+
+- [ ] 3.1 TypeScript Project References（见下文详细计划）
+- [ ] 3.3a DTCG 用户流程指南（`docs/dtcg-workflow.md`）
+- [~] 3.2 Changeset 版本管理（已决定跳过，详见下文）
 
 ---
 

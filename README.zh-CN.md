@@ -4,6 +4,8 @@
 
 AI 驱动的 Figma 设计质量插件。让 AI IDE 与 Figma 双向联动——用自然语言完成 UI 创建、设计审查、Token 同步、规范检查、审计与自动修复。单独使用就很好用，搭配 [Figma 官方 MCP server](https://developers.figma.com/docs/figma-mcp-server/) 一起用更强大。
 
+> **新用户？** 先读 [docs/introduction.md](docs/introduction.md) — 5 分钟快速了解产品定位、三大核心能力、FAQ。本 README 偏向安装与参考。
+
 ## 它能做什么？
 
 用自然语言告诉 AI 你想做什么，FigCraft + Figma 官方 MCP 帮你在 Figma 里完成：
@@ -188,14 +190,15 @@ FigCraft 直接在 Figma 中创建 UI — Frame、文本、SVG、组件、变体
 
 ## 检查规则（40 条）
 
-当前规则集覆盖 Token 合规、WCAG 无障碍、布局结构、整屏质量、命名与组件健康度。
+当前规则集覆盖 Token 合规、WCAG 无障碍、布局结构、命名与内容、组件健康度。
 
-- Token 合规（6）：颜色、字体、间距、圆角、硬编码 token、缺失文字样式
+- Token 合规（5）：颜色、字体、圆角、硬编码 token、缺失文字样式
 - WCAG 无障碍（5）：对比度、点击区域、字号、行高、非文本对比度
-- 布局结构（17）：auto-layout 中的 fixed 元素、空容器、Spacer frame、嵌套深度、按钮结构、文本溢出、表单一致性、CTA 宽度不一致、子元素溢出父容器、HUG/STRETCH 矛盾、缺失 auto-layout、section spacing 塌缩、输入框结构、移动端尺寸、系统栏全出血、elevation 一致性、elevation 层级
-- 整屏质量（9）：header 碎片化、header 位置异常、交互元素根节点误分类、嵌套交互 shell、无效 screen shell、底部溢出、social 行拥挤、nav 行拥挤、stats 行拥挤
-- 命名（2）：默认命名检查、占位文本检查
-- 组件（1）：组件绑定检查
+- 布局结构（27）：screen shell 校验、交互元素根节点误分类、嵌套交互 shell、缺失 auto-layout、空容器、Spacer frame、嵌套深度、按钮结构（solid/outline/ghost/text/icon）、独立链接结构、文本溢出、表单一致性、CTA 宽度不一致、子元素溢出父容器、HUG/STRETCH 矛盾、section spacing 塌缩、屏幕底部溢出、social/nav/stats 行拥挤、输入框结构、移动端尺寸、elevation 一致性/层级
+- 命名与内容（2）：默认命名检查、占位文本检查
+- 组件（1）：组件属性绑定检查
+
+完整规则清单见 [docs/generated/lint-rules.md](docs/generated/lint-rules.md)。
 
 ## 环境变量
 

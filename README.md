@@ -4,6 +4,8 @@ English | [中文](README.zh-CN.md)
 
 AI-powered Figma plugin for design quality. Two-way bridge between AI IDEs and Figma — create UI, review designs, sync tokens, lint for compliance, audit, and auto-fix, all via natural language. Works great on its own, and even better alongside the [official Figma MCP server](https://developers.figma.com/docs/figma-mcp-server/).
 
+> **New here?** Start with [docs/introduction.md](docs/introduction.md) for a 5-minute product tour (positioning, three core capabilities, FAQ). This README focuses on installation and reference.
+
 ## What can you do with it?
 
 Describe what you want in natural language, and FigCraft + Figma MCP make it happen in Figma:
@@ -192,12 +194,13 @@ FigCraft creates UI directly in Figma — frames, text, SVG, components, variant
 
 Current lint coverage spans token compliance, WCAG accessibility, layout structure, screen-level quality, naming, and component health.
 
-- Token compliance (6): color, typography, spacing, radius, hardcoded token usage, missing text style
+- Token compliance (5): color, typography, radius, hardcoded token usage, missing text style
 - WCAG accessibility (5): contrast, target size, text size, line height, non-text contrast
-- Layout structure (13): empty container, spacer frames, nesting depth, button variants (solid/outline/ghost/text/icon/link-standalone), text overflow, form consistency, CTA width consistency, overflow parent, HUG/STRETCH paradox, missing auto-layout, section spacing collapse, input field structure, mobile dimensions, elevation consistency, elevation hierarchy
-- Screen quality (5): misclassified interactive root, nested interactive shell, invalid screen shell, bottom overflow, social row crowding, nav overcrowding, stats row crowding
-- Naming (2): default name detection, placeholder text detection
-- Component (1): component binding checks
+- Layout & Structure (27): screen shell validation, misclassified interactive root, nested interactive shell, missing auto-layout, empty container, spacer frames, nesting depth, button variants (solid/outline/ghost/text/icon), standalone link, text overflow, form consistency, CTA width consistency, overflow parent, HUG/STRETCH paradox, section spacing collapse, screen bottom overflow, social/nav/stats row crowding, input field structure, mobile dimensions, elevation consistency, elevation hierarchy
+- Naming & Content (2): default name detection, placeholder text detection
+- Component (1): component property binding checks
+
+See [docs/generated/lint-rules.md](docs/generated/lint-rules.md) for the complete rule reference.
 
 ## Environment Variables
 

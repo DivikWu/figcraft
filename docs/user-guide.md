@@ -237,11 +237,11 @@ cwd = "/your/absolute/path/to/figcraft"
 
 | 类别 | 规则数 | 检查内容 |
 |---|---|---|
-| Token | 6 | 硬编码颜色/字号、未绑定 Library Token |
-| WCAG | 5 | 对比度 ≥4.5:1、触摸目标 ≥44px、文字 ≥12px |
-| Layout | 26 | 按钮/输入框结构、表单一致性、空容器、文本溢出、缺少 auto-layout、嵌套深度、Header 碎片化、elevation 一致性/层级 |
+| Token | 5 | 硬编码颜色、未绑定 Library Token、缺失文字样式、圆角/字体未匹配 |
+| WCAG | 5 | 对比度 ≥4.5:1、触摸目标 ≥24×24、文字 ≥12px、行高、非文本对比度 |
+| Layout | 27 | 按钮/输入框结构、表单一致性、空容器、文本溢出、缺少 auto-layout、嵌套深度、screen shell 校验、elevation 一致性/层级 |
 | Naming | 2 | 默认名称 "Frame"、占位文本 "Lorem ipsum" |
-| Component | 1 | 组件实例引用有效性 |
+| Component | 1 | 组件属性定义但未连接 |
 
 **使用方式：**
 - `lint_fix_all` — 一键检查 + 自动修复所有可修复项

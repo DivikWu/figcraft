@@ -126,7 +126,7 @@ FigCraft 把 40 条可执行规则塞进 Figma plugin，让你（或 AI）随时
 |---|---|---|---|
 | **token**（规范合规）| 5 | 5 | `hardcoded-token`、`spec-color`、`spec-typography`、`spec-border-radius`、`no-text-style` |
 | **wcag**（可访问性）| 5 | 2 | `wcag-contrast`、`wcag-target-size`、`wcag-text-size`、`wcag-line-height`、`wcag-non-text-contrast` |
-| **layout**（布局）| 24 | 16 | `no-autolayout`、`overflow-parent`、`unbounded-hug`、`button-solid-structure`、`input-field-structure` ... |
+| **layout**（布局）| 27 | 20 | `no-autolayout`、`overflow-parent`、`unbounded-hug`、`button-solid-structure`、`input-field-structure` ... |
 | **naming**（命名）| 2 | 0 | `default-name`（如 "Frame 1"）、`placeholder-text`（如 "Lorem ipsum"）|
 | **component**（组件）| 1 | 0 | `component-bindings`（定义了属性但未连接到子图层）|
 

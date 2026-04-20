@@ -11,7 +11,7 @@
 | 写入能力 | 通用 `use_figma` 工具（Plugin API 脚本） | 声明式工具体系（`create_frame` + Opinion Engine 自动推断） |
 | 质量保证 | 无内置 lint | 40 条 lint 规则 + 自动修复 + 创建后自检 |
 | 设计规范 | 通过 `create_design_system_rules` 生成规则文件 | 运行时双模式（Library / Spec）+ 三层设计规则 |
-| 工具数量 | 15 个工具 | 116 个工具（39 核心 + 13 可选工具集 + 5 资源端点） |
+| 工具数量 | 15 个工具 | 116 个工具（39 核心 + 77 可选，分布在 13 个工具集中；另含 5 个资源端点共 42 个方法） |
 
 ---
 
@@ -38,7 +38,7 @@
 | FigCraft 能力 | 说明 | 官方 MCP 对应 |
 |---------------|------|---------------|
 | Opinion Engine | `create_frame` 内置 10 条推断规则，自动处理 FILL 排序、HUG/FILL 冲突、Token 绑定等 Figma API 陷阱 | 无。`use_figma` 是裸 Plugin API，需手动处理 |
-| 质量引擎 | 38 条 lint 规则 + 自动修复（`lint_fix_all` / `verify_design`） | 无 |
+| 质量引擎 | 40 条 lint 规则 + 自动修复（`lint_fix_all` / `verify_design`） | 无 |
 | DTCG Token 同步 | `sync_tokens` / `diff_tokens` / `reverse_sync_tokens`，支持全类型映射 | 无 |
 | 双模式系统 | Library 模式（绑定共享库）/ Spec 模式（DTCG JSON 验证） | 无 |
 | 三层设计规则 | ui-ux-fundamentals + design-guardian + design-creator，运行时按需加载 | `create_design_system_rules` 生成静态规则文件 |

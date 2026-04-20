@@ -2,6 +2,7 @@
 
 ## 产品
 
+- [introduction.md](introduction.md) — **新手入口**：一句话定位、三大核心能力、快速上手、FAQ
 - [product-overview.md](product-overview.md) — 产品定位、差异化、核心价值观
 - [user-guide.md](user-guide.md) — 用户指南：安装、配置、使用方式
 - [design-review.md](design-review.md) — 设计审查权威指南：职责分离、scope 模型、规则体系、常见场景
@@ -12,7 +13,7 @@
 ## 架构
 
 - [creation-architecture.md](creation-architecture.md) — Opinion Engine 架构：语义级推断、角色系统、四层决策模型
-- [harness-architecture.md](harness-architecture.md) — Harness Pipeline 架构：6 层可靠性模型、验证债务、错误恢复、设计原则
+- [harness-architecture.md](harness-architecture.md) — Harness Pipeline 架构：Pipeline 执行流、18 条规则分层、Verification/Recovery/Memory 三大机制
 
 ## 维护
 
@@ -32,4 +33,5 @@
 
 ## 自动生成
 
+- [generated/lint-rules.md](generated/lint-rules.md) — 40 条 Lint 规则权威清单（由 `scripts/generate-lint-rules-doc.ts` 生成）
 - [generated/api-contracts.md](generated/api-contracts.md) — API 契约文档（由脚本生成，勿手动编辑）
