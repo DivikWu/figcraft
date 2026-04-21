@@ -831,9 +831,10 @@ function compressedToAbstract(node: CompressedNode): AbstractNode {
     componentPropertyDefinitions: node.componentPropertyDefinitions,
     componentPropertyReferences: node.componentPropertyReferences,
     lintIgnore: node.lintIgnore,
-    // Engine skips hidden subtrees via `node.visible === false`.
     visible: node.visible,
-    children: node.children?.map(compressedToAbstract),
+    // Hidden children are stripped here so rules that peek `node.children` inherit
+    // the same "hidden is invisible to lint" invariant the engine walk enforces.
+    children: node.children?.filter((c) => c.visible !== false).map(compressedToAbstract),
   };
 }
 

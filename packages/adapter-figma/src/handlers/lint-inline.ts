@@ -188,10 +188,11 @@ export function figmaNodeToAbstract(node: SceneNode): AbstractNode {
     result.componentPropertyReferences = (node as any).componentPropertyReferences;
   }
 
-  // Children
+  // Children — hidden siblings stripped to mirror compressedToAbstract and keep
+  // rules that peek `node.children` consistent with the engine's hidden-subtree skip.
   if ('children' in node) {
     const children = (node as any).children as SceneNode[];
-    result.children = children.map(figmaNodeToAbstract);
+    result.children = children.filter((c) => c.visible !== false).map(figmaNodeToAbstract);
   }
 
   return result;
