@@ -12,6 +12,7 @@ import { PLUGIN_DATA_KEYS } from '../constants.js';
 import { registerCache } from '../utils/cache-manager.js';
 import { figmaRgbaToHex } from '../utils/color.js';
 import { applyFixDescriptor, builtInDeferredStrategies } from '../utils/fix-applicator.js';
+import { ensureLoaded, getLibraryStyleIdSet, getLocalStyleIdSet } from '../utils/style-registry.js';
 import { getCachedLang, getCachedModeLibrary } from './write-nodes.js';
 
 /**
@@ -249,6 +250,21 @@ export async function buildLintContextFromStorage(): Promise<LintContext> {
     selectedLibrary: currentLibrary || null,
     lang: currentLang,
   };
+
+  // Populate libraryStyleIds for foreign-style rule (library mode only)
+  if (currentMode === 'library' && currentLibrary) {
+    await ensureLoaded(currentLibrary);
+    let styleIds = getLibraryStyleIdSet();
+    // Fallback: if style registry is empty (styles never registered via AI),
+    // collect local style IDs (includes imported library styles) as baseline.
+    if (styleIds.size === 0) {
+      styleIds = await getLocalStyleIdSet();
+    }
+    if (styleIds.size > 0) {
+      ctx.libraryStyleIds = styleIds;
+    }
+  }
+
   _cachedLintCtx = ctx;
   _lintCtxTimestamp = now;
   return ctx;

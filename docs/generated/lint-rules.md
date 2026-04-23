@@ -2,18 +2,18 @@
 
 # Quality Engine — Lint Rules
 
-40 rules across 5 categories.
+41 rules across 5 categories.
 
 ## Summary
 
 | Category | Rules | Auto-fixable |
 | --- | ---: | ---: |
-| Token Compliance | 5 | 5 |
+| Token Compliance | 6 | 6 |
 | WCAG Accessibility | 5 | 3 |
 | Layout & Structure | 27 | 20 |
 | Naming & Content | 2 | 0 |
 | Component | 1 | 0 |
-| **Total** | **40** | **28** |
+| **Total** | **41** | **29** |
 
 ## Token Compliance
 
@@ -24,13 +24,14 @@
 | `spec-border-radius` | error | ✅ | Detect corner radius values that don't match any radius token. |
 | `hardcoded-token` | heuristic | ✅ | Detect fill colors or corner radii that aren't linked to a spec source (library variable, local variable, or local style). |
 | `no-text-style` | heuristic | ✅ | Detect text layers that don't use a shared text style. |
+| `foreign-style` | heuristic | ✅ | Detect styles (fill, text, effect) that belong to a different library than the one selected. |
 
 ## WCAG Accessibility
 
 | Rule | Severity | Fix | Description |
 | --- | --- | :---: | --- |
 | `wcag-contrast` | unsafe | — | Check that text has enough contrast against its background for readability (WCAG AA). |
-| `wcag-target-size` | heuristic | ✅ | Fallback touch-target check for unclassified interactive-looking nodes — WCAG 2.5.8 AA minimum 24×24 with Spacing exception. |
+| `wcag-target-size` | heuristic | ✅ | Check that buttons and interactive elements are large enough to tap easily (at least 44×44px). |
 | `wcag-text-size` | heuristic | ✅ | Detect text smaller than the platform minimum (10px mobile, 12px desktop) — very small text can be hard to read for many users. |
 | `wcag-line-height` | heuristic | ✅ | Check that line height is large enough to prevent text lines from overlapping. |
 | `wcag-non-text-contrast` | heuristic | — | Solid/outline buttons need ≥ 3:1 contrast between their surface (fill or stroke) and the adjacent background (WCAG 1.4.11). |
@@ -92,8 +93,9 @@ These hints are injected into AI prompts to prevent violations during creation.
 | `spec-border-radius` | Bind corner radius to a radius token variable instead of hardcoding pixel values |
 | `hardcoded-token` | Bind fill colors with fillVariableName (or fillStyleName for local styles) and corner radii with variable references — never hardcode hex values or raw numbers |
 | `no-text-style` | Apply a shared text style instead of setting fontSize/fontFamily directly |
+| `foreign-style` | Use fillVariableName/textStyleName from the selected library — avoid applying styles from other libraries |
 | `wcag-contrast` | Ensure text has at least 4.5:1 contrast ratio against its background (3:1 for large text ≥18px or ≥14px bold) |
-| `wcag-target-size` | Interactive elements must be at least 24×24px (WCAG 2.5.8 AA); 44×44 preferred per iOS HIG / Material. Declare interactiveKind so the variant-specific rule can apply the correct contract. |
+| `wcag-target-size` | Interactive elements (buttons, links, toggles) must be at least 24×24px for touch targets |
 | `wcag-text-size` | Text fontSize must be ≥10px on mobile screens, ≥12px on desktop/tablet/web |
 | `wcag-line-height` | Set lineHeight to at least 1× the fontSize to prevent overlapping text lines |
 | `wcag-non-text-contrast` | Solid button fill and outline button stroke must contrast ≥ 3:1 with the parent background so the button surface is identifiable. Other surfaces (image containers, cards, ghost buttons) are out of scope for WCAG 1.4.11. |

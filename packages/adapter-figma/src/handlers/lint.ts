@@ -21,7 +21,7 @@ import { getAvailableLibraryCollectionsCached } from '../utils/design-context.js
 import type { DeferredStrategyHandler } from '../utils/fix-applicator.js';
 import { applyFixDescriptor, builtInDeferredStrategies } from '../utils/fix-applicator.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
-import { ensureLoaded, getTextStyleId } from '../utils/style-registry.js';
+import { ensureLoaded, getLibraryStyleIdSet, getLocalStyleIdSet, getTextStyleId } from '../utils/style-registry.js';
 import { isRgbaLike, isVariableAlias, setSpacingProp } from '../utils/type-guards.js';
 import { getCachedLang, getCachedModeLibrary } from './write-nodes.js';
 
@@ -79,6 +79,20 @@ export function registerLintHandlers(): void {
       selectedLibrary: currentLibrary || null,
       lang: currentLang,
     };
+
+    // Populate libraryStyleIds for foreign-style rule (library mode only)
+    if (currentMode === 'library' && currentLibrary) {
+      await ensureLoaded(currentLibrary);
+      let styleIds = getLibraryStyleIdSet();
+      // Fallback: if style registry is empty (styles never registered via AI),
+      // collect local style IDs (includes imported library styles) as baseline.
+      if (styleIds.size === 0) {
+        styleIds = await getLocalStyleIdSet();
+      }
+      if (styleIds.size > 0) {
+        ctx.libraryStyleIds = styleIds;
+      }
+    }
 
     // Collect nodes to lint
     let targetNodes: SceneNode[];

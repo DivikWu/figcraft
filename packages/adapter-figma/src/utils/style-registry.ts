@@ -637,5 +637,48 @@ export function clearStyleRegistry(): void {
   loadedLibrary = null;
 }
 
+// ─── Library style ID set (for foreign-style lint rule) ───
+
+/**
+ * Collect all registered style IDs from the current library into a Set.
+ * Used by the foreign-style lint rule to detect cross-library style references.
+ * Returns an empty set if no library is loaded.
+ */
+export function getLibraryStyleIdSet(): Set<string> {
+  const ids = new Set<string>();
+  for (const entries of textStyleMap.values()) {
+    for (const entry of entries) ids.add(entry.id);
+  }
+  for (const entries of paintStyleMap.values()) {
+    for (const entry of entries) ids.add(entry.id);
+  }
+  for (const entry of effectStyleMap.values()) {
+    ids.add(entry.id);
+  }
+  return ids;
+}
+
+/**
+ * Collect style IDs from local Figma styles (text, paint, effect).
+ * Fallback for when the style registry is empty (styles never registered via AI).
+ * Async because it uses Figma's getLocal*StylesAsync APIs.
+ */
+export async function getLocalStyleIdSet(): Promise<Set<string>> {
+  const ids = new Set<string>();
+  try {
+    const [textStyles, paintStyles, effectStyles] = await Promise.all([
+      figma.getLocalTextStylesAsync(),
+      figma.getLocalPaintStylesAsync(),
+      figma.getLocalEffectStylesAsync(),
+    ]);
+    for (const ts of textStyles) ids.add(ts.id);
+    for (const ps of paintStyles) ids.add(ps.id);
+    for (const es of effectStyles) ids.add(es.id);
+  } catch {
+    /* best-effort */
+  }
+  return ids;
+}
+
 // Register with centralized cache manager
 registerCache('style-registry', clearStyleRegistry);

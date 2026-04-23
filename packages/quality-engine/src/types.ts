@@ -137,6 +137,12 @@ export interface LintContext {
   selectedLibrary?: string | null;
   /** UI language for violation messages ('en' | 'zh', default 'en'). */
   lang?: Lang;
+  /**
+   * Set of style IDs belonging to the selected library (or local file).
+   * Used by foreign-style rule to detect cross-library style references.
+   * When empty/undefined, foreign-style rule is skipped.
+   */
+  libraryStyleIds?: Set<string>;
 }
 
 /**
