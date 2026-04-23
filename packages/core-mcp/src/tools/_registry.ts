@@ -50,6 +50,7 @@ export const GENERATED_CORE_TOOLS = new Set([
   'components',
   'variables_ep',
   'styles_ep',
+  'swap_instance',
 ]);
 
 /** Bridge-backed flat tools compiled into _generated.ts registrations. */
@@ -359,7 +360,6 @@ export const GENERATED_TOOLSETS: Record<string, { description: string; tools: st
       'delete_component',
       'create_instance',
       'create_instances',
-      'swap_instance',
       'detach_instance',
       'reset_instance_overrides',
       'get_instance_overrides',
