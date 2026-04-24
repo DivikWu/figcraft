@@ -377,7 +377,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 12px;
+      padding: 0 4px 0 12px;
       font-size: 11px;
       font-weight: 500;
       background: var(--bg);
@@ -389,7 +389,12 @@
     }
     .library-trigger:hover { border-color: var(--text-tertiary); }
     .library-trigger .chevron {
-      font-size: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
       color: var(--text-tertiary);
       transition: transform 0.15s;
     }
@@ -689,6 +694,32 @@
       border: 0;
     }
 
+    /* ─── Collapse Toggle ─── */
+    .collapse-btn {
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(0,0,0,0.08);
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      flex-shrink: 0;
+      padding: 0;
+    }
+    .collapse-btn:hover { background: var(--surface); border-color: rgba(0,0,0,0.12); }
+    .collapse-btn svg {
+      transition: transform 0.2s;
+    }
+    /* Expanded: arrow points up (rotate 180°); Collapsed: arrow points down (default) */
+    .collapse-btn svg { transform: rotate(180deg); }
+    body.collapsed .collapse-btn svg { transform: rotate(0deg); }
+    .collapsible { transition: opacity 0.15s; }
+    body.collapsed .collapsible { display: none !important; }
+
     /* ─── Lint Panel ─── */
     .lint-content {
       padding: 12px;
@@ -960,11 +991,12 @@
   <!-- ─── Header ─── -->
   <div class="header">
     <h1 data-i18n="header.channel">Channel</h1>
+    <button id="collapse-btn" class="collapse-btn" title="Collapse" type="button"><svg viewBox="0 0 14 14" width="14" height="14"><path d="M3.17 5.77L7 9.6l3.83-3.83" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></button>
   </div>
-  <div class="channel-bar" style="position:relative">
+  <div class="channel-bar collapsible" style="position:relative">
     <button id="channel-trigger" class="library-trigger" type="button">
       <span class="label-text" id="channel-trigger-label">design-1</span>
-      <span class="chevron">&#9662;</span>
+      <span class="chevron"><svg viewBox="0 0 14 14" width="14" height="14"><path d="M3.17 5.77L7 9.6l3.83-3.83" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></span>
     </button>
     <div id="channel-popup-overlay" class="library-popup-overlay"></div>
     <div id="channel-popup" class="library-popup">
@@ -976,30 +1008,30 @@
     </div>
     <button id="connect-btn" class="btn status-btn disconnected" type="button"><span class="status-dot"></span><span class="sr-only" id="status-sr">Disconnected</span><span id="status-text">Connect</span></button>
   </div>
-  <div class="channel-bar" id="library-bar" style="position:relative">
+  <div class="channel-bar collapsible" id="library-bar" style="position:relative">
     <button id="library-trigger" class="library-trigger" type="button">
       <span class="label-text placeholder" id="library-trigger-label">None</span>
-      <span class="chevron">&#9662;</span>
+      <span class="chevron"><svg viewBox="0 0 14 14" width="14" height="14"><path d="M3.17 5.77L7 9.6l3.83-3.83" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></span>
     </button>
     <div id="library-popup-overlay" class="library-popup-overlay"></div>
     <div id="library-popup" class="library-popup"></div>
   </div>
 
   <!-- ─── Connection Diagnostic Banner ─── -->
-  <div class="conn-banner" id="conn-banner" role="status">
+  <div class="conn-banner collapsible" id="conn-banner" role="status">
     <div class="conn-banner-title" id="conn-banner-title"></div>
     <div class="conn-banner-hint" id="conn-banner-hint"></div>
   </div>
 
   <!-- ─── Tab Bar ─── -->
-  <div class="tab-bar" role="tablist">
+  <div class="tab-bar collapsible" role="tablist">
     <button class="tab-btn active" data-tab="activity" data-i18n="tab.activity" role="tab" id="tab-activity" aria-controls="panel-activity" aria-selected="true" type="button">Activity</button>
     <button class="tab-btn" data-tab="lint" data-i18n="tab.lint" role="tab" id="tab-lint" aria-controls="panel-lint" aria-selected="false" type="button">Lint</button>
     <button class="tab-btn" data-tab="settings" data-i18n="tab.settings" role="tab" id="tab-settings" aria-controls="panel-settings" aria-selected="false" type="button">Settings</button>
   </div>
 
   <!-- ─── Activity Tab ─── -->
-  <div class="tab-pane active" data-tab-content="activity" role="tabpanel" id="panel-activity" aria-labelledby="tab-activity">
+  <div class="tab-pane active collapsible" data-tab-content="activity" role="tabpanel" id="panel-activity" aria-labelledby="tab-activity">
     <div class="activity-header">
       <span class="activity-badge" id="activity-count"></span>
       <button class="activity-clear" id="log-clear" title="Clear activity" type="button">Clear</button>
@@ -1013,7 +1045,7 @@
   </div>
 
   <!-- ─── Lint Tab ─── -->
-  <div class="tab-pane" data-tab-content="lint" role="tabpanel" id="panel-lint" aria-labelledby="tab-lint">
+  <div class="tab-pane collapsible" data-tab-content="lint" role="tabpanel" id="panel-lint" aria-labelledby="tab-lint">
     <div class="lint-content">
       <div class="lint-actions">
         <button class="btn primary" id="lint-run-btn" data-i18n="lint.run" type="button">Run Lint</button>
@@ -1035,7 +1067,7 @@
   </div>
 
   <!-- ─── Settings Tab ─── -->
-  <div class="tab-pane" data-tab-content="settings" role="tabpanel" id="panel-settings" aria-labelledby="tab-settings">
+  <div class="tab-pane collapsible" data-tab-content="settings" role="tabpanel" id="panel-settings" aria-labelledby="tab-settings">
     <div class="settings-content">
       <!-- Mode -->
       <div class="setting-group">
@@ -1121,6 +1153,9 @@
     let pendingNameRefresh = {};  // { fileKey: oldName } — tracks in-flight name refresh requests
     let logCount = 0;
     let lastBannerReason = null; // Track current banner reason for locale re-apply
+    let uiCollapsed = false;
+    const EXPANDED_HEIGHT = 520;
+    const COLLAPSED_HEIGHT = 48;
 
     // ─── Pending response queue ───
     // When WS disconnects while sandbox is processing a request,
@@ -1371,6 +1406,15 @@
     // ─── Language ───
     document.getElementById('lang-en').addEventListener('click', function() { setLocale('en'); });
     document.getElementById('lang-zh').addEventListener('click', function() { setLocale('zh'); });
+
+    // ─── Collapse/Expand ───
+    var collapseBtn = document.getElementById('collapse-btn');
+    collapseBtn.addEventListener('click', function() {
+      uiCollapsed = !uiCollapsed;
+      document.body.classList.toggle('collapsed', uiCollapsed);
+      collapseBtn.title = uiCollapsed ? 'Expand' : 'Collapse';
+      parent.postMessage({ pluginMessage: { type: 'resize-ui', width: 320, height: uiCollapsed ? COLLAPSED_HEIGHT : EXPANDED_HEIGHT } }, '*');
+    });
 
     // ─── Connect ───
     connectBtn.addEventListener('click', function() {

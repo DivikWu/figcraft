@@ -1,9 +1,9 @@
 /**
- * Overflow parent rule — detect children that exceed their parent's inner space.
+ * Overflow parent rule — detect children that exceed their parent's bounds.
  *
- * Flags child nodes whose width or height exceeds the parent's available inner space
- * (parent dimension minus padding). This catches visual clipping that is almost always
- * unintentional in auto-layout containers.
+ * Uses padding-derived inner space as a fast pre-filter, then verifies against
+ * the parent's actual outer boundary (position + dimension) to avoid false
+ * positives when Figma auto-layout centers oversized children within the frame.
  *
  * Auto-fix: set layoutAlign=STRETCH (for cross-axis overflow) or reduce child dimension.
  */
@@ -24,6 +24,26 @@ const ICON_MAX_SIZE = 48;
  */
 const CAROUSEL_RATIO = 1.5;
 
+/**
+ * Check whether a child actually exceeds the parent's outer boundary on
+ * the cross-axis, not just the padding-defined inner space.
+ *
+ * Figma auto-layout centers oversized children within the container —
+ * a 14px icon in a 20px container with 4px padding sits at offset 3,
+ * ending at 17px — fully inside the 20px boundary. The padding is
+ * "violated" but nothing visually overflows.
+ *
+ * Returns true only when the child genuinely extends beyond the parent
+ * frame edge (i.e. would be clipped or visually leak).
+ */
+function exceedsOuterBound(child: AbstractNode, parentDim: number, axis: 'horizontal' | 'vertical'): boolean {
+  const pos = axis === 'horizontal' ? child.x : child.y;
+  const dim = axis === 'horizontal' ? child.width : child.height;
+  if (pos == null || dim == null) return true; // no position data — assume overflow (conservative)
+  if (pos < -1) return true; // child starts before parent origin (negative offset)
+  return pos + dim > parentDim + 1; // +1 for rounding tolerance
+}
+
 /** Does the parent declare prototype scroll on the given axis? */
 function scrollsOnAxis(parent: AbstractNode, axis: 'HORIZONTAL' | 'VERTICAL'): boolean {
   const d = parent.overflowDirection;
@@ -40,9 +60,9 @@ function scrollsOnAxis(parent: AbstractNode, axis: 'HORIZONTAL' | 'VERTICAL'): b
 function looksLikeIcon(child: AbstractNode): boolean {
   // Direct vector/group nodes are always fixed-size
   if (VECTOR_TYPES.has(child.type)) return true;
-  // Small frames containing vectors (icon wrappers from icon_create)
+  // Small frames/instances/components containing vectors (icon wrappers, icon component instances)
   if (
-    child.type === 'FRAME' &&
+    (child.type === 'FRAME' || child.type === 'INSTANCE' || child.type === 'COMPONENT') &&
     child.width != null &&
     child.width <= ICON_MAX_SIZE &&
     child.height != null &&
@@ -104,6 +124,8 @@ export const overflowParentRule: LintRule = {
       if (isVertical && innerW != null && child.width > innerW + 1) {
         // Parent declares horizontal scroll intent — not a bug.
         if (scrollsOnAxis(node, 'HORIZONTAL')) continue;
+        // Child exceeds padding zone but stays within parent frame boundary — not a real overflow.
+        if (node.width != null && !exceedsOuterBound(child, node.width, 'horizontal')) continue;
 
         const ratio = child.width / Math.max(innerW, 1);
         if (ratio >= CAROUSEL_RATIO) {
@@ -136,6 +158,8 @@ export const overflowParentRule: LintRule = {
       } else if (!isVertical && innerH != null && child.height > innerH + 1) {
         // Parent declares vertical scroll intent — not a bug.
         if (scrollsOnAxis(node, 'VERTICAL')) continue;
+        // Child exceeds padding zone but stays within parent frame boundary — not a real overflow.
+        if (node.height != null && !exceedsOuterBound(child, node.height, 'vertical')) continue;
         // Single-line text inside a HORIZONTAL auto-layout commonly reports height slightly
         // greater than its parent due to line-height ascender/descender metrics — visually
         // fine, and layoutAlign: STRETCH wouldn't change text height anyway (driven by

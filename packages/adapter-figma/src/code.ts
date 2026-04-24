@@ -86,7 +86,7 @@ figma.on('currentpagechange', () => {
 });
 
 // Show the UI (establishes WebSocket connection to relay)
-figma.showUI(__html__, { visible: true, width: 320, height: 480 });
+figma.showUI(__html__, { visible: true, width: 320, height: 520 });
 
 // ─── Channel, mode & library persistence via clientStorage ───
 const CHANNEL_STORAGE_KEY = STORAGE_KEYS.CHANNEL;
@@ -384,6 +384,10 @@ figma.ui.on(
       figma.ui.postMessage({ type: 'restore-token', token: saved || '' });
     } else if (msg.type === 'save-token') {
       await figma.clientStorage.setAsync(API_TOKEN_STORAGE_KEY, msg.token || '');
+    } else if (msg.type === 'resize-ui') {
+      const w = (msg as { width?: number }).width ?? 320;
+      const h = (msg as { height?: number }).height ?? 520;
+      figma.ui.resize(w, h);
     } else if (msg.type === 'save-library-entry') {
       const fk = (msg.fileKey || '').trim();
       const name = (msg.name || '').trim();

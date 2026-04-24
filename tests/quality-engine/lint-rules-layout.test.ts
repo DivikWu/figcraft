@@ -127,6 +127,75 @@ describe('overflow-parent', () => {
     expect(v).toHaveLength(0);
   });
 
+  it('skips icon instance children (small INSTANCE with vector children)', () => {
+    const node = makeNode({
+      layoutMode: 'HORIZONTAL',
+      height: 20,
+      paddingTop: 4,
+      paddingBottom: 4,
+      children: [
+        makeNode({
+          id: '2:1',
+          name: 'system / arrow-down',
+          type: 'INSTANCE',
+          width: 14,
+          height: 14,
+          children: [makeNode({ id: '3:1', name: 'Arrow Vector', type: 'VECTOR', width: 10, height: 5 })],
+        }),
+      ],
+    });
+    const v = overflowParentRule.check(node, emptyCtx);
+    // Icon instance is 14px tall, inner height is 12px — would overflow, but should be skipped as icon
+    expect(v).toHaveLength(0);
+  });
+
+  it('skips when child exceeds padding zone but stays within parent bounds', () => {
+    // Simulates: 20×20 container, padding 4, child 14×14 centered at (3,3)
+    // Inner height = 12, child height 14 > 12 — exceeds padding zone
+    // But 3 + 14 = 17 < 20 — within parent bounds, not a real overflow
+    const node = makeNode({
+      layoutMode: 'HORIZONTAL',
+      width: 100,
+      height: 20,
+      paddingTop: 4,
+      paddingBottom: 4,
+      clipsContent: true,
+      children: [makeNode({ id: '2:1', name: 'Icon', width: 14, height: 14, x: 0, y: 3 })],
+    });
+    const v = overflowParentRule.check(node, emptyCtx);
+    expect(v).toHaveLength(0);
+  });
+
+  it('flags child that actually exceeds parent outer bounds', () => {
+    // Child extends beyond parent frame edge
+    const node = makeNode({
+      layoutMode: 'HORIZONTAL',
+      width: 100,
+      height: 20,
+      paddingTop: 4,
+      paddingBottom: 4,
+      children: [
+        // y:5 + height:30 = 35 > 20 — genuinely overflows
+        makeNode({ id: '2:1', name: 'Big Element', width: 50, height: 30, x: 0, y: 5 }),
+      ],
+    });
+    const v = overflowParentRule.check(node, emptyCtx);
+    expect(v).toHaveLength(1);
+  });
+
+  it('flags overflow conservatively when child has no position data', () => {
+    // No x/y on child — cannot verify bounds, assume overflow
+    const node = makeNode({
+      layoutMode: 'HORIZONTAL',
+      height: 20,
+      paddingTop: 4,
+      paddingBottom: 4,
+      children: [makeNode({ id: '2:1', name: 'No Position', width: 50, height: 30 })],
+    });
+    const v = overflowParentRule.check(node, emptyCtx);
+    expect(v).toHaveLength(1);
+  });
+
   it('skips direct vector children', () => {
     const node = makeNode({
       layoutMode: 'HORIZONTAL',
