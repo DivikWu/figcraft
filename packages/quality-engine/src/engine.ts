@@ -21,6 +21,7 @@ import { unboundedHugRule } from './rules/layout/unbounded-hug.js';
 import { defaultNameRule } from './rules/naming/default-name.js';
 import { placeholderTextRule } from './rules/naming/placeholder-text.js';
 import { foreignStyleRule } from './rules/spec/foreign-style.js';
+import { foreignVariableRule } from './rules/spec/foreign-variable.js';
 import { hardcodedTokenRule } from './rules/spec/hardcoded-token.js';
 import { noTextStyleRule } from './rules/spec/no-text-style.js';
 import { specBorderRadiusRule } from './rules/spec/spec-border-radius.js';
@@ -77,6 +78,7 @@ const ALL_RULES: LintRule[] = [
   hardcodedTokenRule,
   noTextStyleRule,
   foreignStyleRule,
+  foreignVariableRule,
   // ── WCAG accessibility (always active) ──
   wcagContrastRule,
   wcagTargetSizeRule,
@@ -575,7 +577,7 @@ export interface PreflightAudit {
 }
 
 const PREFLIGHT_RULE_MAP: Record<keyof PreflightAudit, string[]> = {
-  colorConsistency: ['hardcoded-token', 'spec-color', 'foreign-style'],
+  colorConsistency: ['hardcoded-token', 'spec-color', 'foreign-style', 'foreign-variable'],
   typographyBound: ['no-text-style', 'spec-typography', 'foreign-style'],
   semanticNaming: ['default-name'],
   touchTargets: [

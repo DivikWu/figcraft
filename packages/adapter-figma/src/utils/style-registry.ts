@@ -8,6 +8,7 @@
 
 import { LOCAL_LIBRARY } from '../constants.js';
 import { registerCache } from './cache-manager.js';
+import { getAvailableLibraryCollectionsCached, resolveVariableLibraryName } from './design-context.js';
 
 // ─── Types ───
 
@@ -680,5 +681,90 @@ export async function getLocalStyleIdSet(): Promise<Set<string>> {
   return ids;
 }
 
+// ─── Library variable ID set (for foreign-variable lint rule) ───
+
+/** Cache for library variable IDs to avoid repeated collection scans. */
+let _libraryVariableIdCache: { ids: Set<string>; library: string; ts: number } | null = null;
+const VARIABLE_ID_CACHE_TTL_MS = 30_000;
+
+/**
+ * Collect variable IDs that belong to the selected library (or local file).
+ * Used by the foreign-variable lint rule to detect cross-library variable references.
+ *
+ * When selectedLibrary is '__local__' or falsy: collects ALL local variable IDs
+ * (the file IS the design system — all collections are valid).
+ *
+ * When selectedLibrary is a specific library name: collects variable IDs from
+ * (a) local non-remote collections (file-authored variables), and
+ * (b) remote collections whose key matches the selected library.
+ * Variables from OTHER remote libraries are excluded — those are "foreign".
+ *
+ * Uses a 30s TTL cache keyed by library name.
+ */
+export async function getLibraryVariableIdSet(selectedLibrary?: string | null): Promise<Set<string>> {
+  const cacheKey = selectedLibrary || LOCAL_LIBRARY;
+  const now = Date.now();
+  if (
+    _libraryVariableIdCache &&
+    _libraryVariableIdCache.library === cacheKey &&
+    now - _libraryVariableIdCache.ts < VARIABLE_ID_CACHE_TTL_MS
+  ) {
+    return _libraryVariableIdCache.ids;
+  }
+
+  const ids = new Set<string>();
+  try {
+    const localCollections = await figma.variables.getLocalVariableCollectionsAsync();
+
+    // __local__ mode or no library: all variables in the file are valid.
+    // In local mode the file IS the design system — all collections (including
+    // remote ones imported for reference) are considered part of the system.
+    if (!selectedLibrary || selectedLibrary === LOCAL_LIBRARY) {
+      for (const collection of localCollections) {
+        for (const varId of collection.variableIds) {
+          ids.add(varId);
+        }
+      }
+    } else {
+      // Specific library mode: determine which remote collections belong to it.
+      // Resolve the actual variable API name (may differ from display name when
+      // a library file has been duplicated — see resolveVariableLibraryName).
+      const resolvedName = await resolveVariableLibraryName(selectedLibrary);
+      const availableCollections = await getAvailableLibraryCollectionsCached();
+      const selectedLibraryKeys = new Set(
+        availableCollections.filter((c) => c.libraryName === resolvedName).map((c) => c.key),
+      );
+
+      for (const collection of localCollections) {
+        if (!collection.remote) {
+          // Local (non-remote) collections are always valid
+          for (const varId of collection.variableIds) {
+            ids.add(varId);
+          }
+        } else if (selectedLibraryKeys.has(collection.key)) {
+          // Remote collection belongs to the selected library
+          for (const varId of collection.variableIds) {
+            ids.add(varId);
+          }
+        }
+        // else: remote collection from a different library — skip (foreign)
+      }
+    }
+  } catch {
+    /* best-effort */
+  }
+
+  _libraryVariableIdCache = { ids, library: cacheKey, ts: now };
+  return ids;
+}
+
+/** Invalidate the library variable ID cache (call on library/mode switch). */
+export function invalidateVariableIdCache(): void {
+  _libraryVariableIdCache = null;
+}
+
 // Register with centralized cache manager
-registerCache('style-registry', clearStyleRegistry);
+registerCache('style-registry', () => {
+  clearStyleRegistry();
+  invalidateVariableIdCache();
+});

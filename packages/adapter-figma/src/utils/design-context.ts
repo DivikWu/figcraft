@@ -244,7 +244,7 @@ async function getEffectiveMappings(libraryName: string): Promise<Record<string,
  * libraryName than the file's display name. We store this mapping as
  * `variableLibraryName` in the library entries.
  */
-async function resolveVariableLibraryName(displayName: string): Promise<string> {
+export async function resolveVariableLibraryName(displayName: string): Promise<string> {
   if (displayName === LOCAL_LIBRARY) return displayName;
   try {
     const entriesRaw = (await figma.clientStorage.getAsync(STORAGE_KEYS.LIBRARY_URLS)) as Record<
