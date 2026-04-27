@@ -30,9 +30,11 @@ export const foreignStyleRule: LintRule = {
     if (ctx.mode !== 'library' || !ctx.selectedLibrary) return [];
     if (!ctx.libraryStyleIds || ctx.libraryStyleIds.size === 0) return [];
 
-    // Descendants of COMPONENT/INSTANCE: style binding is the component
-    // author's concern — skip to avoid noise on icon vectors etc.
-    if (node.insideComponentSubtree) return [];
+    // NOTE: Unlike hardcoded-token / spec-color, this rule does NOT skip
+    // insideComponentSubtree. Cross-library style references are a dependency
+    // management issue that component authors need to see — regardless of
+    // nesting depth. Value-compliance rules skip component internals (noise
+    // from icon vectors etc.), but source-compliance rules should not.
 
     const violations: LintViolation[] = [];
 
@@ -108,7 +110,7 @@ export const foreignStyleRule: LintRule = {
       return {
         kind: 'deferred',
         strategy: 'library-color-bind',
-        data: { hex: v.fixData.hex, opacity: v.fixData.opacity, nodeType: v.fixData.nodeType },
+        data: { property: 'fills', hex: v.fixData.hex, opacity: v.fixData.opacity, nodeType: v.fixData.nodeType },
       };
     }
     // Text style → rebind to library text style

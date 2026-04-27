@@ -215,6 +215,7 @@ export function registerLintHandlers(): void {
   const libraryColorBind: DeferredStrategyHandler = async (node, data, libraryName) => {
     const hex = data.hex as string | null;
     const nodeType = data.nodeType as string | undefined;
+    const property = (data.property as string | undefined) ?? 'fills';
     const targetOpacity = (data.opacity as number | undefined) ?? 1;
     if (!hex || !('fills' in node)) return { fixed: false, error: 'Missing hex or not a geometry node' };
     if (!libraryName) return { fixed: false, error: 'No library selected' };
@@ -349,6 +350,15 @@ export function registerLintHandlers(): void {
 
     if (finalVar && finalDist < 0.01) {
       const geom = node as GeometryMixin;
+      if (property === 'strokes') {
+        const strokes = [...geom.strokes] as Paint[];
+        if (strokes.length > 0 && strokes[0].type === 'SOLID') {
+          strokes[0] = figma.variables.setBoundVariableForPaint(strokes[0] as SolidPaint, 'color', finalVar);
+          geom.strokes = strokes;
+          return { fixed: true };
+        }
+        return { fixed: false, error: 'No solid stroke to bind' };
+      }
       const rawFills = geom.fills;
       if (rawFills === figma.mixed) return { fixed: false, error: 'Mixed fills' };
       const fills = [...rawFills] as Paint[];

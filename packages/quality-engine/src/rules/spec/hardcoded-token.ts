@@ -88,9 +88,6 @@ export const hardcodedTokenRule: LintRule = {
     }
 
     // Check strokes — should be bound to a color variable.
-    // Similar to fills, but auto-fix is not yet supported for strokes
-    // (libraryColorBind only handles fills). Report the violation so
-    // designers are aware; manual binding is required.
     if (node.strokes && !node.strokeStyleId) {
       const hasSolidStroke = node.strokes.some((s) => s.type === 'SOLID' && s.visible !== false);
       const nodeStrokesBound = Array.isArray(bv.strokes) ? bv.strokes.length > 0 : Boolean(bv.strokes);
@@ -120,7 +117,13 @@ export const hardcodedTokenRule: LintRule = {
               `Stroke color ${colorStr}${opacityStr} is not bound to a token — link it to a variable or style from your spec source`,
               `描边颜色 ${colorStr}${opacityStr} 未绑定到 Token——请从规范源(变量或样式)中选一个绑定`,
             ),
-            autoFixable: false,
+            autoFixable: true,
+            fixData: {
+              property: 'strokes',
+              hex: stroke?.color ?? null,
+              opacity: stroke?.opacity ?? 1,
+              nodeType: node.type,
+            },
           });
         }
       }
@@ -190,7 +193,14 @@ export const hardcodedTokenRule: LintRule = {
       return {
         kind: 'deferred',
         strategy: 'library-color-bind',
-        data: { hex: v.fixData.hex, opacity: v.fixData.opacity, nodeType: v.fixData.nodeType },
+        data: { property: 'fills', hex: v.fixData.hex, opacity: v.fixData.opacity, nodeType: v.fixData.nodeType },
+      };
+    }
+    if (prop === 'strokes') {
+      return {
+        kind: 'deferred',
+        strategy: 'library-color-bind',
+        data: { property: 'strokes', hex: v.fixData.hex, opacity: v.fixData.opacity, nodeType: v.fixData.nodeType },
       };
     }
     if (prop === 'cornerRadius') {

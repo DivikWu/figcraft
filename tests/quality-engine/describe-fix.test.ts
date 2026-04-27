@@ -427,6 +427,25 @@ describe('hardcoded-token describeFix', () => {
     }
   });
 
+  it('returns library-color-bind for strokes', () => {
+    const fix = hardcodedTokenRule.describeFix!({
+      nodeId: '1:1',
+      nodeName: 'Box',
+      rule: 'hardcoded-token',
+      severity: 'heuristic',
+      currentValue: 'strokes: #9747FF',
+      suggestion: 'fix',
+      autoFixable: true,
+      fixData: { property: 'strokes', hex: '#9747FF', opacity: 1, nodeType: 'FRAME' },
+    });
+    expect(fix).not.toBeNull();
+    if (fix && fix.kind === 'deferred') {
+      expect(fix.strategy).toBe('library-color-bind');
+      expect(fix.data.property).toBe('strokes');
+      expect(fix.data.hex).toBe('#9747FF');
+    }
+  });
+
   it('returns null for unknown property', () => {
     const fix = hardcodedTokenRule.describeFix!({
       nodeId: '1:1',
@@ -436,7 +455,7 @@ describe('hardcoded-token describeFix', () => {
       currentValue: '???',
       suggestion: 'fix',
       autoFixable: true,
-      fixData: { property: 'strokes' },
+      fixData: { property: 'effects' },
     });
     expect(fix).toBeNull();
   });
