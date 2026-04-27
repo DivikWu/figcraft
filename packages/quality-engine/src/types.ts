@@ -30,6 +30,7 @@ export interface AbstractNode {
   strokes?: Array<{
     type: string;
     color?: string;
+    opacity?: number;
     visible?: boolean;
     boundVariables?: { color?: { type: string; id: string } };
   }>;
@@ -57,6 +58,7 @@ export interface AbstractNode {
   // Bindings
   boundVariables?: Record<string, unknown>;
   fillStyleId?: string;
+  strokeStyleId?: string;
   textStyleId?: string;
   effectStyleId?: string;
   // Effects (shadows, blurs) — used for elevation consistency checks
@@ -143,6 +145,12 @@ export interface LintContext {
    * When empty/undefined, foreign-style rule is skipped.
    */
   libraryStyleIds?: Set<string>;
+  /**
+   * Set of variable IDs belonging to the selected library (or local file).
+   * Used by foreign-variable rule to detect cross-library variable references.
+   * When empty/undefined, foreign-variable rule is skipped.
+   */
+  libraryVariableIds?: Set<string>;
 }
 
 /**

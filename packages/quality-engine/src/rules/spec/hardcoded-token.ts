@@ -14,14 +14,14 @@ import { findClosestToken } from './spec-color.js';
 export const hardcodedTokenRule: LintRule = {
   name: 'hardcoded-token',
   description:
-    "Detect fill colors or corner radii that aren't linked to a spec source (library variable, local variable, or local style).",
+    "Detect fill colors, stroke colors, or corner radii that aren't linked to a spec source (library variable, local variable, or local style).",
   category: 'token',
   severity: 'heuristic',
   ai: {
     preventionHint:
-      'Bind fill colors with fillVariableName (or fillStyleName for local styles) and corner radii with variable references — never hardcode hex values or raw numbers',
+      'Bind fill colors with fillVariableName (or fillStyleName for local styles), stroke colors with strokeVariableName, and corner radii with variable references — never hardcode hex values or raw numbers',
     phase: ['styling'],
-    tags: ['color', 'radius'],
+    tags: ['color', 'stroke', 'radius'],
   },
 
   check(node: AbstractNode, ctx: LintContext): LintViolation[] {
@@ -82,6 +82,45 @@ export const hardcodedTokenRule: LintRule = {
             ),
             autoFixable: true,
             fixData: { property: 'fills', hex: fill?.color ?? null, opacity: fill?.opacity ?? 1, nodeType: node.type },
+          });
+        }
+      }
+    }
+
+    // Check strokes — should be bound to a color variable.
+    // Similar to fills, but auto-fix is not yet supported for strokes
+    // (libraryColorBind only handles fills). Report the violation so
+    // designers are aware; manual binding is required.
+    if (node.strokes && !node.strokeStyleId) {
+      const hasSolidStroke = node.strokes.some((s) => s.type === 'SOLID' && s.visible !== false);
+      const nodeStrokesBound = Array.isArray(bv.strokes) ? bv.strokes.length > 0 : Boolean(bv.strokes);
+      const visibleSolidStrokes = node.strokes.filter((s) => s.type === 'SOLID' && s.visible !== false);
+      const allVisibleSolidStrokesBound =
+        visibleSolidStrokes.length > 0 && visibleSolidStrokes.every((s) => s.boundVariables?.color != null);
+      const strokesBound = nodeStrokesBound || allVisibleSolidStrokesBound;
+      if (hasSolidStroke && !strokesBound) {
+        const stroke = node.strokes.find((s) => s.type === 'SOLID' && s.visible !== false);
+        // If spec-color would also fire (hex matches or is close to a known token),
+        // skip here — spec-color's "switch to token X" suggestion is more actionable.
+        const strokeHex = stroke?.color;
+        const matchesToken =
+          strokeHex != null && ctx.colorTokens.size > 0 && !!findClosestToken(strokeHex, ctx.colorTokens);
+        if (!matchesToken) {
+          const colorStr = stroke?.color ?? 'solid';
+          const opacityStr =
+            stroke?.opacity !== undefined && stroke.opacity !== 1 ? ` ${Math.round(stroke.opacity * 100)}%` : '';
+          violations.push({
+            nodeId: node.id,
+            nodeName: node.name,
+            rule: 'hardcoded-token',
+            severity: 'heuristic',
+            currentValue: `strokes: ${colorStr}${opacityStr}`,
+            suggestion: tr(
+              ctx.lang,
+              `Stroke color ${colorStr}${opacityStr} is not bound to a token — link it to a variable or style from your spec source`,
+              `描边颜色 ${colorStr}${opacityStr} 未绑定到 Token——请从规范源(变量或样式)中选一个绑定`,
+            ),
+            autoFixable: false,
           });
         }
       }

@@ -21,7 +21,13 @@ import { getAvailableLibraryCollectionsCached } from '../utils/design-context.js
 import type { DeferredStrategyHandler } from '../utils/fix-applicator.js';
 import { applyFixDescriptor, builtInDeferredStrategies } from '../utils/fix-applicator.js';
 import { findNodeByIdAsync } from '../utils/node-lookup.js';
-import { ensureLoaded, getLibraryStyleIdSet, getLocalStyleIdSet, getTextStyleId } from '../utils/style-registry.js';
+import {
+  ensureLoaded,
+  getLibraryStyleIdSet,
+  getLibraryVariableIdSet,
+  getLocalStyleIdSet,
+  getTextStyleId,
+} from '../utils/style-registry.js';
 import { isRgbaLike, isVariableAlias, setSpacingProp } from '../utils/type-guards.js';
 import { getCachedLang, getCachedModeLibrary } from './write-nodes.js';
 
@@ -91,6 +97,12 @@ export function registerLintHandlers(): void {
       }
       if (styleIds.size > 0) {
         ctx.libraryStyleIds = styleIds;
+      }
+
+      // Populate libraryVariableIds for foreign-variable rule
+      const variableIds = await getLibraryVariableIdSet(currentLibrary);
+      if (variableIds.size > 0) {
+        ctx.libraryVariableIds = variableIds;
       }
     }
 
@@ -839,6 +851,7 @@ function compressedToAbstract(node: CompressedNode): AbstractNode {
     maxLines: node.maxLines,
     boundVariables: node.boundVariables,
     fillStyleId: node.fillStyleId,
+    strokeStyleId: node.strokeStyleId,
     textStyleId: node.textStyleId,
     effectStyleId: node.effectStyleId,
     effects: node.effects as AbstractNode['effects'],

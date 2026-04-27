@@ -68,7 +68,7 @@ export const specColorRule: LintRule = {
     }
 
     // Check strokes
-    if (node.strokes) {
+    if (node.strokes && !node.strokeStyleId) {
       for (const stroke of node.strokes) {
         if (stroke.type === 'SOLID' && stroke.color && stroke.visible !== false) {
           const hex = stroke.color.toLowerCase();

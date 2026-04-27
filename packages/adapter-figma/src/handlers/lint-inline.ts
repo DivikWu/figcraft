@@ -12,7 +12,12 @@ import { PLUGIN_DATA_KEYS } from '../constants.js';
 import { registerCache } from '../utils/cache-manager.js';
 import { figmaRgbaToHex } from '../utils/color.js';
 import { applyFixDescriptor, builtInDeferredStrategies } from '../utils/fix-applicator.js';
-import { ensureLoaded, getLibraryStyleIdSet, getLocalStyleIdSet } from '../utils/style-registry.js';
+import {
+  ensureLoaded,
+  getLibraryStyleIdSet,
+  getLibraryVariableIdSet,
+  getLocalStyleIdSet,
+} from '../utils/style-registry.js';
 import { getCachedLang, getCachedModeLibrary } from './write-nodes.js';
 
 /**
@@ -172,6 +177,10 @@ export function figmaNodeToAbstract(node: SceneNode): AbstractNode {
     const fsi = (node as any).fillStyleId;
     if (fsi && fsi !== figma.mixed) result.fillStyleId = fsi;
   }
+  if ('strokeStyleId' in node) {
+    const ssi = (node as any).strokeStyleId;
+    if (ssi && ssi !== figma.mixed) result.strokeStyleId = ssi;
+  }
   if ('textStyleId' in node) {
     const tsi = (node as any).textStyleId;
     if (tsi && tsi !== figma.mixed) result.textStyleId = tsi;
@@ -262,6 +271,12 @@ export async function buildLintContextFromStorage(): Promise<LintContext> {
     }
     if (styleIds.size > 0) {
       ctx.libraryStyleIds = styleIds;
+    }
+
+    // Populate libraryVariableIds for foreign-variable rule
+    const variableIds = await getLibraryVariableIdSet(currentLibrary);
+    if (variableIds.size > 0) {
+      ctx.libraryVariableIds = variableIds;
     }
   }
 

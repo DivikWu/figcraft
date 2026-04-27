@@ -89,6 +89,7 @@ export interface CompressedNode {
   // Variable/Style bindings
   boundVariables?: Record<string, unknown>;
   fillStyleId?: string;
+  strokeStyleId?: string;
   textStyleId?: string;
   effectStyleId?: string;
   // Component properties

@@ -269,6 +269,10 @@ export function simplifyNode(
       const fid = (node as GeometryMixin).fillStyleId;
       if (typeof fid === 'string' && fid) base.fillStyleId = fid;
     }
+    if ('strokeStyleId' in node) {
+      const sid = (node as GeometryMixin).strokeStyleId;
+      if (typeof sid === 'string' && sid) base.strokeStyleId = sid;
+    }
     if ('textStyleId' in node) {
       const tid = (node as TextNode).textStyleId;
       if (typeof tid === 'string' && tid) base.textStyleId = tid;
@@ -323,6 +327,10 @@ export function simplifyNode(
     if ('fillStyleId' in node) {
       const fid = (node as GeometryMixin).fillStyleId;
       if (typeof fid === 'string' && fid) base.fillStyleId = fid;
+    }
+    if ('strokeStyleId' in node) {
+      const sid = (node as GeometryMixin).strokeStyleId;
+      if (typeof sid === 'string' && sid) base.strokeStyleId = sid;
     }
     if ('textStyleId' in node) {
       const tid = (node as TextNode).textStyleId;
